@@ -1,0 +1,22 @@
+# Normaliza fins de linha entre Windows/Linux
+* text=auto
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh text eol=lf
+
+# Binarios (nao tratar como texto)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.phar binary
+*.exe binary
+*.dll binary

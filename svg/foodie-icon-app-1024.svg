@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Foodie ícone de aplicativo</title>
+  <desc id="desc">Ícone quadrado em carvão com símbolo Foodie verde e destino verde-lima.</desc>
+  <rect width="1024" height="1024" rx="224" fill="#151914"/>
+  <g fill="none" stroke="#00A082" stroke-width="112" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M756 238H402Q278 238 278 362V606Q278 730 402 730Q518 730 602 646"/>
+    <path d="M278 484H642"/>
+  </g>
+  <circle cx="756" cy="484" r="56" fill="#75D04B"/>
+</svg>

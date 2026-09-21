@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="640" viewBox="0 0 1600 640" role="img" aria-labelledby="title desc">
+  <title id="title">Foodie logo colorido</title>
+  <desc id="desc">Símbolo F formado por uma rota e um sorriso, acompanhado do wordmark Foodie.</desc>
+  <g id="foodie-mark" fill="none" stroke="#00A082" stroke-width="76" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M420 132H204Q126 132 126 210V416Q126 508 218 508Q312 508 380 440"/>
+    <path d="M126 300H360"/>
+  </g>
+  <circle id="destination" cx="420" cy="300" r="38" fill="#75D04B"/>
+  <text x="560" y="370" fill="#151914" font-family="Inter, Arial, Helvetica, sans-serif" font-size="280" font-weight="750" letter-spacing="-16">Foodie</text>
+</svg>
