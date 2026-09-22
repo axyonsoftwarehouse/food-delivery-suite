@@ -39,6 +39,8 @@ yarn-debug.log*
 **/google-services.json
 **/GoogleService-Info.plist
 **/firebase-messaging-sw.js
+**/*firebase-adminsdk*.json
+Admin panel V9.0/storage/app/firebase-service-account.json
 
 # ===== Laravel (Admin panel V9.0) =====
 Admin panel V9.0/vendor/
