@@ -28,6 +28,7 @@ try {
       [name, email, hashPassword(password), role, userRestaurantId],
     );
   }
+  await db.query("UPDATE users SET courier_approved_at = COALESCE(courier_approved_at, NOW()) WHERE role = 'courier'");
   await db.query("INSERT INTO categories (restaurant_id, name) SELECT ?, 'Pratos' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE restaurant_id = ? AND name = 'Pratos')", [restaurantId, restaurantId]);
   const categories = await db.query("SELECT id FROM categories WHERE restaurant_id = ? AND name = 'Pratos'", [restaurantId]) as { id: number }[];
   await db.query("INSERT INTO products (restaurant_id, category_id, name, description, price_cents) SELECT ?, ?, 'Prato da casa', 'Pedido demonstrativo', 2990 WHERE NOT EXISTS (SELECT 1 FROM products WHERE restaurant_id = ? AND name = 'Prato da casa')", [restaurantId, categories[0].id, restaurantId]);

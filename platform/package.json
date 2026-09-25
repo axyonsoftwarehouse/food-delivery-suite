@@ -2,11 +2,15 @@
   "name": "food-delivery-platform",
   "private": true,
   "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "pnpm --filter @foodie/web dev",
     "dev:legacy-api": "pnpm --parallel --filter @foodie/api --filter @foodie/web dev",
     "build": "pnpm -r build",
     "test": "pnpm --filter @foodie/api test",
+    "verify": "node scripts/verify.mjs",
     "smoke:cart": "node tests/cart-smoke.mjs",
     "smoke:exceptions": "node tests/order-exceptions-smoke.mjs",
     "smoke:auth": "node tests/auth-smoke.mjs"

@@ -4,9 +4,16 @@ server:
 app:
   cookie-secure: ${COOKIE_SECURE:false}
   public-base-url: ${PUBLIC_BASE_URL:http://127.0.0.1:3001}
+  migrate-only: ${MIGRATE_ONLY:false}
 spring:
   application:
     name: foodie-api
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 12
+    baseline-description: baseline antes das migrations do Flyway
   datasource:
     url: jdbc:mariadb://${DB_HOST:127.0.0.1}:${DB_PORT:3307}/${DB_NAME:foodie_platform}
     username: ${DB_USER:foodie}

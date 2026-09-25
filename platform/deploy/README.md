@@ -1,6 +1,6 @@
 # Homologação da plataforma Foodie
 
-Esta composição publica somente a plataforma independente: MariaDB, migration transitória, API Java, web Next e Caddy. O projeto Docker é nomeado `foodie-staging`, portanto não reutiliza redes, volumes, banco, imagens, domínio nem arquivos do Foodie legado em `../../deploy`.
+Esta composição publica somente a plataforma independente: MariaDB, migrations (Flyway, aplicadas pelo contêiner Java), API Java, web Next e Caddy. O projeto Docker é nomeado `foodie-staging`, portanto não reutiliza redes, volumes, banco, imagens, domínio nem arquivos do Foodie legado em `../../deploy`.
 
 ## Preparação na VPS
 
@@ -10,11 +10,19 @@ Esta composição publica somente a plataforma independente: MariaDB, migration 
 
 ## Dados de demonstração
 
-A migration cria somente a estrutura do banco. Para uma homologação que precise dos quatro perfis de demonstração, execute o seed uma única vez com uma senha temporária fornecida somente no ambiente do comando: `DEMO_PASSWORD='uma-senha-forte' docker compose run --rm -e DEMO_PASSWORD migrate pnpm --filter @foodie/api seed`. Não grave `DEMO_PASSWORD` em arquivos versionados nem reutilize essas contas em produção.
+O serviço `migrate` (imagem Java em modo `MIGRATE_ONLY`) aplica as migrations via Flyway e encerra com código zero; a API só sobe depois disso. Para uma homologação que precise dos quatro perfis de demonstração, rode o seed uma única vez, sem gravar a senha em arquivos versionados:
 
-Quando outra composição já é proprietária das portas 80/443, não inicie o perfil `public`. Publique a rota de homologação no proxy existente e conecte-o à rede `foodie-staging_default`; valide a configuração e faça backup do proxy antes de recarregá-lo. Na VPS atual, essa rota usa um host `sslip.io` temporário e não substitui o domínio do legado.
-4. Aguarde `migrate` terminar com código zero e confira `docker compose ps` e `https://api.<domínio>/health`.
-5. Valide manualmente os quatro papéis, execute backup e restauração do volume `foodie_platform_data` em ambiente de teste e só então planeje a troca de domínio.
+```
+DEMO_PASSWORD='uma-senha-forte' docker compose --profile tools run --rm seed
+```
+
+## Operação, backup e rollback
+
+- Confirme `GET /ready` (não só `/health`): ele só responde 200 com banco acessível e schema migrado.
+- Backup: `./backup.sh` gera um dump em `deploy/backups/` (fora do Git); mantenha uma cópia **fora da VPS**.
+- Restauração/rollback: `./restore.sh <arquivo.sql>`, confira `/ready` e, se necessário, republique a revisão anterior (`docker compose up -d --build api web`).
+- Faça um ensaio de restauração em ambiente de teste antes de considerar o piloto pronto.
+- Quando outra composição já é proprietária das portas 80/443, não inicie o perfil `public`. Publique a rota de homologação no proxy existente e conecte-o à rede `foodie-staging_default`; valide a configuração e faça backup do proxy antes de recarregá-lo. Na VPS atual, essa rota usa um host `sslip.io` temporário e não substitui o domínio do legado.
 
 ## Limites antes da produção pública
 

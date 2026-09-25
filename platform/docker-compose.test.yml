@@ -1,0 +1,35 @@
+name: foodie-test
+
+services:
+  test-db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: foodie_platform
+      MARIADB_USER: foodie
+      MARIADB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in platform/.env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in platform/.env}
+    ports:
+      - "127.0.0.1:3308:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  test-api:
+    build: ./apps/api-java
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 4001
+      COOKIE_SECURE: "false"
+      DB_HOST: test-db
+      DB_PORT: 3306
+      DB_USER: foodie
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in platform/.env}
+      DB_NAME: foodie_platform
+      PUBLIC_BASE_URL: http://127.0.0.1:3001
+    ports:
+      - "127.0.0.1:4101:4001"
+    depends_on:
+      test-db:
+        condition: service_healthy

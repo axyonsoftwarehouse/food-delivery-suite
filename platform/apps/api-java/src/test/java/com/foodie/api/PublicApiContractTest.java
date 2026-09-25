@@ -97,4 +97,22 @@ class PublicApiContractTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("ok"));
     }
+
+    @Test
+    void readinessRequiresMigratedSchema() throws Exception {
+        when(jdbc.queryForObject("SELECT 1", Integer.class)).thenReturn(1);
+        when(jdbc.query(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class)))
+            .thenReturn(List.of("12"));
+
+        mvc.perform(get("/ready"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("ready"))
+            .andExpect(jsonPath("$.schemaVersion").value("12"));
+    }
+
+    @Test
+    void readinessFailsWithoutSchemaHistory() throws Exception {
+        when(jdbc.queryForObject("SELECT 1", Integer.class)).thenReturn(1);
+        mvc.perform(get("/ready")).andExpect(status().isServiceUnavailable());
+    }
 }
