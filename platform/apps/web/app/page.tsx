@@ -6,6 +6,7 @@ import OrderDetails from './OrderDetails';
 import RestaurantHours from './RestaurantHours';
 import CatalogManager from './CatalogManager';
 import PaymentsPanel from './PaymentsPanel';
+import NotificationsBell from './NotificationsBell';
 
 const POLL_INTERVAL_MS = 8000;
 const LATE_ORDER_MINUTES = 10;
@@ -281,7 +282,7 @@ export default function Home() {
     </aside>
 
     <section className="content">
-      <header className="topbar"><div><span className="eyebrow">FOODIE / OPERAÇÃO</span><h1>{user ? `Olá, ${user.name.split(' ')[0]}!` : 'Uma nova experiência começa aqui.'}</h1></div><div className="top-actions">{user && <><span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString('pt-BR')}` : ''}>{connection === 'online' ? `● ao vivo${lastSync ? ` · ${lastSync.toLocaleTimeString('pt-BR')}` : ''}` : '● sem conexão'}</span><span className="role-pill">{labels[user.role]}</span><button className="text-button" onClick={logout} disabled={busy}>Sair</button></>}</div></header>
+      <header className="topbar"><div><span className="eyebrow">FOODIE / OPERAÇÃO</span><h1>{user ? `Olá, ${user.name.split(' ')[0]}!` : 'Uma nova experiência começa aqui.'}</h1></div><div className="top-actions">{user && <><span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString('pt-BR')}` : ''}>{connection === 'online' ? `● ao vivo${lastSync ? ` · ${lastSync.toLocaleTimeString('pt-BR')}` : ''}` : '● sem conexão'}</span><NotificationsBell onOpenOrder={(orderId) => setExpandedOrderId(orderId)} /><span className="role-pill">{labels[user.role]}</span><button className="text-button" onClick={logout} disabled={busy}>Sair</button></>}</div></header>
       {message && <div className="notice" role="status">{message}</div>}
       {newOrderNotice && <div className="notice alert" role="alert">{newOrderNotice}<button className="text-button" onClick={() => setNewOrderNotice('')}>Dispensar</button></div>}
 

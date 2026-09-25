@@ -12,6 +12,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in platform/.env}
       DB_NAME: foodie_platform
       MAPBOX_TOKEN: ${MAPBOX_TOKEN:-}
+      WEBPUSH_PUBLIC_KEY: ${WEBPUSH_PUBLIC_KEY:-}
+      WEBPUSH_PRIVATE_KEY: ${WEBPUSH_PRIVATE_KEY:-}
+      WEBPUSH_SUBJECT: ${WEBPUSH_SUBJECT:-mailto:contato@foodie.local}
     ports:
       - "127.0.0.1:4001:4001"
     depends_on:

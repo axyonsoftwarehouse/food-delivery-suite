@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import OrderDetails from './OrderDetails';
+import NotificationsBell from './NotificationsBell';
 
 type User = { id: number; name: string; email: string; role: string; restaurantId: number | null };
 type Restaurant = { id: number; name: string; slug: string; open?: boolean };
@@ -276,7 +277,7 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
   return <main className="customer-app">
     <header className="customer-header">
       <a className="customer-brand" href="/" aria-label="Foodie, início"><span className="customer-brand-mark">✦</span> foodie<span>.</span></a>
-      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString('pt-BR')}` : ''}>{connection === 'online' ? '● ao vivo' : '● sem conexão'}</span>}<span>Olá, {user.name.split(' ')[0]}</span><button onClick={onLogout} disabled={busy}>Sair</button></div>
+      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString('pt-BR')}` : ''}>{connection === 'online' ? '● ao vivo' : '● sem conexão'}</span>}<NotificationsBell onOpenOrder={(orderId) => setExpandedOrderId(orderId)} /><span>Olá, {user.name.split(' ')[0]}</span><button onClick={onLogout} disabled={busy}>Sair</button></div>
     </header>
 
     <div className="customer-content">

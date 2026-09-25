@@ -4,6 +4,7 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
 import com.foodie.api.catalog.PostalCoverageService;
 import com.foodie.api.hours.RestaurantHoursService;
+import com.foodie.api.notifications.NotificationService;
 import com.foodie.api.routing.DeliveryService;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
@@ -28,14 +29,16 @@ public class OrderService {
     private final RestaurantHoursService hours;
     private final PaymentService payments;
     private final DeliveryService delivery;
+    private final NotificationService notifications;
 
-    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery) {
+    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications) {
         this.jdbc = jdbc;
         this.namedJdbc = namedJdbc;
         this.postalCoverage = postalCoverage;
         this.hours = hours;
         this.payments = payments;
         this.delivery = delivery;
+        this.notifications = notifications;
     }
 
     @Transactional
@@ -110,6 +113,7 @@ public class OrderService {
         }
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status) VALUES (?, ?, NULL, ?)", orderId, customer.id(), "placed");
         payments.create(orderId, request.paymentMethod(), request.modality(), total, request.changeForCents());
+        notifications.notifyRestaurant(request.restaurantId(), "order_placed", "Novo pedido #" + orderId, "Aguardando aceite do restaurante.", orderId);
         Map<String, Object> created = new LinkedHashMap<>();
         created.put("id", orderId);
         created.put("status", "placed");
@@ -176,6 +180,7 @@ public class OrderService {
         }
         if (Set.of("rejected", "cancelled", "expired", "failed").contains(next)) payments.cancelPending(orderId);
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, ?, ?, ?, ?)", orderId, user.id(), current, next, trimmed);
+        notifyTransition(order, orderId, next, courierId);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", orderId);
         result.put("status", next);
@@ -183,8 +188,21 @@ public class OrderService {
         return result;
     }
 
-    private void expireStale() {
-        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE)", (rs, row) -> rs.getLong(1));
+    private void notifyTransition(Map<String, Object> order, long orderId, String next, Long courierId) {
+        long customerId = number(order, "customer_id");
+        switch (next) {
+            case "accepted" -> notifications.notifyUser(customerId, "order_accepted", "Pedido #" + orderId + " aceito", "O restaurante aceitou seu pedido.", orderId);
+            case "ready" -> notifications.notifyUser(customerId, "order_ready", "Pedido #" + orderId + " pronto", "Seu pedido está pronto para entrega.", orderId);
+            case "assigned" -> {
+                if (courierId != null) notifications.notifyUser(courierId, "order_assigned", "Nova entrega #" + orderId, "Um pedido foi atribuído a você.", orderId);
+            }
+            case "picked_up" -> notifications.notifyUser(customerId, "order_picked_up", "Pedido #" + orderId + " saiu para entrega", "O entregador está a caminho.", orderId);
+            case "delivered" -> notifications.notifyUser(customerId, "order_delivered", "Pedido #" + orderId + " entregue", "Bom apetite!", orderId);
+            default -> { }
+        }
+    }
+
+    private void expireStale() {        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE)", (rs, row) -> rs.getLong(1));
         for (Long id : stale) {
             if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
                 payments.cancelPending(id);

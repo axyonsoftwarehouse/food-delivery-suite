@@ -13,6 +13,10 @@ app:
   mapbox:
     token: ${MAPBOX_TOKEN:}
     base-url: ${MAPBOX_BASE_URL:https://api.mapbox.com}
+  webpush:
+    public-key: ${WEBPUSH_PUBLIC_KEY:}
+    private-key: ${WEBPUSH_PRIVATE_KEY:}
+    subject: ${WEBPUSH_SUBJECT:mailto:contato@foodie.local}
 management:
   endpoints:
     web:
