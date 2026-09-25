@@ -10,6 +10,9 @@ app:
     webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
     base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
     notification-url: ${MERCADOPAGO_NOTIFICATION_URL:}
+  mapbox:
+    token: ${MAPBOX_TOKEN:}
+    base-url: ${MAPBOX_BASE_URL:https://api.mapbox.com}
 management:
   endpoints:
     web:

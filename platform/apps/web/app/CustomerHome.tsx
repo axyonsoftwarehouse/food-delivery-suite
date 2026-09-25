@@ -92,6 +92,7 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
   const [modality, setModality] = useState<'on_delivery' | 'online'>('on_delivery');
   const [onlineCode, setOnlineCode] = useState<{ text?: string; base64?: string; url?: string } | null>(null);
   const [placing, setPlacing] = useState(false);
+  const [deliveryEstimate, setDeliveryEstimate] = useState<{ feeCents: number; distanceMeters: number | null; durationSeconds: number | null; feeMode: string } | null>(null);
 
   useEffect(() => {
     if (addressForm.postalCode.length !== 8) { setPostalZone(null); setPostalMessage(''); setPostalLoading(false); return; }
@@ -171,7 +172,8 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
   const cartCovered = !cartRestaurantId || coveredRestaurants.has(cartRestaurantId);
   const cartCount = cartEntries.reduce((sum, entry) => sum + entry.quantity, 0);
   const subtotal = cartEntries.reduce((sum, entry) => sum + entry.product.price_cents * entry.quantity, 0);
-  const fee = selectedZone?.delivery_fee_cents ?? 0;
+  const estimate = deliveryEstimate;
+  const fee = estimate?.feeCents ?? selectedZone?.delivery_fee_cents ?? 0;
   const meetsMinimum = subtotal >= (selectedZone?.minimum_order_cents ?? 0);
 
   useEffect(() => {
@@ -261,6 +263,16 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
     await onAction(() => request(`/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'cancel', reason: value.trim() }) }), 'Pedido cancelado.');
   }
 
+  useEffect(() => {
+    if (!selectedAddress || !cartRestaurantId) { setDeliveryEstimate(null); return; }
+    const controller = new AbortController();
+    fetch(`/backend/delivery/estimate?addressId=${selectedAddress.id}&restaurantId=${cartRestaurantId}`, { signal: controller.signal, credentials: 'same-origin' })
+      .then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error ?? 'estimate'); return data; })
+      .then((data) => { if (!controller.signal.aborted) setDeliveryEstimate(data); })
+      .catch(() => { if (!controller.signal.aborted) setDeliveryEstimate(null); });
+    return () => controller.abort();
+  }, [selectedAddress?.id, cartRestaurantId]);
+
   return <main className="customer-app">
     <header className="customer-header">
       <a className="customer-brand" href="/" aria-label="Foodie, início"><span className="customer-brand-mark">✦</span> foodie<span>.</span></a>
@@ -322,7 +334,7 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
       <div className="customer-lower-grid">
         <section className="customer-card customer-cart" id="carrinho"><div className="customer-card-title"><div><span className="customer-kicker">SEU PEDIDO</span><h2>Carrinho</h2></div><div className="customer-cart-heading-actions"><span>{cartCount} {cartCount === 1 ? 'item' : 'itens'}</span><button onClick={refreshCart} disabled={cartBusy || !cartLoaded}>Atualizar</button>{cartCount > 0 && <button onClick={() => mutateCart('/cart', 'DELETE', undefined, 'Carrinho esvaziado.')} disabled={cartBusy}>Esvaziar</button>}</div></div>
           {cartEntries.length ? <><div className="customer-cart-items">{cartEntries.map(({ product, quantity }) => <div className="customer-cart-row" key={product.id}><div><strong>{product.name}</strong><small>{money(product.price_cents)} cada</small></div><div className="customer-quantity"><button onClick={() => changeQuantity(product.id, -1)} disabled={cartBusy} aria-label={`Remover uma unidade de ${product.name}`}>−</button><span>{quantity}</span><button onClick={() => changeQuantity(product.id, 1)} disabled={cartBusy} aria-label={`Adicionar uma unidade de ${product.name}`}>+</button></div></div>)}</div>
-            <div className="customer-totals"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Entrega</span><strong>{selectedZone ? money(fee) : '—'}</strong></div><div className="grand-total"><span>Total</span><strong>{selectedZone ? money(subtotal + fee) : '—'}</strong></div></div>
+            <div className="customer-totals"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Entrega</span><strong>{selectedZone ? money(fee) : '—'}</strong></div><div className="grand-total"><span>Total</span><strong>{selectedZone ? money(subtotal + fee) : '—'}</strong></div></div>{estimate?.distanceMeters != null && <p className="customer-muted">Entrega estimada: {(estimate.distanceMeters / 1000).toFixed(1)} km · ~{Math.max(1, Math.round((estimate.durationSeconds ?? 0) / 60))} min{estimate.feeMode === 'distance' ? ' · taxa por distância' : ''}</p>}
             {!meetsMinimum && <p className="customer-minimum">Faltam {money((selectedZone?.minimum_order_cents ?? 0) - subtotal)} para atingir o pedido mínimo desta zona.</p>}
             {!cartCovered && <p className="customer-minimum">Este restaurante não entrega no endereço selecionado. Escolha outro endereço ou esvazie o carrinho.</p>}
             {cartRestaurantClosed && <p className="customer-minimum">Este restaurante está fora do horário de funcionamento agora. Aguarde a reabertura para concluir o pedido.</p>}

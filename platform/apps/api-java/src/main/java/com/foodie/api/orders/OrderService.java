@@ -4,6 +4,7 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
 import com.foodie.api.catalog.PostalCoverageService;
 import com.foodie.api.hours.RestaurantHoursService;
+import com.foodie.api.routing.DeliveryService;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.HashMap;
@@ -26,13 +27,15 @@ public class OrderService {
     private final PostalCoverageService postalCoverage;
     private final RestaurantHoursService hours;
     private final PaymentService payments;
+    private final DeliveryService delivery;
 
-    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments) {
+    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery) {
         this.jdbc = jdbc;
         this.namedJdbc = namedJdbc;
         this.postalCoverage = postalCoverage;
         this.hours = hours;
         this.payments = payments;
+        this.delivery = delivery;
     }
 
     @Transactional
@@ -40,7 +43,7 @@ public class OrderService {
         Set<Long> distinctIds = new HashSet<>();
         for (var item : request.items()) if (!distinctIds.add(item.productId())) throw new ApiException(400, "Produto repetido no pedido");
         List<Map<String, Object>> addresses = jdbc.queryForList(
-            "SELECT a.id, a.zone_id, a.postal_code, a.street, a.number, a.neighborhood, a.complement, z.city, z.state, z.delivery_fee_cents, z.minimum_order_cents FROM addresses a JOIN zones z ON z.id = a.zone_id AND z.active = TRUE WHERE a.id = ? AND a.user_id = ?",
+            "SELECT a.id, a.zone_id, a.postal_code, a.street, a.number, a.neighborhood, a.complement, a.latitude, a.longitude, z.city, z.state, z.delivery_fee_cents, z.base_fee_cents, z.per_km_cents, z.minimum_order_cents FROM addresses a JOIN zones z ON z.id = a.zone_id AND z.active = TRUE WHERE a.id = ? AND a.user_id = ?",
             request.addressId(), customer.id()
         );
         if (addresses.isEmpty()) throw new ApiException(400, "Endereço não encontrado ou zona indisponível");
@@ -49,7 +52,7 @@ public class OrderService {
         if (address.get("postal_code") == null) throw new ApiException(409, "Recadastre o endereço com CEP antes de pedir");
         postalCoverage.requireAddressZone((String) address.get("postal_code"), zoneId);
         List<Map<String, Object>> restaurants = jdbc.queryForList(
-            "SELECT r.timezone FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
+            "SELECT r.timezone, r.latitude, r.longitude FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
             request.restaurantId(), zoneId
         );
         if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante não atende este endereço ou está fechado");
@@ -71,9 +74,12 @@ public class OrderService {
         } catch (ArithmeticException error) {
             throw new ApiException(400, "Valor do pedido inválido");
         }
-        long fee = number(address, "delivery_fee_cents");
+        DeliveryService.Estimate estimate = delivery.estimate(address, restaurants.getFirst(), address);
+        long fee = estimate.feeCents();
         long total = OrderWorkflow.total(subtotal, fee, number(address, "minimum_order_cents"));
         long finalSubtotal = subtotal;
+        Long distanceMeters = estimate.distanceMeters();
+        Long durationSeconds = estimate.durationSeconds();
         String complement = (String) address.get("complement");
         String addressText = address.get("street") + ", " + address.get("number")
             + (complement == null || complement.isEmpty() ? "" : ", " + complement)
@@ -81,7 +87,7 @@ public class OrderService {
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, total_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, total_cents, distance_meters, duration_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 Statement.RETURN_GENERATED_KEYS
             );
             statement.setLong(1, customer.id());
@@ -92,6 +98,8 @@ public class OrderService {
             statement.setLong(6, finalSubtotal);
             statement.setLong(7, fee);
             statement.setLong(8, total);
+            if (distanceMeters == null) statement.setNull(9, java.sql.Types.INTEGER); else statement.setLong(9, distanceMeters);
+            if (durationSeconds == null) statement.setNull(10, java.sql.Types.INTEGER); else statement.setLong(10, durationSeconds);
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
@@ -102,7 +110,18 @@ public class OrderService {
         }
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status) VALUES (?, ?, NULL, ?)", orderId, customer.id(), "placed");
         payments.create(orderId, request.paymentMethod(), request.modality(), total, request.changeForCents());
-        return Map.of("id", orderId, "status", "placed", "subtotalCents", subtotal, "deliveryFeeCents", fee, "totalCents", total, "address", addressText, "paymentMethod", request.paymentMethod());
+        Map<String, Object> created = new LinkedHashMap<>();
+        created.put("id", orderId);
+        created.put("status", "placed");
+        created.put("subtotalCents", subtotal);
+        created.put("deliveryFeeCents", fee);
+        created.put("totalCents", total);
+        created.put("address", addressText);
+        created.put("paymentMethod", request.paymentMethod());
+        created.put("distanceMeters", distanceMeters);
+        created.put("durationSeconds", durationSeconds);
+        created.put("feeMode", estimate.feeMode());
+        return created;
     }
 
     public List<Map<String, Object>> list(User user) {

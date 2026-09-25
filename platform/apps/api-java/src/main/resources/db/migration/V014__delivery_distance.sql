@@ -1,0 +1,16 @@
+ALTER TABLE restaurants
+  ADD COLUMN address_text VARCHAR(255) NULL,
+  ADD COLUMN latitude DECIMAL(10,7) NULL,
+  ADD COLUMN longitude DECIMAL(10,7) NULL;
+
+ALTER TABLE addresses
+  ADD COLUMN latitude DECIMAL(10,7) NULL,
+  ADD COLUMN longitude DECIMAL(10,7) NULL;
+
+ALTER TABLE zones
+  ADD COLUMN base_fee_cents INT UNSIGNED NULL,
+  ADD COLUMN per_km_cents INT UNSIGNED NULL;
+
+ALTER TABLE orders
+  ADD COLUMN distance_meters INT UNSIGNED NULL,
+  ADD COLUMN duration_seconds INT UNSIGNED NULL;

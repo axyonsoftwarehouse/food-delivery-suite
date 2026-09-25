@@ -2,6 +2,7 @@ package com.foodie.api.orders;
 
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.catalog.PostalCoverageService;
+import com.foodie.api.routing.GeocodingService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
@@ -25,17 +26,19 @@ public class AddressController {
     private final AuthService auth;
     private final JdbcTemplate jdbc;
     private final PostalCoverageService postalCoverage;
+    private final GeocodingService geocoding;
 
-    public AddressController(AuthService auth, JdbcTemplate jdbc, PostalCoverageService postalCoverage) {
+    public AddressController(AuthService auth, JdbcTemplate jdbc, PostalCoverageService postalCoverage, GeocodingService geocoding) {
         this.auth = auth;
         this.jdbc = jdbc;
         this.postalCoverage = postalCoverage;
+        this.geocoding = geocoding;
     }
 
     @GetMapping("/addresses")
     public List<Map<String, Object>> addresses(@CookieValue(value = "foodie_session", required = false) String token) {
         long userId = auth.requireUser(token, "customer").id();
-        return jdbc.queryForList("SELECT a.id, a.zone_id, a.postal_code, a.label, a.street, a.number, a.neighborhood, a.complement, z.name AS zone_name, z.city, z.state FROM addresses a JOIN zones z ON z.id = a.zone_id WHERE a.user_id = ? ORDER BY a.id DESC", userId);
+        return jdbc.queryForList("SELECT a.id, a.zone_id, a.postal_code, a.label, a.street, a.number, a.neighborhood, a.complement, a.latitude, a.longitude, z.name AS zone_name, z.city, z.state FROM addresses a JOIN zones z ON z.id = a.zone_id WHERE a.user_id = ? ORDER BY a.id DESC", userId);
     }
 
     @PostMapping("/addresses")
@@ -43,7 +46,8 @@ public class AddressController {
                                                        @Valid @RequestBody AddressRequest request) {
         long userId = auth.requireUser(token, "customer").id();
         String postalCode = postalCoverage.normalize(request.postalCode());
-        long zoneId = ((Number) postalCoverage.resolve(postalCode).get("id")).longValue();
+        Map<String, Object> zone = postalCoverage.resolve(postalCode);
+        long zoneId = ((Number) zone.get("id")).longValue();
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         String complement = request.complement() == null ? "" : request.complement().trim();
         jdbc.update(connection -> {
@@ -61,8 +65,15 @@ public class AddressController {
             statement.setString(8, complement);
             return statement;
         }, key);
+        long addressId = key.getKey().longValue();
+        String query = request.street().trim() + ", " + request.number().trim() + ", " + request.neighborhood().trim()
+            + ", " + zone.get("city") + " - " + zone.get("state") + ", " + postalCode + ", Brasil";
+        var coordinate = geocoding.geocode(query);
+        coordinate.ifPresent(value -> jdbc.update("UPDATE addresses SET latitude = ?, longitude = ? WHERE id = ?",
+            value.latitude(), value.longitude(), addressId));
+
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("id", key.getKey().longValue());
+        result.put("id", addressId);
         result.put("zoneId", zoneId);
         result.put("postalCode", postalCode);
         result.put("label", request.label().trim());
@@ -70,6 +81,8 @@ public class AddressController {
         result.put("number", request.number().trim());
         result.put("neighborhood", request.neighborhood().trim());
         result.put("complement", complement);
+        result.put("latitude", coordinate.map(GeocodingService.Coordinate::latitude).orElse(null));
+        result.put("longitude", coordinate.map(GeocodingService.Coordinate::longitude).orElse(null));
         return ResponseEntity.status(201).body(result);
     }
 

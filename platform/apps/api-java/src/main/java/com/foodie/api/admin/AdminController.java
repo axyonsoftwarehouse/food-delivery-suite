@@ -4,7 +4,10 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.PasswordVerifier;
 import com.foodie.api.catalog.PostalCoverageService;
+import com.foodie.api.routing.GeocodingService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -14,6 +17,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -36,12 +40,14 @@ public class AdminController {
     private final JdbcTemplate jdbc;
     private final PasswordVerifier passwords;
     private final PostalCoverageService postalCoverage;
+    private final GeocodingService geocoding;
 
-    public AdminController(AuthService auth, JdbcTemplate jdbc, PasswordVerifier passwords, PostalCoverageService postalCoverage) {
+    public AdminController(AuthService auth, JdbcTemplate jdbc, PasswordVerifier passwords, PostalCoverageService postalCoverage, GeocodingService geocoding) {
         this.auth = auth;
         this.jdbc = jdbc;
         this.passwords = passwords;
         this.postalCoverage = postalCoverage;
+        this.geocoding = geocoding;
     }
 
     @PostMapping("/zones")
@@ -103,6 +109,34 @@ public class AdminController {
             throw new ApiException(404, "Restaurante não encontrado");
         }
         return Map.of("id", id, "active", body.active());
+    }
+
+    @PatchMapping("/restaurants/{id}/location")
+    public Map<String, Object> restaurantLocation(@CookieValue(value = "foodie_session", required = false) String token,
+                                                  @PathVariable @Positive long id,
+                                                  @Valid @RequestBody LocationRequest body) {
+        admin(token);
+        if (jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, id) == null) {
+            throw new ApiException(404, "Restaurante não encontrado");
+        }
+        String address = body.addressText() == null ? null : body.addressText().trim();
+        Double latitude = body.latitude();
+        Double longitude = body.longitude();
+        if ((latitude == null || longitude == null) && address != null && !address.isBlank()) {
+            var coordinate = geocoding.geocode(address);
+            if (coordinate.isPresent()) {
+                latitude = coordinate.get().latitude();
+                longitude = coordinate.get().longitude();
+            }
+        }
+        jdbc.update("UPDATE restaurants SET address_text = ?, latitude = ?, longitude = ? WHERE id = ?", address, latitude, longitude, id);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", id);
+        result.put("addressText", address);
+        result.put("latitude", latitude);
+        result.put("longitude", longitude);
+        result.put("located", latitude != null && longitude != null);
+        return result;
     }
 
     @PostMapping("/restaurant-users")
@@ -188,6 +222,9 @@ public class AdminController {
     public record RestaurantRequest(@NotBlank @Size(min = 2, max = 160) String name,
                                     @NotBlank @Pattern(regexp = "[a-z0-9]+(?:-[a-z0-9]+)*") @Size(max = 180) String slug) {}
     public record AvailabilityRequest(@jakarta.validation.constraints.NotNull Boolean active) {}
+    public record LocationRequest(@Size(max = 255) String addressText,
+                                  @DecimalMin("-90") @DecimalMax("90") Double latitude,
+                                  @DecimalMin("-180") @DecimalMax("180") Double longitude) {}
     public record RestaurantUserRequest(@Positive long restaurantId,
                                         @NotBlank @Size(min = 2, max = 120) String name,
                                         @NotBlank @Email @Size(max = 190) String email,
