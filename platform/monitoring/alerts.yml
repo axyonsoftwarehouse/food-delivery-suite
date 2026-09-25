@@ -1,0 +1,69 @@
+groups:
+  - name: foodie
+    rules:
+      - alert: FoodieApiDown
+        expr: up{job="foodie-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API Foodie fora do ar"
+          description: "Sem resposta de métricas em api:4001 há mais de 1 minuto."
+
+      - alert: FoodieReadinessDown
+        expr: probe_success{job="foodie-readiness"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API Foodie não está pronta (/ready)"
+          description: "O /ready não respondeu 200 — banco inacessível ou schema desatualizado."
+
+      - alert: FoodieWebDown
+        expr: probe_success{job="foodie-web"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Site Foodie fora do ar"
+          description: "O site em web:3001 não respondeu 200."
+
+      - alert: FoodieDatabaseDown
+        expr: probe_success{job="foodie-db"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Banco MariaDB inacessível"
+          description: "A porta db:3306 não aceitou conexão."
+
+      - alert: FoodieHighErrorRate
+        expr: |
+          sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 0.2) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Erros 5xx acima de 2% na API"
+          description: "Mais de 2% das requisições retornaram 5xx nos últimos 5 minutos."
+
+      - alert: FoodieHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (le)) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latência p95 acima de 800 ms"
+          description: "O p95 das requisições passou de 800 ms nos últimos 5 minutos."
+
+      - alert: FoodieDatabasePoolSaturated
+        expr: hikaricp_connections_active / clamp_min(hikaricp_connections_max, 1) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pool de conexões do banco quase esgotado"
+          description: "Mais de 90% do pool Hikari está em uso."

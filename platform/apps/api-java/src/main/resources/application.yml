@@ -14,6 +14,10 @@ management:
     health:
       probes:
         enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 logging:
   pattern:
     console: "%d{HH:mm:ss.SSS} %-5level [%X{requestId:-sem-id}] %logger{36} - %msg%n"

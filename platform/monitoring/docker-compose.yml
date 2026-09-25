@@ -1,0 +1,48 @@
+name: foodie-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    networks: [foodie]
+    depends_on:
+      - alertmanager
+      - blackbox
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Defina TELEGRAM_BOT_TOKEN em monitoring/.env}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?Defina TELEGRAM_CHAT_ID em monitoring/.env}
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    networks: [foodie]
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.25.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+    volumes:
+      - ./blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks: [foodie]
+
+networks:
+  foodie:
+    external: true
+    name: foodie-staging_default
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
