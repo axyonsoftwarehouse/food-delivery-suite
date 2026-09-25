@@ -35,7 +35,7 @@ public class AuthService {
         if (credentials.isEmpty() || !passwords.matches(password, credentials.get().passwordHash()) || credentials.get().suspended()) {
             repository.registerLoginFailure(accountKey, ACCOUNT_THRESHOLD);
             if (originKey != null) repository.registerLoginFailure(originKey, ORIGIN_THRESHOLD);
-            throw new ApiException(401, "Credenciais invÃ¡lidas");
+            throw new ApiException(401, "Credenciais inválidas");
         }
         repository.clearLoginFailures(accountKey);
         if (originKey != null) repository.clearLoginFailures(originKey);
@@ -56,7 +56,7 @@ public class AuthService {
             customer = repository.createCustomer(name.trim(), email.toLowerCase(Locale.ROOT), passwords.hash(password));
         } catch (DuplicateKeyException error) {
             if (originKey != null) repository.registerLoginFailure(originKey, ORIGIN_THRESHOLD);
-            throw new ApiException(409, "JÃ¡ existe uma conta com este email");
+            throw new ApiException(409, "Já existe uma conta com este email");
         }
         if (originKey != null) repository.clearLoginFailures(originKey);
         return newSession(customer);
@@ -68,9 +68,9 @@ public class AuthService {
     }
 
     public User requireUser(String token, String... roles) {
-        User user = currentUser(token).orElseThrow(() -> new ApiException(401, "FaÃ§a login para continuar"));
+        User user = currentUser(token).orElseThrow(() -> new ApiException(401, "Faça login para continuar"));
         if (roles.length > 0 && java.util.Arrays.stream(roles).noneMatch(user.role()::equals)) {
-            throw new ApiException(403, "Acesso nÃ£o autorizado");
+            throw new ApiException(403, "Acesso não autorizado");
         }
         return user;
     }

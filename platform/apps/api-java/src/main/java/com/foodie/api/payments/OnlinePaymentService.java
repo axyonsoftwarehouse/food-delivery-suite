@@ -31,20 +31,20 @@ public class OnlinePaymentService {
 
     @Transactional
     public Map<String, Object> startIntent(User actor, long orderId, String method) {
-        if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento online invÃ¡lida");
+        if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento online inválida");
         List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, total_cents, status FROM orders WHERE id = ? FOR UPDATE", orderId);
-        if (orders.isEmpty()) throw new ApiException(404, "Pedido nÃ£o encontrado");
+        if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         boolean owner = ((Number) order.get("customer_id")).longValue() == actor.id();
-        if (!owner && !"admin".equals(actor.role())) throw new ApiException(403, "Acesso nÃ£o autorizado");
-        if (CLOSED_ORDER.contains((String) order.get("status"))) throw new ApiException(409, "Este pedido nÃ£o aceita mais pagamento");
+        if (!owner && !"admin".equals(actor.role())) throw new ApiException(403, "Acesso não autorizado");
+        if (CLOSED_ORDER.contains((String) order.get("status"))) throw new ApiException(409, "Este pedido não aceita mais pagamento");
 
         List<Map<String, Object>> payments = jdbc.queryForList(
             "SELECT status, external_id, qr_code, ticket_url FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
-        if (payments.isEmpty()) throw new ApiException(409, "Pagamento do pedido nÃ£o encontrado");
+        if (payments.isEmpty()) throw new ApiException(409, "Pagamento do pedido não encontrado");
         Map<String, Object> payment = payments.getFirst();
         String paymentStatus = (String) payment.get("status");
-        if ("paid".equals(paymentStatus)) throw new ApiException(409, "Este pedido jÃ¡ estÃ¡ pago");
+        if ("paid".equals(paymentStatus)) throw new ApiException(409, "Este pedido já está pago");
         if ("pending".equals(paymentStatus) && (payment.get("qr_code") != null || payment.get("ticket_url") != null)) {
             return detail(orderId);
         }

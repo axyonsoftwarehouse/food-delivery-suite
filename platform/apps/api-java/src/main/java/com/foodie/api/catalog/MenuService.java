@@ -48,15 +48,15 @@ public class MenuService {
         int changed = restaurantId == null
             ? jdbc.update("UPDATE categories SET name = ? WHERE id = ?", trimmed, categoryId)
             : jdbc.update("UPDATE categories SET name = ? WHERE id = ? AND restaurant_id = ?", trimmed, categoryId, restaurantId);
-        if (changed == 0) throw new ApiException(404, "Categoria nÃ£o encontrada");
+        if (changed == 0) throw new ApiException(404, "Categoria não encontrada");
         Map<String, Object> row = jdbc.queryForMap("SELECT restaurant_id FROM categories WHERE id = ?", categoryId);
         return category(categoryId, number(row, "restaurant_id"), trimmed);
     }
 
     public void deleteCategory(Long restaurantId, long categoryId) {
-        if (findCategory(restaurantId, categoryId) == null) throw new ApiException(404, "Categoria nÃ£o encontrada");
+        if (findCategory(restaurantId, categoryId) == null) throw new ApiException(404, "Categoria não encontrada");
         Integer used = jdbc.query("SELECT 1 FROM products WHERE category_id = ? LIMIT 1", rs -> rs.next() ? 1 : null, categoryId);
-        if (used != null) throw new ApiException(409, "Mova ou exclua os produtos desta categoria antes de removÃª-la");
+        if (used != null) throw new ApiException(409, "Mova ou exclua os produtos desta categoria antes de removê-la");
         jdbc.update("DELETE FROM categories WHERE id = ?", categoryId);
     }
 
@@ -71,7 +71,7 @@ public class MenuService {
 
     public Map<String, Object> updateProduct(Long restaurantId, long productId, ProductUpdate update) {
         Map<String, Object> row = findProduct(restaurantId, productId);
-        if (row == null) throw new ApiException(404, "Produto nÃ£o encontrado");
+        if (row == null) throw new ApiException(404, "Produto não encontrado");
         long currentRestaurant = number(row, "restaurant_id");
         long categoryId = update.categoryId() != null ? update.categoryId() : number(row, "category_id");
         if (update.categoryId() != null) requireCategory(currentRestaurant, categoryId);
@@ -84,7 +84,7 @@ public class MenuService {
                 categoryId, name, description, priceCents, available, productId)
             : jdbc.update("UPDATE products SET category_id = ?, name = ?, description = ?, price_cents = ?, available = ? WHERE id = ? AND restaurant_id = ?",
                 categoryId, name, description, priceCents, available, productId, restaurantId);
-        if (changed == 0) throw new ApiException(404, "Produto nÃ£o encontrado");
+        if (changed == 0) throw new ApiException(404, "Produto não encontrado");
         return product(productId, currentRestaurant, categoryId, name, description, priceCents, available);
     }
 
@@ -93,9 +93,9 @@ public class MenuService {
     }
 
     public void deleteProduct(Long restaurantId, long productId) {
-        if (findProduct(restaurantId, productId) == null) throw new ApiException(404, "Produto nÃ£o encontrado");
+        if (findProduct(restaurantId, productId) == null) throw new ApiException(404, "Produto não encontrado");
         Integer used = jdbc.query("SELECT 1 FROM order_items WHERE product_id = ? LIMIT 1", rs -> rs.next() ? 1 : null, productId);
-        if (used != null) throw new ApiException(409, "Este produto jÃ¡ foi usado em pedidos; pause em vez de excluir");
+        if (used != null) throw new ApiException(409, "Este produto já foi usado em pedidos; pause em vez de excluir");
         jdbc.update("DELETE FROM products WHERE id = ?", productId);
     }
 
@@ -115,12 +115,12 @@ public class MenuService {
 
     private void requireRestaurant(long restaurantId) {
         if (jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, restaurantId) == null) {
-            throw new ApiException(404, "Restaurante nÃ£o encontrado");
+            throw new ApiException(404, "Restaurante não encontrado");
         }
     }
 
     private void requireCategory(long restaurantId, long categoryId) {
-        if (findCategory(restaurantId, categoryId) == null) throw new ApiException(400, "Categoria nÃ£o pertence ao restaurante");
+        if (findCategory(restaurantId, categoryId) == null) throw new ApiException(400, "Categoria não pertence ao restaurante");
     }
 
     private static Map<String, Object> category(long id, long restaurantId, String name) {

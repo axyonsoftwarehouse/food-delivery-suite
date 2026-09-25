@@ -31,7 +31,7 @@ public class MapboxRoutingProvider implements RoutingProvider {
 
     @Override
     public Route route(double fromLat, double fromLng, double toLat, double toLng) {
-        if (!configured()) throw new ApiException(503, "Mapbox nÃ£o configurado: defina MAPBOX_TOKEN");
+        if (!configured()) throw new ApiException(503, "Mapbox não configurado: defina MAPBOX_TOKEN");
         String path = "/directions/v5/mapbox/driving/" + fromLng + "," + fromLat + ";" + toLng + "," + toLat;
         try {
             Map<String, Object> response = client.get()
@@ -39,7 +39,7 @@ public class MapboxRoutingProvider implements RoutingProvider {
                 .retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {});
             Object routes = response == null ? null : response.get("routes");
             if (!(routes instanceof List<?> list) || list.isEmpty() || !(list.getFirst() instanceof Map<?, ?> first)) {
-                throw new ApiException(502, "Resposta invÃ¡lida do Mapbox");
+                throw new ApiException(502, "Resposta inválida do Mapbox");
             }
             long distance = Math.round(((Number) first.get("distance")).doubleValue());
             long duration = Math.round(((Number) first.get("duration")).doubleValue());

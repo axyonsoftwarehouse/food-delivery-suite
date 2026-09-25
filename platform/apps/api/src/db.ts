@@ -13,6 +13,6 @@ export const db = mariadb.createPool({
 
 export function id(value: unknown): number {
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 1) throw new Error('ID invÃ¡lido');
+  if (!Number.isSafeInteger(parsed) || parsed < 1) throw new Error('ID inválido');
   return parsed;
 }

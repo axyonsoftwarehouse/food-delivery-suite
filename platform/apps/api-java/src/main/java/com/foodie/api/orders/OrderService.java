@@ -49,24 +49,24 @@ public class OrderService {
             "SELECT a.id, a.zone_id, a.postal_code, a.street, a.number, a.neighborhood, a.complement, a.latitude, a.longitude, z.city, z.state, z.delivery_fee_cents, z.base_fee_cents, z.per_km_cents, z.minimum_order_cents FROM addresses a JOIN zones z ON z.id = a.zone_id AND z.active = TRUE WHERE a.id = ? AND a.user_id = ?",
             request.addressId(), customer.id()
         );
-        if (addresses.isEmpty()) throw new ApiException(400, "EndereÃ§o nÃ£o encontrado ou zona indisponÃ­vel");
+        if (addresses.isEmpty()) throw new ApiException(400, "Endereço não encontrado ou zona indisponível");
         Map<String, Object> address = addresses.getFirst();
         long zoneId = number(address, "zone_id");
-        if (address.get("postal_code") == null) throw new ApiException(409, "Recadastre o endereÃ§o com CEP antes de pedir");
+        if (address.get("postal_code") == null) throw new ApiException(409, "Recadastre o endereço com CEP antes de pedir");
         postalCoverage.requireAddressZone((String) address.get("postal_code"), zoneId);
         List<Map<String, Object>> restaurants = jdbc.queryForList(
             "SELECT r.timezone, r.latitude, r.longitude FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
             request.restaurantId(), zoneId
         );
-        if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante nÃ£o atende este endereÃ§o ou estÃ¡ fechado");
+        if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante não atende este endereço ou está fechado");
         if (!hours.isOpen(request.restaurantId(), (String) restaurants.getFirst().get("timezone"))) {
-            throw new ApiException(409, "Restaurante estÃ¡ fora do horÃ¡rio de funcionamento");
+            throw new ApiException(409, "Restaurante está fora do horário de funcionamento");
         }
         List<Map<String, Object>> rows = namedJdbc.queryForList(
             "SELECT id, name, price_cents FROM products WHERE restaurant_id = :restaurantId AND available = TRUE AND id IN (:ids) FOR UPDATE",
             new MapSqlParameterSource("restaurantId", request.restaurantId()).addValue("ids", distinctIds)
         );
-        if (rows.size() != request.items().size()) throw new ApiException(400, "HÃ¡ produtos indisponÃ­veis");
+        if (rows.size() != request.items().size()) throw new ApiException(400, "Há produtos indisponíveis");
         Map<Long, Map<String, Object>> products = new HashMap<>();
         for (Map<String, Object> row : rows) products.put(number(row, "id"), row);
         long subtotal = 0;
@@ -75,7 +75,7 @@ public class OrderService {
                 subtotal = Math.addExact(subtotal, Math.multiplyExact(number(products.get(item.productId()), "price_cents"), item.quantity()));
             }
         } catch (ArithmeticException error) {
-            throw new ApiException(400, "Valor do pedido invÃ¡lido");
+            throw new ApiException(400, "Valor do pedido inválido");
         }
         DeliveryService.Estimate estimate = delivery.estimate(address, restaurants.getFirst(), address);
         long fee = estimate.feeCents();
@@ -86,7 +86,7 @@ public class OrderService {
         String complement = (String) address.get("complement");
         String addressText = address.get("street") + ", " + address.get("number")
             + (complement == null || complement.isEmpty() ? "" : ", " + complement)
-            + " â€¢ " + address.get("neighborhood") + " â€¢ " + address.get("city") + "/" + address.get("state") + " â€¢ CEP " + address.get("postal_code");
+            + " • " + address.get("neighborhood") + " • " + address.get("city") + "/" + address.get("state") + " • CEP " + address.get("postal_code");
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
@@ -142,7 +142,7 @@ public class OrderService {
     public Map<String, Object> detail(User user, long orderId) {
         expireStale();
         List<Map<String, Object>> orders = jdbc.queryForList("SELECT * FROM orders WHERE id = ?", orderId);
-        if (orders.isEmpty()) throw new ApiException(404, "Pedido nÃ£o encontrado");
+        if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);
         Map<String, Object> result = new LinkedHashMap<>(order);
@@ -155,7 +155,7 @@ public class OrderService {
     @Transactional
     public Map<String, Object> changeStatus(User user, long orderId, String action, Long courierId, String reason) {
         List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, courier_id, status FROM orders WHERE id = ? FOR UPDATE", orderId);
-        if (orders.isEmpty()) throw new ApiException(404, "Pedido nÃ£o encontrado");
+        if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);
         String current = (String) order.get("status");
@@ -171,7 +171,7 @@ public class OrderService {
         if ("assign".equals(action)) {
             if (courierId == null || courierId < 1) throw new ApiException(400, "Selecione um entregador");
             Integer courier = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier' AND suspended_at IS NULL AND courier_approved_at IS NOT NULL", rs -> rs.next() ? 1 : null, courierId);
-            if (courier == null) throw new ApiException(400, "Entregador nÃ£o aprovado ou indisponÃ­vel");
+            if (courier == null) throw new ApiException(400, "Entregador não aprovado ou indisponível");
             jdbc.update("UPDATE orders SET status = ?, courier_id = ? WHERE id = ?", next, courierId, orderId);
         } else if (transition.clearsCourier()) {
             jdbc.update("UPDATE orders SET status = ?, courier_id = NULL WHERE id = ?", next, orderId);
@@ -192,11 +192,11 @@ public class OrderService {
         long customerId = number(order, "customer_id");
         switch (next) {
             case "accepted" -> notifications.notifyUser(customerId, "order_accepted", "Pedido #" + orderId + " aceito", "O restaurante aceitou seu pedido.", orderId);
-            case "ready" -> notifications.notifyUser(customerId, "order_ready", "Pedido #" + orderId + " pronto", "Seu pedido estÃ¡ pronto para entrega.", orderId);
+            case "ready" -> notifications.notifyUser(customerId, "order_ready", "Pedido #" + orderId + " pronto", "Seu pedido está pronto para entrega.", orderId);
             case "assigned" -> {
-                if (courierId != null) notifications.notifyUser(courierId, "order_assigned", "Nova entrega #" + orderId, "Um pedido foi atribuÃ­do a vocÃª.", orderId);
+                if (courierId != null) notifications.notifyUser(courierId, "order_assigned", "Nova entrega #" + orderId, "Um pedido foi atribuído a você.", orderId);
             }
-            case "picked_up" -> notifications.notifyUser(customerId, "order_picked_up", "Pedido #" + orderId + " saiu para entrega", "O entregador estÃ¡ a caminho.", orderId);
+            case "picked_up" -> notifications.notifyUser(customerId, "order_picked_up", "Pedido #" + orderId + " saiu para entrega", "O entregador está a caminho.", orderId);
             case "delivered" -> notifications.notifyUser(customerId, "order_delivered", "Pedido #" + orderId + " entregue", "Bom apetite!", orderId);
             default -> { }
         }
@@ -218,7 +218,7 @@ public class OrderService {
             case "courier" -> order.get("courier_id") == null || number(order, "courier_id") != user.id();
             default -> false;
         };
-        if (denied) throw new ApiException(403, "Acesso nÃ£o autorizado");
+        if (denied) throw new ApiException(403, "Acesso não autorizado");
     }
 
     private static long number(Map<String, Object> row, String key) {

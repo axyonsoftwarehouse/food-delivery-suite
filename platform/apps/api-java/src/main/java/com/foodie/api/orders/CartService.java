@@ -39,7 +39,7 @@ public class CartService {
             if (!current.isEmpty() && current.getFirst().restaurantId() != restaurantId) {
                 throw new ApiException(400, "Um carrinho pode conter pratos de um restaurante por vez");
             }
-            if (existing == null && current.size() >= 30) throw new ApiException(400, "O carrinho aceita atÃ© 30 pratos diferentes");
+            if (existing == null && current.size() >= 30) throw new ApiException(400, "O carrinho aceita até 30 pratos diferentes");
             if (existing != null && existing.quantity() >= 20) throw new ApiException(400, "Limite de 20 unidades por prato");
             if (existing == null) jdbc.update("INSERT INTO cart_items (user_id, product_id, quantity) VALUES (?, ?, 1)", customer.id(), productId);
             else jdbc.update("UPDATE cart_items SET quantity = quantity + 1 WHERE user_id = ? AND product_id = ?", customer.id(), productId);
@@ -79,7 +79,7 @@ public class CartService {
         lock(customer.id());
         prune(customer.id());
         List<CartRow> current = rows(customer.id());
-        if (current.isEmpty()) throw new ApiException(400, "O carrinho estÃ¡ vazio");
+        if (current.isEmpty()) throw new ApiException(400, "O carrinho está vazio");
         long restaurantId = current.getFirst().restaurantId();
         List<OrderController.Item> items = new ArrayList<>();
         for (CartRow row : current) items.add(new OrderController.Item(row.productId(), row.quantity()));
@@ -101,7 +101,7 @@ public class CartService {
 
     private long availableRestaurant(long productId) {
         Long restaurantId = findAvailableRestaurant(productId);
-        if (restaurantId == null) throw new ApiException(400, "Produto indisponÃ­vel");
+        if (restaurantId == null) throw new ApiException(400, "Produto indisponível");
         return restaurantId;
     }
 

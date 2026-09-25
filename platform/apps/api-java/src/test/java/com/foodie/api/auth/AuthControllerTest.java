@@ -66,11 +66,11 @@ class AuthControllerTest {
 
     @Test
     void badCredentialsKeepErrorShape() throws Exception {
-        when(auth.login(eq("cliente@demo.local"), eq("wrong"), any())).thenThrow(new ApiException(401, "Credenciais invÃ¡lidas"));
+        when(auth.login(eq("cliente@demo.local"), eq("wrong"), any())).thenThrow(new ApiException(401, "Credenciais inválidas"));
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"cliente@demo.local\",\"password\":\"wrong\"}"))
             .andExpect(status().isUnauthorized())
-            .andExpect(jsonPath("$.error").value("Credenciais invÃ¡lidas"));
+            .andExpect(jsonPath("$.error").value("Credenciais inválidas"));
     }
 
     @Test
@@ -98,13 +98,13 @@ class AuthControllerTest {
 
     @Test
     void resetPasswordRejectsInvalidToken() throws Exception {
-        org.mockito.Mockito.doThrow(new ApiException(400, "Token invÃ¡lido ou expirado"))
+        org.mockito.Mockito.doThrow(new ApiException(400, "Token inválido ou expirado"))
             .when(account).resetPassword(eq("bad"), eq("test-password-123"));
 
         mvc.perform(post("/auth/reset-password").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"token\":\"bad\",\"password\":\"test-password-123\"}"))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.error").value("Token invÃ¡lido ou expirado"));
+            .andExpect(jsonPath("$.error").value("Token inválido ou expirado"));
     }
 
     @Test

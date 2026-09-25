@@ -22,13 +22,13 @@ public class PaymentService {
     @Transactional
     public void create(long orderId, String method, String modality, long amountDueCents, Integer changeForCents) {
         String mode = (modality == null || modality.isBlank()) ? "on_delivery" : modality;
-        if (!"on_delivery".equals(mode) && !"online".equals(mode)) throw new ApiException(400, "Modalidade de pagamento invÃ¡lida");
-        if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento invÃ¡lida");
+        if (!"on_delivery".equals(mode) && !"online".equals(mode)) throw new ApiException(400, "Modalidade de pagamento inválida");
+        if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento inválida");
         if ("online".equals(mode)) {
-            if ("cash".equals(method)) throw new ApiException(400, "Pagamento online nÃ£o aceita dinheiro");
-            if (changeForCents != null) throw new ApiException(400, "Troco sÃ³ se aplica a pagamento na entrega");
+            if ("cash".equals(method)) throw new ApiException(400, "Pagamento online não aceita dinheiro");
+            if (changeForCents != null) throw new ApiException(400, "Troco só se aplica a pagamento na entrega");
         } else if (changeForCents != null) {
-            if (!"cash".equals(method)) throw new ApiException(400, "Troco sÃ³ se aplica a pagamento em dinheiro");
+            if (!"cash".equals(method)) throw new ApiException(400, "Troco só se aplica a pagamento em dinheiro");
             if (changeForCents < amountDueCents) throw new ApiException(400, "O troco deve cobrir o total do pedido");
         }
         jdbc.update("INSERT INTO order_payments (order_id, method, modality, amount_due_cents, change_for_cents) VALUES (?, ?, ?, ?, ?)",
@@ -41,23 +41,23 @@ public class PaymentService {
             "SELECT p.status, p.method, p.amount_due_cents, o.courier_id FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE",
             orderId
         );
-        if (rows.isEmpty()) throw new ApiException(404, "Pagamento nÃ£o encontrado");
+        if (rows.isEmpty()) throw new ApiException(404, "Pagamento não encontrado");
         Map<String, Object> row = rows.getFirst();
         if ("courier".equals(actor.role())) {
             Long courierId = row.get("courier_id") == null ? null : ((Number) row.get("courier_id")).longValue();
-            if (courierId == null || courierId != actor.id()) throw new ApiException(403, "Acesso nÃ£o autorizado");
+            if (courierId == null || courierId != actor.id()) throw new ApiException(403, "Acesso não autorizado");
         } else if (!"admin".equals(actor.role())) {
-            throw new ApiException(403, "Acesso nÃ£o autorizado");
+            throw new ApiException(403, "Acesso não autorizado");
         }
-        if (!"pending".equals(row.get("status"))) throw new ApiException(409, "Pagamento jÃ¡ confirmado ou cancelado");
+        if (!"pending".equals(row.get("status"))) throw new ApiException(409, "Pagamento já confirmado ou cancelado");
         long due = number(row, "amount_due_cents");
         String method = (String) row.get("method");
         long change;
         if ("cash".equals(method)) {
-            if (amountReceivedCents < due) throw new ApiException(400, "Valor recebido Ã© menor que o total do pedido");
+            if (amountReceivedCents < due) throw new ApiException(400, "Valor recebido é menor que o total do pedido");
             change = amountReceivedCents - due;
         } else {
-            if (amountReceivedCents != due) throw new ApiException(400, "Para cartÃ£o ou Pix o valor recebido deve ser o total do pedido");
+            if (amountReceivedCents != due) throw new ApiException(400, "Para cartão ou Pix o valor recebido deve ser o total do pedido");
             change = 0;
         }
         String trimmed = note == null ? null : note.strip();
@@ -76,13 +76,13 @@ public class PaymentService {
 
     @Transactional
     public Map<String, Object> refund(User actor, long orderId, String note) {
-        if (!"admin".equals(actor.role())) throw new ApiException(403, "Acesso nÃ£o autorizado");
+        if (!"admin".equals(actor.role())) throw new ApiException(403, "Acesso não autorizado");
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT method, amount_received_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
-        if (rows.isEmpty()) throw new ApiException(404, "Pagamento nÃ£o encontrado");
+        if (rows.isEmpty()) throw new ApiException(404, "Pagamento não encontrado");
         String trimmed = note == null ? null : note.strip();
         int changed = jdbc.update("UPDATE order_payments SET status = 'refunded', note = ?, refunded_by = ?, refunded_at = NOW() WHERE order_id = ? AND status = 'paid'",
             (trimmed == null || trimmed.isEmpty()) ? null : trimmed, actor.id(), orderId);
-        if (changed == 0) throw new ApiException(409, "SÃ³ Ã© possÃ­vel estornar um pagamento confirmado");
+        if (changed == 0) throw new ApiException(409, "Só é possível estornar um pagamento confirmado");
         java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("orderId", orderId);
         result.put("method", rows.getFirst().get("method"));

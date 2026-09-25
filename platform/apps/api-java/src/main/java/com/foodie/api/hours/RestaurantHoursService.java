@@ -32,15 +32,15 @@ public class RestaurantHoursService {
 
     public String timezone(long restaurantId) {
         List<String> values = jdbc.query("SELECT timezone FROM restaurants WHERE id = ?", (rs, row) -> rs.getString("timezone"), restaurantId);
-        if (values.isEmpty()) throw new ApiException(404, "Restaurante nÃ£o encontrado");
+        if (values.isEmpty()) throw new ApiException(404, "Restaurante não encontrado");
         return values.get(0);
     }
 
     public void updateTimezone(long restaurantId, String timezone) {
         try { ZoneId.of(timezone); }
-        catch (RuntimeException error) { throw new ApiException(400, "Fuso horÃ¡rio invÃ¡lido"); }
+        catch (RuntimeException error) { throw new ApiException(400, "Fuso horário inválido"); }
         if (jdbc.update("UPDATE restaurants SET timezone = ? WHERE id = ?", timezone, restaurantId) == 0) {
-            throw new ApiException(404, "Restaurante nÃ£o encontrado");
+            throw new ApiException(404, "Restaurante não encontrado");
         }
     }
 
@@ -62,9 +62,9 @@ public class RestaurantHoursService {
     }
 
     public long add(long restaurantId, int dayOfWeek, LocalTime opensAt, LocalTime closesAt) {
-        if (opensAt.equals(closesAt)) throw new ApiException(400, "A abertura e o fechamento nÃ£o podem ser iguais");
+        if (opensAt.equals(closesAt)) throw new ApiException(400, "A abertura e o fechamento não podem ser iguais");
         if (jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, restaurantId) == null) {
-            throw new ApiException(404, "Restaurante nÃ£o encontrado");
+            throw new ApiException(404, "Restaurante não encontrado");
         }
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         jdbc.update(connection -> {
@@ -83,7 +83,7 @@ public class RestaurantHoursService {
 
     public void remove(long restaurantId, long id) {
         if (jdbc.update("DELETE FROM restaurant_hours WHERE id = ? AND restaurant_id = ?", id, restaurantId) == 0) {
-            throw new ApiException(404, "HorÃ¡rio nÃ£o encontrado");
+            throw new ApiException(404, "Horário não encontrado");
         }
     }
 

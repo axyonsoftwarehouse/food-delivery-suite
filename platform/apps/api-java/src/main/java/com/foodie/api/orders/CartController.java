@@ -41,7 +41,7 @@ public class CartController {
     public CartService.CartSnapshot change(@CookieValue(value = "foodie_session", required = false) String token,
                                            @PathVariable @Positive long productId,
                                            @Valid @RequestBody DeltaRequest request) {
-        if (Math.abs(request.delta()) != 1) throw new ApiException(400, "AlteraÃ§Ã£o de quantidade invÃ¡lida");
+        if (Math.abs(request.delta()) != 1) throw new ApiException(400, "Alteração de quantidade inválida");
         return cart.change(customer(token), productId, request.delta());
     }
 

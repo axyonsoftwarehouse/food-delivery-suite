@@ -30,13 +30,13 @@ public class AccountService {
         String token = Tokens.random();
         repository.createActionToken(Tokens.hash(token), user.id(), "verify_email", VERIFY_MINUTES);
         mail.send(user.email(), "Confirme seu email Foodie",
-            "Confirme seu email em " + publicBaseUrl + "/verify-email?token=" + token + " (vÃ¡lido por 24 horas).");
+            "Confirme seu email em " + publicBaseUrl + "/verify-email?token=" + token + " (válido por 24 horas).");
     }
 
     @Transactional
     public void verifyEmail(String token) {
         long userId = repository.consumeActionToken(Tokens.hash(token), "verify_email")
-            .orElseThrow(() -> new ApiException(400, "Token invÃ¡lido ou expirado"));
+            .orElseThrow(() -> new ApiException(400, "Token inválido ou expirado"));
         repository.markEmailVerified(userId);
     }
 
@@ -53,14 +53,14 @@ public class AccountService {
         if (credentials.isEmpty() || credentials.get().suspended()) return;
         String token = Tokens.random();
         repository.createActionToken(Tokens.hash(token), credentials.get().user().id(), "reset_password", RESET_MINUTES);
-        mail.send(credentials.get().user().email(), "RedefiniÃ§Ã£o de senha Foodie",
-            "Defina uma nova senha em " + publicBaseUrl + "/reset-password?token=" + token + " (vÃ¡lido por 30 minutos).");
+        mail.send(credentials.get().user().email(), "Redefinição de senha Foodie",
+            "Defina uma nova senha em " + publicBaseUrl + "/reset-password?token=" + token + " (válido por 30 minutos).");
     }
 
     @Transactional
     public void resetPassword(String token, String password) {
         long userId = repository.consumeActionToken(Tokens.hash(token), "reset_password")
-            .orElseThrow(() -> new ApiException(400, "Token invÃ¡lido ou expirado"));
+            .orElseThrow(() -> new ApiException(400, "Token inválido ou expirado"));
         repository.updatePassword(userId, passwords.hash(password));
         repository.deleteSessionsForUser(userId);
     }

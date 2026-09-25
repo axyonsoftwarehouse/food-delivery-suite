@@ -18,11 +18,11 @@ public class ApiErrorHandler {
 
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
     ResponseEntity<Map<String, String>> badInput(Exception error) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Dados invÃ¡lidos"));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Dados inválidos"));
     }
 
     @ExceptionHandler(DuplicateKeyException.class)
     ResponseEntity<Map<String, String>> duplicate() {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Registro jÃ¡ existe"));
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Registro já existe"));
     }
 }

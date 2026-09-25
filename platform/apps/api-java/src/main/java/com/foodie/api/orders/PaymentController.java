@@ -66,13 +66,13 @@ public class PaymentController {
         auth.requireUser(token, "admin");
         String end = parseDate(to == null || to.isBlank() ? LocalDate.now().toString() : to);
         String start = parseDate(from == null || from.isBlank() ? end : from);
-        if (start.compareTo(end) > 0) throw new ApiException(400, "PerÃ­odo invÃ¡lido");
+        if (start.compareTo(end) > 0) throw new ApiException(400, "Período inválido");
         return payments.reconciliation(start, end);
     }
 
     private static String parseDate(String value) {
         try { return LocalDate.parse(value).toString(); }
-        catch (DateTimeParseException error) { throw new ApiException(400, "Data invÃ¡lida (use AAAA-MM-DD)"); }
+        catch (DateTimeParseException error) { throw new ApiException(400, "Data inválida (use AAAA-MM-DD)"); }
     }
 
     public record ConfirmRequest(@NotNull @Min(0) @Max(100_000_000) Long amountReceivedCents, @Size(max = 255) String note) {}

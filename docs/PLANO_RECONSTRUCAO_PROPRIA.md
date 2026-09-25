@@ -1,53 +1,53 @@
-# ReconstruÃ§Ã£o independente da plataforma
+# Reconstrução independente da plataforma
 
-Atualizado em 24/09/2026. A primeira base local estÃ¡ em `platform/`; os serviÃ§os publicados na VPS nÃ£o foram alterados.
+Atualizado em 24/09/2026. A primeira base local está em `platform/`; os serviços publicados na VPS não foram alterados.
 
-## DecisÃ£o tÃ©cnica
+## Decisão técnica
 
-Construir as interfaces em Next.js/TypeScript e o backend prÃ³prio em **Java 21 com Spring Boot**, como serviÃ§o separado. A API Fastify em `platform/apps/api` Ã© um protÃ³tipo local de referÃªncia para fluxos e contratos; sua implementaÃ§Ã£o serÃ¡ substituÃ­da gradualmente pela API Java. NÃ£o alterar as verificaÃ§Ãµes de ativaÃ§Ã£o do pacote atual. Usar o sistema existente para entender os fluxos e a estrutura dos dados, sem copiar controladores, telas ou bibliotecas proprietÃ¡rias para a nova implementaÃ§Ã£o. Preservar os dados demonstrativos e migrÃ¡-los por scripts revisÃ¡veis.
+Construir as interfaces em Next.js/TypeScript e o backend próprio em **Java 21 com Spring Boot**, como serviço separado. A API Fastify em `platform/apps/api` é um protótipo local de referência para fluxos e contratos; sua implementação será substituída gradualmente pela API Java. Não alterar as verificações de ativação do pacote atual. Usar o sistema existente para entender os fluxos e a estrutura dos dados, sem copiar controladores, telas ou bibliotecas proprietárias para a nova implementação. Preservar os dados demonstrativos e migrá-los por scripts revisáveis.
 
-O [Figma Foodie](https://www.figma.com/design/mlPWwBrTwJ53AHH4zC1gsT/Foodie---Food-Delivery-App-UI-Kit?node-id=727-25421) fornecido mostra telas mÃ³veis do cliente (entrada, cadastro, home, carrinho e outras). Ã‰ uma referÃªncia visual flexÃ­vel, nÃ£o um layout a copiar exatamente. Na tela inicial observada: fundo claro, verde como cor de aÃ§Ã£o, localizaÃ§Ã£o em destaque, oferta com fotografia de comida, atalhos de categorias e cards de recomendaÃ§Ãµes. Para admin, restaurante e entregador, criar interfaces prÃ³prias coerentes com essa identidade e com as tarefas de cada usuÃ¡rio. Imagens e Ã­cones sem licenÃ§a confirmada serÃ£o substituÃ­dos por recursos prÃ³prios.
+O [Figma Foodie](https://www.figma.com/design/mlPWwBrTwJ53AHH4zC1gsT/Foodie---Food-Delivery-App-UI-Kit?node-id=727-25421) fornecido mostra telas móveis do cliente (entrada, cadastro, home, carrinho e outras). É uma referência visual flexível, não um layout a copiar exatamente. Na tela inicial observada: fundo claro, verde como cor de ação, localização em destaque, oferta com fotografia de comida, atalhos de categorias e cards de recomendações. Para admin, restaurante e entregador, criar interfaces próprias coerentes com essa identidade e com as tarefas de cada usuário. Imagens e ícones sem licença confirmada serão substituídos por recursos próprios.
 
 ## Arquitetura proposta
 
-- **API independente:** monÃ³lito modular em Java/Spring Boot, com autenticaÃ§Ã£o, permissÃµes, catÃ¡logo, pedidos, zonas e histÃ³rico de estados implementados do zero. Banco MariaDB prÃ³prio, separado do banco legado. Migrations versionadas e transaÃ§Ãµes para pedido e mudanÃ§a de estado.
-- **Admin web:** painel responsivo para administrar restaurantes, cardÃ¡pio, entregadores, clientes, zonas e pedidos. ComeÃ§ar com as operaÃ§Ãµes essenciais; relatÃ³rios, promoÃ§Ãµes e integraÃ§Ãµes entram depois.
-- **Restaurante web:** painel responsivo para receber pedidos, aceitar/rejeitar, atualizar preparo e gerenciar disponibilidade de itens. Ã‰ o primeiro fluxo de operaÃ§Ã£o a integrar Ã  API prÃ³pria.
-- **Entregador web mÃ³vel:** interface adaptada para celular para aceitar entrega, registrar retirada e conclusÃ£o e consultar histÃ³rico. A versÃ£o Flutter pode ser construÃ­da apÃ³s validar esse fluxo e os contratos da API.
-- **Cliente:** preservar o site atual como referÃªncia de experiÃªncia enquanto a API prÃ³pria Ã© construÃ­da. Migrar gradualmente catÃ¡logo, autenticaÃ§Ã£o, carrinho e checkout para a nova API antes de desligar o backend antigo.
-- **PublicaÃ§Ã£o:** novos contÃªineres e subdomÃ­nios de teste na mesma VPS, isolados da pilha atual. Trocar os endereÃ§os pÃºblicos apenas quando os fluxos passarem nos testes.
-- **Crescimento:** API sem estado de sessÃ£o local, configuraÃ§Ã£o por ambiente, health checks, logs estruturados e mÃ©tricas. Escalar primeiro com Ã­ndices, consultas e capacidade da VPS; adicionar rÃ©plicas da API e processamento assÃ­ncrono quando as mediÃ§Ãµes justificarem. A escolha de Java por si sÃ³ nÃ£o garante escala.
+- **API independente:** monólito modular em Java/Spring Boot, com autenticação, permissões, catálogo, pedidos, zonas e histórico de estados implementados do zero. Banco MariaDB próprio, separado do banco legado. Migrations versionadas e transações para pedido e mudança de estado.
+- **Admin web:** painel responsivo para administrar restaurantes, cardápio, entregadores, clientes, zonas e pedidos. Começar com as operações essenciais; relatórios, promoções e integrações entram depois.
+- **Restaurante web:** painel responsivo para receber pedidos, aceitar/rejeitar, atualizar preparo e gerenciar disponibilidade de itens. É o primeiro fluxo de operação a integrar à API própria.
+- **Entregador web móvel:** interface adaptada para celular para aceitar entrega, registrar retirada e conclusão e consultar histórico. A versão Flutter pode ser construída após validar esse fluxo e os contratos da API.
+- **Cliente:** preservar o site atual como referência de experiência enquanto a API própria é construída. Migrar gradualmente catálogo, autenticação, carrinho e checkout para a nova API antes de desligar o backend antigo.
+- **Publicação:** novos contêineres e subdomínios de teste na mesma VPS, isolados da pilha atual. Trocar os endereços públicos apenas quando os fluxos passarem nos testes.
+- **Crescimento:** API sem estado de sessão local, configuração por ambiente, health checks, logs estruturados e métricas. Escalar primeiro com índices, consultas e capacidade da VPS; adicionar réplicas da API e processamento assíncrono quando as medições justificarem. A escolha de Java por si só não garante escala.
 
-## TransiÃ§Ã£o da API TypeScript para Java
+## Transição da API TypeScript para Java
 
-1. Registrar os contratos HTTP e os casos de teste do protÃ³tipo atual: login/sessÃ£o, catÃ¡logo, zonas, endereÃ§os, criaÃ§Ã£o de pedido, transiÃ§Ãµes e erros. O Next.js continuarÃ¡ usando `/backend/*`.
-2. Criar `platform/apps/api-java` com Java 21, Spring Boot, Maven, acesso ao MariaDB prÃ³prio e endpoint de saÃºde. Adotar Flyway quando a API Java assumir a propriedade das migrations; atÃ© lÃ¡, preservar a migraÃ§Ã£o do protÃ³tipo para evitar dois migradores concorrentes. Manter a API TypeScript disponÃ­vel apenas no ambiente local atÃ© a paridade.
-3. Implementar um fluxo vertical por vez no Java, comeÃ§ando por catÃ¡logo e zonas; depois autenticaÃ§Ã£o/permissÃµes, pedidos e transiÃ§Ãµes. Essa primeira cobertura de cÃ³digo jÃ¡ existe; comparar respostas e regras com os testes do protÃ³tipo em MariaDB real antes de trocar o proxy.
-4. Apontar o proxy `/backend/*` do Next.js para o Java no ambiente de teste apÃ³s a paridade dos fluxos essenciais. Exercitar o percurso cliente â†’ restaurante â†’ admin â†’ entregador â†’ cliente, incluindo cobertura, valores, autorizaÃ§Ã£o e histÃ³rico.
-5. Publicar em contÃªiner isolado na VPS de teste, medir memÃ³ria, latÃªncia e consultas, validar backup e rollback; sÃ³ entÃ£o trocar o trÃ¡fego. Remover a API TypeScript quando nÃ£o houver mais consumidores.
+1. Registrar os contratos HTTP e os casos de teste do protótipo atual: login/sessão, catálogo, zonas, endereços, criação de pedido, transições e erros. O Next.js continuará usando `/backend/*`.
+2. Criar `platform/apps/api-java` com Java 21, Spring Boot, Maven, acesso ao MariaDB próprio e endpoint de saúde. Adotar Flyway quando a API Java assumir a propriedade das migrations; até lá, preservar a migração do protótipo para evitar dois migradores concorrentes. Manter a API TypeScript disponível apenas no ambiente local até a paridade.
+3. Implementar um fluxo vertical por vez no Java, começando por catálogo e zonas; depois autenticação/permissões, pedidos e transições. Essa primeira cobertura de código já existe; comparar respostas e regras com os testes do protótipo em MariaDB real antes de trocar o proxy.
+4. Apontar o proxy `/backend/*` do Next.js para o Java no ambiente de teste após a paridade dos fluxos essenciais. Exercitar o percurso cliente → restaurante → admin → entregador → cliente, incluindo cobertura, valores, autorização e histórico.
+5. Publicar em contêiner isolado na VPS de teste, medir memória, latência e consultas, validar backup e rollback; só então trocar o tráfego. Remover a API TypeScript quando não houver mais consumidores.
 
-## Ordem de construÃ§Ã£o
+## Ordem de construção
 
-1. **InventÃ¡rio e dados:** mapear tabelas e relaÃ§Ãµes necessÃ¡rias, exportar um backup verificÃ¡vel, registrar fluxos de pedido e estados. Definir quais dados demonstrativos serÃ£o migrados e quais serÃ£o recriados.
-2. **Base da API e admin mÃ­nimo:** login seguro, papÃ©is, zonas, restaurantes, categorias, produtos e visualizaÃ§Ã£o de pedidos. Aceite: um administrador consegue montar um cardÃ¡pio e acompanhar um pedido de teste sem acessar o pacote antigo.
-3. **OperaÃ§Ã£o do restaurante:** login prÃ³prio, fila de pedidos, aceite, preparo, disponibilidade de itens. Aceite: o pedido passa de criado a pronto com histÃ³rico e autorizaÃ§Ã£o corretos.
-4. **OperaÃ§Ã£o do entregador:** cadastro/aprovaÃ§Ã£o, atribuiÃ§Ã£o, aceite, retirada e conclusÃ£o. Aceite: o pedido passa de pronto a entregue e cliente/admin veem o mesmo estado.
-5. **Cliente e pagamentos:** catÃ¡logo por zona, conta, carrinho, checkout, acompanhamento e notificaÃ§Ãµes. ComeÃ§ar com pedido demonstrativo ou pagamento manual; integrar meios de pagamento reais somente apÃ³s validar o fluxo.
-6. **Acabamento:** aplicar o sistema visual baseado no Figma Ã s telas do cliente e adaptar cores, tipografia e componentes aos painÃ©is operacionais; revisar portuguÃªs, acessibilidade e uso no celular.
+1. **Inventário e dados:** mapear tabelas e relações necessárias, exportar um backup verificável, registrar fluxos de pedido e estados. Definir quais dados demonstrativos serão migrados e quais serão recriados.
+2. **Base da API e admin mínimo:** login seguro, papéis, zonas, restaurantes, categorias, produtos e visualização de pedidos. Aceite: um administrador consegue montar um cardápio e acompanhar um pedido de teste sem acessar o pacote antigo.
+3. **Operação do restaurante:** login próprio, fila de pedidos, aceite, preparo, disponibilidade de itens. Aceite: o pedido passa de criado a pronto com histórico e autorização corretos.
+4. **Operação do entregador:** cadastro/aprovação, atribuição, aceite, retirada e conclusão. Aceite: o pedido passa de pronto a entregue e cliente/admin veem o mesmo estado.
+5. **Cliente e pagamentos:** catálogo por zona, conta, carrinho, checkout, acompanhamento e notificações. Começar com pedido demonstrativo ou pagamento manual; integrar meios de pagamento reais somente após validar o fluxo.
+6. **Acabamento:** aplicar o sistema visual baseado no Figma às telas do cliente e adaptar cores, tipografia e componentes aos painéis operacionais; revisar português, acessibilidade e uso no celular.
 
 ## Regras para preservar o projeto
 
 - Nenhum ajuste no `ActivationCheckMiddleware` nem em `system-addons.php`.
-- Nenhuma migraÃ§Ã£o destrutiva no banco publicado; usar cÃ³pia isolada e scripts idempotentes de importaÃ§Ã£o.
-- NÃ£o colocar os aplicativos atuais em produÃ§Ã£o como se estivessem operacionais enquanto suas APIs de login retornarem 503.
-- Registrar contratos da API prÃ³pria e testar os estados do pedido entre cliente, restaurante, entregador e admin.
-- Manter o site atual disponÃ­vel atÃ© a troca controlada. O Foodie antigo permanece parado e preservado.
+- Nenhuma migração destrutiva no banco publicado; usar cópia isolada e scripts idempotentes de importação.
+- Não colocar os aplicativos atuais em produção como se estivessem operacionais enquanto suas APIs de login retornarem 503.
+- Registrar contratos da API própria e testar os estados do pedido entre cliente, restaurante, entregador e admin.
+- Manter o site atual disponível até a troca controlada. O Foodie antigo permanece parado e preservado.
 
 ## Primeira entrega recomendada
 
-O protÃ³tipo local estÃ¡ em `platform/`: API TypeScript transitÃ³ria, banco separado, painel web responsivo, quatro papÃ©is, catÃ¡logo, zonas configurÃ¡veis, endereÃ§os, taxa fixa por zona, pedido demonstrativo e histÃ³rico de estados. A API Java jÃ¡ cobre esses endpoints em cÃ³digo. O fluxo completo de pedidos foi validado anteriormente com MariaDB local; a nova cobertura por CEP ainda precisa de um teste integrado apÃ³s aplicar a migration `005_postal_coverage.sql`. A zona do endereÃ§o agora Ã© derivada de faixas de CEP cadastradas pelo admin e verificada novamente no checkout. Essa verificaÃ§Ã£o nÃ£o valida rua/nÃºmero nem substitui perÃ­metros geogrÃ¡ficos. Faltam cÃ¡lculo de distÃ¢ncia, pagamentos e notificaÃ§Ãµes. Consulte `platform/README.md` para executar e validar localmente.
+O protótipo local está em `platform/`: API TypeScript transitória, banco separado, painel web responsivo, quatro papéis, catálogo, zonas configuráveis, endereços, taxa fixa por zona, pedido demonstrativo e histórico de estados. A API Java já cobre esses endpoints em código. O fluxo completo de pedidos foi validado anteriormente com MariaDB local; a nova cobertura por CEP ainda precisa de um teste integrado após aplicar a migration `005_postal_coverage.sql`. A zona do endereço agora é derivada de faixas de CEP cadastradas pelo admin e verificada novamente no checkout. Essa verificação não valida rua/número nem substitui perímetros geográficos. Faltam cálculo de distância, pagamentos e notificações. Consulte `platform/README.md` para executar e validar localmente.
 
 ## Pontos a confirmar antes de usar materiais externos
 
-- Direito de uso do UI kit Foodie e de suas imagens/Ã­cones no produto final.
-- LicenÃ§a ou titularidade do cÃ³digo atual. Se nÃ£o puder ser comprovada, ele ficarÃ¡ apenas como referÃªncia funcional durante a migraÃ§Ã£o e nÃ£o serÃ¡ copiado para a nova plataforma.
+- Direito de uso do UI kit Foodie e de suas imagens/ícones no produto final.
+- Licença ou titularidade do código atual. Se não puder ser comprovada, ele ficará apenas como referência funcional durante a migração e não será copiado para a nova plataforma.

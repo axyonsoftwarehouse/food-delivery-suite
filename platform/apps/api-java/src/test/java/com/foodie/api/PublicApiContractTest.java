@@ -60,14 +60,14 @@ class PublicApiContractTest {
     @Test
     void postalCodeResolvesZoneAndRejectsUncoveredAddress() throws Exception {
         when(postalCoverage.resolve("60000001")).thenReturn(Map.of("id", 4, "name", "Fortaleza", "city", "Fortaleza", "state", "CE", "delivery_fee_cents", 599, "minimum_order_cents", 1500));
-        when(postalCoverage.resolve("99999999")).thenThrow(new ApiException(404, "Ainda nÃ£o entregamos neste CEP"));
+        when(postalCoverage.resolve("99999999")).thenThrow(new ApiException(404, "Ainda não entregamos neste CEP"));
 
         mvc.perform(get("/zones/resolve").param("postalCode", "60000001"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(4));
         mvc.perform(get("/zones/resolve").param("postalCode", "99999999"))
             .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.error").value("Ainda nÃ£o entregamos neste CEP"));
+            .andExpect(jsonPath("$.error").value("Ainda não entregamos neste CEP"));
         verify(postalCoverage).resolve("60000001");
     }
 

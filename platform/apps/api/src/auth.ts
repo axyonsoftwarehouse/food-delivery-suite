@@ -51,7 +51,7 @@ export async function currentUser(request: FastifyRequest): Promise<User | null>
 
 export async function requireUser(request: FastifyRequest, roles?: Role[]): Promise<User> {
   const user = await currentUser(request);
-  if (!user) throw Object.assign(new Error('FaÃ§a login para continuar'), { statusCode: 401 });
-  if (roles && !roles.includes(user.role)) throw Object.assign(new Error('Acesso nÃ£o autorizado'), { statusCode: 403 });
+  if (!user) throw Object.assign(new Error('Faça login para continuar'), { statusCode: 401 });
+  if (roles && !roles.includes(user.role)) throw Object.assign(new Error('Acesso não autorizado'), { statusCode: 403 });
   return user;
 }

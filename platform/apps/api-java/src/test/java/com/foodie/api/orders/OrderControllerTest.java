@@ -49,10 +49,10 @@ class OrderControllerTest {
 
     @Test
     void unauthenticatedRequestGetsPrototypeError() throws Exception {
-        when(auth.requireUser(null)).thenThrow(new ApiException(401, "FaÃ§a login para continuar"));
+        when(auth.requireUser(null)).thenThrow(new ApiException(401, "Faça login para continuar"));
         mvc.perform(patch("/orders/12/status").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"action\":\"accept\"}"))
             .andExpect(status().isUnauthorized())
-            .andExpect(jsonPath("$.error").value("FaÃ§a login para continuar"));
+            .andExpect(jsonPath("$.error").value("Faça login para continuar"));
     }
 }

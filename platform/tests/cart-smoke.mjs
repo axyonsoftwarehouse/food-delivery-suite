@@ -8,7 +8,7 @@ async function waitForApi() {
     try { if ((await fetch(`${base}/health`)).ok) return; } catch { /* API reiniciando. */ }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error('API Java nÃ£o ficou pronta para o smoke');
+  throw new Error('API Java não ficou pronta para o smoke');
 }
 
 async function call(path, { cookie, method = 'GET', body, expected = 200 } = {}) {
@@ -24,7 +24,7 @@ async function call(path, { cookie, method = 'GET', body, expected = 200 } = {})
 
 function session(response) {
   const cookie = response.headers.get('set-cookie')?.split(';')[0];
-  assert.ok(cookie?.startsWith('foodie_session='), 'SessÃ£o nÃ£o criada');
+  assert.ok(cookie?.startsWith('foodie_session='), 'Sessão não criada');
   return cookie;
 }
 
@@ -35,7 +35,7 @@ const otherEmail = `cart-other-${unique}@example.test`;
 await waitForApi();
 const catalog = (await call('/catalog')).data;
 const zones = (await call('/zones')).data;
-const demoZone = zones.find((zone) => zone.name === 'Fortaleza â€¢ demonstraÃ§Ã£o');
+const demoZone = zones.find((zone) => zone.name === 'Fortaleza • demonstração');
 assert.ok(demoZone, 'Execute o seed demonstrativo antes do teste');
 const product = catalog.products.find((item) => catalog.coverage.some((coverage) =>
   coverage.restaurant_id === item.restaurant_id && coverage.zone_id === demoZone.id));

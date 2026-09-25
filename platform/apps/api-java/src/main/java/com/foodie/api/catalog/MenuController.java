@@ -134,7 +134,7 @@ public class MenuController {
 
     private User requireRestaurant(String token) {
         User user = auth.requireUser(token, "restaurant");
-        if (user.restaurantId() == null) throw new ApiException(403, "Acesso nÃ£o autorizado");
+        if (user.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
         return user;
     }
 

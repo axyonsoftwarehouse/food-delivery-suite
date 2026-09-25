@@ -66,7 +66,7 @@ public class AdminController {
         admin(token);
         int changed = jdbc.update("UPDATE zones SET delivery_fee_cents = ?, base_fee_cents = ?, per_km_cents = ?, minimum_order_cents = ? WHERE id = ?",
             body.deliveryFeeCents(), body.baseFeeCents(), body.perKmCents(), body.minimumOrderCents(), id);
-        if (changed == 0) throw new ApiException(404, "Zona nÃ£o encontrada");
+        if (changed == 0) throw new ApiException(404, "Zona não encontrada");
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", id);
         result.put("deliveryFeeCents", body.deliveryFeeCents());
@@ -83,7 +83,7 @@ public class AdminController {
         admin(token);
         Integer match = jdbc.query("SELECT 1 FROM restaurants r JOIN zones z ON z.id = ? AND z.active = TRUE WHERE r.id = ? AND r.active = TRUE",
             rs -> rs.next() ? 1 : null, body.zoneId(), body.restaurantId());
-        if (match == null) throw new ApiException(400, "Restaurante ou zona indisponÃ­vel");
+        if (match == null) throw new ApiException(400, "Restaurante ou zona indisponível");
         jdbc.update("INSERT INTO restaurant_zones (restaurant_id, zone_id) VALUES (?, ?)", body.restaurantId(), body.zoneId());
         return created(Map.of("restaurantId", body.restaurantId(), "zoneId", body.zoneId()));
     }
@@ -124,7 +124,7 @@ public class AdminController {
                                                        @Valid @RequestBody AvailabilityRequest body) {
         admin(token);
         if (jdbc.update("UPDATE restaurants SET active = ? WHERE id = ?", body.active(), id) == 0) {
-            throw new ApiException(404, "Restaurante nÃ£o encontrado");
+            throw new ApiException(404, "Restaurante não encontrado");
         }
         return Map.of("id", id, "active", body.active());
     }
@@ -134,7 +134,7 @@ public class AdminController {
                                                   @Valid @RequestBody LocationRequest body) {
         admin(token);
         if (jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, id) == null) {
-            throw new ApiException(404, "Restaurante nÃ£o encontrado");
+            throw new ApiException(404, "Restaurante não encontrado");
         }
         String address = body.addressText() == null ? null : body.addressText().trim();
         Double latitude = body.latitude();
@@ -161,7 +161,7 @@ public class AdminController {
                                                                @Valid @RequestBody RestaurantUserRequest body) {
         admin(token);
         Integer match = jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, body.restaurantId());
-        if (match == null) throw new ApiException(400, "Restaurante nÃ£o encontrado");
+        if (match == null) throw new ApiException(400, "Restaurante não encontrado");
         String email = body.email().toLowerCase(java.util.Locale.ROOT);
         long id = insert("INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, ?, ?)",
             body.name().trim(), email, passwords.hash(body.password()), "restaurant", body.restaurantId());
@@ -174,7 +174,7 @@ public class AdminController {
         admin(token);
         String email = body.email().toLowerCase(java.util.Locale.ROOT);
         Integer exists = jdbc.query("SELECT 1 FROM users WHERE email = ?", rs -> rs.next() ? 1 : null, email);
-        if (exists != null) throw new ApiException(409, "JÃ¡ existe um acesso com este email");
+        if (exists != null) throw new ApiException(409, "Já existe um acesso com este email");
         long id = insert("INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, 'courier', NULL)",
             body.name().trim(), email, passwords.hash(body.password()));
         return created(Map.of("id", id, "name", body.name().trim(), "email", email, "suspended", false, "approved", false));
@@ -185,7 +185,7 @@ public class AdminController {
                                                 @PathVariable @Positive long id) {
         admin(token);
         int changed = jdbc.update("UPDATE users SET courier_approved_at = COALESCE(courier_approved_at, NOW()) WHERE id = ? AND role = 'courier'", id);
-        if (changed == 0) throw new ApiException(404, "Entregador nÃ£o encontrado");
+        if (changed == 0) throw new ApiException(404, "Entregador não encontrado");
         return Map.of("ok", true);
     }
 
@@ -195,7 +195,7 @@ public class AdminController {
                                                 @Valid @RequestBody SuspensionRequest body) {
         admin(token);
         Integer exists = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier'", rs -> rs.next() ? 1 : null, id);
-        if (exists == null) throw new ApiException(404, "Entregador nÃ£o encontrado");
+        if (exists == null) throw new ApiException(404, "Entregador não encontrado");
         auth.setSuspended(id, body.suspended(), body.reason());
         return Map.of("ok", true);
     }
@@ -205,8 +205,8 @@ public class AdminController {
                                              @PathVariable @Positive long id,
                                              @Valid @RequestBody SuspensionRequest body) {
         var administrator = auth.requireUser(token, "admin");
-        if (administrator.id() == id) throw new ApiException(409, "NÃ£o Ã© permitido suspender o prÃ³prio acesso");
-        if (!auth.setSuspended(id, body.suspended(), body.reason())) throw new ApiException(404, "UsuÃ¡rio nÃ£o encontrado");
+        if (administrator.id() == id) throw new ApiException(409, "Não é permitido suspender o próprio acesso");
+        if (!auth.setSuspended(id, body.suspended(), body.reason())) throw new ApiException(404, "Usuário não encontrado");
         return Map.of("ok", true);
     }
 

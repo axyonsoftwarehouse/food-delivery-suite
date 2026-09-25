@@ -21,7 +21,7 @@ async function login(email: string): Promise<string> {
   const response = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
   assert.equal(response.status, 200, `Login falhou para ${email}`);
   const cookie = response.headers.get('set-cookie')?.split(';')[0];
-  if (!cookie?.startsWith('foodie_session=')) throw new Error('Cookie de sessÃ£o ausente');
+  if (!cookie?.startsWith('foodie_session=')) throw new Error('Cookie de sessão ausente');
   return cookie;
 }
 
@@ -46,10 +46,10 @@ await request(`/admin/products/${product.id}`, admin, 'PATCH', { available: fals
 assert.ok(!(await request<{ products: { id: number }[] }>('/catalog')).products.some((item) => item.id === product.id));
 await request(`/admin/products/${product.id}`, admin, 'PATCH', { available: true });
 const staffEmail = `responsavel-${unique}@demo.local`;
-await request('/admin/restaurant-users', admin, 'POST', { restaurantId: restaurant.id, name: 'ResponsÃ¡vel Teste', email: staffEmail, password }, 201);
+await request('/admin/restaurant-users', admin, 'POST', { restaurantId: restaurant.id, name: 'Responsável Teste', email: staffEmail, password }, 201);
 const restaurantSession = await login(staffEmail);
-await request('/addresses', customer, 'POST', { postalCode: '99999999', label: 'Teste', street: 'Rua de demonstraÃ§Ã£o', number: '100', neighborhood: 'Centro' }, 404);
-const address = await request<{ id: number; zoneId: number }>('/addresses', customer, 'POST', { postalCode, label: 'Teste', street: 'Rua de demonstraÃ§Ã£o', number: '100', neighborhood: 'Centro' }, 201);
+await request('/addresses', customer, 'POST', { postalCode: '99999999', label: 'Teste', street: 'Rua de demonstração', number: '100', neighborhood: 'Centro' }, 404);
+const address = await request<{ id: number; zoneId: number }>('/addresses', customer, 'POST', { postalCode, label: 'Teste', street: 'Rua de demonstração', number: '100', neighborhood: 'Centro' }, 201);
 assert.equal(address.zoneId, zone.id);
 const catalog = await request<{ products: { id: number }[] }>('/catalog');
 assert.ok(catalog.products.some((item) => item.id === product.id));

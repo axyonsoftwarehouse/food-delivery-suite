@@ -55,11 +55,11 @@ class RestaurantHoursControllerTest {
     @Test
     void restaurantCannotRemoveAnotherRestaurantInterval() throws Exception {
         when(auth.requireUser("session", "restaurant")).thenReturn(new User(5, "Cozinha", "cozinha@demo.local", "restaurant", 7L));
-        doThrow(new ApiException(404, "HorÃ¡rio nÃ£o encontrado")).when(hours).remove(7L, 99L);
+        doThrow(new ApiException(404, "Horário não encontrado")).when(hours).remove(7L, 99L);
 
         mvc.perform(delete("/restaurant/hours/99").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")))
             .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.error").value("HorÃ¡rio nÃ£o encontrado"));
+            .andExpect(jsonPath("$.error").value("Horário não encontrado"));
     }
 
     @Test
@@ -79,7 +79,7 @@ class RestaurantHoursControllerTest {
     @Test
     void rejectsEqualOpeningAndClosing() throws Exception {
         when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
-        when(hours.add(7L, 5, LocalTime.of(18, 0), LocalTime.of(18, 0))).thenThrow(new ApiException(400, "A abertura e o fechamento nÃ£o podem ser iguais"));
+        when(hours.add(7L, 5, LocalTime.of(18, 0), LocalTime.of(18, 0))).thenThrow(new ApiException(400, "A abertura e o fechamento não podem ser iguais"));
 
         mvc.perform(post("/admin/restaurants/7/hours")
                 .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
