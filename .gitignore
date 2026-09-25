@@ -78,3 +78,6 @@ tmp/
 
 # ===== Backups operacionais locais (fora do Git) =====
 backups/
+
+# ===== Monitoramento (segredos renderizados) =====
+platform/monitoring/alertmanager.rendered.yml

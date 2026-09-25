@@ -7,13 +7,14 @@ Sobe Prometheus + Alertmanager + blackbox-exporter **na rede interna** `foodie-s
 1. Copie `.env.example` para `.env` (não versionado) e preencha:
    - `TELEGRAM_BOT_TOKEN`: token do bot.
    - `TELEGRAM_CHAT_ID`: id numérico do chat que recebe os alertas.
-2. Suba a pilha a partir de `platform/monitoring`:
+2. Renderize o config do Alertmanager com os valores e suba a pilha a partir de `platform/monitoring`:
 
    ```
+   ./render.sh      # gera alertmanager.rendered.yml (fora do Git; 644 para o contêiner ler, .env fica 600)
    docker compose up -d
    ```
 
-O arquivo `alertmanager.yml` lê as duas variáveis do ambiente do contêiner (interpoladas pelo Compose a partir do `.env`); nenhum segredo fica versionado.
+O `render.sh` lê `monitoring/.env` e substitui os placeholders de `alertmanager.yml` no arquivo renderizado; nenhum segredo fica versionado. Reexecute o `render.sh` sempre que alterar o `alertmanager.yml` ou o `.env`.
 
 ## O que é monitorado e alertado
 
