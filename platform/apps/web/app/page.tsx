@@ -1,9 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import CustomerHome from './CustomerHome';
 import OrderDetails from './OrderDetails';
 import RestaurantHours from './RestaurantHours';
+
+const POLL_INTERVAL_MS = 8000;
+const LATE_ORDER_MINUTES = 10;
 
 type Role = 'admin' | 'restaurant' | 'courier' | 'customer';
 type User = { id: number; name: string; email: string; role: Role; restaurantId: number | null };
@@ -26,6 +29,24 @@ const labels: Record<string, string> = {
 
 function money(cents: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+}
+
+function minutesSince(createdAt: string) {
+  return Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000));
+}
+
+function beep() {
+  try {
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+    const context = new Ctor();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.connect(gain); gain.connect(context.destination);
+    oscillator.frequency.value = 880; gain.gain.value = 0.05;
+    oscillator.start(); oscillator.stop(context.currentTime + 0.15);
+    window.setTimeout(() => void context.close(), 400);
+  } catch { /* som é opcional */ }
 }
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
@@ -77,31 +98,93 @@ export default function Home() {
   const [postalStart, setPostalStart] = useState('');
   const [postalEnd, setPostalEnd] = useState('');
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+  const [connection, setConnection] = useState<'online' | 'offline'>('online');
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [newOrderNotice, setNewOrderNotice] = useState('');
+  const refreshVersion = useRef(0);
+  const busyRef = useRef(false);
+  const userRef = useRef<User | null>(null);
+  const knownOrderIds = useRef<Set<number>>(new Set());
+  const primedOrders = useRef(false);
 
   const refresh = useCallback(async (activeUser?: User | null) => {
-    const me = activeUser === undefined ? (await api<{ user: User | null }>('/me')).user : activeUser;
-    const [catalogData, orderData, courierData, zoneData, addressData, restaurantProductData, postalRangeData] = await Promise.all([
-      api<Catalog>(me?.role === 'customer' ? '/catalog/meta' : '/catalog'),
-      me ? api<Order[]>('/orders') : Promise.resolve([]),
-      me?.role === 'admin' ? api<Courier[]>('/admin/couriers') : Promise.resolve([]),
-      api<Zone[]>('/zones'),
-      me?.role === 'customer' ? api<Address[]>('/addresses') : Promise.resolve([]),
-      me?.role === 'restaurant' ? api<RestaurantProduct[]>('/restaurant/products') : Promise.resolve([]),
-      me?.role === 'admin' ? api<PostalRange[]>('/admin/postal-ranges') : Promise.resolve([]),
-    ]);
-    setCatalog(catalogData);
-    setOrders(orderData);
-    setCouriers(courierData);
-    setZones(zoneData);
-    setAddresses(addressData);
-    setRestaurantProducts(restaurantProductData);
-    setPostalRanges(postalRangeData);
-    setUser(me);
+    const version = ++refreshVersion.current;
+    try {
+      const me = activeUser === undefined ? (await api<{ user: User | null }>('/me')).user : activeUser;
+      const [catalogData, orderData, courierData, zoneData, addressData, restaurantProductData, postalRangeData] = await Promise.all([
+        api<Catalog>(me?.role === 'customer' ? '/catalog/meta' : '/catalog'),
+        me ? api<Order[]>('/orders') : Promise.resolve([]),
+        me?.role === 'admin' ? api<Courier[]>('/admin/couriers') : Promise.resolve([]),
+        api<Zone[]>('/zones'),
+        me?.role === 'customer' ? api<Address[]>('/addresses') : Promise.resolve([]),
+        me?.role === 'restaurant' ? api<RestaurantProduct[]>('/restaurant/products') : Promise.resolve([]),
+        me?.role === 'admin' ? api<PostalRange[]>('/admin/postal-ranges') : Promise.resolve([]),
+      ]);
+      if (version !== refreshVersion.current) return;
+      setCatalog(catalogData);
+      setOrders(orderData);
+      setCouriers(courierData);
+      setZones(zoneData);
+      setAddresses(addressData);
+      setRestaurantProducts(restaurantProductData);
+      setPostalRanges(postalRangeData);
+      setUser(me);
+      setConnection('online');
+      setLastSync(new Date());
+      if (!me || (me.role !== 'restaurant' && me.role !== 'admin')) {
+        knownOrderIds.current = new Set();
+        primedOrders.current = false;
+        return;
+      }
+      const placed = orderData.filter((order) => order.status === 'placed');
+      const fresh = placed.filter((order) => !knownOrderIds.current.has(order.id));
+      const alreadyPrimed = primedOrders.current;
+      knownOrderIds.current = new Set(orderData.map((order) => order.id));
+      primedOrders.current = true;
+      if (alreadyPrimed && fresh.length) {
+        setNewOrderNotice(`Novo pedido ${fresh.map((order) => `#${order.id}`).join(', ')} aguardando aceite.`);
+        beep();
+      } else if (alreadyPrimed && placed.length === 0) {
+        setNewOrderNotice('');
+      }
+    } catch (error) {
+      if (version === refreshVersion.current) setConnection('offline');
+      throw error;
+    }
   }, []);
+
+  useEffect(() => { busyRef.current = busy; }, [busy]);
+  useEffect(() => { userRef.current = user; }, [user]);
 
   useEffect(() => {
     refresh().catch((error) => setMessage(error.message)).finally(() => setInitializing(false));
   }, [refresh]);
+
+  useEffect(() => {
+    if (!user) return;
+    const tick = () => {
+      if (document.hidden || busyRef.current) return;
+      refresh(userRef.current).catch(() => {});
+    };
+    const interval = window.setInterval(tick, POLL_INTERVAL_MS);
+    const onVisibility = () => { if (!document.hidden) tick(); };
+    const onOnline = () => refresh(userRef.current).catch(() => {});
+    const onOffline = () => setConnection('offline');
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [user?.id, user?.role, refresh]);
+
+  useEffect(() => {
+    const pending = user && (user.role === 'restaurant' || user.role === 'admin') ? orders.filter((order) => order.status === 'placed').length : 0;
+    document.title = pending ? `(${pending}) Foodie • Plataforma independente` : 'Foodie • Plataforma independente';
+  }, [orders, user]);
 
   async function run(action: () => Promise<unknown>, success: string) {
     setBusy(true); setMessage('');
@@ -147,7 +230,7 @@ export default function Home() {
   const selectedCoverageZoneId = Number(coverageZoneId || zones[0]?.id || 0);
 
   if (initializing) return <main className="app-loading" role="status"><span className="app-loading-brand">✦ foodie<span>.</span></span><p>Preparando sua experiência...</p></main>;
-  if (user?.role === 'customer') return <CustomerHome user={user} catalog={catalog} zones={zones} addresses={addresses} orders={orders} busy={busy} message={message} onAction={run} onRefresh={() => refresh()} onLogout={logout} />;
+  if (user?.role === 'customer') return <CustomerHome user={user} catalog={catalog} zones={zones} addresses={addresses} orders={orders} busy={busy} message={message} connection={connection} lastSync={lastSync} onAction={run} onRefresh={() => refresh()} onLogout={logout} />;
 
   return <main className="shell">
     <aside className="sidebar">
@@ -163,8 +246,9 @@ export default function Home() {
     </aside>
 
     <section className="content">
-      <header className="topbar"><div><span className="eyebrow">FOODIE / OPERAÇÃO</span><h1>{user ? `Olá, ${user.name.split(' ')[0]}!` : 'Uma nova experiência começa aqui.'}</h1></div><div className="top-actions">{user && <><span className="role-pill">{labels[user.role]}</span><button className="text-button" onClick={logout} disabled={busy}>Sair</button></>}</div></header>
+      <header className="topbar"><div><span className="eyebrow">FOODIE / OPERAÇÃO</span><h1>{user ? `Olá, ${user.name.split(' ')[0]}!` : 'Uma nova experiência começa aqui.'}</h1></div><div className="top-actions">{user && <><span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString('pt-BR')}` : ''}>{connection === 'online' ? `● ao vivo${lastSync ? ` · ${lastSync.toLocaleTimeString('pt-BR')}` : ''}` : '● sem conexão'}</span><span className="role-pill">{labels[user.role]}</span><button className="text-button" onClick={logout} disabled={busy}>Sair</button></>}</div></header>
       {message && <div className="notice" role="status">{message}</div>}
+      {newOrderNotice && <div className="notice alert" role="alert">{newOrderNotice}<button className="text-button" onClick={() => setNewOrderNotice('')}>Dispensar</button></div>}
 
       {!user ? <div className="welcome-grid">
         <div className="welcome-card"><div className="eyebrow">DO CARDÁPIO À ENTREGA</div><h2>Uma operação inteira, em um só lugar.</h2><p>Esta primeira versão independente já permite testar o ciclo de um pedido com papéis separados, catálogo próprio e histórico de cada etapa.</p><div className="step-line"><span>01 Catálogo</span><span>02 Pedido</span><span>03 Preparo</span><span>04 Entrega</span></div></div>
@@ -202,7 +286,7 @@ export default function Home() {
 
 
 
-        <section className="panel orders-panel"><div className="panel-heading"><div><span className="eyebrow">FLUXO OPERACIONAL</span><h2>{'Pedidos'}</h2></div><button className="refresh-button" onClick={() => refresh().catch((error) => setMessage(error.message))}>↻ Atualizar</button></div>{orders.length === 0 ? <div className="empty-state">Ainda não há pedidos para este perfil.</div> : <div className="order-list">{orders.map((order) => <div className="order-entry" key={order.id}><div className="order-row"><div className="order-index">#{order.id}</div><div className="order-info"><strong>{order.restaurant_name}</strong><span>{order.delivery_address_text || 'Pedido anterior à configuração de endereços'}</span><span>Itens {money(order.subtotal_cents)} · Entrega {money(order.delivery_fee_cents)}</span><span>{new Date(order.created_at).toLocaleString('pt-BR')}</span><button className="order-detail-toggle" aria-expanded={expandedOrderId === order.id} onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>{expandedOrderId === order.id ? 'Ocultar detalhes' : 'Ver itens e andamento'}</button></div><span className={`status status-${order.status}`}>{labels[order.status] ?? order.status}</span><strong className="order-total">{money(order.total_cents)}</strong><div className="order-action">
+        <section className="panel orders-panel"><div className="panel-heading"><div><span className="eyebrow">FLUXO OPERACIONAL</span><h2>{'Pedidos'}</h2></div><button className="refresh-button" onClick={() => refresh().catch((error) => setMessage(error.message))}>↻ Atualizar</button></div>{orders.length === 0 ? <div className="empty-state">Ainda não há pedidos para este perfil.</div> : <div className="order-list">{orders.map((order) => <div className="order-entry" key={order.id}><div className="order-row"><div className="order-index">#{order.id}</div><div className="order-info"><strong>{order.restaurant_name}</strong><span>{order.delivery_address_text || 'Pedido anterior à configuração de endereços'}</span><span>Itens {money(order.subtotal_cents)} · Entrega {money(order.delivery_fee_cents)}</span><span>{new Date(order.created_at).toLocaleString('pt-BR')}</span>{order.status === 'placed' && <span className={minutesSince(order.created_at) >= LATE_ORDER_MINUTES ? 'order-late' : ''}>Aguardando há {minutesSince(order.created_at)} min{minutesSince(order.created_at) >= LATE_ORDER_MINUTES ? ' · atrasado' : ''}</span>}<button className="order-detail-toggle" aria-expanded={expandedOrderId === order.id} onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>{expandedOrderId === order.id ? 'Ocultar detalhes' : 'Ver itens e andamento'}</button></div><span className={`status status-${order.status}`}>{labels[order.status] ?? order.status}</span><strong className="order-total">{money(order.total_cents)}</strong><div className="order-action">
           {user.role === 'restaurant' && order.status === 'placed' && <><button disabled={busy} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'accept' }) }), 'Pedido aceito.')}>Aceitar</button><button className="availability-button" disabled={busy} onClick={() => { const reason = askReason('Motivo da recusa:'); if (reason) run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'reject', reason }) }), 'Pedido recusado.'); }}>Recusar</button></>}
           {user.role === 'restaurant' && order.status === 'accepted' && <button disabled={busy} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'ready' }) }), 'Pedido pronto.')}>Marcar pronto</button>}
           {user.role === 'admin' && (order.status === 'ready' || order.status === 'assigned') && <div className="assign"><select value={courierByOrder[order.id] ?? ''} onChange={(event) => setCourierByOrder({ ...courierByOrder, [order.id]: event.target.value })}><option value="">Entregador</option>{couriers.filter((courier) => courier.approved && !courier.suspended).map((courier) => <option key={courier.id} value={courier.id}>{courier.name}</option>)}</select><button disabled={busy || !courierByOrder[order.id]} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'assign', courierId: Number(courierByOrder[order.id]) }) }), order.status === 'assigned' ? 'Entregador trocado.' : 'Entregador atribuído.')}>{order.status === 'assigned' ? 'Trocar' : 'Atribuir'}</button>{order.status === 'assigned' && <button className="availability-button" disabled={busy} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'unassign' }) }), 'Entregador removido; pedido voltou a pronto.')}>Remover</button>}</div>}

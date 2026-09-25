@@ -23,6 +23,8 @@ type Props = {
   orders: Order[];
   busy: boolean;
   message: string;
+  connection?: 'online' | 'offline';
+  lastSync?: Date | null;
   onAction: (action: () => Promise<unknown>, success: string) => Promise<boolean>;
   onRefresh: () => Promise<void>;
   onLogout: () => Promise<void>;
@@ -58,7 +60,7 @@ async function request(path: string, options?: RequestInit) {
   return result;
 }
 
-export default function CustomerHome({ user, catalog, zones, addresses, orders, busy, message, onAction, onRefresh, onLogout }: Props) {
+export default function CustomerHome({ user, catalog, zones, addresses, orders, busy, message, connection, lastSync, onAction, onRefresh, onLogout }: Props) {
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
@@ -239,7 +241,7 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
   return <main className="customer-app">
     <header className="customer-header">
       <a className="customer-brand" href="/" aria-label="Foodie, início"><span className="customer-brand-mark">✦</span> foodie<span>.</span></a>
-      <div className="customer-header-actions"><span>Olá, {user.name.split(' ')[0]}</span><button onClick={onLogout} disabled={busy}>Sair</button></div>
+      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString('pt-BR')}` : ''}>{connection === 'online' ? '● ao vivo' : '● sem conexão'}</span>}<span>Olá, {user.name.split(' ')[0]}</span><button onClick={onLogout} disabled={busy}>Sair</button></div>
     </header>
 
     <div className="customer-content">
