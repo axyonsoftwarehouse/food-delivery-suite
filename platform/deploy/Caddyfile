@@ -7,3 +7,8 @@ api.{$FOODIE_DOMAIN} {
     encode zstd gzip
     reverse_proxy api:4001
 }
+
+cliente.{$FOODIE_DOMAIN}, restaurante.{$FOODIE_DOMAIN}, entregador.{$FOODIE_DOMAIN}, admin.{$FOODIE_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy web:3001
+}
