@@ -1,0 +1,12 @@
+ALTER TABLE users
+  ADD COLUMN suspended_at TIMESTAMP NULL DEFAULT NULL,
+  ADD COLUMN suspended_reason VARCHAR(255) NULL DEFAULT NULL;
+
+CREATE TABLE auth_login_limits (
+  subject_hash CHAR(64) NOT NULL PRIMARY KEY,
+  failed_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  window_started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  locked_until TIMESTAMP NULL DEFAULT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX ix_auth_login_limits_locked_until (locked_until)
+);

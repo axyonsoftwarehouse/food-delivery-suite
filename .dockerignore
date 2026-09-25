@@ -1,0 +1,11 @@
+.git
+.idea
+_local_server
+**/node_modules
+**/.next
+**/.dart_tool
+admin-panel/vendor
+admin-panel/.env
+web/.env*
+deploy/.env
+deploy/initdb/*.sql

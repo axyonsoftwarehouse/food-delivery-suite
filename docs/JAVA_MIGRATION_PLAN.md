@@ -1,4 +1,6 @@
-# Plano de Migração — Laravel 12 → Java 21 / Spring Boot 3
+# Plano histórico de migração — Laravel 12 → Java 21 / Spring Boot 3
+
+> **Atualização de 24/09/2026:** a decisão vigente é criar um backend Java/Spring Boot para a plataforma independente em `platform/`, com banco próprio. O plano de compartilhar o schema legado e migrar rota por rota, descrito abaixo, foi substituído por `PLANO_RECONSTRUCAO_PROPRIA.md`. Este arquivo permanece como inventário técnico do legado; suas etapas de coexistência e contratos não são instruções para a nova API.
 
 > Status: **planejamento** (nenhuma linha de Java escrita).
 > Prioridade atual do projeto: correção de localização/mapas (Mapbox) na Laravel.
@@ -44,7 +46,7 @@ Testcontainers.
 food-delivery-suite/
   apps/
     api/          Spring Boot (Java) — API + regras + gateways + websocket
-    web/          Next.js — site do cliente (base: React web atual)
+    web/          Next.js — site do cliente (base: pasta `web` atual)
     admin/        Next.js/React — Admin (+ RBAC)  [Track B, futuro]
     vendor/       Next.js/React — Vendor            [Track B, futuro]
   packages/

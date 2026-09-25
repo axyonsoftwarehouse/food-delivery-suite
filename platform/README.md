@@ -1,0 +1,48 @@
+# Plataforma Foodie independente
+
+Primeira implementação nova, separada do pacote Laravel/Next/Flutter existente. Ela contém uma API TypeScript **transitória** com banco MariaDB próprio e um site Next.js para testar os papéis de cliente, restaurante, administração e entregador. O backend definitivo foi definido como **Java 21/Spring Boot**; a transição está descrita em `docs/PLANO_RECONSTRUCAO_PROPRIA.md`. Nenhum serviço da VPS ou dado do projeto anterior é modificado por estes arquivos.
+
+## Preparar localmente
+
+1. Copie `platform/.env.example` para `platform/.env` e defina duas senhas fortes diferentes.
+2. Copie `platform/apps/api/.env.example` para `platform/apps/api/.env`. Use em `DB_PASSWORD` o valor definido para o usuário `foodie` no passo anterior e escolha uma senha demonstrativa de pelo menos 12 caracteres em `DEMO_PASSWORD`.
+3. Na pasta `platform`, execute `docker compose up -d db` (Docker Desktop precisa estar ativo).
+4. Execute `pnpm install`, `pnpm --filter @foodie/api migrate` e `pnpm --filter @foodie/api seed`.
+5. Execute `docker compose --profile java up -d --build` para iniciar a API Java.
+6. Execute `pnpm dev` e abra `http://127.0.0.1:3001`. O site usa a API Java em `127.0.0.1:4001` por padrão.
+
+As contas demonstrativas são `admin@demo.local`, `restaurante@demo.local`, `entregador@demo.local` e `cliente@demo.local`, todas com a senha escolhida em `DEMO_PASSWORD`. O seed cria apenas dados de demonstração e não redefine senhas de usuários já cadastrados.
+
+## Fluxo verificável
+
+1. Entre como **admin** para criar uma zona com taxa e pedido mínimo, cadastrar uma faixa de CEP para ela, cadastrar restaurante, categoria, produto e entregador, e vincular o restaurante à zona. Um entregador novo precisa ser aprovado antes de receber pedidos; a tela também permite suspender ou reativar acessos, e a suspensão encerra as sessões em andamento. As migrations `007_restaurant_hours.sql` e `008_restaurant_hours_overnight.sql` guardam horários semanais por restaurante com fuso explícito e aceitam intervalos que terminam depois da meia-noite. O admin edita o horário de qualquer loja e o restaurante edita o próprio; o catálogo marca cada loja como aberta ou fechada no fuso configurado e o checkout recusa pedidos fora do horário. Sem nenhum intervalo cadastrado, o restaurante aparece sempre aberto. A zona `Fortaleza • demonstração` e a `Cozinha Demo` já vêm vinculadas pelo seed. O seed também cadastra a faixa **demonstrativa** `60000000`–`60000999`, que não representa uma promessa de cobertura real.
+2. Entre como **cliente**, cadastre um endereço com CEP coberto e peça um produto de restaurante que atende à zona encontrada. A API calcula subtotal, taxa e total; o endereço fica registrado no pedido.
+3. Entre como **restaurante** e aceite o pedido, depois marque como pronto.
+4. Entre como **admin** e atribua o entregador.
+5. Entre como **entregador**, confirme a retirada e conclua a entrega.
+6. Entre novamente como cliente ou admin e confira o estado. A API registra cada transição em `order_events`.
+
+O pedido é demonstrativo. A zona é determinada por faixas de CEP sem sobreposição cadastradas pelo admin. O cadastro de endereço exige CEP coberto e o checkout confere novamente a cobertura, inclusive para endereços anteriores à mudança. Endereços antigos sem CEP precisam ser recadastrados. A verificação por faixa **não confirma a existência da rua, número ou CEP**, nem substitui perímetros geográficos ou cálculo de distância. A taxa configurada para a zona é fixa. Também faltam pagamentos, notificações e integração com os aplicativos Flutter. O banco foi desenhado novo e isolado. A importação de dados do projeto anterior exigirá um mapeamento e backup próprios.
+
+## Interface do cliente
+
+O cliente pode criar uma conta pela página inicial. Após o login, a home tem uma apresentação móvel inspirada no [Figma Foodie](https://www.figma.com/design/mlPWwBrTwJ53AHH4zC1gsT/Foodie---Food-Delivery-App-UI-Kit?node-id=727-25421): endereço em destaque, faixa com fotografia, categorias, busca por prato ou restaurante, cardápio e carrinho com vários itens do mesmo restaurante. A home consulta `/catalog/meta` e carrega pratos por zona em `/catalog/search`, com filtro de categoria, limite de 12 por página e cursor para "Ver mais pratos"; `/catalog` permanece disponível para as telas operacionais. O carrinho fica salvo no MariaDB por cliente, pode ser retomado em outro navegador/dispositivo e permite atualização manual para buscar mudanças feitas em outra sessão. Ao entrar pela primeira vez, a página importa itens válidos do antigo carrinho local se a conta ainda não tiver itens no servidor. A API remove produtos indisponíveis e limita quantidade e restaurante. O checkout é transacional: confirma o total mostrado na tela, cria o pedido e limpa o carrinho juntos; se o preço ou a taxa mudaram, pede atualização antes de continuar. Cliente, restaurante, admin e entregador podem abrir cada pedido para conferir itens, totais, endereço e histórico de estados; o cliente pode expandir a lista além dos cinco pedidos mais recentes. O restaurante pode pausar ou reativar os próprios produtos na interface. O banner usa a imagem original gerada em `apps/web/public/foodie-burger-hero.png` (prompt: fotografia editorial de hambúrguer artesanal, fundo marfim e espaço à esquerda para texto; ferramenta integrada de geração de imagens). Nenhum recurso visual foi copiado do kit.
+
+## Primeira base Java
+
+`apps/api-java` contém Spring Boot 3.5 e Java 21. Implementa os endpoints usados pelo protótipo: saúde, catálogo, zonas, login/sessão, cadastros administrativos, endereços, pedidos e transições. Acrescenta `POST /auth/signup` para cadastro exclusivo de clientes, `GET /restaurant/products` para o cardápio do restaurante e `PATCH /restaurant/products/{id}/availability` para pausar ou reativar um item. Os horários semanais ficam em `GET`/`POST`/`DELETE /restaurant/hours` (próprio restaurante) e `GET`/`POST`/`DELETE /admin/restaurants/{id}/hours` (admin), com `PATCH /admin/restaurants/{id}/timezone` para o fuso horário. O catálogo público já omite itens indisponíveis. O Java verifica e cria hashes scrypt no formato do Node e usa a mesma tabela `sessions`, inclusive para reconhecer sessões criadas pela API TypeScript. A API Java usa o **mesmo banco independente já preparado** pelo comando `pnpm --filter @foodie/api migrate`; ela não acessa o banco Laravel. Em 24/09/2026, o fluxo completo de pedido foi validado localmente contra MariaDB 11.4 com a API Java no Docker (`pnpm --filter @foodie/api smoke`, pedido #1). O site também foi verificado no navegador com Java: login, endereço, catálogo, carrinho, pedido #2 e disponibilidade do produto pelo restaurante. `API_INTERNAL_URL` permite alterar o destino explicitamente.
+
+Para executar localmente com JDK 21 e o banco demonstrativo em funcionamento, configure as variáveis de `apps/api-java/.env.example` no terminal e rode `mvn spring-boot:run` dentro de `apps/api-java`. O servidor Java escuta em `127.0.0.1:4001` e pode ser validado em `/health`, `/catalog` e `/zones`. Para compilar e testar: `mvn test`.
+
+Com Docker Desktop ativo e `platform/.env` configurado, `docker compose --profile java up -d --build` inicia o MariaDB e a API Java em paralelo. O MariaDB precisa estar previamente migrado; esse comando não cria nem altera tabelas. Em ambiente HTTPS, defina `COOKIE_SECURE=true` para enviar o cookie apenas por HTTPS. Para validar o fluxo completo em um banco **somente de teste**, mantenha a API Java na porta 4001 e execute `pnpm --filter @foodie/api smoke` com `API_PORT=4001` e `DEMO_PASSWORD` configurados no terminal. Execute `pnpm smoke:cart` para testar duas sessões, isolamento entre clientes, incrementos simultâneos, importação local e checkout; os dois comandos criam usuários e pedidos de teste. A migration `003_cart.sql` adiciona a tabela do carrinho. As migrations passarão para o Java quando ele assumir a propriedade do schema, evitando dois sistemas de migração simultâneos.
+
+## Organização
+
+- `apps/api`: protótipo TypeScript de autenticação por sessão, permissões, catálogo, zonas, endereços, pedidos e transições; porta 4000. Fica disponível para comparação com `pnpm dev:legacy-api` e `API_INTERNAL_URL=http://127.0.0.1:4000`.
+- `apps/api-java`: API Java/Spring Boot com os fluxos demonstrativos de cliente, restaurante, admin e entregador; porta 4001.
+- `apps/web`: interface Next.js responsiva com home própria do cliente e painel operacional dos outros papéis; porta 3001. `/backend/*` é encaminhado à API pelo servidor Next.
+- `docker-compose.yml`: MariaDB local em `127.0.0.1:3307` e API Java opcional no perfil `java` em `127.0.0.1:4001`.
+
+O código deste diretório foi escrito para a nova plataforma. O sistema anterior continua separado até que os fluxos reais sejam cobertos e validados. O cadastro público de cliente ainda não tem confirmação de email e não deve ser exposto na VPS antes de acrescentar limites de tentativas e mecanismos contra abuso. Antes de publicar, acrescentar logs operacionais, recuperação de senha, testes com banco, backups e política de sessões.
+
+`pnpm --filter @foodie/api smoke` cria dados de teste novos e percorre o pedido completo com cobertura e taxa. Rode-o apenas no banco demonstrativo. O arquivo `migrations/002_delivery.sql` adiciona zonas, endereços e valores separados a pedidos já existentes; `migrations/005_postal_coverage.sql` adiciona faixas de CEP e o campo de CEP aos endereços. `migrate` registra as migrações para não reaplicá-las. As novas rotas são `GET /zones/resolve?postalCode=...` e `GET`/`POST`/`DELETE /admin/postal-ranges`.

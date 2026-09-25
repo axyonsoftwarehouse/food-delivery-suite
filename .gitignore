@@ -10,6 +10,9 @@ __MACOSX/
 node_modules/
 .next/
 out/
+dist/
+*.tsbuildinfo
+.pnpm-store/
 npm-debug.log*
 yarn-error.log*
 yarn-debug.log*
@@ -40,27 +43,27 @@ yarn-debug.log*
 **/GoogleService-Info.plist
 **/firebase-messaging-sw.js
 **/*firebase-adminsdk*.json
-Admin panel V9.0/storage/app/firebase-service-account.json
+admin-panel/storage/app/firebase-service-account.json
 
-# ===== Laravel (Admin panel V9.0) =====
-Admin panel V9.0/vendor/
-Admin panel V9.0/node_modules/
-Admin panel V9.0/.env
-Admin panel V9.0/storage/*.key
-Admin panel V9.0/storage/logs/*
-Admin panel V9.0/storage/debugbar/
-Admin panel V9.0/storage/tmp/
-Admin panel V9.0/storage/framework/cache/data/*
-Admin panel V9.0/storage/framework/sessions/*
-Admin panel V9.0/storage/framework/views/*
-Admin panel V9.0/bootstrap/cache/*.php
-!Admin panel V9.0/bootstrap/cache/.gitignore
-Admin panel V9.0/public/storage
+# ===== Laravel (admin-panel) =====
+admin-panel/vendor/
+admin-panel/node_modules/
+admin-panel/.env
+admin-panel/storage/*.key
+admin-panel/storage/logs/*
+admin-panel/storage/debugbar/
+admin-panel/storage/tmp/
+admin-panel/storage/framework/cache/data/*
+admin-panel/storage/framework/sessions/*
+admin-panel/storage/framework/views/*
+admin-panel/bootstrap/cache/*.php
+!admin-panel/bootstrap/cache/.gitignore
+admin-panel/public/storage
 
 # ===== Dumps do instalador (mantidos localmente, fora do Git) =====
-Admin panel V9.0/installation/backup/
-Admin panel V9.0/installation/update/
-Admin panel V9.0/database/partial/
+admin-panel/installation/backup/
+admin-panel/installation/update/
+admin-panel/database/partial/
 
 # ===== Binarios locais grandes (fora do git) =====
 _local_server/mariadb-11.4.2-winx64/
@@ -72,3 +75,6 @@ _local_server/nginx/logs/
 *.tmp
 temp/
 tmp/
+
+# ===== Backups operacionais locais (fora do Git) =====
+backups/

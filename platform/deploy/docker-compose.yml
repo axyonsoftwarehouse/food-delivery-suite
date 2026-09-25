@@ -1,0 +1,84 @@
+name: foodie-staging
+
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: foodie_platform
+      MARIADB_USER: foodie
+      MARIADB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in platform/deploy/.env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in platform/deploy/.env}
+    volumes:
+      - foodie_platform_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.migrate
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: foodie
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in platform/deploy/.env}
+      DB_NAME: foodie_platform
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: ../apps/api-java
+    restart: unless-stopped
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 4001
+      COOKIE_SECURE: "true"
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: foodie
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in platform/deploy/.env}
+      DB_NAME: foodie_platform
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        API_INTERNAL_URL: http://api:4001
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:4001
+    depends_on:
+      api:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2
+    profiles: ["public"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      FOODIE_DOMAIN: ${FOODIE_DOMAIN:?Set FOODIE_DOMAIN in platform/deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - foodie_caddy_data:/data
+      - foodie_caddy_config:/config
+    depends_on:
+      web:
+        condition: service_started
+
+volumes:
+  foodie_platform_data:
+  foodie_caddy_data:
+  foodie_caddy_config:

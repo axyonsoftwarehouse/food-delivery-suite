@@ -1,0 +1,12 @@
+{
+  "name": "food-delivery-platform",
+  "private": true,
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "dev": "pnpm --filter @foodie/web dev",
+    "dev:legacy-api": "pnpm --parallel --filter @foodie/api --filter @foodie/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @foodie/api test",
+    "smoke:cart": "node tests/cart-smoke.mjs"
+  }
+}

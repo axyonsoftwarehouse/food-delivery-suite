@@ -1,0 +1,16 @@
+server:
+  port: ${API_PORT:4001}
+  address: ${API_HOST:127.0.0.1}
+app:
+  cookie-secure: ${COOKIE_SECURE:false}
+spring:
+  application:
+    name: foodie-api
+  datasource:
+    url: jdbc:mariadb://${DB_HOST:127.0.0.1}:${DB_PORT:3307}/${DB_NAME:foodie_platform}
+    username: ${DB_USER:foodie}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 8
+      minimum-idle: 1
+      connection-timeout: 5000

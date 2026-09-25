@@ -1,0 +1,9 @@
+{$FOODIE_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy web:3001
+}
+
+api.{$FOODIE_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy api:4001
+}
