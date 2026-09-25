@@ -41,7 +41,7 @@ class OrderControllerTest {
 
         mvc.perform(post("/orders").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"restaurantId\":1,\"addressId\":2,\"items\":[{\"productId\":3,\"quantity\":1}]}"))
+                .content("{\"restaurantId\":1,\"addressId\":2,\"items\":[{\"productId\":3,\"quantity\":1}],\"paymentMethod\":\"cash\"}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.status").value("placed"))
             .andExpect(jsonPath("$.totalCents").value(3099));

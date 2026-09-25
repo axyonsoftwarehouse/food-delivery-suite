@@ -25,12 +25,14 @@ public class OrderService {
     private final NamedParameterJdbcTemplate namedJdbc;
     private final PostalCoverageService postalCoverage;
     private final RestaurantHoursService hours;
+    private final PaymentService payments;
 
-    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours) {
+    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments) {
         this.jdbc = jdbc;
         this.namedJdbc = namedJdbc;
         this.postalCoverage = postalCoverage;
         this.hours = hours;
+        this.payments = payments;
     }
 
     @Transactional
@@ -99,12 +101,13 @@ public class OrderService {
                 orderId, item.productId(), product.get("name"), item.quantity(), number(product, "price_cents"));
         }
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status) VALUES (?, ?, NULL, ?)", orderId, customer.id(), "placed");
-        return Map.of("id", orderId, "status", "placed", "subtotalCents", subtotal, "deliveryFeeCents", fee, "totalCents", total, "address", addressText);
+        payments.create(orderId, request.paymentMethod(), total, request.changeForCents());
+        return Map.of("id", orderId, "status", "placed", "subtotalCents", subtotal, "deliveryFeeCents", fee, "totalCents", total, "address", addressText, "paymentMethod", request.paymentMethod());
     }
 
     public List<Map<String, Object>> list(User user) {
         expireStale();
-        String base = "SELECT o.id, o.status, o.subtotal_cents, o.delivery_fee_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.created_at, r.name AS restaurant_name FROM orders o JOIN restaurants r ON r.id = o.restaurant_id ";
+        String base = "SELECT o.id, o.status, o.subtotal_cents, o.delivery_fee_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.created_at, r.name AS restaurant_name, p.method AS payment_method, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN order_payments p ON p.order_id = o.id ";
         return switch (user.role()) {
             case "customer" -> jdbc.queryForList(base + "WHERE o.customer_id = ? ORDER BY o.id DESC LIMIT 100", user.id());
             case "restaurant" -> jdbc.queryForList(base + "WHERE o.restaurant_id = ? ORDER BY o.id DESC LIMIT 100", user.restaurantId());
@@ -122,6 +125,7 @@ public class OrderService {
         Map<String, Object> result = new LinkedHashMap<>(order);
         result.put("items", jdbc.queryForList("SELECT name, quantity, unit_price_cents FROM order_items WHERE order_id = ?", orderId));
         result.put("history", jdbc.queryForList("SELECT from_status, to_status, reason, created_at FROM order_events WHERE order_id = ? ORDER BY id", orderId));
+        result.put("payment", payments.detail(orderId));
         return result;
     }
 
@@ -138,6 +142,9 @@ public class OrderService {
             throw new ApiException(400, "Informe o motivo (3 a 255 caracteres)");
         }
         String next = transition.nextStatus();
+        if ("deliver".equals(action) && !"paid".equals(payments.status(orderId))) {
+            throw new ApiException(409, "Confirme o recebimento do pagamento antes de concluir a entrega");
+        }
         if ("assign".equals(action)) {
             if (courierId == null || courierId < 1) throw new ApiException(400, "Selecione um entregador");
             Integer courier = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier' AND suspended_at IS NULL AND courier_approved_at IS NOT NULL", rs -> rs.next() ? 1 : null, courierId);
@@ -148,6 +155,7 @@ public class OrderService {
         } else {
             jdbc.update("UPDATE orders SET status = ? WHERE id = ?", next, orderId);
         }
+        if (Set.of("rejected", "cancelled", "expired", "failed").contains(next)) payments.cancelPending(orderId);
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, ?, ?, ?, ?)", orderId, user.id(), current, next, trimmed);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", orderId);
@@ -160,6 +168,7 @@ public class OrderService {
         List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE)", (rs, row) -> rs.getLong(1));
         for (Long id : stale) {
             if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
+                payments.cancelPending(id);
                 jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
             }
         }

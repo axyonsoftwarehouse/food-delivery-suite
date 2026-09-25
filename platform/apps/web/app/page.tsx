@@ -5,6 +5,7 @@ import CustomerHome from './CustomerHome';
 import OrderDetails from './OrderDetails';
 import RestaurantHours from './RestaurantHours';
 import CatalogManager from './CatalogManager';
+import PaymentsPanel from './PaymentsPanel';
 
 const POLL_INTERVAL_MS = 8000;
 const LATE_ORDER_MINUTES = 10;
@@ -17,7 +18,7 @@ type Product = { id: number; restaurant_id: number; category_id: number; name: s
 type Catalog = { restaurants: Restaurant[]; categories: Category[]; products: Product[]; coverage: { restaurant_id: number; zone_id: number }[] };
 type Zone = { id: number; name: string; city: string; state: string; delivery_fee_cents: number; minimum_order_cents: number };
 type Address = { id: number; zone_id: number; postal_code: string | null; label: string; street: string; number: string; neighborhood: string; complement: string; zone_name: string; city: string; state: string };
-type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; created_at: string };
+type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; created_at: string; payment_method: string | null; payment_status: string | null; payment_due_cents: number | null };
 type Courier = { id: number; name: string; email: string; suspended: boolean; approved: boolean };
 type PostalRange = { id: number; zone_id: number; zone_name: string; postal_start: string; postal_end: string };
 
@@ -26,6 +27,12 @@ const labels: Record<string, string> = {
   placed: 'Novo pedido', accepted: 'Aceito', ready: 'Pronto', assigned: 'Atribuído', picked_up: 'Em entrega', delivered: 'Entregue',
   rejected: 'Recusado', cancelled: 'Cancelado', expired: 'Expirado', failed: 'Falha na entrega',
 };
+const paymentMethods: Record<string, string> = { cash: 'Dinheiro', card: 'Cartão', pix: 'Pix' };
+const paymentStatuses: Record<string, string> = { pending: 'a receber', paid: 'pago', cancelled: 'cancelado', refunded: 'estornado' };
+function paymentLabel(order: Order) {
+  if (!order.payment_method) return '';
+  return `${paymentMethods[order.payment_method] ?? order.payment_method} · ${paymentStatuses[order.payment_status ?? 'pending'] ?? order.payment_status}`;
+}
 
 function money(cents: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
@@ -192,6 +199,25 @@ export default function Home() {
     return value.trim();
   }
 
+  async function receivePayment(order: Order) {
+    let amount = order.total_cents;
+    if (order.payment_method === 'cash') {
+      const value = window.prompt(`Valor recebido em dinheiro (total ${money(order.total_cents)}):`, (order.total_cents / 100).toFixed(2).replace('.', ','));
+      if (value === null) return;
+      const parsed = Math.round(Number(value.replace(',', '.')) * 100);
+      if (!Number.isFinite(parsed) || parsed < order.total_cents) { setMessage('Valor recebido menor que o total do pedido.'); return; }
+      amount = parsed;
+    }
+    await run(() => api(`/orders/${order.id}/payment`, { method: 'PATCH', body: JSON.stringify({ amountReceivedCents: amount }) }),
+      order.payment_method === 'cash' ? `Pagamento recebido. Troco de ${money(amount - order.total_cents)}.` : 'Pagamento confirmado.');
+  }
+
+  async function refundPayment(order: Order) {
+    const reason = askReason('Motivo do estorno:');
+    if (!reason) return;
+    await run(() => api(`/orders/${order.id}/payment/refund`, { method: 'POST', body: JSON.stringify({ note: reason }) }), 'Pagamento estornado.');
+  }
+
   async function login(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setMessage('');
     try {
@@ -285,15 +311,19 @@ export default function Home() {
 
         {user.role === 'restaurant' && <RestaurantHours role="restaurant" onMessage={setMessage} />}
 
+        {user.role === 'admin' && <PaymentsPanel onMessage={setMessage} />}
 
 
-        <section className="panel orders-panel"><div className="panel-heading"><div><span className="eyebrow">FLUXO OPERACIONAL</span><h2>{'Pedidos'}</h2></div><button className="refresh-button" onClick={() => refresh().catch((error) => setMessage(error.message))}>↻ Atualizar</button></div>{orders.length === 0 ? <div className="empty-state">Ainda não há pedidos para este perfil.</div> : <div className="order-list">{orders.map((order) => <div className="order-entry" key={order.id}><div className="order-row"><div className="order-index">#{order.id}</div><div className="order-info"><strong>{order.restaurant_name}</strong><span>{order.delivery_address_text || 'Pedido anterior à configuração de endereços'}</span><span>Itens {money(order.subtotal_cents)} · Entrega {money(order.delivery_fee_cents)}</span><span>{new Date(order.created_at).toLocaleString('pt-BR')}</span>{order.status === 'placed' && <span className={minutesSince(order.created_at) >= LATE_ORDER_MINUTES ? 'order-late' : ''}>Aguardando há {minutesSince(order.created_at)} min{minutesSince(order.created_at) >= LATE_ORDER_MINUTES ? ' · atrasado' : ''}</span>}<button className="order-detail-toggle" aria-expanded={expandedOrderId === order.id} onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>{expandedOrderId === order.id ? 'Ocultar detalhes' : 'Ver itens e andamento'}</button></div><span className={`status status-${order.status}`}>{labels[order.status] ?? order.status}</span><strong className="order-total">{money(order.total_cents)}</strong><div className="order-action">
+
+        <section className="panel orders-panel"><div className="panel-heading"><div><span className="eyebrow">FLUXO OPERACIONAL</span><h2>{'Pedidos'}</h2></div><button className="refresh-button" onClick={() => refresh().catch((error) => setMessage(error.message))}>↻ Atualizar</button></div>{orders.length === 0 ? <div className="empty-state">Ainda não há pedidos para este perfil.</div> : <div className="order-list">{orders.map((order) => <div className="order-entry" key={order.id}><div className="order-row"><div className="order-index">#{order.id}</div><div className="order-info"><strong>{order.restaurant_name}</strong><span>{order.delivery_address_text || 'Pedido anterior à configuração de endereços'}</span><span>Itens {money(order.subtotal_cents)} · Entrega {money(order.delivery_fee_cents)}</span>{order.payment_method && <span>Pagamento: {paymentLabel(order)}</span>}<span>{new Date(order.created_at).toLocaleString('pt-BR')}</span>{order.status === 'placed' && <span className={minutesSince(order.created_at) >= LATE_ORDER_MINUTES ? 'order-late' : ''}>Aguardando há {minutesSince(order.created_at)} min{minutesSince(order.created_at) >= LATE_ORDER_MINUTES ? ' · atrasado' : ''}</span>}<button className="order-detail-toggle" aria-expanded={expandedOrderId === order.id} onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>{expandedOrderId === order.id ? 'Ocultar detalhes' : 'Ver itens e andamento'}</button></div><span className={`status status-${order.status}`}>{labels[order.status] ?? order.status}</span><strong className="order-total">{money(order.total_cents)}</strong><div className="order-action">
           {user.role === 'restaurant' && order.status === 'placed' && <><button disabled={busy} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'accept' }) }), 'Pedido aceito.')}>Aceitar</button><button className="availability-button" disabled={busy} onClick={() => { const reason = askReason('Motivo da recusa:'); if (reason) run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'reject', reason }) }), 'Pedido recusado.'); }}>Recusar</button></>}
           {user.role === 'restaurant' && order.status === 'accepted' && <button disabled={busy} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'ready' }) }), 'Pedido pronto.')}>Marcar pronto</button>}
           {user.role === 'admin' && (order.status === 'ready' || order.status === 'assigned') && <div className="assign"><select value={courierByOrder[order.id] ?? ''} onChange={(event) => setCourierByOrder({ ...courierByOrder, [order.id]: event.target.value })}><option value="">Entregador</option>{couriers.filter((courier) => courier.approved && !courier.suspended).map((courier) => <option key={courier.id} value={courier.id}>{courier.name}</option>)}</select><button disabled={busy || !courierByOrder[order.id]} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'assign', courierId: Number(courierByOrder[order.id]) }) }), order.status === 'assigned' ? 'Entregador trocado.' : 'Entregador atribuído.')}>{order.status === 'assigned' ? 'Trocar' : 'Atribuir'}</button>{order.status === 'assigned' && <button className="availability-button" disabled={busy} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'unassign' }) }), 'Entregador removido; pedido voltou a pronto.')}>Remover</button>}</div>}
+          {user.role === 'courier' && (order.status === 'assigned' || order.status === 'picked_up') && order.payment_status !== 'paid' && <button className="secondary-button" disabled={busy} onClick={() => receivePayment(order)}>{order.payment_method === 'cash' ? `Receber ${money(order.total_cents)}` : 'Confirmar pagamento'}</button>}
           {user.role === 'courier' && order.status === 'assigned' && <><button disabled={busy} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'pickup' }) }), 'Pedido retirado.')}>Retirado</button><button className="availability-button" disabled={busy} onClick={() => { const reason = askReason('Motivo da falha na entrega:'); if (reason) run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'fail', reason }) }), 'Falha registrada.'); }}>Não entreguei</button></>}
-          {user.role === 'courier' && order.status === 'picked_up' && <><button disabled={busy} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'deliver' }) }), 'Entrega concluída.')}>Concluir entrega</button><button className="availability-button" disabled={busy} onClick={() => { const reason = askReason('Motivo da falha na entrega:'); if (reason) run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'fail', reason }) }), 'Falha registrada.'); }}>Falha na entrega</button></>}
+          {user.role === 'courier' && order.status === 'picked_up' && <><button disabled={busy || order.payment_status !== 'paid'} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'deliver' }) }), 'Entrega concluída.')}>Concluir entrega</button><button className="availability-button" disabled={busy} onClick={() => { const reason = askReason('Motivo da falha na entrega:'); if (reason) run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'fail', reason }) }), 'Falha registrada.'); }}>Falha na entrega</button></>}
           {user.role === 'admin' && ['placed','accepted','ready','assigned','picked_up'].includes(order.status) && <button className="availability-button" disabled={busy} onClick={() => { const reason = askReason('Motivo do cancelamento:'); if (reason) run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'cancel', reason }) }), 'Pedido cancelado.'); }}>Cancelar</button>}
+          {user.role === 'admin' && order.payment_status === 'paid' && <button className="availability-button" disabled={busy} onClick={() => refundPayment(order)}>Estornar</button>}
         </div></div>{expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}</div>)}</div>}</section>
       </>}
       <footer>© 2026 Axyon Software House <span>Plataforma independente • primeira versão de teste</span></footer>

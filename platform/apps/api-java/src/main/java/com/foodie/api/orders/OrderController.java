@@ -4,8 +4,10 @@ import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.util.List;
@@ -64,7 +66,9 @@ public class OrderController {
     }
 
     public record OrderRequest(@Positive long restaurantId, @Positive long addressId,
-                               @NotEmpty @Size(max = 30) List<@Valid Item> items) {}
+                               @NotEmpty @Size(max = 30) List<@Valid Item> items,
+                               @NotBlank @Pattern(regexp = "cash|card|pix") String paymentMethod,
+                               @Min(0) @Max(100_000_000) Integer changeForCents) {}
     public record Item(@Positive long productId, @Positive @Max(20) int quantity) {}
     public record StatusRequest(@NotBlank String action, @Positive Long courierId, @Size(max = 255) String reason) {}
 }

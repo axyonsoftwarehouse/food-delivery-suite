@@ -71,11 +71,11 @@ const address = (await call('/addresses', { cookie: first, method: 'POST', expec
 assert.equal(address.zoneId, zone.id);
 const ordersBeforeMismatch = (await call('/orders', { cookie: first })).data.length;
 await call('/cart/checkout', { cookie: first, method: 'POST', expected: 409,
-  body: { addressId: address.id, expectedTotalCents: 1 } });
+  body: { addressId: address.id, expectedTotalCents: 1, paymentMethod: 'cash' } });
 assert.equal((await call('/cart', { cookie: first })).data.items[0].quantity, 5);
 assert.equal((await call('/orders', { cookie: first })).data.length, ordersBeforeMismatch);
 const order = (await call('/cart/checkout', { cookie: first, method: 'POST', expected: 201,
-  body: { addressId: address.id, expectedTotalCents: 5 * product.price_cents + zone.delivery_fee_cents } })).data;
+  body: { addressId: address.id, expectedTotalCents: 5 * product.price_cents + zone.delivery_fee_cents, paymentMethod: 'cash' } })).data;
 assert.equal(order.status, 'placed');
 assert.equal(order.subtotalCents, 5 * product.price_cents);
 assert.equal(order.totalCents, order.subtotalCents + zone.delivery_fee_cents);

@@ -10,7 +10,7 @@ type Product = { id: number; restaurant_id: number; category_id: number; name: s
 type Catalog = { restaurants: Restaurant[]; categories: Category[]; products: Product[]; coverage: { restaurant_id: number; zone_id: number }[] };
 type Zone = { id: number; name: string; city: string; state: string; delivery_fee_cents: number; minimum_order_cents: number };
 type Address = { id: number; zone_id: number; postal_code: string | null; label: string; street: string; number: string; neighborhood: string; complement: string; zone_name: string; city: string; state: string };
-type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; created_at: string };
+type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; created_at: string; payment_method: string | null; payment_status: string | null };
 type CartItem = { productId: number; quantity: number; restaurantId: number; name: string; priceCents: number };
 type CartSnapshot = { items: CartItem[] };
 type SearchPage = { items: Product[]; nextCursor: number | null };
@@ -35,6 +35,13 @@ const statusLabels: Record<string, string> = {
   assigned: 'Entregador a caminho', picked_up: 'Saiu para entrega', delivered: 'Entregue',
   rejected: 'Recusado pelo restaurante', cancelled: 'Cancelado', expired: 'Expirou sem aceite', failed: 'Falha na entrega',
 };
+const paymentMethods: Record<string, string> = { cash: 'Dinheiro', card: 'Cartão', pix: 'Pix' };
+const paymentStatuses: Record<string, string> = { pending: 'a receber', paid: 'pago', cancelled: 'cancelado', refunded: 'estornado' };
+
+function paymentLabel(order: Order) {
+  if (!order.payment_method) return '';
+  return `${paymentMethods[order.payment_method] ?? order.payment_method} · ${paymentStatuses[order.payment_status ?? 'pending'] ?? order.payment_status}`;
+}
 
 function money(cents: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
@@ -80,6 +87,8 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
   const [postalLoading, setPostalLoading] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [showAllOrders, setShowAllOrders] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'pix'>('cash');
+  const [changeFor, setChangeFor] = useState('');
 
   useEffect(() => {
     if (addressForm.postalCode.length !== 8) { setPostalZone(null); setPostalMessage(''); setPostalLoading(false); return; }
@@ -224,11 +233,12 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
 
   async function placeOrder() {
     if (!selectedAddress?.postal_code || !cartRestaurantId || !cartEntries.length || !cartCovered || cartRestaurantClosed || !meetsMinimum || cartBusy) return;
+    const changeForCents = paymentMethod === 'cash' && changeFor.trim() ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
     const ok = await onAction(() => request('/cart/checkout', {
       method: 'POST',
-      body: JSON.stringify({ addressId: selectedAddress.id, expectedTotalCents: subtotal + fee }),
+      body: JSON.stringify({ addressId: selectedAddress.id, expectedTotalCents: subtotal + fee, paymentMethod, changeForCents }),
     }), 'Pedido criado. Acompanhe o preparo abaixo.');
-    if (ok) { setCart([]); setLocalMessage(''); }
+    if (ok) { setCart([]); setLocalMessage(''); setChangeFor(''); }
     else { await onRefresh().catch(() => {}); await refreshCart(); }
   }
 
@@ -302,12 +312,13 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
             {!cartCovered && <p className="customer-minimum">Este restaurante não entrega no endereço selecionado. Escolha outro endereço ou esvazie o carrinho.</p>}
             {cartRestaurantClosed && <p className="customer-minimum">Este restaurante está fora do horário de funcionamento agora. Aguarde a reabertura para concluir o pedido.</p>}
             {selectedAddress && !selectedAddress.postal_code && <p className="customer-minimum">Este endereço é anterior à validação por CEP. Cadastre-o novamente para continuar.</p>}
+            <div className="customer-payment"><span className="customer-kicker">PAGAMENTO NA ENTREGA</span><div className="customer-payment-methods" role="group" aria-label="Forma de pagamento"><button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => setPaymentMethod('cash')}>Dinheiro</button><button type="button" className={paymentMethod === 'card' ? 'selected' : ''} onClick={() => setPaymentMethod('card')}>Cartão</button><button type="button" className={paymentMethod === 'pix' ? 'selected' : ''} onClick={() => setPaymentMethod('pix')}>Pix</button></div>{paymentMethod === 'cash' && <label className="customer-change">Troco para (opcional)<input inputMode="decimal" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} placeholder="Ex.: 50,00" /></label>}</div>
             <button className="customer-solid-button customer-checkout" onClick={placeOrder} disabled={busy || cartBusy || !selectedAddress?.postal_code || !meetsMinimum || !cartCovered || cartRestaurantClosed}>Fazer pedido <span>↗</span></button>
           </> : <p className="customer-muted">{cartLoaded ? 'Adicione um prato para começar. Você pode escolher vários itens do mesmo restaurante.' : 'Carregando seu carrinho...'}</p>}
         </section>
 
         <section className="customer-card customer-orders"><div className="customer-card-title"><div><span className="customer-kicker">ACOMPANHE POR AQUI</span><h2>Seus pedidos</h2></div><button onClick={() => onRefresh().catch(() => setLocalMessage('Não foi possível atualizar os pedidos.'))} disabled={busy}>Atualizar ↻</button></div>
-          {orders.length ? <><div className="customer-order-list">{(showAllOrders ? orders : orders.slice(0, 5)).map((order) => <div className="customer-order-entry" key={order.id}><div className="customer-order-row"><div><strong>#{order.id} · {order.restaurant_name}</strong><small>{order.delivery_address_text}</small><button className="order-detail-toggle" aria-expanded={expandedOrderId === order.id} onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>{expandedOrderId === order.id ? 'Ocultar detalhes' : 'Ver itens e andamento'}</button></div><div><span className={`customer-order-status ${order.status === 'delivered' ? 'delivered' : ''}`}>{statusLabels[order.status] ?? order.status}</span><strong>{money(order.total_cents)}</strong>{order.status === 'placed' && <button className="order-show-all" onClick={() => cancelOrder(order.id)} disabled={busy}>Cancelar pedido</button>}</div></div>{expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}</div>)}</div>{orders.length > 5 && <button className="order-show-all" onClick={() => setShowAllOrders(!showAllOrders)}>{showAllOrders ? 'Mostrar menos' : `Ver todos os ${orders.length} pedidos`}</button>}</> : <p className="customer-muted">Quando você pedir, o andamento aparecerá aqui.</p>}
+          {orders.length ? <><div className="customer-order-list">{(showAllOrders ? orders : orders.slice(0, 5)).map((order) => <div className="customer-order-entry" key={order.id}><div className="customer-order-row"><div><strong>#{order.id} · {order.restaurant_name}</strong><small>{order.delivery_address_text}</small>{order.payment_method && <small>{paymentLabel(order)}</small>}<button className="order-detail-toggle" aria-expanded={expandedOrderId === order.id} onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>{expandedOrderId === order.id ? 'Ocultar detalhes' : 'Ver itens e andamento'}</button></div><div><span className={`customer-order-status ${order.status === 'delivered' ? 'delivered' : ''}`}>{statusLabels[order.status] ?? order.status}</span><strong>{money(order.total_cents)}</strong>{order.status === 'placed' && <button className="order-show-all" onClick={() => cancelOrder(order.id)} disabled={busy}>Cancelar pedido</button>}</div></div>{expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}</div>)}</div>{orders.length > 5 && <button className="order-show-all" onClick={() => setShowAllOrders(!showAllOrders)}>{showAllOrders ? 'Mostrar menos' : `Ver todos os ${orders.length} pedidos`}</button>}</> : <p className="customer-muted">Quando você pedir, o andamento aparecerá aqui.</p>}
         </section>
       </div>
     </div>

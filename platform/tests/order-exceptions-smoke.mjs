@@ -45,7 +45,7 @@ const address = await call('/addresses', { cookie: customer, method: 'POST', exp
 assert.equal(address.zoneId, zone.id, 'CEP 60000001 deveria resolver a zona do restaurante demo');
 
 const place = () => call('/orders', { cookie: customer, method: 'POST', expected: 201,
-  body: { restaurantId, addressId: address.id, items: [{ productId: product.id, quantity: 1 }] } });
+  body: { restaurantId, addressId: address.id, items: [{ productId: product.id, quantity: 1 }], paymentMethod: 'cash' } });
 
 let demoCourier = (await call('/admin/couriers', { cookie: admin })).find((item) => item.email === 'entregador@demo.local');
 assert.ok(demoCourier, 'Entregador demo ausente');
