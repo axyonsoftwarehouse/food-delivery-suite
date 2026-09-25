@@ -47,4 +47,4 @@ Esta é uma base de homologação, não autorização para exposição comercial
 
 ## Desativação do Foodie legado
 
-Não execute `docker compose down --volumes` contra a composição antiga antes de a nova publicar e passar a validação. Na janela aprovada, capture um backup final e o inventário dos recursos legados, pare a composição `foodie`, valide o domínio da nova plataforma e só depois remova volumes, imagens e arquivos antigos. A remoção requer inspeção da VPS para confirmar os nomes e evitar atingir outros projetos.
+Executada em **2026-09-25**: o projeto legado `deploy` foi derrubado com `down -v` (containers, volumes e rede) e removidos os diretórios `/opt/food-delivery-suite` e a recriação antiga `/opt/foodie`, junto das imagens não usadas e do cache de build. As portas 80/443 ficaram livres, mas o perfil `public` **não** foi iniciado — a plataforma Foodie segue **interna** até a janela de virada de domínio. Antes de reexpor qualquer coisa, capture backup, confirme `/ready` e siga o roteiro de virada acima.
