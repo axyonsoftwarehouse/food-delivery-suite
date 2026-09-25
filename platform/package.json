@@ -8,6 +8,7 @@
     "build": "pnpm -r build",
     "test": "pnpm --filter @foodie/api test",
     "smoke:cart": "node tests/cart-smoke.mjs",
-    "smoke:exceptions": "node tests/order-exceptions-smoke.mjs"
+    "smoke:exceptions": "node tests/order-exceptions-smoke.mjs",
+    "smoke:auth": "node tests/auth-smoke.mjs"
   }
 }

@@ -52,20 +52,50 @@ public class AuthRepository {
         return limited != null;
     }
 
-    public void registerLoginFailure(String subjectHash) {
+    public void registerLoginFailure(String subjectHash, int threshold) {
         jdbc.update("""
             INSERT INTO auth_login_limits (subject_hash, failed_attempts, window_started_at, locked_until)
             VALUES (?, 1, NOW(), NULL)
             ON DUPLICATE KEY UPDATE
-              failed_attempts = IF(window_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE), 1, failed_attempts + 1),
               locked_until = IF(window_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE), NULL,
-                IF(failed_attempts >= 5, DATE_ADD(NOW(), INTERVAL 15 MINUTE), NULL)),
+                IF(failed_attempts + 1 >= ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE), NULL)),
+              failed_attempts = IF(window_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE), 1, failed_attempts + 1),
               window_started_at = IF(window_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE), NOW(), window_started_at)
-            """, subjectHash);
+            """, subjectHash, threshold);
     }
 
     public void clearLoginFailures(String subjectHash) {
         jdbc.update("DELETE FROM auth_login_limits WHERE subject_hash = ?", subjectHash);
+    }
+
+    public void deleteExpiredSessions() {
+        jdbc.update("DELETE FROM sessions WHERE expires_at <= NOW()");
+    }
+
+    public void createActionToken(String tokenHash, long userId, String purpose, int minutes) {
+        jdbc.update("INSERT INTO auth_action_tokens (token_hash, user_id, purpose, expires_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))",
+            tokenHash, userId, purpose, minutes);
+    }
+
+    public Optional<Long> consumeActionToken(String tokenHash, String purpose) {
+        int changed = jdbc.update("UPDATE auth_action_tokens SET used_at = NOW() WHERE token_hash = ? AND purpose = ? AND used_at IS NULL AND expires_at > NOW()",
+            tokenHash, purpose);
+        if (changed == 0) return Optional.empty();
+        List<Long> ids = jdbc.query("SELECT user_id FROM auth_action_tokens WHERE token_hash = ?", (rs, row) -> rs.getLong(1), tokenHash);
+        return ids.stream().findFirst();
+    }
+
+    public void markEmailVerified(long userId) {
+        jdbc.update("UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = ?", userId);
+    }
+
+    public boolean isEmailVerified(long userId) {
+        Integer verified = jdbc.query("SELECT 1 FROM users WHERE id = ? AND email_verified_at IS NOT NULL", rs -> rs.next() ? 1 : null, userId);
+        return verified != null;
+    }
+
+    public void updatePassword(long userId, String passwordHash) {
+        jdbc.update("UPDATE users SET password_hash = ? WHERE id = ?", passwordHash, userId);
     }
 
     public boolean setSuspended(long userId, boolean suspended, String reason) {

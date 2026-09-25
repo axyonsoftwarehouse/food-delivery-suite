@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -57,7 +58,7 @@ class AuthCompatibilityTest {
             .thenReturn(Optional.of(new AuthRepository.Credentials(user, NODE_HASH, true)));
 
         assertEquals(401, assertThrows(ApiException.class, () -> service.login("cliente@demo.local", "test-password-123")).status());
-        verify(repository).registerLoginFailure(anyString());
+        verify(repository).registerLoginFailure(anyString(), anyInt());
     }
 
     @Test
