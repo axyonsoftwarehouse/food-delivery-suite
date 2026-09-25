@@ -11,6 +11,7 @@
     "build": "pnpm -r build",
     "test": "pnpm --filter @foodie/api test",
     "verify": "node scripts/verify.mjs",
+    "load": "node scripts/load-test.mjs",
     "smoke:cart": "node tests/cart-smoke.mjs",
     "smoke:exceptions": "node tests/order-exceptions-smoke.mjs",
     "smoke:auth": "node tests/auth-smoke.mjs"

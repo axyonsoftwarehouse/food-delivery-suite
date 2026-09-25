@@ -5,6 +5,18 @@ app:
   cookie-secure: ${COOKIE_SECURE:false}
   public-base-url: ${PUBLIC_BASE_URL:http://127.0.0.1:3001}
   migrate-only: ${MIGRATE_ONLY:false}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%X{requestId:-sem-id}] %logger{36} - %msg%n"
 spring:
   application:
     name: foodie-api
