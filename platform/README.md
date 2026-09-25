@@ -1,6 +1,6 @@
 # Plataforma Foodie independente
 
-Primeira implementação nova, separada do pacote Laravel/Next/Flutter existente. Ela contém uma API TypeScript **transitória** com banco MariaDB próprio e um site Next.js para testar os papéis de cliente, restaurante, administração e entregador. O backend definitivo foi definido como **Java 21/Spring Boot**; a transição está descrita em `docs/PLANO_RECONSTRUCAO_PROPRIA.md`. Nenhum serviço da VPS ou dado do projeto anterior é modificado por estes arquivos.
+Plataforma própria da Foodie — **a única base de código do produto** desde que o pacote comercial StackFood (legado) foi removido em 2026-09-25. Contém uma API TypeScript **transitória** com banco MariaDB próprio e um site Next.js para os papéis de cliente, restaurante, administração e entregador. O backend definitivo é **Java 21/Spring Boot**; a transição está descrita em `docs/PLANO_RECONSTRUCAO_PROPRIA.md`.
 
 ## Preparar localmente
 

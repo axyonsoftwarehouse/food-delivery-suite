@@ -1,6 +1,6 @@
 # Homologação da plataforma Foodie
 
-Esta composição publica somente a plataforma independente: MariaDB, migrations (Flyway, aplicadas pelo contêiner Java), API Java, web Next e Caddy. O projeto Docker é nomeado `foodie-staging`, portanto não reutiliza redes, volumes, banco, imagens, domínio nem arquivos do Foodie legado em `../../deploy`.
+Esta composição publica a plataforma independente: MariaDB, migrations (Flyway, aplicadas pelo contêiner Java), API Java, web Next e Caddy. O projeto Docker é nomeado `foodie-staging`, portanto não reutiliza redes, volumes, banco, imagens, domínio nem arquivos de outros projetos na VPS.
 
 ## Preparação na VPS
 
