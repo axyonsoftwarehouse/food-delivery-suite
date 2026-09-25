@@ -2,6 +2,18 @@
 
 Esta composição publica a plataforma independente: MariaDB, migrations (Flyway, aplicadas pelo contêiner Java), API Java, web Next e Caddy. O projeto Docker é nomeado `foodie-staging`, portanto não reutiliza redes, volumes, banco, imagens, domínio nem arquivos de outros projetos na VPS.
 
+## Endereços (homologação)
+
+Com `FOODIE_DOMAIN=staging.2.29.42.104.sslip.io`, o Caddy publica (perfil `public`):
+
+| Host | Destino |
+| --- | --- |
+| `staging.<domínio>` | site (todos os papéis; o login define) |
+| `api.<domínio>` | API Java |
+| `cliente.<domínio>`, `restaurante.<domínio>`, `entregador.<domínio>`, `admin.<domínio>` | o mesmo site (endereços por papel; o login ainda define o papel) |
+
+O `sslip.io` é temporário e serve apenas homologação; para produção, troque por um domínio próprio apontando o DNS para a VPS.
+
 ## Preparação na VPS
 
 1. Copie `.env.example` para `.env` e informe o domínio de homologação e duas senhas exclusivas.
