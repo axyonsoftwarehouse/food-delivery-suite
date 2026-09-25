@@ -36,6 +36,15 @@ assert.equal((await request<{ id: number }>(`/zones/resolve?postalCode=${postalC
 const restaurant = await request<{ id: number }>('/admin/restaurants', admin, 'POST', { name: `Restaurante Teste ${unique}`, slug: `teste-${unique}` }, 201);
 const category = await request<{ id: number }>('/admin/categories', admin, 'POST', { restaurantId: restaurant.id, name: 'Pratos' }, 201);
 const product = await request<{ id: number }>('/admin/products', admin, 'POST', { restaurantId: restaurant.id, categoryId: category.id, name: 'Prato de teste', priceCents: 2500 }, 201);
+await request(`/admin/categories/${category.id}`, admin, 'PATCH', { name: 'Pratos principais' });
+const menu = await request<{ categories: { id: number; name: string }[] }>(`/admin/restaurants/${restaurant.id}/catalog`, admin);
+assert.ok(menu.categories.some((item) => item.id === category.id && item.name === 'Pratos principais'));
+await request(`/admin/products/${product.id}`, admin, 'PATCH', { priceCents: 3300 });
+assert.equal((await request<{ products: { id: number; price_cents: number }[] }>('/catalog')).products.find((item) => item.id === product.id)?.price_cents, 3300);
+await request(`/admin/products/${product.id}`, admin, 'PATCH', { priceCents: 2500 });
+await request(`/admin/products/${product.id}`, admin, 'PATCH', { available: false });
+assert.ok(!(await request<{ products: { id: number }[] }>('/catalog')).products.some((item) => item.id === product.id));
+await request(`/admin/products/${product.id}`, admin, 'PATCH', { available: true });
 const staffEmail = `responsavel-${unique}@demo.local`;
 await request('/admin/restaurant-users', admin, 'POST', { restaurantId: restaurant.id, name: 'Responsável Teste', email: staffEmail, password }, 201);
 const restaurantSession = await login(staffEmail);
@@ -62,4 +71,9 @@ await request(`/orders/${order.id}/status`, courier, 'PATCH', { action: 'deliver
 const detail = await request<{ status: string; history: { to_status: string }[] }>(`/orders/${order.id}`, customer);
 assert.equal(detail.status, 'delivered');
 assert.deepEqual(detail.history.map((event) => event.to_status), ['placed', 'accepted', 'ready', 'assigned', 'picked_up', 'delivered']);
+await request(`/restaurant/products/${product.id}`, restaurantSession, 'PATCH', { description: 'Receita da casa' });
+await request(`/admin/products/${product.id}`, admin, 'DELETE', undefined, 409);
+const extra = await request<{ id: number }>('/admin/products', admin, 'POST', { restaurantId: restaurant.id, categoryId: category.id, name: 'Prato extra', priceCents: 1000 }, 201);
+await request(`/admin/products/${extra.id}`, admin, 'DELETE');
+await request(`/admin/categories/${category.id}`, admin, 'DELETE', undefined, 409);
 console.log(`Fluxo completo validado no pedido #${order.id}.`);

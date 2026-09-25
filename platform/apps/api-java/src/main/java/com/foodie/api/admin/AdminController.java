@@ -105,27 +105,6 @@ public class AdminController {
         return Map.of("id", id, "active", body.active());
     }
 
-    @PostMapping("/categories")
-    public ResponseEntity<Map<String, Object>> category(@CookieValue(value = "foodie_session", required = false) String token,
-                                                         @Valid @RequestBody CategoryRequest body) {
-        admin(token);
-        long id = insert("INSERT INTO categories (restaurant_id, name) VALUES (?, ?)", body.restaurantId(), body.name().trim());
-        return created(Map.of("id", id, "restaurantId", body.restaurantId(), "name", body.name().trim()));
-    }
-
-    @PostMapping("/products")
-    public ResponseEntity<Map<String, Object>> product(@CookieValue(value = "foodie_session", required = false) String token,
-                                                        @Valid @RequestBody ProductRequest body) {
-        admin(token);
-        Integer match = jdbc.query("SELECT 1 FROM categories WHERE id = ? AND restaurant_id = ?", rs -> rs.next() ? 1 : null,
-            body.categoryId(), body.restaurantId());
-        if (match == null) throw new ApiException(400, "Categoria não pertence ao restaurante");
-        String description = body.description() == null ? "" : body.description();
-        long id = insert("INSERT INTO products (restaurant_id, category_id, name, description, price_cents) VALUES (?, ?, ?, ?, ?)",
-            body.restaurantId(), body.categoryId(), body.name().trim(), description, body.priceCents());
-        return created(Map.of("id", id, "restaurantId", body.restaurantId(), "categoryId", body.categoryId(), "name", body.name().trim(), "description", description, "priceCents", body.priceCents()));
-    }
-
     @PostMapping("/restaurant-users")
     public ResponseEntity<Map<String, Object>> restaurantUser(@CookieValue(value = "foodie_session", required = false) String token,
                                                                @Valid @RequestBody RestaurantUserRequest body) {
@@ -209,11 +188,6 @@ public class AdminController {
     public record RestaurantRequest(@NotBlank @Size(min = 2, max = 160) String name,
                                     @NotBlank @Pattern(regexp = "[a-z0-9]+(?:-[a-z0-9]+)*") @Size(max = 180) String slug) {}
     public record AvailabilityRequest(@jakarta.validation.constraints.NotNull Boolean active) {}
-    public record CategoryRequest(@Positive long restaurantId, @NotBlank @Size(min = 2, max = 120) String name) {}
-    public record ProductRequest(@Positive long restaurantId, @Positive long categoryId,
-                                 @NotBlank @Size(min = 2, max = 160) String name,
-                                 @Size(max = 500) String description,
-                                 @Min(1) @Max(10_000_000) int priceCents) {}
     public record RestaurantUserRequest(@Positive long restaurantId,
                                         @NotBlank @Size(min = 2, max = 120) String name,
                                         @NotBlank @Email @Size(max = 190) String email,

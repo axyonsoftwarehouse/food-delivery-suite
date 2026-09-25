@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import CustomerHome from './CustomerHome';
 import OrderDetails from './OrderDetails';
 import RestaurantHours from './RestaurantHours';
+import CatalogManager from './CatalogManager';
 
 const POLL_INTERVAL_MS = 8000;
 const LATE_ORDER_MINUTES = 10;
@@ -13,7 +14,6 @@ type User = { id: number; name: string; email: string; role: Role; restaurantId:
 type Restaurant = { id: number; name: string; slug: string; active: boolean; open: boolean; timezone: string };
 type Category = { id: number; restaurant_id: number; name: string };
 type Product = { id: number; restaurant_id: number; category_id: number; name: string; description: string; price_cents: number };
-type RestaurantProduct = Product & { available: boolean };
 type Catalog = { restaurants: Restaurant[]; categories: Category[]; products: Product[]; coverage: { restaurant_id: number; zone_id: number }[] };
 type Zone = { id: number; name: string; city: string; state: string; delivery_fee_cents: number; minimum_order_cents: number };
 type Address = { id: number; zone_id: number; postal_code: string | null; label: string; street: string; number: string; neighborhood: string; complement: string; zone_name: string; city: string; state: string };
@@ -68,7 +68,6 @@ export default function Home() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
-  const [restaurantProducts, setRestaurantProducts] = useState<RestaurantProduct[]>([]);
   const [postalRanges, setPostalRanges] = useState<PostalRange[]>([]);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [signupName, setSignupName] = useState('');
@@ -77,9 +76,6 @@ export default function Home() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [restaurantName, setRestaurantName] = useState('');
-  const [categoryName, setCategoryName] = useState('');
-  const [productName, setProductName] = useState('');
-  const [productPrice, setProductPrice] = useState('');
   const [staffName, setStaffName] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
   const [staffPassword, setStaffPassword] = useState('');
@@ -87,7 +83,6 @@ export default function Home() {
   const [courierEmail, setCourierEmail] = useState('');
   const [courierPassword, setCourierPassword] = useState('');
   const [restaurantId, setRestaurantId] = useState('');
-  const [categoryId, setCategoryId] = useState('');
   const [courierByOrder, setCourierByOrder] = useState<Record<number, string>>({});
   const [zoneName, setZoneName] = useState('');
   const [zoneCity, setZoneCity] = useState('Fortaleza');
@@ -111,13 +106,12 @@ export default function Home() {
     const version = ++refreshVersion.current;
     try {
       const me = activeUser === undefined ? (await api<{ user: User | null }>('/me')).user : activeUser;
-      const [catalogData, orderData, courierData, zoneData, addressData, restaurantProductData, postalRangeData] = await Promise.all([
+      const [catalogData, orderData, courierData, zoneData, addressData, postalRangeData] = await Promise.all([
         api<Catalog>(me?.role === 'customer' ? '/catalog/meta' : '/catalog'),
         me ? api<Order[]>('/orders') : Promise.resolve([]),
         me?.role === 'admin' ? api<Courier[]>('/admin/couriers') : Promise.resolve([]),
         api<Zone[]>('/zones'),
         me?.role === 'customer' ? api<Address[]>('/addresses') : Promise.resolve([]),
-        me?.role === 'restaurant' ? api<RestaurantProduct[]>('/restaurant/products') : Promise.resolve([]),
         me?.role === 'admin' ? api<PostalRange[]>('/admin/postal-ranges') : Promise.resolve([]),
       ]);
       if (version !== refreshVersion.current) return;
@@ -126,7 +120,6 @@ export default function Home() {
       setCouriers(courierData);
       setZones(zoneData);
       setAddresses(addressData);
-      setRestaurantProducts(restaurantProductData);
       setPostalRanges(postalRangeData);
       setUser(me);
       setConnection('online');
@@ -225,8 +218,6 @@ export default function Home() {
   }
 
   const selectedRestaurantId = Number(restaurantId || catalog.restaurants[0]?.id || 0);
-  const categories = catalog.categories.filter((category) => category.restaurant_id === selectedRestaurantId);
-  const selectedCategoryId = Number(categoryId || categories[0]?.id || 0);
   const selectedCoverageZoneId = Number(coverageZoneId || zones[0]?.id || 0);
 
   if (initializing) return <main className="app-loading" role="status"><span className="app-loading-brand">✦ foodie<span>.</span></span><p>Preparando sua experiência...</p></main>;
@@ -256,12 +247,12 @@ export default function Home() {
       </div> : <>
         <section className="stat-grid"><div className="stat-card"><span>Restaurantes</span><strong>{catalog.restaurants.length.toString().padStart(2, '0')}</strong><small>No catálogo</small></div><div className="stat-card"><span>Pratos disponíveis</span><strong>{catalog.products.length.toString().padStart(2, '0')}</strong><small>Prontos para pedir</small></div><div className="stat-card accent"><span>Pedidos visíveis</span><strong>{orders.length.toString().padStart(2, '0')}</strong><small>Atualizados em tempo real ao recarregar</small></div></section>
 
-        {user.role === 'admin' && <section className="panel"><div className="panel-heading"><div><span className="eyebrow">CONFIGURAÇÃO</span><h2>Construir o catálogo</h2></div><p>Cadastre restaurante, categoria e produto para testar pedidos.</p></div><div className="form-grid">
+        {user.role === 'admin' && <section className="panel"><div className="panel-heading"><div><span className="eyebrow">CONFIGURAÇÃO</span><h2>Restaurantes e acessos</h2></div><p>Cadastre o restaurante e o responsável por ele. Categorias e produtos ficam no catálogo abaixo.</p></div><div className="form-grid">
           <form onSubmit={(event) => { event.preventDefault(); run(() => api('/admin/restaurants', { method: 'POST', body: JSON.stringify({ name: restaurantName, slug: restaurantName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') }) }), 'Restaurante cadastrado.'); setRestaurantName(''); }}><h3>Novo restaurante</h3><label>Nome<input value={restaurantName} onChange={(event) => setRestaurantName(event.target.value)} placeholder="Ex.: Sabor do bairro" required /></label><button className="secondary-button" disabled={busy}>Adicionar restaurante</button></form>
-          <form onSubmit={(event) => { event.preventDefault(); run(() => api('/admin/categories', { method: 'POST', body: JSON.stringify({ restaurantId: selectedRestaurantId, name: categoryName }) }), 'Categoria cadastrada.'); setCategoryName(''); }}><h3>Nova categoria</h3><label>Restaurante<select value={restaurantId} onChange={(event) => { setRestaurantId(event.target.value); setCategoryId(''); }}>{catalog.restaurants.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Nome<input value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="Ex.: Pratos principais" required /></label><button className="secondary-button" disabled={busy || !selectedRestaurantId}>Adicionar categoria</button></form>
-          <form onSubmit={(event) => { event.preventDefault(); run(() => api('/admin/products', { method: 'POST', body: JSON.stringify({ restaurantId: selectedRestaurantId, categoryId: selectedCategoryId, name: productName, priceCents: Math.round(Number(productPrice.replace(',', '.')) * 100) }) }), 'Produto cadastrado.'); setProductName(''); setProductPrice(''); }}><h3>Novo produto</h3><label>Categoria<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Nome<input value={productName} onChange={(event) => setProductName(event.target.value)} placeholder="Ex.: Bowl da casa" required /></label><label>Preço em R$<input inputMode="decimal" value={productPrice} onChange={(event) => setProductPrice(event.target.value)} placeholder="29,90" required /></label><button className="secondary-button" disabled={busy || !selectedCategoryId}>Adicionar produto</button></form>
-          <form onSubmit={(event) => { event.preventDefault(); run(() => api('/admin/restaurant-users', { method: 'POST', body: JSON.stringify({ restaurantId: selectedRestaurantId, name: staffName, email: staffEmail, password: staffPassword }) }), 'Responsável cadastrado.'); setStaffName(''); setStaffEmail(''); setStaffPassword(''); }}><h3>Responsável pelo restaurante</h3><label>Nome<input value={staffName} onChange={(event) => setStaffName(event.target.value)} placeholder="Nome completo" required /></label><label>Email<input type="email" value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} placeholder="responsavel@exemplo.com" required /></label><label>Senha inicial<input type="password" minLength={12} value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} placeholder="Mínimo de 12 caracteres" required /></label><button className="secondary-button" disabled={busy || !selectedRestaurantId}>Criar acesso</button></form>
+          <form onSubmit={(event) => { event.preventDefault(); run(() => api('/admin/restaurant-users', { method: 'POST', body: JSON.stringify({ restaurantId: selectedRestaurantId, name: staffName, email: staffEmail, password: staffPassword }) }), 'Responsável cadastrado.'); setStaffName(''); setStaffEmail(''); setStaffPassword(''); }}><h3>Responsável pelo restaurante</h3><label>Restaurante<select value={restaurantId} onChange={(event) => setRestaurantId(event.target.value)}>{catalog.restaurants.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Nome<input value={staffName} onChange={(event) => setStaffName(event.target.value)} placeholder="Nome completo" required /></label><label>Email<input type="email" value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} placeholder="responsavel@exemplo.com" required /></label><label>Senha inicial<input type="password" minLength={12} value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} placeholder="Mínimo de 12 caracteres" required /></label><button className="secondary-button" disabled={busy || !selectedRestaurantId}>Criar acesso</button></form>
         </div></section>}
+
+        {user.role === 'admin' && <CatalogManager role="admin" restaurants={catalog.restaurants} onMessage={setMessage} onChanged={() => { void refresh(); }} />}
 
         {user.role === 'admin' && <section className="panel"><div className="panel-heading"><div><span className="eyebrow">OPERAÇÃO</span><h2>Abertura dos restaurantes</h2></div><p>Fechar uma loja a remove do catálogo e bloqueia novos pedidos, sem alterar o cardápio.</p></div><div className="courier-list">{catalog.restaurants.map((restaurant) => <div className="courier-row" key={restaurant.id}><div><strong>{restaurant.name}</strong><small className={restaurant.active && restaurant.open ? 'courier-state approved' : 'courier-state'}>{restaurant.active ? (restaurant.open ? 'Pedidos abertos agora' : 'Fora do horário agora') : 'Fechado temporariamente'}</small></div><button className={restaurant.active ? 'availability-button' : 'availability-button paused'} disabled={busy} onClick={() => run(() => api(`/admin/restaurants/${restaurant.id}/availability`, { method: 'PATCH', body: JSON.stringify({ active: !restaurant.active }) }), restaurant.active ? 'Restaurante fechado para novos pedidos.' : 'Restaurante reaberto.')}>{restaurant.active ? 'Fechar agora' : 'Reabrir'}</button></div>)}</div></section>}
 
@@ -280,7 +271,7 @@ export default function Home() {
           <div className="courier-list"><h3>Equipe cadastrada</h3>{couriers.length ? couriers.map((courier) => <div className="courier-row" key={courier.id}><div><strong>{courier.name}</strong><span>{courier.email}</span><small className={courier.approved ? 'courier-state approved' : 'courier-state'}>{courier.approved ? 'Aprovado para entregas' : 'Aguardando aprovação'}</small></div><div className="courier-actions">{!courier.approved && <button className="secondary-button" disabled={busy || courier.suspended} onClick={() => run(() => api(`/admin/couriers/${courier.id}/approval`, { method: 'PATCH' }), 'Entregador aprovado para receber pedidos.')}>Aprovar</button>}<button className={courier.suspended ? 'availability-button paused' : 'availability-button'} disabled={busy} onClick={() => run(() => api(`/admin/couriers/${courier.id}/suspension`, { method: 'PATCH', body: JSON.stringify({ suspended: !courier.suspended }) }), courier.suspended ? 'Entregador reativado.' : 'Entregador suspenso e sessões encerradas.')}>{courier.suspended ? 'Reativar' : 'Suspender'}</button></div></div>) : <p className="form-help">Nenhum entregador cadastrado.</p>}</div>
         </div></section>}
 
-        {user.role === 'restaurant' && <section className="panel"><div className="panel-heading"><div><span className="eyebrow">SEU CARDÁPIO</span><h2>Produtos e disponibilidade</h2></div><p>Pause um prato quando não puder prepará-lo. Ele deixa de aparecer para os clientes.</p></div>{restaurantProducts.length ? <div className="restaurant-product-list">{restaurantProducts.map((product) => <div className="restaurant-product-row" key={product.id}><div><strong>{product.name}</strong><span>{money(product.price_cents)} · {product.available ? 'Disponível' : 'Pausado'}</span></div><button className={product.available ? 'availability-button' : 'availability-button paused'} disabled={busy} onClick={() => run(() => api(`/restaurant/products/${product.id}/availability`, { method: 'PATCH', body: JSON.stringify({ available: !product.available }) }), product.available ? 'Produto pausado.' : 'Produto reativado.')}>{product.available ? 'Pausar' : 'Reativar'}</button></div>)}</div> : <div className="empty-state">O restaurante ainda não tem produtos cadastrados.</div>}</section>}
+        {user.role === 'restaurant' && <CatalogManager role="restaurant" onMessage={setMessage} onChanged={() => { void refresh(user); }} />}
 
         {user.role === 'restaurant' && <RestaurantHours role="restaurant" onMessage={setMessage} />}
 
