@@ -31,6 +31,7 @@ type Props = {
 const statusLabels: Record<string, string> = {
   placed: 'Pedido recebido', accepted: 'Em preparo', ready: 'Pronto para entrega',
   assigned: 'Entregador a caminho', picked_up: 'Saiu para entrega', delivered: 'Entregue',
+  rejected: 'Recusado pelo restaurante', cancelled: 'Cancelado', expired: 'Expirou sem aceite', failed: 'Falha na entrega',
 };
 
 function money(cents: number) {
@@ -229,6 +230,12 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
     else { await onRefresh().catch(() => {}); await refreshCart(); }
   }
 
+  async function cancelOrder(orderId: number) {
+    const value = window.prompt('Motivo do cancelamento:') ?? '';
+    if (value.trim().length < 3) { setLocalMessage('Informe um motivo com pelo menos 3 caracteres.'); return; }
+    await onAction(() => request(`/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'cancel', reason: value.trim() }) }), 'Pedido cancelado.');
+  }
+
   return <main className="customer-app">
     <header className="customer-header">
       <a className="customer-brand" href="/" aria-label="Foodie, início"><span className="customer-brand-mark">✦</span> foodie<span>.</span></a>
@@ -298,7 +305,7 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
         </section>
 
         <section className="customer-card customer-orders"><div className="customer-card-title"><div><span className="customer-kicker">ACOMPANHE POR AQUI</span><h2>Seus pedidos</h2></div><button onClick={() => onRefresh().catch(() => setLocalMessage('Não foi possível atualizar os pedidos.'))} disabled={busy}>Atualizar ↻</button></div>
-          {orders.length ? <><div className="customer-order-list">{(showAllOrders ? orders : orders.slice(0, 5)).map((order) => <div className="customer-order-entry" key={order.id}><div className="customer-order-row"><div><strong>#{order.id} · {order.restaurant_name}</strong><small>{order.delivery_address_text}</small><button className="order-detail-toggle" aria-expanded={expandedOrderId === order.id} onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>{expandedOrderId === order.id ? 'Ocultar detalhes' : 'Ver itens e andamento'}</button></div><div><span className={`customer-order-status ${order.status === 'delivered' ? 'delivered' : ''}`}>{statusLabels[order.status] ?? order.status}</span><strong>{money(order.total_cents)}</strong></div></div>{expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}</div>)}</div>{orders.length > 5 && <button className="order-show-all" onClick={() => setShowAllOrders(!showAllOrders)}>{showAllOrders ? 'Mostrar menos' : `Ver todos os ${orders.length} pedidos`}</button>}</> : <p className="customer-muted">Quando você pedir, o andamento aparecerá aqui.</p>}
+          {orders.length ? <><div className="customer-order-list">{(showAllOrders ? orders : orders.slice(0, 5)).map((order) => <div className="customer-order-entry" key={order.id}><div className="customer-order-row"><div><strong>#{order.id} · {order.restaurant_name}</strong><small>{order.delivery_address_text}</small><button className="order-detail-toggle" aria-expanded={expandedOrderId === order.id} onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>{expandedOrderId === order.id ? 'Ocultar detalhes' : 'Ver itens e andamento'}</button></div><div><span className={`customer-order-status ${order.status === 'delivered' ? 'delivered' : ''}`}>{statusLabels[order.status] ?? order.status}</span><strong>{money(order.total_cents)}</strong>{order.status === 'placed' && <button className="order-show-all" onClick={() => cancelOrder(order.id)} disabled={busy}>Cancelar pedido</button>}</div></div>{expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}</div>)}</div>{orders.length > 5 && <button className="order-show-all" onClick={() => setShowAllOrders(!showAllOrders)}>{showAllOrders ? 'Mostrar menos' : `Ver todos os ${orders.length} pedidos`}</button>}</> : <p className="customer-muted">Quando você pedir, o andamento aparecerá aqui.</p>}
         </section>
       </div>
     </div>

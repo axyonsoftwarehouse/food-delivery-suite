@@ -103,6 +103,7 @@ public class OrderService {
     }
 
     public List<Map<String, Object>> list(User user) {
+        expireStale();
         String base = "SELECT o.id, o.status, o.subtotal_cents, o.delivery_fee_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.created_at, r.name AS restaurant_name FROM orders o JOIN restaurants r ON r.id = o.restaurant_id ";
         return switch (user.role()) {
             case "customer" -> jdbc.queryForList(base + "WHERE o.customer_id = ? ORDER BY o.id DESC LIMIT 100", user.id());
@@ -113,34 +114,55 @@ public class OrderService {
     }
 
     public Map<String, Object> detail(User user, long orderId) {
+        expireStale();
         List<Map<String, Object>> orders = jdbc.queryForList("SELECT * FROM orders WHERE id = ?", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);
         Map<String, Object> result = new LinkedHashMap<>(order);
         result.put("items", jdbc.queryForList("SELECT name, quantity, unit_price_cents FROM order_items WHERE order_id = ?", orderId));
-        result.put("history", jdbc.queryForList("SELECT from_status, to_status, created_at FROM order_events WHERE order_id = ? ORDER BY id", orderId));
+        result.put("history", jdbc.queryForList("SELECT from_status, to_status, reason, created_at FROM order_events WHERE order_id = ? ORDER BY id", orderId));
         return result;
     }
 
     @Transactional
-    public Map<String, Object> changeStatus(User user, long orderId, String action, Long courierId) {
+    public Map<String, Object> changeStatus(User user, long orderId, String action, Long courierId, String reason) {
         List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, courier_id, status FROM orders WHERE id = ? FOR UPDATE", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);
         String current = (String) order.get("status");
-        String next = OrderWorkflow.nextStatus(current, action, user.role());
+        OrderWorkflow.Transition transition = OrderWorkflow.resolve(current, action, user.role());
+        String trimmed = reason == null ? null : reason.strip();
+        if (transition.requiresReason() && (trimmed == null || trimmed.length() < 3)) {
+            throw new ApiException(400, "Informe o motivo (3 a 255 caracteres)");
+        }
+        String next = transition.nextStatus();
         if ("assign".equals(action)) {
             if (courierId == null || courierId < 1) throw new ApiException(400, "Selecione um entregador");
             Integer courier = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier' AND suspended_at IS NULL AND courier_approved_at IS NOT NULL", rs -> rs.next() ? 1 : null, courierId);
             if (courier == null) throw new ApiException(400, "Entregador não aprovado ou indisponível");
             jdbc.update("UPDATE orders SET status = ?, courier_id = ? WHERE id = ?", next, courierId, orderId);
+        } else if (transition.clearsCourier()) {
+            jdbc.update("UPDATE orders SET status = ?, courier_id = NULL WHERE id = ?", next, orderId);
         } else {
             jdbc.update("UPDATE orders SET status = ? WHERE id = ?", next, orderId);
         }
-        jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status) VALUES (?, ?, ?, ?)", orderId, user.id(), current, next);
-        return Map.of("id", orderId, "status", next);
+        jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, ?, ?, ?, ?)", orderId, user.id(), current, next, trimmed);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", orderId);
+        result.put("status", next);
+        if ("assign".equals(action)) result.put("courierId", courierId);
+        return result;
+    }
+
+    private void expireStale() {
+        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE)", (rs, row) -> rs.getLong(1));
+        for (Long id : stale) {
+            if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
+                jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
+            }
+        }
     }
 
     private static void checkAccess(User user, Map<String, Object> order) {

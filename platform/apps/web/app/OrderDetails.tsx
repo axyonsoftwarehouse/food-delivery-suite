@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 type Item = { name: string; quantity: number; unit_price_cents: number };
-type Event = { from_status: string | null; to_status: string; created_at: string };
+type Event = { from_status: string | null; to_status: string; reason: string | null; created_at: string };
 type Detail = {
   id: number;
   delivery_address_text: string | null;
@@ -17,6 +17,7 @@ type Detail = {
 const statusLabels: Record<string, string> = {
   placed: 'Pedido recebido', accepted: 'Aceito pelo restaurante', ready: 'Pronto para entrega',
   assigned: 'Entregador atribuído', picked_up: 'Retirado pelo entregador', delivered: 'Entregue',
+  rejected: 'Recusado pelo restaurante', cancelled: 'Cancelado', expired: 'Expirou sem aceite', failed: 'Falha na entrega',
 };
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
@@ -49,7 +50,7 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
     {loading ? <p>Carregando detalhes...</p> : error ? <p role="alert">{error}</p> : detail && <>
       <div className="order-details-grid">
         <div><h3>Itens</h3><ul>{detail.items.map((item, index) => <li key={index}><span>{item.quantity} × {item.name}</span><strong>{money(item.quantity * item.unit_price_cents)}</strong></li>)}</ul></div>
-        <div><h3>Andamento</h3><ol>{detail.history.map((event, index) => <li key={index}><strong>{statusLabels[event.to_status] ?? event.to_status}</strong><time dateTime={event.created_at}>{date(event.created_at)}</time></li>)}</ol></div>
+        <div><h3>Andamento</h3><ol>{detail.history.map((event, index) => <li key={index}><strong>{statusLabels[event.to_status] ?? event.to_status}</strong>{event.reason && <em> · {event.reason}</em>}<time dateTime={event.created_at}>{date(event.created_at)}</time></li>)}</ol></div>
       </div>
       <div className="order-details-summary"><span>Subtotal {money(detail.subtotal_cents)}</span><span>Entrega {money(detail.delivery_fee_cents)}</span><strong>Total {money(detail.total_cents)}</strong></div>
       {detail.delivery_address_text && <p className="order-details-address">Entrega: {detail.delivery_address_text}</p>}

@@ -54,7 +54,7 @@ public class OrderController {
     public Map<String, Object> changeStatus(@CookieValue(value = "foodie_session", required = false) String token,
                                             @PathVariable @Positive long id,
                                             @Valid @RequestBody StatusRequest request) {
-        return orders.changeStatus(auth.requireUser(token), id, request.action(), request.courierId());
+        return orders.changeStatus(auth.requireUser(token), id, request.action(), request.courierId(), request.reason());
     }
 
     @GetMapping("/admin/couriers")
@@ -66,5 +66,5 @@ public class OrderController {
     public record OrderRequest(@Positive long restaurantId, @Positive long addressId,
                                @NotEmpty @Size(max = 30) List<@Valid Item> items) {}
     public record Item(@Positive long productId, @Positive @Max(20) int quantity) {}
-    public record StatusRequest(@NotBlank String action, @Positive Long courierId) {}
+    public record StatusRequest(@NotBlank String action, @Positive Long courierId, @Size(max = 255) String reason) {}
 }
