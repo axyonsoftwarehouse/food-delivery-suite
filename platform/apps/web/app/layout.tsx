@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import './styles.css';
+import { AppProvider } from './app-context';
 
 export const metadata: Metadata = {
   title: 'Foodie • Plataforma independente',
-  description: 'Protótipo operacional para pedidos, restaurantes e entregadores.',
+  description: 'Plataforma operacional para pedidos, restaurantes e entregadores.',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="pt-BR"><body>{children}</body></html>;
+  return <html lang="pt-BR"><body><AppProvider>{children}</AppProvider></body></html>;
 }
