@@ -46,6 +46,7 @@ services:
       DB_USER: foodie
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in platform/deploy/.env}
       DB_NAME: foodie_platform
+      MAPBOX_TOKEN: ${MAPBOX_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy
