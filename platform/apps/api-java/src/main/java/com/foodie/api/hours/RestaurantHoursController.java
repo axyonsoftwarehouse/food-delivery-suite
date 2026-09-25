@@ -68,7 +68,7 @@ public class RestaurantHoursController {
     @GetMapping("/restaurant/hours")
     public Map<String, Object> ownHours(@CookieValue(value = "foodie_session", required = false) String token) {
         User restaurant = auth.requireUser(token, "restaurant");
-        if (restaurant.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        if (restaurant.restaurantId() == null) throw new ApiException(403, "Acesso nÃ£o autorizado");
         return schedule(restaurant.restaurantId());
     }
 
@@ -76,7 +76,7 @@ public class RestaurantHoursController {
     public ResponseEntity<Map<String, Object>> ownAdd(@CookieValue(value = "foodie_session", required = false) String token,
                                                       @Valid @RequestBody HoursRequest body) {
         User restaurant = auth.requireUser(token, "restaurant");
-        if (restaurant.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        if (restaurant.restaurantId() == null) throw new ApiException(403, "Acesso nÃ£o autorizado");
         return created(add(restaurant.restaurantId(), body));
     }
 
@@ -84,7 +84,7 @@ public class RestaurantHoursController {
     public Map<String, Boolean> ownRemove(@CookieValue(value = "foodie_session", required = false) String token,
                                           @PathVariable @Positive long id) {
         User restaurant = auth.requireUser(token, "restaurant");
-        if (restaurant.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        if (restaurant.restaurantId() == null) throw new ApiException(403, "Acesso nÃ£o autorizado");
         hours.remove(restaurant.restaurantId(), id);
         return Map.of("ok", true);
     }

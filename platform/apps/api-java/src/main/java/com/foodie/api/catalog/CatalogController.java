@@ -47,7 +47,7 @@ public class CatalogController {
     ) {
         if (zoneId < 1 || categoryId != null && categoryId < 1 || after != null && after < 1
             || limit < 1 || limit > 30 || q.strip().length() > 80) {
-            throw new ApiException(400, "Filtros de catálogo inválidos");
+            throw new ApiException(400, "Filtros de catÃ¡logo invÃ¡lidos");
         }
         return catalog.search(zoneId, q.strip(), categoryId, after, limit);
     }

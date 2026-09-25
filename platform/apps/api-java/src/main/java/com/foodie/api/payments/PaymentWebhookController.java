@@ -35,7 +35,7 @@ public class PaymentWebhookController {
                 else if ("v1".equals(pair[0].trim())) v1 = pair[1].trim();
             }
         }
-        if (!online.verifySignature(dataId, requestId, ts, v1)) throw new ApiException(401, "Assinatura do webhook inválida");
+        if (!online.verifySignature(dataId, requestId, ts, v1)) throw new ApiException(401, "Assinatura do webhook invÃ¡lida");
         return online.handleWebhook(dataId);
     }
 

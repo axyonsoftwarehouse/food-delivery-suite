@@ -39,7 +39,7 @@ public class MercadoPagoGateway implements PaymentGateway {
         try {
             return "pix".equals(request.method()) ? createPix(request) : createPreference(request);
         } catch (RestClientResponseException error) {
-            throw new ApiException(502, "Mercado Pago recusou a cobrança (" + error.getStatusCode().value() + ")");
+            throw new ApiException(502, "Mercado Pago recusou a cobranÃ§a (" + error.getStatusCode().value() + ")");
         }
     }
 
@@ -58,7 +58,7 @@ public class MercadoPagoGateway implements PaymentGateway {
     }
 
     private void requireConfigured() {
-        if (!configured()) throw new ApiException(503, "Pagamento online não configurado: defina MERCADOPAGO_ACCESS_TOKEN");
+        if (!configured()) throw new ApiException(503, "Pagamento online nÃ£o configurado: defina MERCADOPAGO_ACCESS_TOKEN");
     }
 
     private Charge createPix(ChargeRequest request) {

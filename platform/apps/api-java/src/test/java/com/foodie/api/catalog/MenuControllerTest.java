@@ -60,7 +60,7 @@ class MenuControllerTest {
     @Test
     void restaurantCannotEditAnotherRestaurantProduct() throws Exception {
         when(auth.requireUser("session", "restaurant")).thenReturn(new User(5, "Cozinha", "cozinha@demo.local", "restaurant", 7L));
-        when(menu.updateProduct(eq(7L), eq(12L), any())).thenThrow(new ApiException(404, "Produto não encontrado"));
+        when(menu.updateProduct(eq(7L), eq(12L), any())).thenThrow(new ApiException(404, "Produto nÃ£o encontrado"));
 
         mvc.perform(patch("/restaurant/products/12")
                 .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
@@ -89,7 +89,7 @@ class MenuControllerTest {
     @Test
     void deletingProductUsedInOrdersIsBlocked() throws Exception {
         when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
-        org.mockito.Mockito.doThrow(new ApiException(409, "Este produto já foi usado em pedidos; pause em vez de excluir"))
+        org.mockito.Mockito.doThrow(new ApiException(409, "Este produto jÃ¡ foi usado em pedidos; pause em vez de excluir"))
             .when(menu).deleteProduct(null, 5L);
 
         mvc.perform(delete("/admin/products/5").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")))

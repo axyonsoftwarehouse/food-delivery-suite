@@ -40,7 +40,7 @@ public class NotificationController {
     public Map<String, Boolean> read(@CookieValue(value = "foodie_session", required = false) String token,
                                      @org.springframework.web.bind.annotation.PathVariable @Positive long id) {
         User user = auth.requireUser(token);
-        if (!notifications.markRead(user.id(), id)) throw new ApiException(404, "Notificação não encontrada");
+        if (!notifications.markRead(user.id(), id)) throw new ApiException(404, "NotificaÃ§Ã£o nÃ£o encontrada");
         return Map.of("ok", true);
     }
 

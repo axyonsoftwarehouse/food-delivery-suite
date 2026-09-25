@@ -9,13 +9,13 @@ const integration = process.env.VERIFY_INTEGRATION === '1';
 let failures = 0;
 
 function run(name, command, args, { cwd = root, env = {} } = {}) {
-  process.stdout.write(`\n▶ ${name}\n`);
+  process.stdout.write(`\nâ–¶ ${name}\n`);
   const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: true, env: { ...process.env, ...env } });
   if (result.status !== 0) {
     failures += 1;
-    console.error(`\n✖ ${name} falhou (código ${result.status ?? 'desconhecido'})`);
+    console.error(`\nâœ– ${name} falhou (cÃ³digo ${result.status ?? 'desconhecido'})`);
   } else {
-    console.log(`✔ ${name}`);
+    console.log(`âœ” ${name}`);
   }
 }
 
@@ -40,13 +40,13 @@ async function waitForReady(url, attempts = 60) {
   return false;
 }
 
-// --- Verificação sempre executada (sem banco) ---
-run('TypeScript do domínio (@foodie/api)', 'pnpm', ['--filter', '@foodie/api', 'test']);
+// --- VerificaÃ§Ã£o sempre executada (sem banco) ---
+run('TypeScript do domÃ­nio (@foodie/api)', 'pnpm', ['--filter', '@foodie/api', 'test']);
 run('Testes Java (api-java)', 'mvn', ['-o', '-q', '-Dmaven.repo.local=.m2-cache', 'test'], { cwd: join(root, 'apps/api-java'), env: { JAVA_HOME: defaultJavaHome } });
 run('Tipos do site (tsc)', 'npx', ['tsc', '--noEmit'], { cwd: join(root, 'apps/web') });
 run('Build do site (next build)', 'npm', ['run', 'build'], { cwd: join(root, 'apps/web') });
 
-// --- Verificação integrada com banco efêmero (opt-in) ---
+// --- VerificaÃ§Ã£o integrada com banco efÃªmero (opt-in) ---
 if (integration) {
   const platformEnv = envFile(join(root, '.env'));
   const apiEnv = envFile(join(root, 'apps/api/.env'));
@@ -54,16 +54,16 @@ if (integration) {
   const dbRootPassword = platformEnv.DB_ROOT_PASSWORD;
   const demoPassword = apiEnv.DEMO_PASSWORD ?? platformEnv.DEMO_PASSWORD;
   if (!dbPassword || !dbRootPassword || !demoPassword) {
-    console.error('\n✖ VERIFY_INTEGRATION=1 exige DB_PASSWORD/DB_ROOT_PASSWORD em platform/.env e DEMO_PASSWORD em platform/apps/api/.env');
+    console.error('\nâœ– VERIFY_INTEGRATION=1 exige DB_PASSWORD/DB_ROOT_PASSWORD em platform/.env e DEMO_PASSWORD em platform/apps/api/.env');
     process.exit(1);
   }
   const composeEnv = { ...process.env, DB_PASSWORD: dbPassword, DB_ROOT_PASSWORD: dbRootPassword };
   const base = 'http://127.0.0.1:4101';
   try {
-    run('Subindo banco/API de teste efêmeros', 'docker', ['compose', '-f', 'docker-compose.test.yml', 'up', '-d', '--build'], { env: composeEnv });
+    run('Subindo banco/API de teste efÃªmeros', 'docker', ['compose', '-f', 'docker-compose.test.yml', 'up', '-d', '--build'], { env: composeEnv });
     if (!(await waitForReady(`${base}/ready`))) {
       failures += 1;
-      console.error('\n✖ API de teste não ficou pronta');
+      console.error('\nâœ– API de teste nÃ£o ficou pronta');
     } else {
       run('Seed demonstrativo no banco de teste', 'pnpm', ['--filter', '@foodie/api', 'seed'], {
         env: { DB_HOST: '127.0.0.1', DB_PORT: '3308', DB_USER: 'foodie', DB_PASSWORD: dbPassword, DB_NAME: 'foodie_platform', DEMO_PASSWORD: demoPassword },
@@ -71,16 +71,16 @@ if (integration) {
       const smokeEnv = { API_PORT: '4101', API_INTERNAL_URL: base, DEMO_PASSWORD: demoPassword };
       run('Smoke: fluxo completo', 'pnpm', ['--filter', '@foodie/api', 'smoke'], { env: smokeEnv });
       run('Smoke: carrinho', 'pnpm', ['smoke:cart'], { env: smokeEnv });
-      run('Smoke: exceções', 'pnpm', ['smoke:exceptions'], { env: smokeEnv });
+      run('Smoke: exceÃ§Ãµes', 'pnpm', ['smoke:exceptions'], { env: smokeEnv });
       run('Smoke: contas', 'pnpm', ['smoke:auth'], { env: smokeEnv });
     }
   } finally {
-    run('Derrubando banco de teste efêmero', 'docker', ['compose', '-f', 'docker-compose.test.yml', 'down', '-v'], { env: composeEnv });
+    run('Derrubando banco de teste efÃªmero', 'docker', ['compose', '-f', 'docker-compose.test.yml', 'down', '-v'], { env: composeEnv });
   }
 }
 
 if (failures > 0) {
-  console.error(`\n${failures} verificação(ões) falharam.`);
+  console.error(`\n${failures} verificaÃ§Ã£o(Ãµes) falharam.`);
   process.exit(1);
 }
-console.log('\nTodas as verificações passaram.');
+console.log('\nTodas as verificaÃ§Ãµes passaram.');

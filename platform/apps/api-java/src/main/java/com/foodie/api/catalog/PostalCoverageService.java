@@ -17,7 +17,7 @@ public class PostalCoverageService {
 
     public String normalize(String postalCode) {
         if (postalCode == null || !postalCode.matches("[0-9]{5}-?[0-9]{3}")) {
-            throw new ApiException(400, "Informe um CEP com 8 dígitos");
+            throw new ApiException(400, "Informe um CEP com 8 dÃ­gitos");
         }
         return postalCode.replace("-", "");
     }
@@ -29,13 +29,13 @@ public class PostalCoverageService {
                 + "FROM zone_postal_ranges p JOIN zones z ON z.id = p.zone_id AND z.active = TRUE "
                 + "WHERE p.postal_start <= ? AND p.postal_end >= ? ORDER BY p.id LIMIT 1",
             digits, digits);
-        if (matches.isEmpty()) throw new ApiException(404, "Ainda não entregamos neste CEP");
+        if (matches.isEmpty()) throw new ApiException(404, "Ainda nÃ£o entregamos neste CEP");
         return matches.getFirst();
     }
 
     public void requireAddressZone(String postalCode, long zoneId) {
         if (((Number) resolve(postalCode).get("id")).longValue() != zoneId) {
-            throw new ApiException(409, "A cobertura deste endereço mudou. Cadastre o endereço novamente");
+            throw new ApiException(409, "A cobertura deste endereÃ§o mudou. Cadastre o endereÃ§o novamente");
         }
     }
 
@@ -48,13 +48,13 @@ public class PostalCoverageService {
         String first = normalize(start);
         String last = normalize(end);
         if (first.compareTo(last) > 0) throw new ApiException(400, "O CEP inicial deve ser menor ou igual ao final");
-        // Todas as gravações de faixas bloqueiam as zonas na mesma ordem, evitando sobreposição concorrente.
+        // Todas as gravaÃ§Ãµes de faixas bloqueiam as zonas na mesma ordem, evitando sobreposiÃ§Ã£o concorrente.
         jdbc.queryForList("SELECT id FROM zones ORDER BY id FOR UPDATE");
         Integer active = jdbc.query("SELECT 1 FROM zones WHERE id = ? AND active = TRUE", rs -> rs.next() ? 1 : null, zoneId);
-        if (active == null) throw new ApiException(400, "Zona indisponível");
+        if (active == null) throw new ApiException(400, "Zona indisponÃ­vel");
         Integer overlap = jdbc.query("SELECT 1 FROM zone_postal_ranges WHERE postal_start <= ? AND postal_end >= ? LIMIT 1",
             rs -> rs.next() ? 1 : null, last, first);
-        if (overlap != null) throw new ApiException(409, "Esta faixa de CEP já está coberta");
+        if (overlap != null) throw new ApiException(409, "Esta faixa de CEP jÃ¡ estÃ¡ coberta");
         jdbc.update("INSERT INTO zone_postal_ranges (zone_id, postal_start, postal_end) VALUES (?, ?, ?)", zoneId, first, last);
     }
 
@@ -62,7 +62,7 @@ public class PostalCoverageService {
     public void deleteRange(long rangeId) {
         jdbc.queryForList("SELECT id FROM zones ORDER BY id FOR UPDATE");
         if (jdbc.update("DELETE FROM zone_postal_ranges WHERE id = ?", rangeId) == 0) {
-            throw new ApiException(404, "Faixa de CEP não encontrada");
+            throw new ApiException(404, "Faixa de CEP nÃ£o encontrada");
         }
     }
 }

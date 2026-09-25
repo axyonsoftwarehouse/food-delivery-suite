@@ -8,7 +8,7 @@ groups:
           severity: critical
         annotations:
           summary: "API Foodie fora do ar"
-          description: "Sem resposta de métricas em api:4001 há mais de 1 minuto."
+          description: "Sem resposta de mÃ©tricas em api:4001 hÃ¡ mais de 1 minuto."
 
       - alert: FoodieReadinessDown
         expr: probe_success{job="foodie-readiness"} == 0
@@ -16,8 +16,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "API Foodie não está pronta (/ready)"
-          description: "O /ready não respondeu 200 — banco inacessível ou schema desatualizado."
+          summary: "API Foodie nÃ£o estÃ¡ pronta (/ready)"
+          description: "O /ready nÃ£o respondeu 200 â€” banco inacessÃ­vel ou schema desatualizado."
 
       - alert: FoodieWebDown
         expr: probe_success{job="foodie-web"} == 0
@@ -26,7 +26,7 @@ groups:
           severity: critical
         annotations:
           summary: "Site Foodie fora do ar"
-          description: "O site em web:3001 não respondeu 200."
+          description: "O site em web:3001 nÃ£o respondeu 200."
 
       - alert: FoodieDatabaseDown
         expr: probe_success{job="foodie-db"} == 0
@@ -34,8 +34,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Banco MariaDB inacessível"
-          description: "A porta db:3306 não aceitou conexão."
+          summary: "Banco MariaDB inacessÃ­vel"
+          description: "A porta db:3306 nÃ£o aceitou conexÃ£o."
 
       - alert: FoodieHighErrorRate
         expr: |
@@ -46,7 +46,7 @@ groups:
           severity: warning
         annotations:
           summary: "Erros 5xx acima de 2% na API"
-          description: "Mais de 2% das requisições retornaram 5xx nos últimos 5 minutos."
+          description: "Mais de 2% das requisiÃ§Ãµes retornaram 5xx nos Ãºltimos 5 minutos."
 
       - alert: FoodieHighLatencyP95
         expr: |
@@ -56,8 +56,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Latência p95 acima de 800 ms"
-          description: "O p95 das requisições passou de 800 ms nos últimos 5 minutos."
+          summary: "LatÃªncia p95 acima de 800 ms"
+          description: "O p95 das requisiÃ§Ãµes passou de 800 ms nos Ãºltimos 5 minutos."
 
       - alert: FoodieDatabasePoolSaturated
         expr: hikaricp_connections_active / clamp_min(hikaricp_connections_max, 1) > 0.9
@@ -65,5 +65,5 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Pool de conexões do banco quase esgotado"
-          description: "Mais de 90% do pool Hikari está em uso."
+          summary: "Pool de conexÃµes do banco quase esgotado"
+          description: "Mais de 90% do pool Hikari estÃ¡ em uso."

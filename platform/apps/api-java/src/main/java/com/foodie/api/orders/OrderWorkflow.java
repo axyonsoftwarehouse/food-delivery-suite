@@ -11,7 +11,7 @@ public final class OrderWorkflow {
     public record Transition(String nextStatus, boolean requiresReason, boolean clearsCourier) {}
 
     public static Transition resolve(String current, String action, String role) {
-        if (!allowed(current, action, role)) throw new ApiException(409, "Transição de pedido não permitida");
+        if (!allowed(current, action, role)) throw new ApiException(409, "TransiÃ§Ã£o de pedido nÃ£o permitida");
         return switch (action) {
             case "accept" -> new Transition("accepted", false, false);
             case "ready" -> new Transition("ready", false, false);
@@ -22,7 +22,7 @@ public final class OrderWorkflow {
             case "fail" -> new Transition("failed", true, false);
             case "reject" -> new Transition("rejected", true, false);
             case "cancel" -> new Transition("cancelled", true, false);
-            default -> throw new ApiException(409, "Transição de pedido não permitida");
+            default -> throw new ApiException(409, "TransiÃ§Ã£o de pedido nÃ£o permitida");
         };
     }
 
@@ -43,12 +43,12 @@ public final class OrderWorkflow {
     }
 
     public static long total(long subtotal, long fee, long minimum) {
-        if (subtotal < 0 || fee < 0 || minimum < 0) throw new ApiException(400, "Valores de entrega inválidos");
-        if (subtotal < minimum) throw new ApiException(400, "Pedido abaixo do valor mínimo da zona");
+        if (subtotal < 0 || fee < 0 || minimum < 0) throw new ApiException(400, "Valores de entrega invÃ¡lidos");
+        if (subtotal < minimum) throw new ApiException(400, "Pedido abaixo do valor mÃ­nimo da zona");
         long total;
         try { total = Math.addExact(subtotal, fee); }
-        catch (ArithmeticException error) { throw new ApiException(400, "Valor do pedido inválido"); }
-        if (total > 100_000_000) throw new ApiException(400, "Valor do pedido inválido");
+        catch (ArithmeticException error) { throw new ApiException(400, "Valor do pedido invÃ¡lido"); }
+        if (total > 100_000_000) throw new ApiException(400, "Valor do pedido invÃ¡lido");
         return total;
     }
 }
