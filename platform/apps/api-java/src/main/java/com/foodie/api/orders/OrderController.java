@@ -68,7 +68,8 @@ public class OrderController {
     public record OrderRequest(@Positive long restaurantId, @Positive long addressId,
                                @NotEmpty @Size(max = 30) List<@Valid Item> items,
                                @NotBlank @Pattern(regexp = "cash|card|pix") String paymentMethod,
-                               @Min(0) @Max(100_000_000) Integer changeForCents) {}
+                               @Min(0) @Max(100_000_000) Integer changeForCents,
+                               @Pattern(regexp = "on_delivery|online") String modality) {}
     public record Item(@Positive long productId, @Positive @Max(20) int quantity) {}
     public record StatusRequest(@NotBlank String action, @Positive Long courierId, @Size(max = 255) String reason) {}
 }

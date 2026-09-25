@@ -5,6 +5,11 @@ app:
   cookie-secure: ${COOKIE_SECURE:false}
   public-base-url: ${PUBLIC_BASE_URL:http://127.0.0.1:3001}
   migrate-only: ${MIGRATE_ONLY:false}
+  mercadopago:
+    access-token: ${MERCADOPAGO_ACCESS_TOKEN:}
+    webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
+    base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
+    notification-url: ${MERCADOPAGO_NOTIFICATION_URL:}
 management:
   endpoints:
     web:

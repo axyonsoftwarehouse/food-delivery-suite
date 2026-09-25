@@ -101,7 +101,7 @@ public class OrderService {
                 orderId, item.productId(), product.get("name"), item.quantity(), number(product, "price_cents"));
         }
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status) VALUES (?, ?, NULL, ?)", orderId, customer.id(), "placed");
-        payments.create(orderId, request.paymentMethod(), total, request.changeForCents());
+        payments.create(orderId, request.paymentMethod(), request.modality(), total, request.changeForCents());
         return Map.of("id", orderId, "status", "placed", "subtotalCents", subtotal, "deliveryFeeCents", fee, "totalCents", total, "address", addressText, "paymentMethod", request.paymentMethod());
     }
 

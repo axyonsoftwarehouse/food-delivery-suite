@@ -20,14 +20,19 @@ public class PaymentService {
     }
 
     @Transactional
-    public void create(long orderId, String method, long amountDueCents, Integer changeForCents) {
+    public void create(long orderId, String method, String modality, long amountDueCents, Integer changeForCents) {
+        String mode = (modality == null || modality.isBlank()) ? "on_delivery" : modality;
+        if (!"on_delivery".equals(mode) && !"online".equals(mode)) throw new ApiException(400, "Modalidade de pagamento inválida");
         if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento inválida");
-        if (changeForCents != null) {
+        if ("online".equals(mode)) {
+            if ("cash".equals(method)) throw new ApiException(400, "Pagamento online não aceita dinheiro");
+            if (changeForCents != null) throw new ApiException(400, "Troco só se aplica a pagamento na entrega");
+        } else if (changeForCents != null) {
             if (!"cash".equals(method)) throw new ApiException(400, "Troco só se aplica a pagamento em dinheiro");
             if (changeForCents < amountDueCents) throw new ApiException(400, "O troco deve cobrir o total do pedido");
         }
-        jdbc.update("INSERT INTO order_payments (order_id, method, amount_due_cents, change_for_cents) VALUES (?, ?, ?, ?)",
-            orderId, method, amountDueCents, changeForCents);
+        jdbc.update("INSERT INTO order_payments (order_id, method, modality, amount_due_cents, change_for_cents) VALUES (?, ?, ?, ?, ?)",
+            orderId, method, mode, amountDueCents, changeForCents);
     }
 
     @Transactional
@@ -98,7 +103,7 @@ public class PaymentService {
 
     public Map<String, Object> detail(long orderId) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, order_id, method, status, amount_due_cents, change_for_cents, amount_received_cents, change_cents, note, confirmed_by, confirmed_at, refunded_by, refunded_at FROM order_payments WHERE order_id = ?",
+            "SELECT id, order_id, method, modality, status, raw_status, amount_due_cents, change_for_cents, amount_received_cents, change_cents, qr_code, ticket_url, external_id, expires_at, note, confirmed_by, confirmed_at, refunded_by, refunded_at FROM order_payments WHERE order_id = ?",
             orderId
         );
         return rows.isEmpty() ? null : rows.getFirst();

@@ -89,6 +89,9 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
   const [showAllOrders, setShowAllOrders] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'pix'>('cash');
   const [changeFor, setChangeFor] = useState('');
+  const [modality, setModality] = useState<'on_delivery' | 'online'>('on_delivery');
+  const [onlineCode, setOnlineCode] = useState<{ text?: string; base64?: string; url?: string } | null>(null);
+  const [placing, setPlacing] = useState(false);
 
   useEffect(() => {
     if (addressForm.postalCode.length !== 8) { setPostalZone(null); setPostalMessage(''); setPostalLoading(false); return; }
@@ -232,14 +235,24 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
   }
 
   async function placeOrder() {
-    if (!selectedAddress?.postal_code || !cartRestaurantId || !cartEntries.length || !cartCovered || cartRestaurantClosed || !meetsMinimum || cartBusy) return;
-    const changeForCents = paymentMethod === 'cash' && changeFor.trim() ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
-    const ok = await onAction(() => request('/cart/checkout', {
-      method: 'POST',
-      body: JSON.stringify({ addressId: selectedAddress.id, expectedTotalCents: subtotal + fee, paymentMethod, changeForCents }),
-    }), 'Pedido criado. Acompanhe o preparo abaixo.');
-    if (ok) { setCart([]); setLocalMessage(''); setChangeFor(''); }
-    else { await onRefresh().catch(() => {}); await refreshCart(); }
+    if (!selectedAddress?.postal_code || !cartRestaurantId || !cartEntries.length || !cartCovered || cartRestaurantClosed || !meetsMinimum || cartBusy || placing) return;
+    const changeForCents = modality === 'on_delivery' && paymentMethod === 'cash' && changeFor.trim() ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
+    setPlacing(true); setLocalMessage(''); setOnlineCode(null);
+    try {
+      const order = await request('/cart/checkout', { method: 'POST', body: JSON.stringify({ addressId: selectedAddress.id, expectedTotalCents: subtotal + fee, paymentMethod, changeForCents, modality }) }) as { id: number };
+      setCart([]); setChangeFor('');
+      if (modality === 'online') {
+        try {
+          const payment = await request(`/orders/${order.id}/payment/online`, { method: 'POST', body: JSON.stringify({ method: paymentMethod === 'card' ? 'card' : 'pix' }) }) as { image?: { qr_code?: string; qr_code_base64?: string; ticket_url?: string } };
+          setOnlineCode({ text: payment.image?.qr_code ?? undefined, base64: payment.image?.qr_code_base64 ?? undefined, url: payment.image?.ticket_url ?? undefined });
+          setLocalMessage('Pedido criado. Finalize o pagamento online.');
+        } catch (error) { setLocalMessage(error instanceof Error ? error.message : 'Não foi possível gerar a cobrança online.'); }
+      } else {
+        setLocalMessage('Pedido criado. Acompanhe o preparo abaixo.');
+      }
+      await onRefresh().catch(() => {});
+    } catch (error) { setLocalMessage(error instanceof Error ? error.message : 'Não foi possível concluir o pedido.'); }
+    finally { setPlacing(false); }
   }
 
   async function cancelOrder(orderId: number) {
@@ -280,6 +293,8 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
 
       {(message || localMessage) && <div className="customer-notice" role="status">{message || localMessage}</div>}
 
+      {onlineCode && <section className="customer-card customer-online-payment"><div className="customer-card-title"><div><span className="customer-kicker">PAGAMENTO ONLINE</span><h2>Finalize o pagamento</h2></div></div>{onlineCode.base64 && <img className="customer-qr" src={`data:image/png;base64,${onlineCode.base64}`} alt="QR Code Pix" />}{onlineCode.text && <><label>Pix copia e cola<textarea readOnly rows={3} value={onlineCode.text} /></label><button className="customer-solid-button" type="button" onClick={() => { void navigator.clipboard?.writeText(onlineCode.text ?? ''); }}>Copiar código Pix</button></>}{onlineCode.url && <a className="customer-solid-button" href={onlineCode.url} target="_blank" rel="noreferrer">Abrir pagamento</a>}</section>}
+
       <section className="customer-hero">
         <div className="customer-hero-copy"><span>SEU MOMENTO MAIS GOSTOSO</span><h2>Escolha, peça,<br />aproveite.</h2><p>Os sabores da sua região chegam até você com praticidade.</p><a href="#cardapio">Explorar cardápio <span aria-hidden="true">↗</span></a></div>
       </section>
@@ -312,8 +327,8 @@ export default function CustomerHome({ user, catalog, zones, addresses, orders, 
             {!cartCovered && <p className="customer-minimum">Este restaurante não entrega no endereço selecionado. Escolha outro endereço ou esvazie o carrinho.</p>}
             {cartRestaurantClosed && <p className="customer-minimum">Este restaurante está fora do horário de funcionamento agora. Aguarde a reabertura para concluir o pedido.</p>}
             {selectedAddress && !selectedAddress.postal_code && <p className="customer-minimum">Este endereço é anterior à validação por CEP. Cadastre-o novamente para continuar.</p>}
-            <div className="customer-payment"><span className="customer-kicker">PAGAMENTO NA ENTREGA</span><div className="customer-payment-methods" role="group" aria-label="Forma de pagamento"><button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => setPaymentMethod('cash')}>Dinheiro</button><button type="button" className={paymentMethod === 'card' ? 'selected' : ''} onClick={() => setPaymentMethod('card')}>Cartão</button><button type="button" className={paymentMethod === 'pix' ? 'selected' : ''} onClick={() => setPaymentMethod('pix')}>Pix</button></div>{paymentMethod === 'cash' && <label className="customer-change">Troco para (opcional)<input inputMode="decimal" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} placeholder="Ex.: 50,00" /></label>}</div>
-            <button className="customer-solid-button customer-checkout" onClick={placeOrder} disabled={busy || cartBusy || !selectedAddress?.postal_code || !meetsMinimum || !cartCovered || cartRestaurantClosed}>Fazer pedido <span>↗</span></button>
+            <div className="customer-payment"><span className="customer-kicker">PAGAMENTO</span><div className="customer-payment-methods" role="group" aria-label="Modalidade de pagamento"><button type="button" className={modality === 'on_delivery' ? 'selected' : ''} onClick={() => setModality('on_delivery')}>Na entrega</button><button type="button" className={modality === 'online' ? 'selected' : ''} onClick={() => { setModality('online'); if (paymentMethod === 'cash') setPaymentMethod('pix'); }}>Pagar agora (online)</button></div><div className="customer-payment-methods" role="group" aria-label="Forma de pagamento">{modality === 'on_delivery' && <button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => setPaymentMethod('cash')}>Dinheiro</button>}<button type="button" className={paymentMethod === 'card' ? 'selected' : ''} onClick={() => setPaymentMethod('card')}>Cartão</button><button type="button" className={paymentMethod === 'pix' ? 'selected' : ''} onClick={() => setPaymentMethod('pix')}>Pix</button></div>{modality === 'on_delivery' && paymentMethod === 'cash' && <label className="customer-change">Troco para (opcional)<input inputMode="decimal" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} placeholder="Ex.: 50,00" /></label>}{modality === 'online' && <p className="form-help">Pix: o QR aparece após confirmar. Cartão: abre a tela do provedor. Requer o Mercado Pago configurado.</p>}</div>
+            <button className="customer-solid-button customer-checkout" onClick={placeOrder} disabled={busy || placing || cartBusy || !selectedAddress?.postal_code || !meetsMinimum || !cartCovered || cartRestaurantClosed}>{placing ? 'Processando...' : 'Fazer pedido'} <span>↗</span></button>
           </> : <p className="customer-muted">{cartLoaded ? 'Adicione um prato para começar. Você pode escolher vários itens do mesmo restaurante.' : 'Carregando seu carrinho...'}</p>}
         </section>
 

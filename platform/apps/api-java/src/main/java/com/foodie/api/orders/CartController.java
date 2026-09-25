@@ -59,7 +59,7 @@ public class CartController {
     @PostMapping("/checkout")
     public ResponseEntity<Map<String, Object>> checkout(@CookieValue(value = "foodie_session", required = false) String token,
                                                         @Valid @RequestBody CheckoutRequest request) {
-        return ResponseEntity.status(201).body(cart.checkout(customer(token), request.addressId(), request.expectedTotalCents(), request.paymentMethod(), request.changeForCents()));
+        return ResponseEntity.status(201).body(cart.checkout(customer(token), request.addressId(), request.expectedTotalCents(), request.paymentMethod(), request.changeForCents(), request.modality()));
     }
 
     private User customer(String token) {
@@ -71,5 +71,6 @@ public class CartController {
     public record ImportItem(@Positive long productId, @Positive @Max(20) int quantity) {}
     public record CheckoutRequest(@Positive long addressId, @Positive long expectedTotalCents,
                                   @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Pattern(regexp = "cash|card|pix") String paymentMethod,
-                                  @jakarta.validation.constraints.Min(0) @Max(100_000_000) Integer changeForCents) {}
+                                  @jakarta.validation.constraints.Min(0) @Max(100_000_000) Integer changeForCents,
+                                  @jakarta.validation.constraints.Pattern(regexp = "on_delivery|online") String modality) {}
 }

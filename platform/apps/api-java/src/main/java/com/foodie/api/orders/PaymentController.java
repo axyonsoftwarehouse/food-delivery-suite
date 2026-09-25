@@ -3,10 +3,13 @@ package com.foodie.api.orders;
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.payments.OnlinePaymentService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
@@ -25,10 +28,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class PaymentController {
     private final AuthService auth;
     private final PaymentService payments;
+    private final OnlinePaymentService online;
 
-    public PaymentController(AuthService auth, PaymentService payments) {
+    public PaymentController(AuthService auth, PaymentService payments, OnlinePaymentService online) {
         this.auth = auth;
         this.payments = payments;
+        this.online = online;
+    }
+
+    @PostMapping("/orders/{id}/payment/online")
+    public Map<String, Object> startOnline(@CookieValue(value = "foodie_session", required = false) String token,
+                                           @PathVariable @Positive long id,
+                                           @Valid @RequestBody OnlineRequest body) {
+        User actor = auth.requireUser(token, "customer", "admin");
+        return online.startIntent(actor, id, body.method());
     }
 
     @PatchMapping("/orders/{id}/payment")
@@ -64,4 +77,5 @@ public class PaymentController {
 
     public record ConfirmRequest(@NotNull @Min(0) @Max(100_000_000) Long amountReceivedCents, @Size(max = 255) String note) {}
     public record RefundRequest(@Size(max = 255) String note) {}
+    public record OnlineRequest(@NotBlank @Pattern(regexp = "pix|card") String method) {}
 }

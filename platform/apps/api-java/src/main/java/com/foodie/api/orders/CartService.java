@@ -75,7 +75,7 @@ public class CartService {
     }
 
     @Transactional
-    public Map<String, Object> checkout(User customer, long addressId, long expectedTotalCents, String paymentMethod, Integer changeForCents) {
+    public Map<String, Object> checkout(User customer, long addressId, long expectedTotalCents, String paymentMethod, Integer changeForCents, String modality) {
         lock(customer.id());
         prune(customer.id());
         List<CartRow> current = rows(customer.id());
@@ -83,7 +83,7 @@ public class CartService {
         long restaurantId = current.getFirst().restaurantId();
         List<OrderController.Item> items = new ArrayList<>();
         for (CartRow row : current) items.add(new OrderController.Item(row.productId(), row.quantity()));
-        Map<String, Object> order = orders.create(customer, new OrderController.OrderRequest(restaurantId, addressId, items, paymentMethod, changeForCents));
+        Map<String, Object> order = orders.create(customer, new OrderController.OrderRequest(restaurantId, addressId, items, paymentMethod, changeForCents, modality));
         if (((Number) order.get("totalCents")).longValue() != expectedTotalCents) {
             throw new ApiException(409, "O valor do pedido mudou. Atualize o carrinho antes de continuar");
         }
