@@ -1,0 +1,84 @@
+import assert from 'node:assert/strict';
+
+const base = process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:4001';
+const password = process.env.DEMO_PASSWORD;
+if (!password) throw new Error('DEMO_PASSWORD ausente');
+
+async function call(path, { cookie, method = 'GET', body, expected = 200 } = {}) {
+  const response = await fetch(`${base}${path}`, {
+    method,
+    headers: { ...(cookie ? { Cookie: cookie } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => null);
+  assert.equal(response.status, expected, `${method} ${path}: ${JSON.stringify(data)}`);
+  return data;
+}
+
+async function login(email) {
+  const response = await fetch(`${base}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  assert.equal(response.status, 200, `Login falhou para ${email}`);
+  return response.headers.get('set-cookie')?.split(';')[0];
+}
+
+const admin = await login('admin@demo.local');
+const customer = await login('cliente@demo.local');
+const restaurant = await login('restaurante@demo.local');
+const courier = await login('entregador@demo.local');
+
+const restaurantProducts = await call('/restaurant/products', { cookie: restaurant });
+assert.ok(restaurantProducts.length > 0, 'Restaurante demo sem produtos no seed');
+const product = restaurantProducts.find((item) => item.available) ?? restaurantProducts[0];
+const restaurantId = product.restaurant_id;
+
+const catalog = await call('/catalog');
+const zones = await call('/zones');
+const coverage = catalog.coverage.find((item) => item.restaurant_id === restaurantId);
+assert.ok(coverage, 'Restaurante demo sem cobertura de zona');
+const zone = zones.find((item) => item.id === coverage.zone_id);
+const address = await call('/addresses', { cookie: customer, method: 'POST', expected: 201,
+  body: { postalCode: '60000001', label: 'Exceções', street: 'Rua de Teste', number: '1', neighborhood: 'Centro' } });
+assert.equal(address.zoneId, zone.id, 'CEP 60000001 deveria resolver a zona do restaurante demo');
+
+const place = () => call('/orders', { cookie: customer, method: 'POST', expected: 201,
+  body: { restaurantId, addressId: address.id, items: [{ productId: product.id, quantity: 1 }] } });
+
+let demoCourier = (await call('/admin/couriers', { cookie: admin })).find((item) => item.email === 'entregador@demo.local');
+assert.ok(demoCourier, 'Entregador demo ausente');
+if (!demoCourier.approved) await call(`/admin/couriers/${demoCourier.id}/approval`, { cookie: admin, method: 'PATCH' });
+if (demoCourier.suspended) await call(`/admin/couriers/${demoCourier.id}/suspension`, { cookie: admin, method: 'PATCH', body: { suspended: false } });
+
+const rejected = await place();
+await call(`/orders/${rejected.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'reject' }, expected: 400 });
+await call(`/orders/${rejected.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'reject', reason: 'Sem insumos hoje' } });
+const rejectedDetail = await call(`/orders/${rejected.id}`, { cookie: customer });
+assert.equal(rejectedDetail.status, 'rejected');
+assert.equal(rejectedDetail.history.at(-1).reason, 'Sem insumos hoje');
+
+const cancelledByCustomer = await place();
+await call(`/orders/${cancelledByCustomer.id}/status`, { cookie: customer, method: 'PATCH', body: { action: 'cancel', reason: 'Desisti do pedido' } });
+assert.equal((await call(`/orders/${cancelledByCustomer.id}`, { cookie: customer })).status, 'cancelled');
+
+const accepted = await place();
+await call(`/orders/${accepted.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'accept' } });
+await call(`/orders/${accepted.id}/status`, { cookie: customer, method: 'PATCH', body: { action: 'cancel', reason: 'Tarde demais' }, expected: 409 });
+await call(`/orders/${accepted.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'ready' } });
+
+await call(`/orders/${accepted.id}/status`, { cookie: admin, method: 'PATCH', body: { action: 'assign', courierId: demoCourier.id } });
+await call(`/orders/${accepted.id}/status`, { cookie: admin, method: 'PATCH', body: { action: 'unassign' } });
+assert.equal((await call(`/orders/${accepted.id}`, { cookie: admin })).status, 'ready');
+await call(`/orders/${accepted.id}/status`, { cookie: admin, method: 'PATCH', body: { action: 'assign', courierId: demoCourier.id } });
+await call(`/orders/${accepted.id}/status`, { cookie: courier, method: 'PATCH', body: { action: 'fail', reason: 'Cliente ausente' } });
+const failed = await call(`/orders/${accepted.id}`, { cookie: admin });
+assert.equal(failed.status, 'failed');
+assert.equal(failed.history.at(-1).reason, 'Cliente ausente');
+
+const cancelledByAdmin = await place();
+await call(`/orders/${cancelledByAdmin.id}/status`, { cookie: admin, method: 'PATCH', body: { action: 'cancel', reason: 'Loja fechou' } });
+assert.equal((await call(`/orders/${cancelledByAdmin.id}`, { cookie: admin })).status, 'cancelled');
+
+console.log(`Exceções validadas: recusa #${rejected.id}, cancelamento do cliente #${cancelledByCustomer.id}, falha/reatribuição #${accepted.id}, cancelamento do admin #${cancelledByAdmin.id}.`);
