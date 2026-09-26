@@ -17,6 +17,7 @@ public final class Permissions {
     public static final String ORDERS_REJECT = "orders.reject";
     public static final String CATALOG_MANAGE = "catalog.manage";
     public static final String HOURS_MANAGE = "hours.manage";
+    public static final String TABLES_MANAGE = "tables.manage";
     public static final String STAFF_MANAGE = "staff.manage";
     public static final String REPORTS_VIEW = "reports.view";
     public static final String PAYMENTS_MANAGE = "payments.manage";
@@ -32,6 +33,7 @@ public final class Permissions {
         new Descriptor(ORDERS_REJECT, "Recusar pedidos", "Pedidos"),
         new Descriptor(CATALOG_MANAGE, "Gerenciar catálogo", "Catálogo"),
         new Descriptor(HOURS_MANAGE, "Gerenciar horários", "Operação"),
+        new Descriptor(TABLES_MANAGE, "Gerenciar mesas", "Operação"),
         new Descriptor(STAFF_MANAGE, "Gerenciar equipe", "Equipe"),
         new Descriptor(REPORTS_VIEW, "Ver relatórios", "Relatórios"),
         new Descriptor(PAYMENTS_MANAGE, "Gerenciar pagamentos", "Financeiro"),
