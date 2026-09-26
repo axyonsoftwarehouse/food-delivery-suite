@@ -5,6 +5,8 @@ app:
   cookie-secure: ${COOKIE_SECURE:false}
   public-base-url: ${PUBLIC_BASE_URL:http://127.0.0.1:3001}
   migrate-only: ${MIGRATE_ONLY:false}
+  payments:
+    default-provider: ${PAYMENTS_DEFAULT_PROVIDER:mercadopago}
   mobile:
     payment-return-url: ${MOBILE_PAYMENT_RETURN_URL:}
   mercadopago:

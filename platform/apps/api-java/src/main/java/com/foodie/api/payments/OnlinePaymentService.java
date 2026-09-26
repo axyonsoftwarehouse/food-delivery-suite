@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,18 +18,15 @@ public class OnlinePaymentService {
     private static final Set<String> CLOSED_ORDER = Set.of("delivered", "rejected", "cancelled", "expired", "failed");
 
     private final JdbcTemplate jdbc;
-    private final PaymentGateway gateway;
-    private final String webhookSecret;
+    private final PaymentGatewayRegistry gateways;
 
-    public OnlinePaymentService(JdbcTemplate jdbc, PaymentGateway gateway,
-                                @Value("${app.mercadopago.webhook-secret:}") String webhookSecret) {
+    public OnlinePaymentService(JdbcTemplate jdbc, PaymentGatewayRegistry gateways) {
         this.jdbc = jdbc;
-        this.gateway = gateway;
-        this.webhookSecret = webhookSecret;
+        this.gateways = gateways;
     }
 
     @Transactional
-    public Map<String, Object> startIntent(User actor, long orderId, String method) {
+    public Map<String, Object> startIntent(User actor, long orderId, String method, String provider) {
         if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento online inválida");
         List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, total_cents, status FROM orders WHERE id = ? FOR UPDATE", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
@@ -51,6 +47,7 @@ public class OnlinePaymentService {
 
         long total = ((Number) order.get("total_cents")).longValue();
         String payerEmail = jdbc.query("SELECT email FROM users WHERE id = ?", rs -> rs.next() ? rs.getString(1) : null, actor.id());
+        PaymentGateway gateway = gateways.resolve(provider);
         String idempotency = "order-" + orderId + "-" + UUID.randomUUID();
         PaymentGateway.Charge charge = gateway.create(new PaymentGateway.ChargeRequest(orderId, total, method, "Pedido #" + orderId, payerEmail, idempotency, null));
         jdbc.update("UPDATE order_payments SET modality = 'online', provider = ?, external_id = ?, idempotency_key = ?, status = ?, raw_status = ?, qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ? WHERE order_id = ?",
@@ -60,8 +57,8 @@ public class OnlinePaymentService {
     }
 
     @Transactional
-    public Map<String, Object> handleWebhook(String paymentId) {
-        PaymentGateway.Charge charge = gateway.fetch(paymentId);
+    public Map<String, Object> handleWebhook(String provider, String paymentId) {
+        PaymentGateway.Charge charge = gateways.resolve(provider).fetch(paymentId);
         if (charge.externalReference() == null) return Map.of("ok", true, "ignored", true);
         long orderId;
         try { orderId = Long.parseLong(charge.externalReference()); } catch (NumberFormatException error) { return Map.of("ok", true, "ignored", true); }
@@ -82,10 +79,6 @@ public class OnlinePaymentService {
         jdbc.update("UPDATE order_payments SET status = ?, raw_status = ?, external_id = ?, note = ?, confirmed_at = IF(? = 'paid', NOW(), confirmed_at) WHERE order_id = ?",
             next, charge.rawStatus(), charge.externalId(), note, next, orderId);
         return Map.of("ok", true, "orderId", orderId, "status", next);
-    }
-
-    public boolean verifySignature(String dataId, String requestId, String ts, String v1) {
-        return WebhookVerifier.verify(webhookSecret, dataId, requestId, ts, v1);
     }
 
     public Map<String, Object> detail(long orderId) {

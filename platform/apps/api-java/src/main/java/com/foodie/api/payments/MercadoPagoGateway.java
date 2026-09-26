@@ -19,14 +19,17 @@ public class MercadoPagoGateway implements PaymentGateway {
     private final RestClient client;
     private final String accessToken;
     private final String notificationUrl;
+    private final String webhookSecret;
     private final String paymentReturnUrl;
 
     public MercadoPagoGateway(@Value("${app.mercadopago.access-token:}") String accessToken,
                               @Value("${app.mercadopago.base-url:https://api.mercadopago.com}") String baseUrl,
                               @Value("${app.mercadopago.notification-url:}") String notificationUrl,
+                              @Value("${app.mercadopago.webhook-secret:}") String webhookSecret,
                               @Value("${app.mobile.payment-return-url:}") String paymentReturnUrl) {
         this.accessToken = accessToken;
         this.notificationUrl = notificationUrl;
+        this.webhookSecret = webhookSecret;
         this.paymentReturnUrl = paymentReturnUrl;
         this.client = RestClient.builder().baseUrl(baseUrl).build();
     }
@@ -58,6 +61,49 @@ public class MercadoPagoGateway implements PaymentGateway {
 
     public boolean configured() {
         return accessToken != null && !accessToken.isBlank();
+    }
+
+    @Override
+    public java.util.Optional<String> webhookChargeId(WebhookRequest request) {
+        Map<String, Object> body = request.body();
+        String type = firstString(body, "type", "topic");
+        if (type != null && !"payment".equals(type)) return java.util.Optional.empty();
+        Object data = body.get("data");
+        if (data instanceof Map<?, ?> map && map.get("id") != null) return java.util.Optional.of(String.valueOf(map.get("id")));
+        return java.util.Optional.empty();
+    }
+
+    @Override
+    public boolean verifyWebhook(WebhookRequest request) {
+        String dataId = webhookChargeId(request).orElse(null);
+        String requestId = header(request.headers(), "x-request-id");
+        String ts = null;
+        String v1 = null;
+        String signature = header(request.headers(), "x-signature");
+        if (signature != null) {
+            for (String part : signature.split(",")) {
+                String[] pair = part.split("=", 2);
+                if (pair.length != 2) continue;
+                if ("ts".equals(pair[0].trim())) ts = pair[1].trim();
+                else if ("v1".equals(pair[0].trim())) v1 = pair[1].trim();
+            }
+        }
+        return WebhookVerifier.verify(webhookSecret, dataId, requestId, ts, v1);
+    }
+
+    private static String firstString(Map<String, Object> body, String... keys) {
+        for (String key : keys) {
+            Object value = body.get(key);
+            if (value != null) return String.valueOf(value);
+        }
+        return null;
+    }
+
+    private static String header(Map<String, String> headers, String name) {
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(name)) return entry.getValue();
+        }
+        return null;
     }
 
     private void requireConfigured() {

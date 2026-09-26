@@ -97,6 +97,12 @@ Cada epic traz: inspiração, objetivo, entregas, dependências e critério de p
 - **Depende de:** decisão de provedores (ver §6).
 - **Pronto quando:** ao menos um provedor novo funciona ponta a ponta e um comprovante offline é
   aprovado/recusado.
+- **Status (26/09/2026):** fatia de **abstração** entregue — `PaymentGateway` com verificação de
+  webhook própria, `PaymentGatewayRegistry` (descoberta dos provedores + provedor padrão
+  configurável em `app.payments.default-provider`), webhook agnóstico em `/webhooks/{provider}`,
+  `GET /payments/providers` e `provider` opcional na intenção. O Mercado Pago virou **um**
+  provedor. **Pendente (Onda 2):** gateways adicionais (Stripe/PayPal/…) e métodos offline com
+  comprovante — dependem das decisões de provedor.
 
 ### E07 — Carteira, bônus e pagamento parcial
 - **Inspiração:** eFood (wallet, wallet bonus, partial payment).

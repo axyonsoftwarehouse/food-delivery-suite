@@ -4,6 +4,7 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.payments.OnlinePaymentService;
+import com.foodie.api.payments.PaymentGatewayRegistry;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -14,6 +15,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,11 +31,13 @@ public class PaymentController {
     private final AuthService auth;
     private final PaymentService payments;
     private final OnlinePaymentService online;
+    private final PaymentGatewayRegistry gateways;
 
-    public PaymentController(AuthService auth, PaymentService payments, OnlinePaymentService online) {
+    public PaymentController(AuthService auth, PaymentService payments, OnlinePaymentService online, PaymentGatewayRegistry gateways) {
         this.auth = auth;
         this.payments = payments;
         this.online = online;
+        this.gateways = gateways;
     }
 
     @PostMapping("/orders/{id}/payment/online")
@@ -41,7 +45,16 @@ public class PaymentController {
                                            @PathVariable @Positive long id,
                                            @Valid @RequestBody OnlineRequest body) {
         User actor = auth.requireUser(token, "customer", "admin");
-        return online.startIntent(actor, id, body.method());
+        return online.startIntent(actor, id, body.method(), body.provider());
+    }
+
+    @GetMapping("/payments/providers")
+    public Map<String, Object> providers(@CookieValue(value = "foodie_session", required = false) String token) {
+        auth.requireUser(token);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("default", gateways.defaultProvider());
+        result.put("providers", gateways.providers());
+        return result;
     }
 
     @PatchMapping("/orders/{id}/payment")
@@ -77,5 +90,5 @@ public class PaymentController {
 
     public record ConfirmRequest(@NotNull @Min(0) @Max(100_000_000) Long amountReceivedCents, @Size(max = 255) String note) {}
     public record RefundRequest(@Size(max = 255) String note) {}
-    public record OnlineRequest(@NotBlank @Pattern(regexp = "pix|card") String method) {}
+    public record OnlineRequest(@NotBlank @Pattern(regexp = "pix|card") String method, @Size(max = 40) String provider) {}
 }

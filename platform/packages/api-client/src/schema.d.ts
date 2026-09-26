@@ -132,7 +132,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/webhooks/mercadopago": {
+    "/webhooks/{provider}": {
         parameters: {
             query?: never;
             header?: never;
@@ -141,7 +141,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["mercadoPago"];
+        post: operations["handle"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1300,6 +1300,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payments/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orders": {
         parameters: {
             query?: never;
@@ -1773,6 +1789,7 @@ export interface components {
         };
         OnlineRequest: {
             method: string;
+            provider?: string;
         };
         UnsubscribeRequest: {
             endpoint: string;
@@ -2533,11 +2550,13 @@ export interface operations {
             };
         };
     };
-    mercadoPago: {
+    handle: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                provider: string;
+            };
             cookie?: never;
         };
         requestBody?: {
@@ -5303,6 +5322,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["Descriptor"][];
+                };
+            };
+        };
+    };
+    providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
