@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 
 export type Role = 'admin' | 'restaurant' | 'courier' | 'customer';
 export type User = { id: number; name: string; email: string; role: Role; restaurantId: number | null };
-export type Restaurant = { id: number; name: string; slug: string; active: boolean; open: boolean; timezone: string };
+export type Restaurant = { id: number; name: string; slug: string; active: boolean; open: boolean; timezone: string; service_fee_percent?: number };
 export type Category = { id: number; restaurant_id: number; name: string };
 export type Product = { id: number; restaurant_id: number; category_id: number; name: string; description: string; price_cents: number; image_url?: string | null; variation_count?: number; from_price_cents?: number | null; tags?: string | null; is_combo?: boolean };
 export type Catalog = { restaurants: Restaurant[]; categories: Category[]; products: Product[]; coverage: { restaurant_id: number; zone_id: number }[] };

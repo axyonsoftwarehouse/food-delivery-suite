@@ -69,6 +69,15 @@ type CustomerValue = {
   discount: number;
   scheduledFor: string;
   setScheduledFor: (value: string) => void;
+  orderType: 'delivery' | 'take_away' | 'dine_in';
+  setOrderType: (value: 'delivery' | 'take_away' | 'dine_in') => void;
+  tables: { id: number; number: string; capacity: number }[];
+  tableId: number | null;
+  setTableId: (value: number | null) => void;
+  partySize: number;
+  setPartySize: (value: number) => void;
+  orderFee: number;
+  serviceFee: number;
   submitReview: (orderId: number, rating: number, comment: string) => Promise<boolean>;
   loadHistory: (after?: number) => Promise<{ items: Order[]; nextCursor: number | null }>;
   localMessage: string;
@@ -159,6 +168,10 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const [couponBusy, setCouponBusy] = useState(false);
   const [scheduledFor, setScheduledFor] = useState('');
+  const [orderType, setOrderType] = useState<'delivery' | 'take_away' | 'dine_in'>('delivery');
+  const [tables, setTables] = useState<{ id: number; number: string; capacity: number }[]>([]);
+  const [tableId, setTableId] = useState<number | null>(null);
+  const [partySize, setPartySize] = useState(2);
   const [deliveryEstimate, setDeliveryEstimate] = useState<Estimate | null>(null);
   const expandedOrderId = app.expandedOrderId;
   const setExpandedOrderId = app.setExpandedOrderId;
@@ -346,6 +359,9 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   }
 
   const discount = appliedCoupon?.discountCents ?? 0;
+  const orderFee = orderType === 'delivery' ? fee : 0;
+  const serviceFeePercent = orderType === 'dine_in' && cartRestaurantId ? (restaurantById.get(cartRestaurantId)?.service_fee_percent ?? 0) : 0;
+  const serviceFee = serviceFeePercent > 0 ? Math.round(((subtotal - discount) * serviceFeePercent) / 100) : 0;
 
   async function submitReview(orderId: number, rating: number, comment: string) {
     return app.run(() => request(`/orders/${orderId}/review`, { method: 'POST', body: JSON.stringify({ rating, comment }) }), 'Avaliação enviada. Obrigado!');
@@ -364,12 +380,27 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function placeOrder() {
-    if (!selectedAddress?.postal_code || !cartRestaurantId || !cartEntries.length || !cartCovered || (cartRestaurantClosed && !scheduledFor) || !meetsMinimum || cartBusy || placing) return;
-    const changeForCents = modality === 'on_delivery' && paymentMethod === 'cash' && changeFor.trim() ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
+    if (!cartRestaurantId || !cartEntries.length || (cartRestaurantClosed && !scheduledFor) || cartBusy || placing) return;
+    if (orderType === 'delivery' && (!selectedAddress?.postal_code || !cartCovered || !meetsMinimum)) return;
+    if (orderType === 'dine_in' && tableId === null) { setLocalMessage('Escolha a mesa para o consumo no local.'); return; }
+    const changeForCents = orderType === 'delivery' && modality === 'on_delivery' && paymentMethod === 'cash' && changeFor.trim() ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
     setPlacing(true); setLocalMessage(''); setOnlineCode(null);
     try {
       if (!checkoutKey.current) checkoutKey.current = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ck-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const order = await request<{ id: number }>('/cart/checkout', { method: 'POST', body: JSON.stringify({ addressId: selectedAddress.id, expectedTotalCents: subtotal + fee - (appliedCoupon?.discountCents ?? 0), expectedVersion: cartVersion, idempotencyKey: checkoutKey.current, paymentMethod, changeForCents, modality, couponCode: appliedCoupon?.code, scheduledFor: scheduledFor || undefined }) });
+      const body: Record<string, unknown> = {
+        expectedTotalCents: subtotal + orderFee - (appliedCoupon?.discountCents ?? 0) + serviceFee,
+        expectedVersion: cartVersion,
+        idempotencyKey: checkoutKey.current,
+        paymentMethod,
+        changeForCents,
+        modality,
+        couponCode: appliedCoupon?.code,
+        scheduledFor: scheduledFor || undefined,
+        orderType,
+      };
+      if (orderType === 'delivery') body.addressId = selectedAddress?.id;
+      if (orderType === 'dine_in') { body.tableId = tableId; body.partySize = partySize; }
+      const order = await request<{ id: number }>('/cart/checkout', { method: 'POST', body: JSON.stringify(body) });
       checkoutKey.current = '';
       setCart([]); setCartVersion(''); setChangeFor(''); setAppliedCoupon(null); setCouponCode(''); setScheduledFor('');
       if (modality === 'online') {
@@ -402,6 +433,18 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     return () => controller.abort();
   }, [selectedAddress?.id, cartRestaurantId]);
 
+  useEffect(() => {
+    if (orderType !== 'dine_in' || !cartRestaurantId) { setTables([]); return; }
+    let active = true;
+    fetch(`/backend/restaurants/${cartRestaurantId}/tables`, { credentials: 'same-origin' })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((data) => { if (active) setTables(Array.isArray(data) ? data : []); })
+      .catch(() => { if (active) setTables([]); });
+    return () => { active = false; };
+  }, [orderType, cartRestaurantId]);
+
+  useEffect(() => { if (tableId !== null && !tables.some((table) => table.id === tableId)) setTableId(null); }, [tables, tableId]);
+
   if (!user) return null;
 
   const value: CustomerValue = {
@@ -410,7 +453,8 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     search, setSearch, categoryId, setCategoryId, visibleProducts, nextCursor, searchLoading, searchError, loadMore,
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
     cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
-    tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, scheduledFor, setScheduledFor, submitReview, loadHistory,
+    tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, scheduledFor, setScheduledFor,
+    orderType, setOrderType, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, submitReview, loadHistory,
     localMessage, showAddressForm, setShowAddressForm, addressForm, setAddressForm,
     postalZone, postalMessage, postalLoading, saveAddress, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode, placing,
     placeOrder, expandedOrderId, setExpandedOrderId, showAllOrders, setShowAllOrders, cancelOrder,

@@ -81,12 +81,10 @@ Cada epic traz: inspiração, objetivo, entregas, dependências e critério de p
   painel; checkout sem endereço para take-away/dine-in.
 - **Depende de:** E01 (opcional, para garçom).
 - **Pronto quando:** pedido de mesa e de retirada completam-se ponta a ponta, com comanda e KDS.
-- **Status (26/09/2026):** **comanda, taxa e UI de mesas entregues** — `V033`: `table_sessions`
-  (comanda aberta por mesa, várias rodadas), `restaurants.service_fee_percent` e
-  `orders.table_session_id`; o pedido de dine-in entra na comanda e a taxa de serviço é aplicada;
-  endpoints `GET/POST /restaurant/tables/{id}/session[/close]` e `PATCH /admin/restaurants/{id}/service-fee`;
-  **UI de Mesas** no painel do restaurante. 129 testes Java. **Pendente:** seleção de tipo de
-  pedido/mesa no checkout do cliente e exibição de dine-in/mesa na cozinha.
+- **Status (26/09/2026): concluído.** Base (`V031`), checkout por tipo (`V032`), comanda/taxa/UI de
+  mesas (`V033`), **checkout do cliente** (tipo entrega/retirada/consumo com mesa, nº de pessoas e
+  taxa de serviço) e **cozinha** exibindo mesa/retirada e ações `servir`/`concluir`. 129 testes
+  Java; contrato regerado.
 
 ### E04 — POS
 - **Inspiração:** eFood (New Sale/Orders, cliente rápido, tipos de pedido) e TiffinKing (POS).
