@@ -96,7 +96,7 @@ public class CartService {
     }
 
     @Transactional
-    public Map<String, Object> checkout(User customer, long addressId, long expectedTotalCents, String expectedVersion, String idempotencyKey, String paymentMethod, Integer changeForCents, String modality, String couponCode, String scheduledFor) {
+    public Map<String, Object> checkout(User customer, Long addressId, long expectedTotalCents, String expectedVersion, String idempotencyKey, String paymentMethod, Integer changeForCents, String modality, String couponCode, String scheduledFor, String orderType, Long tableId, Integer partySize) {
         lock(customer.id());
         prune(customer.id());
         String key = idempotencyKey == null ? null : idempotencyKey.trim();
@@ -114,7 +114,7 @@ public class CartService {
         for (CartItem item : current.items()) {
             items.add(new OrderController.Item(item.productId(), item.variationId() == 0 ? null : item.variationId(), item.quantity(), item.addonIds().isEmpty() ? null : item.addonIds()));
         }
-        Map<String, Object> order = orders.create(customer, new OrderController.OrderRequest(restaurantId, addressId, items, paymentMethod, changeForCents, modality, couponCode, scheduledFor));
+        Map<String, Object> order = orders.create(customer, new OrderController.OrderRequest(restaurantId, addressId, items, paymentMethod, changeForCents, modality, couponCode, scheduledFor, orderType, tableId, partySize));
         if (((Number) order.get("totalCents")).longValue() != expectedTotalCents) {
             throw new ApiException(409, "O valor do pedido mudou. Atualize o carrinho antes de continuar");
         }

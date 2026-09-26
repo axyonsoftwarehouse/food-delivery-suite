@@ -79,7 +79,7 @@ public class OrderController {
         if (!"restaurant".equals(user.role()) && !"kitchen".equals(user.role())) return;
         String permission = switch (action) {
             case "accept" -> Permissions.ORDERS_ACCEPT;
-            case "ready" -> Permissions.ORDERS_READY;
+            case "ready", "serve", "complete" -> Permissions.ORDERS_READY;
             case "reject" -> Permissions.ORDERS_REJECT;
             default -> null;
         };
@@ -92,13 +92,16 @@ public class OrderController {
         return jdbc.queryForList("SELECT id, name, email, suspended_at IS NOT NULL AS suspended, courier_approved_at IS NOT NULL AS approved FROM users WHERE role = 'courier' ORDER BY name");
     }
 
-    public record OrderRequest(@Positive long restaurantId, @Positive long addressId,
+    public record OrderRequest(@Positive long restaurantId, @Positive Long addressId,
                                @NotEmpty @Size(max = 30) List<@Valid Item> items,
                                @NotBlank @Pattern(regexp = "cash|card|pix") String paymentMethod,
                                @Min(0) @Max(100_000_000) Integer changeForCents,
                                @Pattern(regexp = "on_delivery|online") String modality,
                                @Size(max = 40) String couponCode,
-                               @Size(max = 30) String scheduledFor) {}
+                               @Size(max = 30) String scheduledFor,
+                               @Pattern(regexp = "delivery|take_away|dine_in") String orderType,
+                               @Positive Long tableId,
+                               @Min(1) @Max(50) Integer partySize) {}
     public record Item(@Positive long productId, @Positive Long variationId, @Positive @Max(20) int quantity, @Size(max = 20) List<@Positive Long> addonIds) {}
     public record StatusRequest(@NotBlank String action, @Positive Long courierId, @Size(max = 255) String reason) {}
 }

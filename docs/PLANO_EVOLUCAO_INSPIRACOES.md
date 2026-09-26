@@ -76,11 +76,12 @@ Cada epic traz: inspiração, objetivo, entregas, dependências e critério de p
   painel; checkout sem endereço para take-away/dine-in.
 - **Depende de:** E01 (opcional, para garçom).
 - **Pronto quando:** pedido de mesa e de retirada completam-se ponta a ponta, com comanda e KDS.
-- **Status (26/09/2026):** **base entregue** — migration `V031` (`restaurant_tables`; `orders` com
-  `order_type`, `table_id`, `party_size`, `service_fee_cents`), permissão `tables.manage` e CRUD de
-  mesas (`/restaurant/tables`). **Pendente:** checkout sem endereço para take-away/dine-in, sessão
-  de mesa/comanda, taxa de serviço, novos estados (`served`/`completed`) e as UIs (mesas, checkout
-  e cozinha).
+- **Status (26/09/2026):** **checkout e fluxo entregues** — `V031`/`V032`: `restaurant_tables`;
+  `orders` com `order_type`/`table_id`/`party_size`/`service_fee_cents` e estados `served`/
+  `completed`. O checkout (`POST /cart/checkout`) aceita `orderType` (`delivery`/`take_away`/
+  `dine_in`) sem endereço para retirada/consumo, valida mesa e nº de pessoas; o restaurante pode
+  `serve` (pronto→servido) e `complete` (→concluído). 123 testes Java. **Pendente:** sessão de
+  mesa/comanda (pagar depois), taxa de serviço configurável e as UIs (mesas, checkout e cozinha).
 
 ### E04 — POS
 - **Inspiração:** eFood (New Sale/Orders, cliente rápido, tipos de pedido) e TiffinKing (POS).

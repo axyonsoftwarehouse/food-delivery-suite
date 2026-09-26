@@ -16,6 +16,8 @@ public final class OrderWorkflow {
         return switch (action) {
             case "accept" -> new Transition("accepted", false, false);
             case "ready" -> new Transition("ready", false, false);
+            case "serve" -> new Transition("served", false, false);
+            case "complete" -> new Transition("completed", false, false);
             case "assign" -> new Transition("assigned", false, false);
             case "unassign" -> new Transition("ready", false, true);
             case "pickup" -> new Transition("picked_up", false, false);
@@ -31,6 +33,8 @@ public final class OrderWorkflow {
         return switch (action) {
             case "accept" -> RESTAURANT_SIDE.contains(role) && "placed".equals(current);
             case "ready" -> RESTAURANT_SIDE.contains(role) && "accepted".equals(current);
+            case "serve" -> RESTAURANT_SIDE.contains(role) && "ready".equals(current);
+            case "complete" -> RESTAURANT_SIDE.contains(role) && ("ready".equals(current) || "served".equals(current));
             case "reject" -> RESTAURANT_SIDE.contains(role) && "placed".equals(current);
             case "assign" -> "admin".equals(role) && ("ready".equals(current) || "assigned".equals(current));
             case "unassign" -> "admin".equals(role) && "assigned".equals(current);

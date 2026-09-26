@@ -50,6 +50,9 @@ public class OrderService {
 
     @Transactional
     public Map<String, Object> create(User customer, OrderController.OrderRequest request) {
+        String orderType = request.orderType() == null || request.orderType().isBlank() ? "delivery" : request.orderType();
+        if (!Set.of("delivery", "take_away", "dine_in").contains(orderType)) throw new ApiException(400, "Tipo de pedido inválido");
+        boolean deliveryOrder = "delivery".equals(orderType);
         Set<Long> distinctIds = new HashSet<>();
         Set<String> distinctLines = new HashSet<>();
         for (var item : request.items()) {
@@ -58,20 +61,32 @@ public class OrderService {
             if (!distinctLines.add(item.productId() + ":" + variationId + ":" + addonKey)) throw new ApiException(400, "Item repetido no pedido");
             distinctIds.add(item.productId());
         }
-        List<Map<String, Object>> addresses = jdbc.queryForList(
-            "SELECT a.id, a.zone_id, a.postal_code, a.street, a.number, a.neighborhood, a.complement, a.latitude, a.longitude, z.city, z.state, z.delivery_fee_cents, z.base_fee_cents, z.per_km_cents, z.minimum_order_cents FROM addresses a JOIN zones z ON z.id = a.zone_id AND z.active = TRUE WHERE a.id = ? AND a.user_id = ?",
-            request.addressId(), customer.id()
-        );
-        if (addresses.isEmpty()) throw new ApiException(400, "Endereço não encontrado ou zona indisponível");
-        Map<String, Object> address = addresses.getFirst();
-        long zoneId = number(address, "zone_id");
-        if (address.get("postal_code") == null) throw new ApiException(409, "Recadastre o endereço com CEP antes de pedir");
-        postalCoverage.requireAddressZone((String) address.get("postal_code"), zoneId);
-        List<Map<String, Object>> restaurants = jdbc.queryForList(
-            "SELECT r.timezone, r.latitude, r.longitude FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
-            request.restaurantId(), zoneId
-        );
-        if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante não atende este endereço ou está fechado");
+        Map<String, Object> address = null;
+        long zoneId;
+        List<Map<String, Object>> restaurants;
+        if (deliveryOrder) {
+            List<Map<String, Object>> addresses = jdbc.queryForList(
+                "SELECT a.id, a.zone_id, a.postal_code, a.street, a.number, a.neighborhood, a.complement, a.latitude, a.longitude, z.city, z.state, z.delivery_fee_cents, z.base_fee_cents, z.per_km_cents, z.minimum_order_cents FROM addresses a JOIN zones z ON z.id = a.zone_id AND z.active = TRUE WHERE a.id = ? AND a.user_id = ?",
+                request.addressId(), customer.id()
+            );
+            if (addresses.isEmpty()) throw new ApiException(400, "Endereço não encontrado ou zona indisponível");
+            address = addresses.getFirst();
+            zoneId = number(address, "zone_id");
+            if (address.get("postal_code") == null) throw new ApiException(409, "Recadastre o endereço com CEP antes de pedir");
+            postalCoverage.requireAddressZone((String) address.get("postal_code"), zoneId);
+            restaurants = jdbc.queryForList(
+                "SELECT r.timezone, r.latitude, r.longitude FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
+                request.restaurantId(), zoneId
+            );
+            if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante não atende este endereço ou está fechado");
+        } else {
+            zoneId = 0;
+            restaurants = jdbc.queryForList(
+                "SELECT r.timezone, r.latitude, r.longitude FROM restaurants r WHERE r.id = ? AND r.active = TRUE FOR UPDATE",
+                request.restaurantId()
+            );
+            if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante indisponível");
+        }
         String timezone = (String) restaurants.getFirst().get("timezone");
         LocalDateTime scheduledAt = null;
         if (request.scheduledFor() != null && !request.scheduledFor().isBlank()) {
@@ -139,33 +154,58 @@ public class OrderService {
         } catch (ArithmeticException error) {
             throw new ApiException(400, "Valor do pedido inválido");
         }
-        DeliveryService.Estimate estimate = delivery.estimate(address, restaurants.getFirst(), address);
-        long fee = estimate.feeCents();
+        DeliveryService.Estimate estimate = deliveryOrder ? delivery.estimate(address, restaurants.getFirst(), address) : null;
+        long fee = estimate == null ? 0 : estimate.feeCents();
         CouponService.Applied coupon = null;
         if (request.couponCode() != null && !request.couponCode().isBlank()) {
             coupon = couponService.validate(request.couponCode(), request.restaurantId(), subtotal);
         }
         long discount = coupon == null ? 0 : coupon.discountCents();
-        long total = Math.max(0, OrderWorkflow.total(subtotal, fee, number(address, "minimum_order_cents")) - discount);
+        long minimum = deliveryOrder ? number(address, "minimum_order_cents") : 0;
+        long total = Math.max(0, OrderWorkflow.total(subtotal, fee, minimum) - discount);
         long finalSubtotal = subtotal;
-        Long distanceMeters = estimate.distanceMeters();
-        Long durationSeconds = estimate.durationSeconds();
-        String complement = (String) address.get("complement");
-        String addressText = address.get("street") + ", " + address.get("number")
-            + (complement == null || complement.isEmpty() ? "" : ", " + complement)
-            + " • " + address.get("neighborhood") + " • " + address.get("city") + "/" + address.get("state") + " • CEP " + address.get("postal_code");
+        Long distanceMeters = estimate == null ? null : estimate.distanceMeters();
+        Long durationSeconds = estimate == null ? null : estimate.durationSeconds();
+        String addressText;
+        if (deliveryOrder) {
+            String complement = (String) address.get("complement");
+            addressText = address.get("street") + ", " + address.get("number")
+                + (complement == null || complement.isEmpty() ? "" : ", " + complement)
+                + " • " + address.get("neighborhood") + " • " + address.get("city") + "/" + address.get("state") + " • CEP " + address.get("postal_code");
+        } else {
+            addressText = "dine_in".equals(orderType) ? "Consumo no local" : "Retirada no local";
+        }
+
+        final Long tableIdForOrder;
+        final Integer partySizeForOrder;
+        if ("dine_in".equals(orderType)) {
+            if (request.tableId() == null) throw new ApiException(400, "Selecione a mesa para consumo no local");
+            List<Map<String, Object>> tables = jdbc.queryForList(
+                "SELECT id, capacity FROM restaurant_tables WHERE id = ? AND restaurant_id = ? AND active = TRUE",
+                request.tableId(), request.restaurantId()
+            );
+            if (tables.isEmpty()) throw new ApiException(400, "Mesa indisponível");
+            int capacity = ((Number) tables.getFirst().get("capacity")).intValue();
+            int party = request.partySize() == null ? 1 : request.partySize();
+            if (party < 1 || party > capacity) throw new ApiException(400, "Número de pessoas acima da capacidade da mesa");
+            tableIdForOrder = request.tableId();
+            partySizeForOrder = party;
+        } else {
+            tableIdForOrder = null;
+            partySizeForOrder = null;
+        }
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         final CouponService.Applied appliedCoupon = coupon;
         final LocalDateTime orderScheduledAt = scheduledAt;
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, discount_cents, coupon_code, total_cents, distance_meters, duration_seconds, scheduled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, discount_cents, coupon_code, total_cents, distance_meters, duration_seconds, scheduled_at, order_type, table_id, party_size, service_fee_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 Statement.RETURN_GENERATED_KEYS
             );
             statement.setLong(1, customer.id());
             statement.setLong(2, request.restaurantId());
-            statement.setLong(3, zoneId);
-            statement.setLong(4, request.addressId());
+            if (deliveryOrder) statement.setLong(3, zoneId); else statement.setNull(3, java.sql.Types.BIGINT);
+            if (deliveryOrder) statement.setLong(4, request.addressId()); else statement.setNull(4, java.sql.Types.BIGINT);
             statement.setString(5, addressText);
             statement.setLong(6, finalSubtotal);
             statement.setLong(7, fee);
@@ -175,6 +215,10 @@ public class OrderService {
             if (distanceMeters == null) statement.setNull(11, java.sql.Types.INTEGER); else statement.setLong(11, distanceMeters);
             if (durationSeconds == null) statement.setNull(12, java.sql.Types.INTEGER); else statement.setLong(12, durationSeconds);
             if (orderScheduledAt == null) statement.setNull(13, java.sql.Types.TIMESTAMP); else statement.setObject(13, orderScheduledAt);
+            statement.setString(14, orderType);
+            if (tableIdForOrder == null) statement.setNull(15, java.sql.Types.BIGINT); else statement.setLong(15, tableIdForOrder);
+            if (partySizeForOrder == null) statement.setNull(16, java.sql.Types.INTEGER); else statement.setInt(16, partySizeForOrder);
+            statement.setInt(17, 0);
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
@@ -214,6 +258,7 @@ public class OrderService {
         Map<String, Object> created = new LinkedHashMap<>();
         created.put("id", orderId);
         created.put("status", "placed");
+        created.put("orderType", orderType);
         created.put("subtotalCents", subtotal);
         created.put("deliveryFeeCents", fee);
         created.put("discountCents", discount);
@@ -228,8 +273,8 @@ public class OrderService {
         return created;
     }
 
-    private static final String ORDER_BASE = "SELECT o.id, o.status, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, r.name AS restaurant_name, p.method AS payment_method, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN order_payments p ON p.order_id = o.id ";
-    private static final String TERMINAL = "'delivered','rejected','cancelled','expired','failed'";
+    private static final String ORDER_BASE = "SELECT o.id, o.status, o.order_type, o.table_id, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, r.name AS restaurant_name, p.method AS payment_method, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN order_payments p ON p.order_id = o.id ";
+    private static final String TERMINAL = "'delivered','rejected','cancelled','expired','failed','completed'";
     private static final int ACTIVE_LIMIT = 200;
     private static final int HISTORY_LIMIT = 100;
 

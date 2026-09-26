@@ -72,6 +72,14 @@ class OrderWorkflowTest {
     }
 
     @Test
+    void restaurantServesAndCompletesLocalOrders() {
+        assertEquals("served", next("ready", "serve", "restaurant"));
+        assertEquals("completed", next("served", "complete", "restaurant"));
+        assertEquals("completed", next("ready", "complete", "restaurant"));
+        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("accepted", "serve", "restaurant")).status());
+    }
+
+    @Test
     void respectsMinimumAndCapsTotal() {
         assertEquals(3099, OrderWorkflow.total(2500, 599, 1500));
         assertEquals(400, assertThrows(ApiException.class, () -> OrderWorkflow.total(1000, 599, 1500)).status());

@@ -2039,6 +2039,11 @@ export interface components {
             modality?: string;
             couponCode?: string;
             scheduledFor?: string;
+            orderType?: string;
+            /** Format: int64 */
+            tableId?: number;
+            /** Format: int32 */
+            partySize?: number;
         };
         GoogleRequest: {
             idToken: string;
