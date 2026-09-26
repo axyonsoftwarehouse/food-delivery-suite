@@ -27,6 +27,7 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/pedidos', key: 'nav.panel.orders', icon: '▤' },
     { href: '/painel/catalogo', key: 'nav.panel.catalog', icon: '◉' },
     { href: '/painel/horarios', key: 'nav.panel.hours', icon: '◔' },
+    { href: '/painel/pos', key: 'nav.panel.pos', icon: '🧾' },
     { href: '/painel/mesas', key: 'nav.panel.tables', icon: '🍽' },
     { href: '/painel/configuracoes', key: 'nav.panel.settings', icon: '⚙' },
   ],

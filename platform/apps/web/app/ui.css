@@ -241,3 +241,10 @@
 .order-proof { display: grid; gap: 6px; margin-top: var(--space-3); padding: 12px; border: 1px dashed var(--gray-300, #cbd5e1); border-radius: var(--radius-md); }
 .order-proof a { color: var(--brand-700, #1d4ed8); font-weight: 600; }
 .order-proof-actions { display: flex; gap: 8px; margin-top: 4px; }
+/* PDV / balcao */
+.pos-grid { display: grid; grid-template-columns: 1fr 340px; gap: var(--space-4); }
+.pos-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: 420px; overflow: auto; }
+.pos-product { display: grid; text-align: left; gap: 4px; padding: 10px; border: 1px solid var(--gray-200, #e5e7eb); border-radius: var(--radius-md); background: #fff; cursor: pointer; }
+.pos-product:hover { border-color: var(--brand-600, #2563eb); }
+.pos-ticket { display: grid; gap: 10px; align-content: start; }
+@media (max-width: 900px) { .pos-grid { grid-template-columns: 1fr; } }

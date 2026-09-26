@@ -324,6 +324,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/pos/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orders/{id}/review": {
         parameters: {
             query?: never;
@@ -333,7 +349,7 @@ export interface paths {
         };
         get: operations["forOrder"];
         put?: never;
-        post: operations["create_2"];
+        post: operations["create_3"];
         delete?: never;
         options?: never;
         head?: never;
@@ -893,7 +909,7 @@ export interface paths {
         };
         get: operations["list_2"];
         put?: never;
-        post: operations["create_3"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -957,7 +973,7 @@ export interface paths {
         };
         get: operations["addresses"];
         put?: never;
-        post: operations["create_4"];
+        post: operations["create_5"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1492,6 +1508,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/pos/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["customers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/permissions": {
         parameters: {
             query?: never;
@@ -2007,6 +2039,28 @@ export interface components {
             name: string;
             /** Format: int32 */
             priceCents?: number;
+        };
+        PosItem: {
+            /** Format: int64 */
+            productId?: number;
+            /** Format: int64 */
+            variationId?: number;
+            /** Format: int32 */
+            quantity?: number;
+            addonIds?: number[];
+        };
+        PosRequest: {
+            items: components["schemas"]["PosItem"][];
+            paymentMethod: string;
+            /** Format: int32 */
+            changeForCents?: number;
+            orderType?: string;
+            /** Format: int64 */
+            tableId?: number;
+            /** Format: int32 */
+            partySize?: number;
+            /** Format: int64 */
+            customerId?: number;
         };
         ReviewRequest: {
             /** Format: int32 */
@@ -3350,6 +3404,34 @@ export interface operations {
             };
         };
     };
+    create_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PosRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     forOrder: {
         parameters: {
             query?: never;
@@ -3376,7 +3458,7 @@ export interface operations {
             };
         };
     };
-    create_2: {
+    create_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -4532,7 +4614,7 @@ export interface operations {
             };
         };
     };
-    create_3: {
+    create_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -4696,7 +4778,7 @@ export interface operations {
             };
         };
     };
-    create_4: {
+    create_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -6004,6 +6086,32 @@ export interface operations {
                     "*/*": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    customers: {
+        parameters: {
+            query?: {
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };

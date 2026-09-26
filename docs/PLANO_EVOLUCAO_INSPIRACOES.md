@@ -93,6 +93,11 @@ Cada epic traz: inspiração, objetivo, entregas, dependências e critério de p
   pagamento imediato; impressão; fechamento/relatório de caixa.
 - **Depende de:** E03 (tipos de pedido) para o modo mesa.
 - **Pronto quando:** o restaurante fecha uma venda de balcão e ela aparece nos relatórios.
+- **Status (26/09/2026):** **backend + UI entregues** — `POST /pos/orders` (restaurante, permissão
+  `pos.manage`) cria a venda de balcão (retirada/consumo no local) com **pagamento imediato**
+  (dinheiro/cartão/pix) e troco, marcando o pedido aceito e pago; `GET /pos/customers` busca
+  cliente; o **PDV no painel** (`/painel/pos`) monta a comanda, escolhe tipo/mesa e **imprime** o
+  cupom. 135 testes Java.
 
 ### E05 — Cardápio e mesa por QR code
 - **Inspiração:** eFood (geração/impressão de QR no admin; leitura de QR no app do cliente).
