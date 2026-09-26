@@ -2,6 +2,8 @@ package com.foodie.api.orders;
 
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
+import com.foodie.api.permissions.Permissions;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -27,16 +29,18 @@ public class OrderController {
     private final AuthService auth;
     private final OrderService orders;
     private final JdbcTemplate jdbc;
+    private final PermissionService permissions;
 
-    public OrderController(AuthService auth, OrderService orders, JdbcTemplate jdbc) {
+    public OrderController(AuthService auth, OrderService orders, JdbcTemplate jdbc, PermissionService permissions) {
         this.auth = auth;
         this.orders = orders;
         this.jdbc = jdbc;
+        this.permissions = permissions;
     }
 
     @GetMapping("/orders")
     public List<Map<String, Object>> list(@CookieValue(value = "foodie_session", required = false) String token) {
-        return orders.list(auth.requireUser(token));
+        return orders.list(viewer(token));
     }
 
     @GetMapping("/orders/history")
@@ -45,20 +49,41 @@ public class OrderController {
                                        @org.springframework.web.bind.annotation.RequestParam(required = false) Long after,
                                        @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int limit) {
         if (limit < 1 || limit > 50 || after != null && after < 1) throw new com.foodie.api.ApiException(400, "Paginação inválida");
-        return orders.history(auth.requireUser(token), status, after, limit);
+        return orders.history(viewer(token), status, after, limit);
     }
 
     @GetMapping("/orders/{id}")
     public Map<String, Object> detail(@CookieValue(value = "foodie_session", required = false) String token,
                                       @PathVariable @Positive long id) {
-        return orders.detail(auth.requireUser(token), id);
+        return orders.detail(viewer(token), id);
     }
 
     @PatchMapping("/orders/{id}/status")
     public Map<String, Object> changeStatus(@CookieValue(value = "foodie_session", required = false) String token,
                                             @PathVariable @Positive long id,
                                             @Valid @RequestBody StatusRequest request) {
-        return orders.changeStatus(auth.requireUser(token), id, request.action(), request.courierId(), request.reason());
+        User user = auth.requireUser(token);
+        requireKitchenAction(user, request.action());
+        return orders.changeStatus(user, id, request.action(), request.courierId(), request.reason());
+    }
+
+    private User viewer(String token) {
+        User user = auth.requireUser(token);
+        if ("restaurant".equals(user.role()) || "kitchen".equals(user.role())) {
+            permissions.require(user, Permissions.ORDERS_VIEW);
+        }
+        return user;
+    }
+
+    private void requireKitchenAction(User user, String action) {
+        if (!"restaurant".equals(user.role()) && !"kitchen".equals(user.role())) return;
+        String permission = switch (action) {
+            case "accept" -> Permissions.ORDERS_ACCEPT;
+            case "ready" -> Permissions.ORDERS_READY;
+            case "reject" -> Permissions.ORDERS_REJECT;
+            default -> null;
+        };
+        if (permission != null) permissions.require(user, permission);
     }
 
     @GetMapping("/admin/couriers")

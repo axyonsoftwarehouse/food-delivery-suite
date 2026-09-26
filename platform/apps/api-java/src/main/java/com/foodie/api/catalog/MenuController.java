@@ -3,6 +3,8 @@ package com.foodie.api.catalog;
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
+import com.foodie.api.permissions.Permissions;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -29,10 +31,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class MenuController {
     private final AuthService auth;
     private final MenuService menu;
+    private final PermissionService permissions;
 
-    public MenuController(AuthService auth, MenuService menu) {
+    public MenuController(AuthService auth, MenuService menu, PermissionService permissions) {
         this.auth = auth;
         this.menu = menu;
+        this.permissions = permissions;
     }
 
     @GetMapping("/admin/restaurants/{id}/catalog")
@@ -422,6 +426,7 @@ public class MenuController {
     private User requireRestaurant(String token) {
         User user = auth.requireUser(token, "restaurant");
         if (user.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        permissions.require(user, Permissions.CATALOG_MANAGE);
         return user;
     }
 

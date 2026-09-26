@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,9 @@ class OrderControllerTest {
 
     @MockitoBean
     private JdbcTemplate jdbc;
+
+    @MockitoBean
+    private PermissionService permissions;
 
     @Test
     void unauthenticatedRequestGetsPrototypeError() throws Exception {

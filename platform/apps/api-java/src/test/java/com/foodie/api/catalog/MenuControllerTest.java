@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,9 @@ class MenuControllerTest {
 
     @MockitoBean
     private MenuService menu;
+
+    @MockitoBean
+    private PermissionService permissions;
 
     private static Map<String, Object> product(boolean available) {
         Map<String, Object> value = new LinkedHashMap<>();

@@ -3,6 +3,8 @@ package com.foodie.api.hours;
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
+import com.foodie.api.permissions.Permissions;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -26,10 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class RestaurantHoursController {
     private final AuthService auth;
     private final RestaurantHoursService hours;
+    private final PermissionService permissions;
 
-    public RestaurantHoursController(AuthService auth, RestaurantHoursService hours) {
+    public RestaurantHoursController(AuthService auth, RestaurantHoursService hours, PermissionService permissions) {
         this.auth = auth;
         this.hours = hours;
+        this.permissions = permissions;
     }
 
     @GetMapping("/admin/restaurants/{id}/hours")
@@ -69,6 +73,7 @@ public class RestaurantHoursController {
     public Map<String, Object> ownHours(@CookieValue(value = "foodie_session", required = false) String token) {
         User restaurant = auth.requireUser(token, "restaurant");
         if (restaurant.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        permissions.require(restaurant, Permissions.HOURS_MANAGE);
         return schedule(restaurant.restaurantId());
     }
 
@@ -77,6 +82,7 @@ public class RestaurantHoursController {
                                                       @Valid @RequestBody HoursRequest body) {
         User restaurant = auth.requireUser(token, "restaurant");
         if (restaurant.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        permissions.require(restaurant, Permissions.HOURS_MANAGE);
         return created(add(restaurant.restaurantId(), body));
     }
 
@@ -85,6 +91,7 @@ public class RestaurantHoursController {
                                           @PathVariable @Positive long id) {
         User restaurant = auth.requireUser(token, "restaurant");
         if (restaurant.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        permissions.require(restaurant, Permissions.HOURS_MANAGE);
         hours.remove(restaurant.restaurantId(), id);
         return Map.of("ok", true);
     }

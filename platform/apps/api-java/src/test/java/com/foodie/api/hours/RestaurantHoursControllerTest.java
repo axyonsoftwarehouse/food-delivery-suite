@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
 import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,6 +33,9 @@ class RestaurantHoursControllerTest {
 
     @MockitoBean
     private RestaurantHoursService hours;
+
+    @MockitoBean
+    private PermissionService permissions;
 
     @Test
     void restaurantSeesOnlyItsSchedule() throws Exception {
