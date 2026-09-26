@@ -106,8 +106,13 @@ Cada epic traz: inspiração, objetivo, entregas, dependências e critério de p
   webhook própria, `PaymentGatewayRegistry` (descoberta dos provedores + provedor padrão
   configurável em `app.payments.default-provider`), webhook agnóstico em `/webhooks/{provider}`,
   `GET /payments/providers` e `provider` opcional na intenção. O Mercado Pago virou **um**
-  provedor. **Pendente (Onda 2):** gateways adicionais (Stripe/PayPal/…) e métodos offline com
-  comprovante — dependem das decisões de provedor.
+  provedor.
+- **Status offline (26/09/2026):** **métodos manuais entregues** — tabela `offline_payment_methods`
+  (o admin configura nome/instruções/ativo), envio de **comprovante por link + observação**
+  (`POST /orders/{id}/payment/offline`) e **verificação** pelo restaurante/admin
+  (`POST /orders/{id}/payment/verify`, aprovar/recusar) sob a permissão `payments.manage`.
+  119 testes Java. **Pendente:** gateways adicionais (decisão: só Mercado Pago por enquanto) e a
+  **UI** de envio/verificação no web.
 
 ### E07 — Carteira, bônus e pagamento parcial
 - **Inspiração:** eFood (wallet, wallet bonus, partial payment).

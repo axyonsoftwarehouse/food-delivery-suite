@@ -308,6 +308,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orders/{id}/payment/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["verify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orders/{id}/payment/refund": {
         parameters: {
             query?: never;
@@ -334,6 +350,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["startOnline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{id}/payment/offline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -772,6 +804,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/offline-payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminMethods"];
+        put?: never;
+        post: operations["adminCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/coverage": {
         parameters: {
             query?: never;
@@ -1156,6 +1204,22 @@ export interface paths {
         patch: operations["adminUpdateVariation"];
         trace?: never;
     };
+    "/admin/offline-payment-methods/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["adminUpdate"];
+        trace?: never;
+    };
     "/admin/couriers/{id}/suspension": {
         parameters: {
             query?: never;
@@ -1404,6 +1468,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/offline-payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["methods"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1832,12 +1912,22 @@ export interface components {
             rating?: number;
             comment?: string;
         };
+        VerifyRequest: {
+            approve?: boolean;
+            note?: string;
+        };
         RefundRequest: {
             note?: string;
         };
         OnlineRequest: {
             method: string;
             provider?: string;
+        };
+        ProofRequest: {
+            /** Format: int64 */
+            methodId?: number;
+            proofUrl?: string;
+            note?: string;
         };
         UnsubscribeRequest: {
             endpoint: string;
@@ -1912,9 +2002,6 @@ export interface components {
             modality?: string;
             couponCode?: string;
             scheduledFor?: string;
-        };
-        VerifyRequest: {
-            token: string;
         };
         GoogleRequest: {
             idToken: string;
@@ -1998,6 +2085,13 @@ export interface components {
             zoneId?: number;
             postalStart: string;
             postalEnd: string;
+        };
+        MethodRequest: {
+            name: string;
+            slug: string;
+            instructions?: string;
+            requiresProof?: boolean;
+            active?: boolean;
         };
         CoverageRequest: {
             /** Format: int64 */
@@ -2131,6 +2225,12 @@ export interface components {
             latitude?: number;
             /** Format: double */
             longitude?: number;
+        };
+        MethodUpdateRequest: {
+            name?: string;
+            instructions?: string;
+            requiresProof?: boolean;
+            active?: boolean;
         };
         Descriptor: {
             key?: string;
@@ -3113,6 +3213,36 @@ export interface operations {
             };
         };
     };
+    verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     refund: {
         parameters: {
             query?: never;
@@ -3157,6 +3287,36 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OnlineRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProofRequest"];
             };
         };
         responses: {
@@ -4007,6 +4167,58 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PostalRangeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    adminMethods: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    adminCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MethodRequest"];
             };
         };
         responses: {
@@ -5039,6 +5251,36 @@ export interface operations {
             };
         };
     };
+    adminUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MethodUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     suspendCourier: {
         parameters: {
             query?: never;
@@ -5557,6 +5799,30 @@ export interface operations {
                     "*/*": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    methods: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };

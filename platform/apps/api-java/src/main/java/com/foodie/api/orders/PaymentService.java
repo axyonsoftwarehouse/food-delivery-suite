@@ -103,7 +103,7 @@ public class PaymentService {
 
     public Map<String, Object> detail(long orderId) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, order_id, method, modality, status, raw_status, amount_due_cents, change_for_cents, amount_received_cents, change_cents, qr_code, ticket_url, external_id, expires_at, note, confirmed_by, confirmed_at, refunded_by, refunded_at FROM order_payments WHERE order_id = ?",
+            "SELECT id, order_id, method, modality, status, raw_status, amount_due_cents, change_for_cents, amount_received_cents, change_cents, qr_code, ticket_url, external_id, expires_at, note, confirmed_by, confirmed_at, refunded_by, refunded_at, offline_method_id, proof_url, proof_note, submitted_at, rejection_reason FROM order_payments WHERE order_id = ?",
             orderId
         );
         return rows.isEmpty() ? null : rows.getFirst();
