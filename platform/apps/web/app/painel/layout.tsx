@@ -38,7 +38,7 @@ const menuFor: Record<string, Item[]> = {
 export default function PainelLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, initializing, connection, lastSync, busy, message, newOrderNotice, setNewOrderNotice, logout } = useApp();
+  const { user, initializing, connection, lastSync, busy, message, newOrderNotice, setNewOrderNotice, logout, permissions } = useApp();
 
   useEffect(() => {
     if (initializing) return;
@@ -50,7 +50,10 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
     return <main className="app-loading" role="status"><span className="app-loading-brand">✦ foodie<span>.</span></span><p>Carregando painel...</p></main>;
   }
 
-  const menu = menuFor[user.role] ?? [];
+  const menu = [...(menuFor[user.role] ?? [])];
+  if ((user.role === 'restaurant' || user.role === 'admin') && permissions.includes('staff.manage') && !menu.some((item) => item.href === '/painel/equipe')) {
+    menu.splice(Math.max(menu.length - 1, 0), 0, { href: '/painel/equipe', label: 'Equipe e acessos', icon: '👥' });
+  }
 
   return <main className="shell">
     <aside className="sidebar">

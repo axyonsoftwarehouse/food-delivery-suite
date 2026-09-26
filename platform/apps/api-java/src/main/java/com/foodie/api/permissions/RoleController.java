@@ -10,6 +10,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +39,15 @@ public class RoleController {
     public List<Permissions.Descriptor> catalog(@CookieValue(value = "foodie_session", required = false) String token) {
         auth.requireUser(token);
         return Permissions.CATALOG;
+    }
+
+    @GetMapping("/me/permissions")
+    public Map<String, Object> myPermissions(@CookieValue(value = "foodie_session", required = false) String token) {
+        User user = auth.requireUser(token);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("role", user.role());
+        result.put("permissions", permissions.effective(user).stream().sorted().toList());
+        return result;
     }
 
     @GetMapping("/restaurant/roles")

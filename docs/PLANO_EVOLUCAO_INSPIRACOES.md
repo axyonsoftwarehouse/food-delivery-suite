@@ -43,11 +43,13 @@ Cada epic traz: inspiração, objetivo, entregas, dependências e critério de p
 - **Depende de:** —
 - **Pronto quando:** um restaurante cria "garçom", "caixa" e "cozinha" com permissões distintas
   e cada um só acessa o que pode (testes de autorização).
-- **Status (26/09/2026):** fatia 1 entregue — migration `V028` (`restaurant_roles` +
+- **Status (26/09/2026):** entregue — migration `V028` (`restaurant_roles` +
   `users.staff_role_id`), catálogo de permissões, papéis/funcionários por restaurante
-  (`/permissions`, `/restaurant/roles`, `/restaurant/staff`) e autorização efetiva
-  (`PermissionService`) aplicada a pedidos, catálogo e horários. 105 testes Java. **Falta a UI**
-  de Equipe/acessos no painel do restaurante.
+  (`/permissions`, `/me/permissions`, `/restaurant/roles`, `/restaurant/staff`) e autorização
+  efetiva (`PermissionService`) aplicada a pedidos, catálogo e horários. A **UI de Equipe e
+  acessos** no painel do restaurante cria papéis (com permissões), cadastra funcionários e
+  vincula papéis; o menu do painel mostra o item conforme `staff.manage`. 106 testes Java;
+  contrato regerado.
 
 ### E02 — Autenticação social e por telefone/OTP
 - **Inspiração:** eFood (Google/Facebook/Apple, Firebase OTP), DineHub (Twilio Verify).

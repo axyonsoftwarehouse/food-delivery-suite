@@ -224,3 +224,11 @@
 .combo-items ul { margin: var(--space-2) 0 0; padding-left: 18px; color: var(--text-muted); font-size: var(--text-sm); display: grid; gap: 4px; }
 .combo-admin-item { display: inline-flex; align-items: center; gap: 8px; background: var(--gray-100); border-radius: var(--radius-pill); padding: 6px 10px; font-size: var(--text-sm); }
 .order-scheduled { color: var(--info) !important; font-weight: var(--weight-bold); }
+
+/* Equipe e acessos (restaurante) */
+.team-panel { display: grid; gap: var(--space-4); }
+.permission-group { display: grid; gap: 6px; }
+.permission-group strong { font-size: var(--text-sm); color: var(--text-muted); }
+.team-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.team-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; background: var(--gray-100); border-radius: var(--radius-md); padding: 10px 14px; font-size: var(--text-sm); }
+.team-list select { max-width: 220px; }

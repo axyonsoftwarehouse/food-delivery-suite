@@ -75,6 +75,7 @@ type AppValue = {
   orders: Order[];
   couriers: Courier[];
   postalRanges: PostalRange[];
+  permissions: string[];
   connection: 'online' | 'offline';
   lastSync: Date | null;
   newOrderNotice: string;
@@ -117,6 +118,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [postalRanges, setPostalRanges] = useState<PostalRange[]>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [signupName, setSignupName] = useState('');
   const [email, setEmail] = useState('admin@demo.local');
@@ -137,13 +139,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const version = ++refreshVersion.current;
     try {
       const me = activeUser === undefined ? (await api<{ user: User | null }>('/me')).user : activeUser;
-      const [catalogData, orderData, courierData, zoneData, addressData, postalRangeData] = await Promise.all([
+      const [catalogData, orderData, courierData, zoneData, addressData, postalRangeData, permissionData] = await Promise.all([
         api<Catalog>(me?.role === 'customer' ? '/catalog/meta' : '/catalog'),
         me ? api<Order[]>('/orders') : Promise.resolve([]),
         me?.role === 'admin' ? api<Courier[]>('/admin/couriers') : Promise.resolve([]),
         api<Zone[]>('/zones'),
         me?.role === 'customer' ? api<Address[]>('/addresses') : Promise.resolve([]),
         me?.role === 'admin' ? api<PostalRange[]>('/admin/postal-ranges') : Promise.resolve([]),
+        me ? api<{ role: string; permissions: string[] }>('/me/permissions') : Promise.resolve({ role: '', permissions: [] as string[] }),
       ]);
       if (version !== refreshVersion.current) return;
       setCatalog(catalogData);
@@ -152,6 +155,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setZones(zoneData);
       setAddresses(addressData);
       setPostalRanges(postalRangeData);
+      setPermissions(permissionData.permissions);
       setUser(me);
       setConnection('online');
       setLastSync(new Date());
@@ -288,7 +292,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   const value: AppValue = {
-    user, initializing, busy, message, setMessage, catalog, zones, addresses, orders, couriers, postalRanges,
+    user, initializing, busy, message, setMessage, catalog, zones, addresses, orders, couriers, postalRanges, permissions,
     connection, lastSync, newOrderNotice, setNewOrderNotice, expandedOrderId, setExpandedOrderId,
     email, setEmail, password, setPassword, authMode, setAuthMode, signupName, setSignupName,
     refresh, run, askReason, login, signup, forgotPassword, logout, receivePayment, refundPayment,

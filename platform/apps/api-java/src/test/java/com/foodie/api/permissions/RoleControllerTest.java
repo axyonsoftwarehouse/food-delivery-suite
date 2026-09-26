@@ -75,4 +75,16 @@ class RoleControllerTest {
         when(auth.requireUser(null)).thenThrow(new ApiException(401, "Faça login para continuar"));
         mvc.perform(get("/permissions")).andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void kitchenSeesOnlyItsEffectivePermissions() throws Exception {
+        when(auth.requireUser("k")).thenReturn(new User(6, "Cozinha", "cozinha@demo.local", "kitchen", 7L));
+        when(roleRepository.findForUser(6)).thenReturn(Optional.empty());
+
+        mvc.perform(get("/me/permissions").cookie(new jakarta.servlet.http.Cookie("foodie_session", "k")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.role").value("kitchen"))
+            .andExpect(jsonPath("$.permissions[?(@=='orders.accept')]").exists())
+            .andExpect(jsonPath("$.permissions[?(@=='catalog.manage')]").doesNotExist());
+    }
 }
