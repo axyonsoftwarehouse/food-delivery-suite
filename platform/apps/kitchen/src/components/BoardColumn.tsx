@@ -1,7 +1,7 @@
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { OrderListItem } from '../api/types';
-import { isLate } from '../domain/orders';
+import { canComplete, canServe, isLate } from '../domain/orders';
 import { theme } from '../theme';
 import { OrderCard } from './OrderCard';
 
@@ -13,10 +13,12 @@ type Props = {
   onOpen: (orderId: number) => void;
   onAccept: (orderId: number) => void;
   onReady: (orderId: number) => void;
+  onServe: (orderId: number) => void;
+  onComplete: (orderId: number) => void;
   onReject: (orderId: number) => void;
 };
 
-export function BoardColumn({ columnKey, orders, now, busyOrderId, onOpen, onAccept, onReady, onReject }: Props) {
+export function BoardColumn({ columnKey, orders, now, busyOrderId, onOpen, onAccept, onReady, onServe, onComplete, onReject }: Props) {
   const { t } = useTranslation();
   return (
     <View style={styles.column}>
@@ -42,6 +44,8 @@ export function BoardColumn({ columnKey, orders, now, busyOrderId, onOpen, onAcc
               onAccept={isNew ? () => onAccept(item.id) : undefined}
               onReject={isNew ? () => onReject(item.id) : undefined}
               onReady={isPreparing ? () => onReady(item.id) : undefined}
+              onServe={canServe(item) ? () => onServe(item.id) : undefined}
+              onComplete={canComplete(item) ? () => onComplete(item.id) : undefined}
             />
           );
         }}

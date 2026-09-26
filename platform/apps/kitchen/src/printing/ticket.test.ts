@@ -5,6 +5,10 @@ function order(partial: Partial<OrderDetail> = {}): OrderDetail {
   return {
     id: 7,
     status: 'accepted',
+    order_type: 'delivery',
+    table_id: null,
+    table_number: null,
+    party_size: null,
     restaurant_id: 1,
     courier_id: null,
     delivery_address_text: 'Rua Exemplo, 100 • Centro',

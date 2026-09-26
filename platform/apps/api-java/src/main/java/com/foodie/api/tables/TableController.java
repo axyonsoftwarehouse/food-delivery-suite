@@ -39,6 +39,11 @@ public class TableController {
         return tables.list(manager(token).restaurantId());
     }
 
+    @GetMapping("/restaurants/{id}/tables")
+    public List<Map<String, Object>> publicTables(@PathVariable @Min(1) long id) {
+        return tables.listActive(id);
+    }
+
     @PostMapping("/restaurant/tables")
     public ResponseEntity<Map<String, Object>> create(@CookieValue(value = "foodie_session", required = false) String token,
                                                        @Valid @RequestBody TableRequest body) {

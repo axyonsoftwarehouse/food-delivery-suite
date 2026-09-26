@@ -14,10 +14,19 @@ export function columnForStatus(status: OrderStatus): ColumnKey | null {
     case 'ready':
     case 'assigned':
     case 'picked_up':
+    case 'served':
       return 'ready';
     default:
       return null;
   }
+}
+
+export function canServe(order: OrderListItem): boolean {
+  return order.status === 'ready' && order.order_type === 'dine_in';
+}
+
+export function canComplete(order: OrderListItem): boolean {
+  return (order.status === 'ready' && order.order_type !== 'delivery') || order.status === 'served';
 }
 
 export function actionsForStatus(status: OrderStatus): StatusAction[] {

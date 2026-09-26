@@ -7,6 +7,10 @@ function order(partial: Partial<OrderListItem>): OrderListItem {
   return {
     id: 42,
     status: 'placed',
+    order_type: 'delivery',
+    table_id: null,
+    table_number: null,
+    party_size: null,
     restaurant_id: 1,
     courier_id: null,
     delivery_address_text: 'Rua Exemplo, 100',

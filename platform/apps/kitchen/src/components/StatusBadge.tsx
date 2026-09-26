@@ -9,6 +9,8 @@ const COLORS: Record<OrderStatus, string> = {
   ready: theme.success,
   assigned: theme.info,
   picked_up: theme.info,
+  served: theme.info,
+  completed: theme.success,
   delivered: theme.success,
   rejected: theme.danger,
   cancelled: theme.danger,

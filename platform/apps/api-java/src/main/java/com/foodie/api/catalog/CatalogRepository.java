@@ -22,7 +22,7 @@ public class CatalogRepository {
     }
 
     public List<Map<String, Object>> restaurants() {
-        List<Map<String, Object>> restaurants = jdbc.queryForList("SELECT id, name, slug, active, timezone FROM restaurants WHERE active = TRUE ORDER BY name");
+        List<Map<String, Object>> restaurants = jdbc.queryForList("SELECT id, name, slug, active, timezone, service_fee_percent FROM restaurants WHERE active = TRUE ORDER BY name");
         for (Map<String, Object> restaurant : restaurants) restaurant.put("open", hours.isOpen(((Number) restaurant.get("id")).longValue(), (String) restaurant.get("timezone")));
         return restaurants;
     }

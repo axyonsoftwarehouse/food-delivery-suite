@@ -26,6 +26,13 @@ public class TableService {
         );
     }
 
+    public List<Map<String, Object>> listActive(long restaurantId) {
+        return jdbc.queryForList(
+            "SELECT id, number, capacity FROM restaurant_tables WHERE restaurant_id = ? AND active = TRUE ORDER BY number",
+            restaurantId
+        );
+    }
+
     @Transactional
     public Map<String, Object> create(long restaurantId, String number, int capacity) {
         String clean = cleanNumber(number);

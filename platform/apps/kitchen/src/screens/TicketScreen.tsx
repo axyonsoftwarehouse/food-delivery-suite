@@ -5,7 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import type { StatusAction } from '../api/types';
 import { useSession } from '../auth/session';
 import { StatusBadge } from '../components/StatusBadge';
-import { elapsedMinutes, formatMoney } from '../domain/orders';
+import { canComplete, canServe, elapsedMinutes, formatMoney } from '../domain/orders';
 import { useNow } from '../hooks/useNow';
 import type { RootStackParamList } from '../navigation';
 import { printTicket } from '../printing/ticket';
@@ -38,6 +38,8 @@ export default function TicketScreen({ route, navigation }: Props) {
   const minutes = elapsedMinutes(order.created_at, now);
   const canAccept = order.status === 'placed';
   const canReady = order.status === 'accepted';
+  const canServeOrder = canServe(order);
+  const canCompleteOrder = canComplete(order);
   const currentOrder = order;
 
   function runAction(action: StatusAction, extra?: string) {
@@ -68,6 +70,13 @@ export default function TicketScreen({ route, navigation }: Props) {
       <Text style={styles.meta}>
         {minutes === null ? '' : t('board.minutes', { count: minutes })} • {formatMoney(order.total_cents)}
       </Text>
+      {order.order_type !== 'delivery' && (
+        <Text style={styles.section}>
+          {order.order_type === 'dine_in'
+            ? t('board.table', { number: order.table_number ?? order.table_id ?? '' })
+            : t('board.takeAway')}
+        </Text>
+      )}
 
       <Text style={styles.section}>{t('ticket.items')}</Text>
       {order.items.map((item) => (
@@ -102,6 +111,16 @@ export default function TicketScreen({ route, navigation }: Props) {
         {canReady && (
           <Pressable disabled={status.isPending} onPress={() => runAction('ready')} style={[styles.button, styles.ready]}>
             <Text style={styles.buttonText}>{t('ticket.ready')}</Text>
+          </Pressable>
+        )}
+        {canServeOrder && (
+          <Pressable disabled={status.isPending} onPress={() => runAction('serve')} style={[styles.button, styles.ready]}>
+            <Text style={styles.buttonText}>{t('ticket.serve')}</Text>
+          </Pressable>
+        )}
+        {canCompleteOrder && (
+          <Pressable disabled={status.isPending} onPress={() => runAction('complete')} style={[styles.button, styles.accept]}>
+            <Text style={styles.buttonText}>{t('ticket.complete')}</Text>
           </Pressable>
         )}
         {canAccept && (

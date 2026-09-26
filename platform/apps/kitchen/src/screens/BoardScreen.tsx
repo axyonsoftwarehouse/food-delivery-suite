@@ -62,6 +62,8 @@ export default function BoardScreen({ navigation }: Props) {
               onOpen={(id) => navigation.navigate('Ticket', { orderId: id })}
               onAccept={(id) => status.mutate({ orderId: id, action: 'accept' })}
               onReady={(id) => status.mutate({ orderId: id, action: 'ready' })}
+              onServe={(id) => status.mutate({ orderId: id, action: 'serve' })}
+              onComplete={(id) => status.mutate({ orderId: id, action: 'complete' })}
               onReject={(id) => navigation.navigate('Ticket', { orderId: id })}
             />
           ))}

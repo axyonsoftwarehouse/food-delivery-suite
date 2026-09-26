@@ -11,12 +11,16 @@ export type User = Required<Pick<ApiUser, 'id' | 'name' | 'email'>> & {
   restaurantId: number | null;
 };
 
+export type OrderType = 'delivery' | 'take_away' | 'dine_in';
+
 export type OrderStatus =
   | 'placed'
   | 'accepted'
   | 'ready'
   | 'assigned'
   | 'picked_up'
+  | 'served'
+  | 'completed'
   | 'delivered'
   | 'rejected'
   | 'cancelled'
@@ -26,6 +30,10 @@ export type OrderStatus =
 export type OrderListItem = {
   id: number;
   status: OrderStatus;
+  order_type: OrderType;
+  table_id: number | null;
+  table_number: string | null;
+  party_size: number | null;
   restaurant_id: number;
   courier_id: number | null;
   delivery_address_text: string;
@@ -69,4 +77,4 @@ export type OrderDetail = OrderListItem & {
   payment: Record<string, unknown> | null;
 };
 
-export type StatusAction = 'accept' | 'ready' | 'reject';
+export type StatusAction = 'accept' | 'ready' | 'reject' | 'serve' | 'complete';
