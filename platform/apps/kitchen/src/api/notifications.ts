@@ -1,3 +1,4 @@
+import type { DeviceTokenRequest } from '@foodie/api-client';
 import { Platform } from 'react-native';
 import { api } from './client';
 
@@ -8,10 +9,11 @@ export function registerDeviceToken(
   deviceToken: string,
   platform: PushPlatform,
 ): Promise<{ ok: boolean }> {
+  const body: DeviceTokenRequest = { token: deviceToken, platform };
   return api<{ ok: boolean }>('/notifications/device-tokens', {
     method: 'POST',
     token,
-    body: { token: deviceToken, platform },
+    body,
   });
 }
 
@@ -20,10 +22,11 @@ export function unregisterDeviceToken(
   deviceToken: string,
   platform: PushPlatform,
 ): Promise<{ ok: boolean }> {
+  const body: DeviceTokenRequest = { token: deviceToken, platform };
   return api<{ ok: boolean }>('/notifications/device-tokens', {
     method: 'DELETE',
     token,
-    body: { token: deviceToken, platform },
+    body,
   });
 }
 

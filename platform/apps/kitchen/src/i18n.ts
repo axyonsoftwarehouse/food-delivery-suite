@@ -39,6 +39,9 @@ const resources = {
         cancel: 'Cancelar',
         waiting: 'Aguardando a cozinha',
         history: 'Histórico',
+        print: 'Imprimir cupom',
+        printing: 'Abrindo impressão...',
+        printError: 'Não foi possível imprimir',
       },
       status: {
         placed: 'Novo',

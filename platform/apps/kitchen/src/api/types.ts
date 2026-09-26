@@ -1,9 +1,12 @@
+import type { User as ApiUser } from '@foodie/api-client';
+
 export type Role = 'admin' | 'restaurant' | 'kitchen' | 'courier' | 'customer';
 
-export type User = {
-  id: number;
-  name: string;
-  email: string;
+/**
+ * Visão estrita do modelo `User` do backend (gerado do OpenAPI). O servidor sempre
+ * devolve todos os campos, então exigimos os que o app usa e estreitamos `role`.
+ */
+export type User = Required<Pick<ApiUser, 'id' | 'name' | 'email'>> & {
   role: Role;
   restaurantId: number | null;
 };

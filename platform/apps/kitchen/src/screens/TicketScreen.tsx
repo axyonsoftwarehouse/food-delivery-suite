@@ -2,11 +2,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { StatusBadge } from '../components/StatusBadge';
 import type { StatusAction } from '../api/types';
+import { useSession } from '../auth/session';
+import { StatusBadge } from '../components/StatusBadge';
 import { elapsedMinutes, formatMoney } from '../domain/orders';
 import { useNow } from '../hooks/useNow';
 import type { RootStackParamList } from '../navigation';
+import { printTicket } from '../printing/ticket';
 import { useOrder, useOrderStatus } from '../query';
 import { theme } from '../theme';
 
@@ -18,8 +20,11 @@ export default function TicketScreen({ route, navigation }: Props) {
   const now = useNow(15_000);
   const { data: order, isLoading, isError, error } = useOrder(orderId);
   const status = useOrderStatus();
+  const user = useSession((state) => state.user);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
 
   if (isLoading) return <ActivityIndicator color={theme.primary} style={styles.loading} />;
   if (isError || !order) {
@@ -33,12 +38,25 @@ export default function TicketScreen({ route, navigation }: Props) {
   const minutes = elapsedMinutes(order.created_at, now);
   const canAccept = order.status === 'placed';
   const canReady = order.status === 'accepted';
+  const currentOrder = order;
 
   function runAction(action: StatusAction, extra?: string) {
     status.mutate(
       { orderId, action, reason: extra },
       { onSuccess: () => navigation.goBack() },
     );
+  }
+
+  async function handlePrint() {
+    setPrinting(true);
+    setPrintError(null);
+    try {
+      await printTicket(currentOrder, { restaurantName: user?.name });
+    } catch (cause) {
+      setPrintError(cause instanceof Error ? cause.message : t('ticket.printError'));
+    } finally {
+      setPrinting(false);
+    }
   }
 
   return (
@@ -91,7 +109,12 @@ export default function TicketScreen({ route, navigation }: Props) {
             <Text style={styles.buttonText}>{t('ticket.reject')}</Text>
           </Pressable>
         )}
+        <Pressable disabled={printing} onPress={handlePrint} style={[styles.button, styles.print, printing && styles.disabled]}>
+          <Text style={styles.buttonText}>{printing ? t('ticket.printing') : t('ticket.print')}</Text>
+        </Pressable>
       </View>
+
+      {printError && <Text style={styles.error}>{printError}</Text>}
 
       {rejecting && (
         <View style={styles.rejectBox}>
@@ -145,6 +168,7 @@ const styles = StyleSheet.create({
   accept: { backgroundColor: theme.success },
   ready: { backgroundColor: theme.primary },
   reject: { backgroundColor: theme.danger },
+  print: { backgroundColor: theme.surfaceAlt },
   disabled: { opacity: 0.5 },
   buttonText: { color: '#0F172A', fontWeight: '800', fontSize: 15 },
   rejectBox: { marginTop: 12, gap: 8 },

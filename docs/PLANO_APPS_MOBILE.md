@@ -109,8 +109,12 @@ scaffold RN, sem criar um backend novo.
   reconhece o papel e restringe às transições `accept`, `ready` e `reject`, escopando os
   pedidos ao restaurante. Migration `V027__kitchen_role.sql`.
 - **Escopo do MVP:** quadro Novos/Em preparo/Prontos, detalhe do ticket e ações de
-  cozinha, push FCM (device token) + polling de 8 s, destaque de atraso (> 10 min).
-- **Fora do MVP:** impressão térmica (exige nativo ESC/POS) e edição de catálogo.
+  cozinha, push FCM (device token) + polling de 8 s, destaque de atraso (> 10 min) e
+  impressão do cupom pelo serviço do sistema (`expo-print`).
+- **Contrato:** `packages/api-client` gerado do OpenAPI (`/v3/api-docs`); o app deriva
+  os tipos de requisição dele. O spec é regerado pelo teste `OpenApiDumpTest`
+  (`-Dopenapi.dump=true`) quando a API não está no ar.
+- **Fora do MVP:** impressão ESC/POS direta (exige módulo nativo) e edição de catálogo.
 - Antecipa a fase 4 (app de restaurante) apenas na vertente operacional da cozinha.
 
 ## Riscos

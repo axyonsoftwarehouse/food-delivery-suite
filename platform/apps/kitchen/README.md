@@ -50,6 +50,11 @@ pnpm --filter @foodie/kitchen test
 | Ação | `PATCH /orders/{id}/status` `{ action: accept \| ready \| reject, reason? }` |
 | Push | `POST /notifications/device-tokens` `{ token, platform }` |
 
+Os tipos de requisição vêm de `@foodie/api-client`, gerado do OpenAPI do backend
+(`packages/api-client/openapi.json` → `src/schema.d.ts`). Para regerar com a API no ar:
+`pnpm --filter @foodie/api-client spec:fetch && pnpm --filter @foodie/api-client generate`.
+Sem a API, o spec é emitido pelo teste Java `OpenApiDumpTest` (`-Dopenapi.dump=true`).
+
 ## Estrutura
 
 - `src/api` — cliente HTTP, tipagens e chamadas.
@@ -57,10 +62,15 @@ pnpm --filter @foodie/kitchen test
 - `src/domain/orders.ts` — regras puras da fila (colunas, ações, atraso).
 - `src/components`, `src/screens` — UI.
 - `src/notifications` — registro de token e listeners do FCM.
+- `src/printing` — cupom em HTML e envio ao serviço de impressão do sistema.
+
+## Testes e impressão
+
+- Testes: regras de domínio e componentes (RNTL) — `pnpm --filter @foodie/kitchen test`.
+- Impressão: o cupom vai ao serviço de impressão do sistema via `expo-print`. A impressão
+  ESC/POS direta (Bluetooth/rede) fica como evolução nativa.
 
 ## Pendências conhecidas
 
-- Testes de componente (RNTL) desativados por conflito de resolvedor de módulos com o
-  layout do pnpm; os testes de domínio cobrem as regras da fila.
-- Impressão térmica adiada (exige módulo nativo ESC/POS).
 - `EXPO_PUBLIC_API_URL` de homologação ainda a confirmar.
+- Impressão ESC/POS direta (módulo nativo) fora do MVP.

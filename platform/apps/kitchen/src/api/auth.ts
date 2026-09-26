@@ -1,3 +1,4 @@
+import type { LoginRequest } from '@foodie/api-client';
 import { API_URL } from '../config';
 import { ApiError, errorMessage, safeJson } from './client';
 import type { User } from './types';
@@ -5,12 +6,13 @@ import type { User } from './types';
 export type LoginResult = { user: User; token: string };
 
 export async function login(email: string, password: string): Promise<LoginResult> {
+  const body: LoginRequest = { email: email.trim(), password };
   let response: Response;
   try {
     response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ email: email.trim(), password }),
+      body: JSON.stringify(body),
     });
   } catch {
     throw new ApiError(0, 'Sem conexão com a cozinha. Verifique a rede.');
