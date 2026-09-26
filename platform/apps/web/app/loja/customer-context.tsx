@@ -78,6 +78,15 @@ type CustomerValue = {
   setPartySize: (value: number) => void;
   orderFee: number;
   serviceFee: number;
+  manual: boolean;
+  setManual: (value: boolean) => void;
+  offlineMethods: { id: number; name: string; slug: string; instructions: string | null; requires_proof: boolean }[];
+  manualMethodId: number | null;
+  setManualMethodId: (value: number | null) => void;
+  proofUrl: string;
+  setProofUrl: (value: string) => void;
+  proofNote: string;
+  setProofNote: (value: string) => void;
   submitReview: (orderId: number, rating: number, comment: string) => Promise<boolean>;
   loadHistory: (after?: number) => Promise<{ items: Order[]; nextCursor: number | null }>;
   localMessage: string;
@@ -172,6 +181,11 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [tables, setTables] = useState<{ id: number; number: string; capacity: number }[]>([]);
   const [tableId, setTableId] = useState<number | null>(null);
   const [partySize, setPartySize] = useState(2);
+  const [manual, setManual] = useState(false);
+  const [offlineMethods, setOfflineMethods] = useState<{ id: number; name: string; slug: string; instructions: string | null; requires_proof: boolean }[]>([]);
+  const [manualMethodId, setManualMethodId] = useState<number | null>(null);
+  const [proofUrl, setProofUrl] = useState('');
+  const [proofNote, setProofNote] = useState('');
   const [deliveryEstimate, setDeliveryEstimate] = useState<Estimate | null>(null);
   const expandedOrderId = app.expandedOrderId;
   const setExpandedOrderId = app.setExpandedOrderId;
@@ -383,7 +397,8 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     if (!cartRestaurantId || !cartEntries.length || (cartRestaurantClosed && !scheduledFor) || cartBusy || placing) return;
     if (orderType === 'delivery' && (!selectedAddress?.postal_code || !cartCovered || !meetsMinimum)) return;
     if (orderType === 'dine_in' && tableId === null) { setLocalMessage('Escolha a mesa para o consumo no local.'); return; }
-    const changeForCents = orderType === 'delivery' && modality === 'on_delivery' && paymentMethod === 'cash' && changeFor.trim() ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
+    if (manual && manualMethodId === null) { setLocalMessage('Escolha um método de pagamento manual.'); return; }
+    const changeForCents = !manual && orderType === 'delivery' && modality === 'on_delivery' && paymentMethod === 'cash' && changeFor.trim() ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
     setPlacing(true); setLocalMessage(''); setOnlineCode(null);
     try {
       if (!checkoutKey.current) checkoutKey.current = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ck-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -391,9 +406,9 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
         expectedTotalCents: subtotal + orderFee - (appliedCoupon?.discountCents ?? 0) + serviceFee,
         expectedVersion: cartVersion,
         idempotencyKey: checkoutKey.current,
-        paymentMethod,
+        paymentMethod: manual ? 'pix' : paymentMethod,
         changeForCents,
-        modality,
+        modality: manual ? 'on_delivery' : modality,
         couponCode: appliedCoupon?.code,
         scheduledFor: scheduledFor || undefined,
         orderType,
@@ -403,7 +418,13 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
       const order = await request<{ id: number }>('/cart/checkout', { method: 'POST', body: JSON.stringify(body) });
       checkoutKey.current = '';
       setCart([]); setCartVersion(''); setChangeFor(''); setAppliedCoupon(null); setCouponCode(''); setScheduledFor('');
-      if (modality === 'online') {
+      if (manual) {
+        const method = offlineMethods.find((item) => item.id === manualMethodId);
+        if (!method) throw new Error('Escolha um método de pagamento manual.');
+        await request(`/orders/${order.id}/payment/offline`, { method: 'POST', body: JSON.stringify({ methodId: method.id, proofUrl: proofUrl.trim() || undefined, note: proofNote.trim() || undefined }) });
+        setProofUrl(''); setProofNote(''); setManualMethodId(null); setManual(false);
+        setLocalMessage('Pedido criado. Aguardando a confirmação do pagamento.');
+      } else if (modality === 'online') {
         try {
           const payment = await request<{ image?: { qr_code?: string; qr_code_base64?: string; ticket_url?: string } }>(`/orders/${order.id}/payment/online`, { method: 'POST', body: JSON.stringify({ method: paymentMethod === 'card' ? 'card' : 'pix' }) });
           setOnlineCode({ text: payment.image?.qr_code ?? undefined, base64: payment.image?.qr_code_base64 ?? undefined, url: payment.image?.ticket_url ?? undefined });
@@ -445,6 +466,13 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { if (tableId !== null && !tables.some((table) => table.id === tableId)) setTableId(null); }, [tables, tableId]);
 
+  useEffect(() => {
+    fetch('/backend/offline-payment-methods', { credentials: 'same-origin' })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((data) => setOfflineMethods(Array.isArray(data) ? data : []))
+      .catch(() => setOfflineMethods([]));
+  }, []);
+
   if (!user) return null;
 
   const value: CustomerValue = {
@@ -454,7 +482,8 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
     cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
     tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, scheduledFor, setScheduledFor,
-    orderType, setOrderType, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, submitReview, loadHistory,
+    orderType, setOrderType, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
+    manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, submitReview, loadHistory,
     localMessage, showAddressForm, setShowAddressForm, addressForm, setAddressForm,
     postalZone, postalMessage, postalLoading, saveAddress, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode, placing,
     placeOrder, expandedOrderId, setExpandedOrderId, showAllOrders, setShowAllOrders, cancelOrder,

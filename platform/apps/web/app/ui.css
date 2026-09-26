@@ -237,3 +237,7 @@
 .alt-login .form-help { color: var(--text-muted); }
 /* Mesas do salao (restaurante) */
 .table-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Pagamento manual (comprovante) */
+.order-proof { display: grid; gap: 6px; margin-top: var(--space-3); padding: 12px; border: 1px dashed var(--gray-300, #cbd5e1); border-radius: var(--radius-md); }
+.order-proof a { color: var(--brand-700, #1d4ed8); font-weight: 600; }
+.order-proof-actions { display: flex; gap: 8px; margin-top: 4px; }
