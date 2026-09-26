@@ -59,6 +59,18 @@ public class TableController {
         return Map.of("ok", true);
     }
 
+    @GetMapping("/restaurant/tables/{id}/session")
+    public Map<String, Object> session(@CookieValue(value = "foodie_session", required = false) String token,
+                                       @PathVariable @Min(1) long id) {
+        return tables.session(manager(token).restaurantId(), id);
+    }
+
+    @PostMapping("/restaurant/tables/{id}/session/close")
+    public Map<String, Object> closeSession(@CookieValue(value = "foodie_session", required = false) String token,
+                                            @PathVariable @Min(1) long id) {
+        return tables.closeSession(manager(token).restaurantId(), id);
+    }
+
     private User manager(String token) {
         User user = auth.requireUser(token, "restaurant");
         if (user.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");

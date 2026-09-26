@@ -81,6 +81,35 @@ public class TableService {
         return rows.getFirst();
     }
 
+    public Map<String, Object> session(long restaurantId, long tableId) {
+        find(restaurantId, tableId);
+        List<Map<String, Object>> sessions = jdbc.queryForList(
+            "SELECT id, table_id, status, opened_at FROM table_sessions WHERE table_id = ? AND restaurant_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1",
+            tableId, restaurantId
+        );
+        if (sessions.isEmpty()) return Map.of("open", false);
+        Map<String, Object> session = new java.util.LinkedHashMap<>(sessions.getFirst());
+        session.put("open", true);
+        session.put("orders", jdbc.queryForList(
+            "SELECT id, status, total_cents, order_type, party_size, created_at FROM orders WHERE table_session_id = ? AND status NOT IN ('cancelled','rejected','expired','failed') ORDER BY id",
+            session.get("id")));
+        Long total = jdbc.queryForObject(
+            "SELECT COALESCE(SUM(total_cents),0) FROM orders WHERE table_session_id = ? AND status NOT IN ('cancelled','rejected','expired','failed')",
+            Long.class, session.get("id"));
+        session.put("totalCents", total == null ? 0L : total);
+        return session;
+    }
+
+    @Transactional
+    public Map<String, Object> closeSession(long restaurantId, long tableId) {
+        find(restaurantId, tableId);
+        int changed = jdbc.update(
+            "UPDATE table_sessions SET status = 'closed', closed_at = NOW() WHERE table_id = ? AND restaurant_id = ? AND status = 'open'",
+            tableId, restaurantId);
+        if (changed == 0) throw new ApiException(409, "Não há comanda aberta nesta mesa");
+        return Map.of("ok", true);
+    }
+
     private static String cleanNumber(String number) {
         String clean = number == null ? "" : number.strip();
         if (clean.isEmpty() || clean.length() > 20) throw new ApiException(400, "Número da mesa inválido");

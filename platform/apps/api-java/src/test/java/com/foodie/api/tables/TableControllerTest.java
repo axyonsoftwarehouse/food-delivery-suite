@@ -67,4 +67,25 @@ class TableControllerTest {
         mvc.perform(get("/restaurant/tables").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
             .andExpect(status().isForbidden());
     }
+
+    @Test
+    void readsOpenTableSession() throws Exception {
+        when(auth.requireUser("s", "restaurant")).thenReturn(new User(5, "Dono", "dono@demo.local", "restaurant", 7L));
+        when(tables.session(7L, 2L)).thenReturn(Map.of("open", true, "totalCents", 2500L));
+
+        mvc.perform(get("/restaurant/tables/2/session").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.open").value(true))
+            .andExpect(jsonPath("$.totalCents").value(2500));
+    }
+
+    @Test
+    void closesTableSession() throws Exception {
+        when(auth.requireUser("s", "restaurant")).thenReturn(new User(5, "Dono", "dono@demo.local", "restaurant", 7L));
+        when(tables.closeSession(7L, 2L)).thenReturn(Map.of("ok", true));
+
+        mvc.perform(post("/restaurant/tables/2/session/close").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.ok").value(true));
+    }
 }

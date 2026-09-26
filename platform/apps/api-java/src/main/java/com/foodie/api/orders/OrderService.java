@@ -75,19 +75,20 @@ public class OrderService {
             if (address.get("postal_code") == null) throw new ApiException(409, "Recadastre o endereço com CEP antes de pedir");
             postalCoverage.requireAddressZone((String) address.get("postal_code"), zoneId);
             restaurants = jdbc.queryForList(
-                "SELECT r.timezone, r.latitude, r.longitude FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
+                "SELECT r.timezone, r.latitude, r.longitude, r.service_fee_percent FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
                 request.restaurantId(), zoneId
             );
             if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante não atende este endereço ou está fechado");
         } else {
             zoneId = 0;
             restaurants = jdbc.queryForList(
-                "SELECT r.timezone, r.latitude, r.longitude FROM restaurants r WHERE r.id = ? AND r.active = TRUE FOR UPDATE",
+                "SELECT r.timezone, r.latitude, r.longitude, r.service_fee_percent FROM restaurants r WHERE r.id = ? AND r.active = TRUE FOR UPDATE",
                 request.restaurantId()
             );
             if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante indisponível");
         }
         String timezone = (String) restaurants.getFirst().get("timezone");
+        double serviceFeePercent = "dine_in".equals(orderType) ? ((Number) restaurants.getFirst().get("service_fee_percent")).doubleValue() : 0;
         LocalDateTime scheduledAt = null;
         if (request.scheduledFor() != null && !request.scheduledFor().isBlank()) {
             try {
@@ -163,6 +164,8 @@ public class OrderService {
         long discount = coupon == null ? 0 : coupon.discountCents();
         long minimum = deliveryOrder ? number(address, "minimum_order_cents") : 0;
         long total = Math.max(0, OrderWorkflow.total(subtotal, fee, minimum) - discount);
+        long serviceFee = serviceFeePercent <= 0 ? 0 : Math.round(total * serviceFeePercent / 100.0);
+        long finalTotal = total + serviceFee;
         long finalSubtotal = subtotal;
         Long distanceMeters = estimate == null ? null : estimate.distanceMeters();
         Long durationSeconds = estimate == null ? null : estimate.durationSeconds();
@@ -178,6 +181,7 @@ public class OrderService {
 
         final Long tableIdForOrder;
         final Integer partySizeForOrder;
+        final Long sessionIdForOrder;
         if ("dine_in".equals(orderType)) {
             if (request.tableId() == null) throw new ApiException(400, "Selecione a mesa para consumo no local");
             List<Map<String, Object>> tables = jdbc.queryForList(
@@ -190,16 +194,34 @@ public class OrderService {
             if (party < 1 || party > capacity) throw new ApiException(400, "Número de pessoas acima da capacidade da mesa");
             tableIdForOrder = request.tableId();
             partySizeForOrder = party;
+            List<Long> sessions = jdbc.query(
+                "SELECT id FROM table_sessions WHERE table_id = ? AND restaurant_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1 FOR UPDATE",
+                (rs, row) -> rs.getLong(1), request.tableId(), request.restaurantId()
+            );
+            if (sessions.isEmpty()) {
+                GeneratedKeyHolder sessionKey = new GeneratedKeyHolder();
+                jdbc.update(connection -> {
+                    PreparedStatement statement = connection.prepareStatement(
+                        "INSERT INTO table_sessions (restaurant_id, table_id) VALUES (?, ?)", Statement.RETURN_GENERATED_KEYS);
+                    statement.setLong(1, request.restaurantId());
+                    statement.setLong(2, request.tableId());
+                    return statement;
+                }, sessionKey);
+                sessionIdForOrder = sessionKey.getKey().longValue();
+            } else {
+                sessionIdForOrder = sessions.getFirst();
+            }
         } else {
             tableIdForOrder = null;
             partySizeForOrder = null;
+            sessionIdForOrder = null;
         }
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         final CouponService.Applied appliedCoupon = coupon;
         final LocalDateTime orderScheduledAt = scheduledAt;
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, discount_cents, coupon_code, total_cents, distance_meters, duration_seconds, scheduled_at, order_type, table_id, party_size, service_fee_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, discount_cents, coupon_code, total_cents, distance_meters, duration_seconds, scheduled_at, order_type, table_id, party_size, service_fee_cents, table_session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 Statement.RETURN_GENERATED_KEYS
             );
             statement.setLong(1, customer.id());
@@ -211,14 +233,15 @@ public class OrderService {
             statement.setLong(7, fee);
             statement.setLong(8, discount);
             if (appliedCoupon == null) statement.setNull(9, java.sql.Types.VARCHAR); else statement.setString(9, appliedCoupon.code());
-            statement.setLong(10, total);
+            statement.setLong(10, finalTotal);
             if (distanceMeters == null) statement.setNull(11, java.sql.Types.INTEGER); else statement.setLong(11, distanceMeters);
             if (durationSeconds == null) statement.setNull(12, java.sql.Types.INTEGER); else statement.setLong(12, durationSeconds);
             if (orderScheduledAt == null) statement.setNull(13, java.sql.Types.TIMESTAMP); else statement.setObject(13, orderScheduledAt);
             statement.setString(14, orderType);
             if (tableIdForOrder == null) statement.setNull(15, java.sql.Types.BIGINT); else statement.setLong(15, tableIdForOrder);
             if (partySizeForOrder == null) statement.setNull(16, java.sql.Types.INTEGER); else statement.setInt(16, partySizeForOrder);
-            statement.setInt(17, 0);
+            statement.setLong(17, serviceFee);
+            if (sessionIdForOrder == null) statement.setNull(18, java.sql.Types.BIGINT); else statement.setLong(18, sessionIdForOrder);
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
@@ -252,7 +275,7 @@ public class OrderService {
             }
         }
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status) VALUES (?, ?, NULL, ?)", orderId, customer.id(), "placed");
-        payments.create(orderId, request.paymentMethod(), request.modality(), total, request.changeForCents());
+        payments.create(orderId, request.paymentMethod(), request.modality(), finalTotal, request.changeForCents());
         notifications.notifyRestaurant(request.restaurantId(), "order_placed", "Novo pedido #" + orderId, "Aguardando aceite do restaurante.", orderId);
         if (coupon != null) couponService.consume(coupon.couponId());
         Map<String, Object> created = new LinkedHashMap<>();
@@ -262,8 +285,10 @@ public class OrderService {
         created.put("subtotalCents", subtotal);
         created.put("deliveryFeeCents", fee);
         created.put("discountCents", discount);
-        if (coupon != null) created.put("couponCode", coupon.code());
-        created.put("totalCents", total);
+        if (coupon != null)         created.put("couponCode", coupon.code());
+        created.put("totalCents", finalTotal);
+        if (serviceFee > 0) created.put("serviceFeeCents", serviceFee);
+        if (sessionIdForOrder != null) created.put("tableSessionId", sessionIdForOrder);
         if (orderScheduledAt != null) created.put("scheduledAt", orderScheduledAt.toString());
         created.put("address", addressText);
         created.put("paymentMethod", request.paymentMethod());

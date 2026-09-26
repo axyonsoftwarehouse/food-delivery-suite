@@ -235,3 +235,5 @@
 /* Login alternativo (Google e OTP) */
 .alt-login { display: grid; gap: 10px; margin-top: var(--space-4); border-top: 1px solid #e5e7eb; padding-top: var(--space-4); }
 .alt-login .form-help { color: var(--text-muted); }
+/* Mesas do salao (restaurante) */
+.table-actions { display: flex; gap: 6px; flex-wrap: wrap; }

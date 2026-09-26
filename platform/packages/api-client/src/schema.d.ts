@@ -180,6 +180,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/tables/{id}/session/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["closeSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/restaurant/staff": {
         parameters: {
             query?: never;
@@ -1172,6 +1188,22 @@ export interface paths {
         patch: operations["adminTimezone"];
         trace?: never;
     };
+    "/admin/restaurants/{id}/service-fee": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["restaurantServiceFee"];
+        trace?: never;
+    };
     "/admin/restaurants/{id}/location": {
         parameters: {
             query?: never;
@@ -1388,6 +1420,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["byRestaurant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/restaurant/tables/{id}/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["session"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2267,6 +2315,9 @@ export interface components {
         TimezoneRequest: {
             timezone: string;
         };
+        ServiceFeeRequest: {
+            percent: number;
+        };
         LocationRequest: {
             addressText?: string;
             /** Format: double */
@@ -2877,6 +2928,32 @@ export interface operations {
                 "application/json": components["schemas"]["TableRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    closeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
@@ -5233,6 +5310,36 @@ export interface operations {
             };
         };
     };
+    restaurantServiceFee: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceFeeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     restaurantLocation: {
         parameters: {
             query?: never;
@@ -5773,6 +5880,32 @@ export interface operations {
                 id: number;
             };
             cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
         };
         requestBody?: never;
         responses: {

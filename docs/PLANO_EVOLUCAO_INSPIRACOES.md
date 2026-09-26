@@ -64,6 +64,11 @@ Cada epic traz: inspiração, objetivo, entregas, dependências e critério de p
   `/auth/otp/verify`) sobre **provedor de SMS abstrato** (`app.sms.provider`; `local` por padrão,
   `twilio` com estrutura pronta). UI de login com Google e telefone no web. **Apple** e provedor de
   SMS real ficam para quando decidido. 115 testes Java; contrato regerado.
+- **Verificação de email (pré-publicação):** agora é **exigida** para contas de cliente
+  (`REQUIRE_EMAIL_VERIFICATION`, padrão ativo) no **login** e no **checkout**
+  (`EmailVerificationGuard`); contas Google/OTP entram verificadas e o seed marca as contas demo.
+  127 testes Java. O **reset de senha** por token já funciona ponta a ponta; falta apenas um
+  **provedor de email real** (hoje o link é registrado no log).
 
 ### E03 — Dine-in, mesa e take-away
 - **Inspiração:** eFood Table (mesa/filial, capacidade, **kiosk de mesa fixa**, sessão por mesa
@@ -76,12 +81,12 @@ Cada epic traz: inspiração, objetivo, entregas, dependências e critério de p
   painel; checkout sem endereço para take-away/dine-in.
 - **Depende de:** E01 (opcional, para garçom).
 - **Pronto quando:** pedido de mesa e de retirada completam-se ponta a ponta, com comanda e KDS.
-- **Status (26/09/2026):** **checkout e fluxo entregues** — `V031`/`V032`: `restaurant_tables`;
-  `orders` com `order_type`/`table_id`/`party_size`/`service_fee_cents` e estados `served`/
-  `completed`. O checkout (`POST /cart/checkout`) aceita `orderType` (`delivery`/`take_away`/
-  `dine_in`) sem endereço para retirada/consumo, valida mesa e nº de pessoas; o restaurante pode
-  `serve` (pronto→servido) e `complete` (→concluído). 123 testes Java. **Pendente:** sessão de
-  mesa/comanda (pagar depois), taxa de serviço configurável e as UIs (mesas, checkout e cozinha).
+- **Status (26/09/2026):** **comanda, taxa e UI de mesas entregues** — `V033`: `table_sessions`
+  (comanda aberta por mesa, várias rodadas), `restaurants.service_fee_percent` e
+  `orders.table_session_id`; o pedido de dine-in entra na comanda e a taxa de serviço é aplicada;
+  endpoints `GET/POST /restaurant/tables/{id}/session[/close]` e `PATCH /admin/restaurants/{id}/service-fee`;
+  **UI de Mesas** no painel do restaurante. 129 testes Java. **Pendente:** seleção de tipo de
+  pedido/mesa no checkout do cliente e exibição de dine-in/mesa na cozinha.
 
 ### E04 — POS
 - **Inspiração:** eFood (New Sale/Orders, cliente rápido, tipos de pedido) e TiffinKing (POS).
