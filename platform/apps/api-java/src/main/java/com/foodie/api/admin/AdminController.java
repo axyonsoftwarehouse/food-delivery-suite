@@ -163,9 +163,12 @@ public class AdminController {
         Integer match = jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, body.restaurantId());
         if (match == null) throw new ApiException(400, "Restaurante não encontrado");
         String email = body.email().toLowerCase(java.util.Locale.ROOT);
+        String role = body.role() == null || body.role().isBlank() ? "restaurant" : body.role();
+        Integer exists = jdbc.query("SELECT 1 FROM users WHERE email = ?", rs -> rs.next() ? 1 : null, email);
+        if (exists != null) throw new ApiException(409, "Já existe um acesso com este email");
         long id = insert("INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, ?, ?)",
-            body.name().trim(), email, passwords.hash(body.password()), "restaurant", body.restaurantId());
-        return created(Map.of("id", id, "name", body.name().trim(), "email", email, "restaurantId", body.restaurantId()));
+            body.name().trim(), email, passwords.hash(body.password()), role, body.restaurantId());
+        return created(Map.of("id", id, "name", body.name().trim(), "email", email, "role", role, "restaurantId", body.restaurantId()));
     }
 
     @PostMapping("/couriers")
@@ -249,7 +252,8 @@ public class AdminController {
     public record RestaurantUserRequest(@Positive long restaurantId,
                                         @NotBlank @Size(min = 2, max = 120) String name,
                                         @NotBlank @Email @Size(max = 190) String email,
-                                        @NotBlank @Size(min = 12, max = 128) String password) {}
+                                        @NotBlank @Size(min = 12, max = 128) String password,
+                                        @Pattern(regexp = "restaurant|kitchen") String role) {}
     public record CourierRequest(@NotBlank @Size(min = 2, max = 120) String name,
                                  @NotBlank @Email @Size(max = 190) String email,
                                  @NotBlank @Size(min = 12, max = 128) String password) {}

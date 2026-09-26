@@ -42,7 +42,7 @@ public class CartController {
                                            @PathVariable @Positive long productId,
                                            @Valid @RequestBody DeltaRequest request) {
         if (Math.abs(request.delta()) != 1) throw new ApiException(400, "Alteração de quantidade inválida");
-        return cart.change(customer(token), productId, request.delta());
+        return cart.change(customer(token), productId, request.variationId() == null ? 0 : request.variationId(), request.addonIds(), request.delta());
     }
 
     @PostMapping("/import")
@@ -59,18 +59,22 @@ public class CartController {
     @PostMapping("/checkout")
     public ResponseEntity<Map<String, Object>> checkout(@CookieValue(value = "foodie_session", required = false) String token,
                                                         @Valid @RequestBody CheckoutRequest request) {
-        return ResponseEntity.status(201).body(cart.checkout(customer(token), request.addressId(), request.expectedTotalCents(), request.paymentMethod(), request.changeForCents(), request.modality()));
+        return ResponseEntity.status(201).body(cart.checkout(customer(token), request.addressId(), request.expectedTotalCents(), request.expectedVersion(), request.idempotencyKey(), request.paymentMethod(), request.changeForCents(), request.modality(), request.couponCode(), request.scheduledFor()));
     }
 
     private User customer(String token) {
         return auth.requireUser(token, "customer");
     }
 
-    public record DeltaRequest(@NotNull Integer delta) {}
+    public record DeltaRequest(@NotNull Integer delta, @Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds) {}
     public record ImportRequest(@NotNull @Size(max = 30) List<@Valid ImportItem> items) {}
-    public record ImportItem(@Positive long productId, @Positive @Max(20) int quantity) {}
+    public record ImportItem(@Positive long productId, @Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Positive @Max(20) int quantity) {}
     public record CheckoutRequest(@Positive long addressId, @Positive long expectedTotalCents,
+                                  @Size(max = 32) String expectedVersion,
+                                  @Size(max = 80) String idempotencyKey,
                                   @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Pattern(regexp = "cash|card|pix") String paymentMethod,
                                   @jakarta.validation.constraints.Min(0) @Max(100_000_000) Integer changeForCents,
-                                  @jakarta.validation.constraints.Pattern(regexp = "on_delivery|online") String modality) {}
+                                  @jakarta.validation.constraints.Pattern(regexp = "on_delivery|online") String modality,
+                                  @Size(max = 40) String couponCode,
+                                  @Size(max = 30) String scheduledFor) {}
 }

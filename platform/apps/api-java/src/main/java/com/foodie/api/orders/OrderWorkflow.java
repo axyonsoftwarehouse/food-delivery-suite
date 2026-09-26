@@ -7,6 +7,7 @@ public final class OrderWorkflow {
     private OrderWorkflow() {}
 
     private static final Set<String> ACTIVE = Set.of("placed", "accepted", "ready", "assigned", "picked_up");
+    private static final Set<String> RESTAURANT_SIDE = Set.of("restaurant", "kitchen");
 
     public record Transition(String nextStatus, boolean requiresReason, boolean clearsCourier) {}
 
@@ -28,9 +29,9 @@ public final class OrderWorkflow {
 
     private static boolean allowed(String current, String action, String role) {
         return switch (action) {
-            case "accept" -> "restaurant".equals(role) && "placed".equals(current);
-            case "ready" -> "restaurant".equals(role) && "accepted".equals(current);
-            case "reject" -> "restaurant".equals(role) && "placed".equals(current);
+            case "accept" -> RESTAURANT_SIDE.contains(role) && "placed".equals(current);
+            case "ready" -> RESTAURANT_SIDE.contains(role) && "accepted".equals(current);
+            case "reject" -> RESTAURANT_SIDE.contains(role) && "placed".equals(current);
             case "assign" -> "admin".equals(role) && ("ready".equals(current) || "assigned".equals(current));
             case "unassign" -> "admin".equals(role) && "assigned".equals(current);
             case "pickup" -> "courier".equals(role) && "assigned".equals(current);

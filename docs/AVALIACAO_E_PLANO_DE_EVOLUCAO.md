@@ -196,3 +196,29 @@ Liberar o piloto somente quando não houver P0 aberto aplicável ao escopo, as c
 Decisões a registrar antes das integrações: modalidades de pagamento, quem recebe/repassa valores, entrega própria ou da plataforma, área inicial, horário de operação, política de recusa/cancelamento, necessidade de adicionais/combos, quantidade de restaurantes e pedidos esperada e responsável por suporte. Questões de privacidade, termos e exigências contratuais devem ser verificadas com responsáveis competentes antes da publicação; este documento não estabelece conformidade legal.
 
 Usar este documento como backlog consolidado e manter os planos anteriores como histórico de decisões. Cada item deve receber responsável, issue, evidência de teste e estado de conclusão conforme a implementação avance.
+
+## Adendo de reconciliação — 25/09/2026
+
+Revisão do backlog A01–A12 contra o código atual da API Java e do web. As linhas acima
+permanecem como registro histórico do estado em 24/09/2026; a tabela abaixo é o retrato
+de 25/09/2026. Evidência por arquivo.
+
+| Item | Estado atual | Evidência |
+| --- | --- | --- |
+| A01 Contas sem proteção | **Implementado** | `auth/AuthRepository.java` (tabela `auth_login_limits` com janela e bloqueio), `auth/AuthService.java`, `auth/SessionCleanup.java`, tokens de uso único |
+| A02 Sem saídas para imprevistos | **Implementado** | `orders/OrderWorkflow.java`, `OrderService.java` (recusa, cancelamento, expiração 15 min, `assign`/`unassign`, `fail` com motivo em `order_events.reason`) |
+| A03 Checkout não valida versão/composição | **Resolvido** | `CartService` calcula `version` (hash da composição/preços), valida `expectedVersion` (409) e usa `order_idempotency` (`V023`) para devolver o mesmo pedido em retry; `POST /orders` foi **retirado** e o `smoke` migrou para o carrinho |
+| A04 Operação bem-sucedida aparece como erro | **Resolvido** | `web/app/app-context.tsx` mostra o sucesso da mutação e trata a recarga à parte; `CatalogManager`/`CouponsPanel` separam gravação de recarga |
+| A05 Formulários perdem dados | **Resolvido** | `CatalogManager.tsx` aguarda sucesso antes de limpar; demais formulários usam o mesmo padrão |
+| A06 Histórico/fila limitados a 100 | **Resolvido** | `OrderService.list` devolve **todos os pedidos ativos** + 100 terminais; `GET /orders/history` pagina por cursor (`after`/`status`/`limit`) e o cliente tem "Carregar mais histórico" |
+| A07 Administração insuficiente | **Implementado** | `admin/AdminController.java` (zonas, faixas de CEP, restaurantes, categorias, produtos, entregadores com aprovação/suspensão), `hours/*` |
+| A08 Pagamentos/conciliação ausentes | **Implementado** | `orders/PaymentService.java`, `payments/OnlinePaymentService.java`, `payments/MercadoPagoGateway.java`, `payments/PaymentWebhookController.java`, `GET /admin/payments` |
+| A09 Operação depende de atualização manual | **Implementado** | `web/app/app-context.tsx:187-206` (polling de 8 s, pausa em aba oculta, aviso de novo pedido, atraso > 10 min) |
+| A10 Migração sem recuperação | **Implementado** | Flyway é dono único das migrations em `api-java/.../db/migration`; `GET /health` traz versão do schema e `GET /ready` exige banco migrado |
+| A11 Testes/publicação incompletos | **Implementado em grande parte** | `pnpm verify`, `VERIFY_INTEGRATION=1 pnpm verify`, smokes dos quatro papéis, `pnpm load` |
+| A12 Publicação/recuperação incompletas | **Implementado em grande parte** | `deploy/` (`foodie-staging`), serviço `migrate` em `MIGRATE_ONLY`, `deploy/backup.sh`, `deploy/restore.sh` |
+
+Prioridades de consistência **A03, A04, A05 e A06 resolvidas** (26/09/2026): versão do carrinho e
+idempotência com a retirada de `POST /orders`, separação de gravação/recarga na UI e paginação da
+fila/histórico. O fluxo completo continua validado pelo `smoke`. A análise das inspirações externas
+está em `REFERENCIA_INSPIRACOES.md`.

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
+import './tokens.css';
 import './styles.css';
+import './ui.css';
 import { AppProvider } from './app-context';
 
 export const metadata: Metadata = {

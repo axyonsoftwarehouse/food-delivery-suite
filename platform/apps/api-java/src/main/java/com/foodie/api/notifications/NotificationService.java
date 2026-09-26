@@ -34,10 +34,11 @@ public class NotificationService {
         }, key);
         long notificationId = key.getKey().longValue();
         jdbc.update("INSERT IGNORE INTO notification_deliveries (notification_id, subscription_id) SELECT ?, id FROM push_subscriptions WHERE user_id = ?", notificationId, userId);
+        jdbc.update("INSERT IGNORE INTO device_deliveries (notification_id, device_token_id) SELECT ?, id FROM device_tokens WHERE user_id = ?", notificationId, userId);
     }
 
     public void notifyRestaurant(long restaurantId, String type, String title, String body, Long orderId) {
-        List<Long> users = jdbc.query("SELECT id FROM users WHERE restaurant_id = ? AND role = 'restaurant' AND suspended_at IS NULL", (rs, row) -> rs.getLong(1), restaurantId);
+        List<Long> users = jdbc.query("SELECT id FROM users WHERE restaurant_id = ? AND role IN ('restaurant', 'kitchen') AND suspended_at IS NULL", (rs, row) -> rs.getLong(1), restaurantId);
         for (Long userId : users) notifyUser(userId, type, title, body, orderId);
     }
 

@@ -1,7 +1,9 @@
 package com.foodie.api.notifications;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,6 +14,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -52,5 +55,38 @@ class NotificationControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.enabled").value(true))
             .andExpect(jsonPath("$.publicKey").value("chave-publica"));
+    }
+
+    @Test
+    void registersDeviceTokenForAuthenticatedUser() throws Exception {
+        when(auth.requireUser("session")).thenReturn(new User(7, "Cliente", "cliente@demo.local", "customer", null));
+
+        mvc.perform(post("/notifications/device-tokens")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"fcm-token-123\",\"platform\":\"android\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.ok").value(true));
+    }
+
+    @Test
+    void rejectsUnknownDevicePlatform() throws Exception {
+        mvc.perform(post("/notifications/device-tokens")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"fcm-token-123\",\"platform\":\"blackberry\"}"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void unregistersDeviceToken() throws Exception {
+        when(auth.requireUser("session")).thenReturn(new User(7, "Cliente", "cliente@demo.local", "customer", null));
+
+        mvc.perform(delete("/notifications/device-tokens")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"fcm-token-123\",\"platform\":\"android\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.ok").value(true));
     }
 }

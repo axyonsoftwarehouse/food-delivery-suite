@@ -5,6 +5,8 @@ app:
   cookie-secure: ${COOKIE_SECURE:false}
   public-base-url: ${PUBLIC_BASE_URL:http://127.0.0.1:3001}
   migrate-only: ${MIGRATE_ONLY:false}
+  mobile:
+    payment-return-url: ${MOBILE_PAYMENT_RETURN_URL:}
   mercadopago:
     access-token: ${MERCADOPAGO_ACCESS_TOKEN:}
     webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
@@ -17,6 +19,9 @@ app:
     public-key: ${WEBPUSH_PUBLIC_KEY:}
     private-key: ${WEBPUSH_PRIVATE_KEY:}
     subject: ${WEBPUSH_SUBJECT:mailto:contato@foodie.local}
+  fcm:
+    service-account-json: ${FCM_SERVICE_ACCOUNT_JSON:}
+    project-id: ${FCM_PROJECT_ID:}
 management:
   endpoints:
     web:
@@ -50,3 +55,9 @@ spring:
       maximum-pool-size: 8
       minimum-idle: 1
       connection-timeout: 5000
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method

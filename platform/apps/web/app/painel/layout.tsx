@@ -17,6 +17,7 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/operacao', label: 'Operação', icon: '◎' },
     { href: '/painel/zonas', label: 'Zonas e cobertura', icon: '⬡' },
     { href: '/painel/financeiro', label: 'Financeiro', icon: '$' },
+    { href: '/painel/cupons', label: 'Cupons', icon: '%' },
     { href: '/painel/equipe', label: 'Equipe e acessos', icon: '☰' },
     { href: '/painel/configuracoes', label: 'Configurações', icon: '⚙' },
   ],

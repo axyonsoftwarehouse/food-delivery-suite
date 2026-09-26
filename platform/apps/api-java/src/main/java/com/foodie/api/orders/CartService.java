@@ -1,7 +1,11 @@
 package com.foodie.api.orders;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.auth.Tokens;
 import com.foodie.api.auth.User;
+import com.foodie.api.catalog.AddonService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -15,10 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class CartService {
     private final JdbcTemplate jdbc;
     private final OrderService orders;
+    private final AddonService addonService;
+    private final ObjectMapper json;
 
-    public CartService(JdbcTemplate jdbc, OrderService orders) {
+    public CartService(JdbcTemplate jdbc, OrderService orders, AddonService addonService, ObjectMapper json) {
         this.jdbc = jdbc;
         this.orders = orders;
+        this.addonService = addonService;
+        this.json = json;
     }
 
     @Transactional
@@ -29,23 +37,33 @@ public class CartService {
     }
 
     @Transactional
-    public CartSnapshot change(User customer, long productId, int delta) {
+    public CartSnapshot change(User customer, long productId, long variationId, List<Long> addonIds, int delta) {
         lock(customer.id());
         prune(customer.id());
+        String addonKey = AddonService.key(addonIds);
         List<CartRow> current = rows(customer.id());
-        CartRow existing = current.stream().filter(row -> row.productId() == productId).findFirst().orElse(null);
+        CartRow existing = current.stream()
+            .filter(row -> row.productId() == productId && row.variationId() == variationId && row.addonKey().equals(addonKey))
+            .findFirst().orElse(null);
         if (delta > 0) {
-            long restaurantId = availableRestaurant(productId);
+            long restaurantId = availableRestaurant(productId, variationId);
+            addonService.validate(productId, variationId, AddonService.parseKey(addonKey));
             if (!current.isEmpty() && current.getFirst().restaurantId() != restaurantId) {
                 throw new ApiException(400, "Um carrinho pode conter pratos de um restaurante por vez");
             }
-            if (existing == null && current.size() >= 30) throw new ApiException(400, "O carrinho aceita até 30 pratos diferentes");
-            if (existing != null && existing.quantity() >= 20) throw new ApiException(400, "Limite de 20 unidades por prato");
-            if (existing == null) jdbc.update("INSERT INTO cart_items (user_id, product_id, quantity) VALUES (?, ?, 1)", customer.id(), productId);
-            else jdbc.update("UPDATE cart_items SET quantity = quantity + 1 WHERE user_id = ? AND product_id = ?", customer.id(), productId);
+            if (existing == null && current.size() >= 30) throw new ApiException(400, "O carrinho aceita até 30 itens diferentes");
+            if (existing != null && existing.quantity() >= 20) throw new ApiException(400, "Limite de 20 unidades por item");
+            if (existing == null) {
+                jdbc.update("INSERT INTO cart_items (user_id, product_id, variation_id, addon_key, quantity) VALUES (?, ?, ?, ?, 1)", customer.id(), productId, variationId, addonKey);
+            } else {
+                jdbc.update("UPDATE cart_items SET quantity = quantity + 1 WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ?", customer.id(), productId, variationId, addonKey);
+            }
         } else if (existing != null) {
-            if (existing.quantity() == 1) jdbc.update("DELETE FROM cart_items WHERE user_id = ? AND product_id = ?", customer.id(), productId);
-            else jdbc.update("UPDATE cart_items SET quantity = quantity - 1 WHERE user_id = ? AND product_id = ?", customer.id(), productId);
+            if (existing.quantity() == 1) {
+                jdbc.update("DELETE FROM cart_items WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ?", customer.id(), productId, variationId, addonKey);
+            } else {
+                jdbc.update("UPDATE cart_items SET quantity = quantity - 1 WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ?", customer.id(), productId, variationId, addonKey);
+            }
         }
         return snapshot(customer.id());
     }
@@ -55,14 +73,17 @@ public class CartService {
         lock(customer.id());
         prune(customer.id());
         if (!rows(customer.id()).isEmpty()) return snapshot(customer.id());
-        Set<Long> seen = new HashSet<>();
+        Set<String> seen = new HashSet<>();
         Long restaurantId = null;
         for (var item : items) {
-            if (!seen.add(item.productId())) continue;
-            Long currentRestaurant = findAvailableRestaurant(item.productId());
+            long variationId = item.variationId() == null ? 0 : item.variationId();
+            String addonKey = AddonService.key(item.addonIds());
+            if (!seen.add(item.productId() + ":" + variationId + ":" + addonKey)) continue;
+            Long currentRestaurant = findAvailableRestaurant(item.productId(), variationId);
             if (currentRestaurant == null || restaurantId != null && !restaurantId.equals(currentRestaurant)) continue;
+            try { addonService.validate(item.productId(), variationId, AddonService.parseKey(addonKey)); } catch (ApiException invalid) { continue; }
             restaurantId = currentRestaurant;
-            jdbc.update("INSERT INTO cart_items (user_id, product_id, quantity) VALUES (?, ?, ?)", customer.id(), item.productId(), item.quantity());
+            jdbc.update("INSERT INTO cart_items (user_id, product_id, variation_id, addon_key, quantity) VALUES (?, ?, ?, ?, ?)", customer.id(), item.productId(), variationId, addonKey, item.quantity());
         }
         return snapshot(customer.id());
     }
@@ -71,24 +92,50 @@ public class CartService {
     public CartSnapshot clear(User customer) {
         lock(customer.id());
         jdbc.update("DELETE FROM cart_items WHERE user_id = ?", customer.id());
-        return new CartSnapshot(List.of());
+        return new CartSnapshot(List.of(), "");
     }
 
     @Transactional
-    public Map<String, Object> checkout(User customer, long addressId, long expectedTotalCents, String paymentMethod, Integer changeForCents, String modality) {
+    public Map<String, Object> checkout(User customer, long addressId, long expectedTotalCents, String expectedVersion, String idempotencyKey, String paymentMethod, Integer changeForCents, String modality, String couponCode, String scheduledFor) {
         lock(customer.id());
         prune(customer.id());
-        List<CartRow> current = rows(customer.id());
-        if (current.isEmpty()) throw new ApiException(400, "O carrinho está vazio");
-        long restaurantId = current.getFirst().restaurantId();
+        String key = idempotencyKey == null ? null : idempotencyKey.trim();
+        if (key != null && !key.isEmpty()) {
+            List<Map<String, Object>> saved = jdbc.queryForList("SELECT response FROM order_idempotency WHERE customer_id = ? AND idem_key = ?", customer.id(), key);
+            if (!saved.isEmpty()) return readResponse((String) saved.getFirst().get("response"));
+        }
+        CartSnapshot current = snapshot(customer.id());
+        if (current.items().isEmpty()) throw new ApiException(400, "O carrinho está vazio");
+        if (expectedVersion != null && !expectedVersion.isBlank() && !expectedVersion.equals(current.version())) {
+            throw new ApiException(409, "O carrinho mudou. Atualize antes de continuar");
+        }
+        long restaurantId = current.items().getFirst().restaurantId();
         List<OrderController.Item> items = new ArrayList<>();
-        for (CartRow row : current) items.add(new OrderController.Item(row.productId(), row.quantity()));
-        Map<String, Object> order = orders.create(customer, new OrderController.OrderRequest(restaurantId, addressId, items, paymentMethod, changeForCents, modality));
+        for (CartItem item : current.items()) {
+            items.add(new OrderController.Item(item.productId(), item.variationId() == 0 ? null : item.variationId(), item.quantity(), item.addonIds().isEmpty() ? null : item.addonIds()));
+        }
+        Map<String, Object> order = orders.create(customer, new OrderController.OrderRequest(restaurantId, addressId, items, paymentMethod, changeForCents, modality, couponCode, scheduledFor));
         if (((Number) order.get("totalCents")).longValue() != expectedTotalCents) {
             throw new ApiException(409, "O valor do pedido mudou. Atualize o carrinho antes de continuar");
         }
         jdbc.update("DELETE FROM cart_items WHERE user_id = ?", customer.id());
+        if (key != null && !key.isEmpty()) {
+            try {
+                jdbc.update("INSERT INTO order_idempotency (customer_id, idem_key, order_id, response) VALUES (?, ?, ?, ?)",
+                    customer.id(), key, ((Number) order.get("id")).longValue(), json.writeValueAsString(order));
+            } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+                throw new ApiException(500, "Falha ao registrar idempotência do pedido");
+            }
+        }
         return order;
+    }
+
+    private Map<String, Object> readResponse(String value) {
+        try {
+            return json.readValue(value, new TypeReference<Map<String, Object>>() {});
+        } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+            throw new ApiException(500, "Falha ao recuperar o pedido");
+        }
     }
 
     private void lock(long customerId) {
@@ -99,31 +146,66 @@ public class CartService {
         jdbc.update("DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id JOIN restaurants r ON r.id = p.restaurant_id WHERE ci.user_id = ? AND (p.available = FALSE OR r.active = FALSE)", customerId);
     }
 
-    private long availableRestaurant(long productId) {
-        Long restaurantId = findAvailableRestaurant(productId);
+    private long availableRestaurant(long productId, long variationId) {
+        Long restaurantId = findAvailableRestaurant(productId, variationId);
         if (restaurantId == null) throw new ApiException(400, "Produto indisponível");
         return restaurantId;
     }
 
-    private Long findAvailableRestaurant(long productId) {
-        return jdbc.query(
+    private Long findAvailableRestaurant(long productId, long variationId) {
+        Long restaurantId = jdbc.query(
             "SELECT p.restaurant_id FROM products p JOIN restaurants r ON r.id = p.restaurant_id WHERE p.id = ? AND p.available = TRUE AND r.active = TRUE",
             rs -> rs.next() ? rs.getLong(1) : null, productId
         );
+        if (restaurantId == null) return null;
+        if (variationId != 0) {
+            Integer variation = jdbc.query(
+                "SELECT 1 FROM product_variations WHERE id = ? AND product_id = ? AND available = TRUE",
+                rs -> rs.next() ? 1 : null, variationId, productId
+            );
+            if (variation == null) return null;
+        }
+        return restaurantId;
     }
 
     private List<CartRow> rows(long customerId) {
         return jdbc.query(
-            "SELECT ci.product_id, ci.quantity, p.restaurant_id, p.name, p.price_cents FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE ci.user_id = ? ORDER BY ci.updated_at, ci.product_id",
-            (rs, row) -> new CartRow(rs.getLong("product_id"), rs.getInt("quantity"), rs.getLong("restaurant_id"), rs.getString("name"), rs.getInt("price_cents")), customerId
+            "SELECT ci.product_id, ci.variation_id, ci.addon_key, ci.quantity, p.restaurant_id, p.name, p.price_cents, "
+                + "v.name AS variation_name, COALESCE(v.price_delta_cents, 0) AS variation_delta_cents "
+                + "FROM cart_items ci JOIN products p ON p.id = ci.product_id "
+                + "LEFT JOIN product_variations v ON v.id = ci.variation_id "
+                + "WHERE ci.user_id = ? ORDER BY ci.updated_at, ci.product_id",
+            (rs, row) -> new CartRow(rs.getLong("product_id"), rs.getLong("variation_id"), rs.getString("addon_key"), rs.getInt("quantity"),
+                rs.getLong("restaurant_id"), rs.getString("name"), rs.getInt("price_cents"), rs.getString("variation_name"), rs.getInt("variation_delta_cents")), customerId
         );
     }
 
     private CartSnapshot snapshot(long customerId) {
-        return new CartSnapshot(rows(customerId).stream().map(row -> new CartItem(row.productId(), row.quantity(), row.restaurantId(), row.name(), row.priceCents())).toList());
+        List<CartItem> items = new ArrayList<>();
+        for (CartRow row : rows(customerId)) {
+            List<Long> addonIds = AddonService.parseKey(row.addonKey());
+            List<Map<String, Object>> addons;
+            try {
+                addons = addonService.validate(row.productId(), row.variationId(), addonIds);
+            } catch (ApiException invalid) {
+                jdbc.update("DELETE FROM cart_items WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ?",
+                    customerId, row.productId(), row.variationId(), row.addonKey());
+                continue;
+            }
+            long unit = row.priceCents() + row.variationDelta() + addonService.priceCents(addons);
+            items.add(new CartItem(row.productId(), row.variationId(), row.quantity(), row.restaurantId(), row.name(), row.priceCents(),
+                row.variationName(), unit, addonIds, addons.stream().map(addon -> (String) addon.get("name")).toList()));
+        }
+        StringBuilder canonical = new StringBuilder();
+        for (CartItem item : items) {
+            canonical.append(item.productId()).append(':').append(item.variationId()).append(':')
+                .append(item.addonIds().stream().map(String::valueOf).reduce((a, b) -> a + "." + b).orElse("")).append(':')
+                .append(item.quantity()).append(':').append(item.unitPriceCents()).append(';');
+        }
+        return new CartSnapshot(items, Tokens.hash(canonical.toString()).substring(0, 16));
     }
 
-    private record CartRow(long productId, int quantity, long restaurantId, String name, int priceCents) {}
-    public record CartItem(long productId, int quantity, long restaurantId, String name, int priceCents) {}
-    public record CartSnapshot(List<CartItem> items) {}
+    private record CartRow(long productId, long variationId, String addonKey, int quantity, long restaurantId, String name, int priceCents, String variationName, int variationDelta) {}
+    public record CartItem(long productId, long variationId, int quantity, long restaurantId, String name, int priceCents, String variationName, long unitPriceCents, List<Long> addonIds, List<String> addonNames) {}
+    public record CartSnapshot(List<CartItem> items, String version) {}
 }

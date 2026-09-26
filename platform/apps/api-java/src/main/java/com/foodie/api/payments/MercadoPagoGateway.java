@@ -19,12 +19,15 @@ public class MercadoPagoGateway implements PaymentGateway {
     private final RestClient client;
     private final String accessToken;
     private final String notificationUrl;
+    private final String paymentReturnUrl;
 
     public MercadoPagoGateway(@Value("${app.mercadopago.access-token:}") String accessToken,
                               @Value("${app.mercadopago.base-url:https://api.mercadopago.com}") String baseUrl,
-                              @Value("${app.mercadopago.notification-url:}") String notificationUrl) {
+                              @Value("${app.mercadopago.notification-url:}") String notificationUrl,
+                              @Value("${app.mobile.payment-return-url:}") String paymentReturnUrl) {
         this.accessToken = accessToken;
         this.notificationUrl = notificationUrl;
+        this.paymentReturnUrl = paymentReturnUrl;
         this.client = RestClient.builder().baseUrl(baseUrl).build();
     }
 
@@ -89,6 +92,13 @@ public class MercadoPagoGateway implements PaymentGateway {
         body.put("external_reference", String.valueOf(request.orderId()));
         body.put("payer", Map.of("email", request.payerEmail()));
         if (!notificationUrl.isBlank()) body.put("notification_url", notificationUrl);
+        if (!paymentReturnUrl.isBlank()) {
+            body.put("back_urls", Map.of(
+                "success", paymentReturnUrl,
+                "pending", paymentReturnUrl,
+                "failure", paymentReturnUrl));
+            if (paymentReturnUrl.startsWith("http")) body.put("auto_return", "approved");
+        }
 
         Map<String, Object> preference = post("/checkout/preferences", body, request.idempotencyKey());
         return new Charge(str(preference.get("id")), String.valueOf(request.orderId()), request.amountCents(), "pending", "preference_created",

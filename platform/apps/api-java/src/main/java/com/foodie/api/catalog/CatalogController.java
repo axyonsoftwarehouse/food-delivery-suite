@@ -3,7 +3,9 @@ package com.foodie.api.catalog;
 import java.util.List;
 import java.util.Map;
 import com.foodie.api.ApiException;
+import jakarta.validation.constraints.Positive;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -37,19 +39,33 @@ public class CatalogController {
         );
     }
 
+    @GetMapping("/catalog/products/{id}")
+    public Map<String, Object> product(@PathVariable @Positive long id) {
+        Map<String, Object> product = catalog.productDetail(id);
+        if (product == null) throw new ApiException(404, "Produto não encontrado");
+        return product;
+    }
+
     @GetMapping("/catalog/search")
     public CatalogRepository.SearchPage search(
         @RequestParam long zoneId,
         @RequestParam(defaultValue = "") String q,
         @RequestParam(required = false) Long categoryId,
+        @RequestParam(required = false) Long tagId,
         @RequestParam(required = false) Long after,
         @RequestParam(defaultValue = "12") int limit
     ) {
-        if (zoneId < 1 || categoryId != null && categoryId < 1 || after != null && after < 1
+        if (zoneId < 1 || categoryId != null && categoryId < 1 || tagId != null && tagId < 1 || after != null && after < 1
             || limit < 1 || limit > 30 || q.strip().length() > 80) {
             throw new ApiException(400, "Filtros de catálogo inválidos");
         }
-        return catalog.search(zoneId, q.strip(), categoryId, after, limit);
+        return catalog.search(zoneId, q.strip(), categoryId, tagId, after, limit);
+    }
+
+    @GetMapping("/catalog/tags")
+    public List<Map<String, Object>> tags(@RequestParam long zoneId) {
+        if (zoneId < 1) throw new ApiException(400, "Zona inválida");
+        return catalog.tags(zoneId);
     }
 
     @GetMapping("/zones")

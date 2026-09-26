@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -13,6 +14,7 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -111,5 +113,102 @@ class MenuControllerTest {
                 .content("{\"name\":\"Sobremesas\"}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").value(9));
+    }
+
+    @Test
+    void restaurantCreatesVariation() throws Exception {
+        when(auth.requireUser("session", "restaurant")).thenReturn(new User(5, "Cozinha", "cozinha@demo.local", "restaurant", 7L));
+        Map<String, Object> variation = new LinkedHashMap<>();
+        variation.put("id", 21L);
+        variation.put("product_id", 11L);
+        variation.put("name", "Grande");
+        variation.put("price_delta_cents", 500);
+        variation.put("available", true);
+        variation.put("sort", 0);
+        when(menu.createVariation(any(), eq(11L), eq("Grande"), eq(500), any())).thenReturn(variation);
+
+        mvc.perform(post("/restaurant/products/11/variations")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Grande\",\"priceDeltaCents\":500}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id").value(21))
+            .andExpect(jsonPath("$.price_delta_cents").value(500));
+    }
+
+    @Test
+    void restaurantRejectsNegativeVariationDelta() throws Exception {
+        when(auth.requireUser("session", "restaurant")).thenReturn(new User(5, "Cozinha", "cozinha@demo.local", "restaurant", 7L));
+
+        mvc.perform(post("/restaurant/products/11/variations")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Grande\",\"priceDeltaCents\":-100}"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminReplacesProductImagesKeepingCover() throws Exception {
+        when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
+        Map<String, Object> image = new LinkedHashMap<>();
+        image.put("id", 4L);
+        image.put("product_id", 11L);
+        image.put("url", "https://cdn.foodie.local/bowl.png");
+        image.put("is_cover", true);
+        image.put("sort", 0);
+        when(menu.replaceImages(any(), eq(11L), any())).thenReturn(List.of(image));
+
+        mvc.perform(put("/admin/products/11/images")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"images\":[{\"url\":\"https://cdn.foodie.local/bowl.png\",\"cover\":true}]}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].is_cover").value(true));
+    }
+
+    @Test
+    void restaurantCreatesAddonGroup() throws Exception {
+        when(auth.requireUser("session", "restaurant")).thenReturn(new User(5, "Cozinha", "cozinha@demo.local", "restaurant", 7L));
+        Map<String, Object> group = new LinkedHashMap<>();
+        group.put("id", 31L);
+        group.put("restaurant_id", 7L);
+        group.put("name", "Adicionais");
+        group.put("min_select", 0);
+        group.put("max_select", 3);
+        group.put("required", false);
+        when(menu.createAddonGroup(eq(7L), eq("Adicionais"), eq(0), eq(3), eq(false))).thenReturn(group);
+
+        mvc.perform(post("/restaurant/addon-groups")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Adicionais\",\"minSelect\":0,\"maxSelect\":3,\"required\":false}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.max_select").value(3));
+    }
+
+    @Test
+    void adminSetsProductAddonGroups() throws Exception {
+        when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
+        when(menu.setProductAddonGroups(any(), eq(11L), eq(0L), any())).thenReturn(List.of(Map.of("id", 31L, "name", "Adicionais")));
+
+        mvc.perform(put("/admin/products/11/addon-groups")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"groupIds\":[31]}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").value(31));
+    }
+
+    @Test
+    void restaurantCreatesTag() throws Exception {
+        when(auth.requireUser("session", "restaurant")).thenReturn(new User(5, "Cozinha", "cozinha@demo.local", "restaurant", 7L));
+        when(menu.createTag(eq(7L), eq("Vegano"))).thenReturn(Map.of("id", 41L, "name", "Vegano"));
+
+        mvc.perform(post("/restaurant/tags")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Vegano\"}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id").value(41));
     }
 }

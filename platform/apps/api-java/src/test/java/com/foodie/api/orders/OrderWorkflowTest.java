@@ -55,6 +55,23 @@ class OrderWorkflowTest {
     }
 
     @Test
+    void kitchenRunsTheSameRestaurantTransitions() {
+        assertEquals("accepted", next("placed", "accept", "kitchen"));
+        assertEquals("ready", next("accepted", "ready", "kitchen"));
+        assertEquals("rejected", next("placed", "reject", "kitchen"));
+        assertTrue(OrderWorkflow.resolve("placed", "reject", "kitchen").requiresReason());
+    }
+
+    @Test
+    void kitchenCannotAssignPickupDeliverOrCancel() {
+        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("ready", "assign", "kitchen")).status());
+        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("assigned", "pickup", "kitchen")).status());
+        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("picked_up", "deliver", "kitchen")).status());
+        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("ready", "cancel", "kitchen")).status());
+        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("accepted", "reject", "kitchen")).status());
+    }
+
+    @Test
     void respectsMinimumAndCapsTotal() {
         assertEquals(3099, OrderWorkflow.total(2500, 599, 1500));
         assertEquals(400, assertThrows(ApiException.class, () -> OrderWorkflow.total(1000, 599, 1500)).status());

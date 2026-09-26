@@ -53,9 +53,16 @@ const address = await request<{ id: number; zoneId: number }>('/addresses', cust
 assert.equal(address.zoneId, zone.id);
 const catalog = await request<{ products: { id: number }[] }>('/catalog');
 assert.ok(catalog.products.some((item) => item.id === product.id));
-await request('/orders', customer, 'POST', { restaurantId: restaurant.id, addressId: address.id, items: [{ productId: product.id, quantity: 1 }], paymentMethod: 'cash' }, 400);
+await request('/cart', customer, 'DELETE');
+await request(`/cart/items/${product.id}`, customer, 'PATCH', { delta: 1 });
+const cart = await request<{ version: string }>('/cart', customer);
+const checkoutBody = { addressId: address.id, expectedTotalCents: 3099, expectedVersion: cart.version, paymentMethod: 'cash', idempotencyKey: `smoke-${unique}` };
+await request('/cart/checkout', customer, 'POST', { ...checkoutBody, expectedVersion: 'deadbeef' }, 409);
+await request('/cart/checkout', customer, 'POST', checkoutBody, 400);
 await request('/admin/coverage', admin, 'POST', { restaurantId: restaurant.id, zoneId: zone.id }, 201);
-const order = await request<{ id: number; status: string; subtotalCents: number; deliveryFeeCents: number; totalCents: number }>('/orders', customer, 'POST', { restaurantId: restaurant.id, addressId: address.id, items: [{ productId: product.id, quantity: 1 }], paymentMethod: 'cash' }, 201);
+const order = await request<{ id: number; status: string; subtotalCents: number; deliveryFeeCents: number; totalCents: number }>('/cart/checkout', customer, 'POST', checkoutBody, 201);
+const retry = await request<{ id: number }>('/cart/checkout', customer, 'POST', checkoutBody, 201);
+assert.equal(retry.id, order.id, 'Retry idempotente deve devolver o mesmo pedido');
 assert.equal(order.status, 'placed');
 assert.equal(order.subtotalCents, 2500);
 assert.equal(order.deliveryFeeCents, 599);

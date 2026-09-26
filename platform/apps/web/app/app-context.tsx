@@ -6,11 +6,11 @@ export type Role = 'admin' | 'restaurant' | 'courier' | 'customer';
 export type User = { id: number; name: string; email: string; role: Role; restaurantId: number | null };
 export type Restaurant = { id: number; name: string; slug: string; active: boolean; open: boolean; timezone: string };
 export type Category = { id: number; restaurant_id: number; name: string };
-export type Product = { id: number; restaurant_id: number; category_id: number; name: string; description: string; price_cents: number };
+export type Product = { id: number; restaurant_id: number; category_id: number; name: string; description: string; price_cents: number; image_url?: string | null; variation_count?: number; from_price_cents?: number | null; tags?: string | null; is_combo?: boolean };
 export type Catalog = { restaurants: Restaurant[]; categories: Category[]; products: Product[]; coverage: { restaurant_id: number; zone_id: number }[] };
 export type Zone = { id: number; name: string; city: string; state: string; delivery_fee_cents: number; minimum_order_cents: number };
 export type Address = { id: number; zone_id: number; postal_code: string | null; label: string; street: string; number: string; neighborhood: string; complement: string; zone_name: string; city: string; state: string };
-export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; created_at: string; payment_method: string | null; payment_status: string | null; payment_due_cents: number | null };
+export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; created_at: string; scheduled_at?: string | null; payment_method: string | null; payment_status: string | null; payment_due_cents: number | null };
 export type Courier = { id: number; name: string; email: string; suspended: boolean; approved: boolean };
 export type PostalRange = { id: number; zone_id: number; zone_name: string; postal_start: string; postal_end: string };
 
@@ -212,9 +212,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   async function run(action: () => Promise<unknown>, success: string) {
     setBusy(true); setMessage('');
-    try { await action(); await refresh(user); setMessage(success); return true; }
-    catch (error) { setMessage(error instanceof Error ? error.message : 'Erro inesperado'); return false; }
-    finally { setBusy(false); }
+    try {
+      await action();
+      setMessage(success);
+      try { await refresh(user); }
+      catch {
+        setConnection('offline');
+        setMessage(`${success} Não foi possível recarregar os dados agora; use "Atualizar".`);
+      }
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro inesperado');
+      return false;
+    } finally { setBusy(false); }
   }
 
   function askReason(title: string) {

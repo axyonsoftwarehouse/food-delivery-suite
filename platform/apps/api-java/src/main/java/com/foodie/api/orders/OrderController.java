@@ -34,16 +34,18 @@ public class OrderController {
         this.jdbc = jdbc;
     }
 
-    @PostMapping("/orders")
-    public ResponseEntity<Map<String, Object>> create(@CookieValue(value = "foodie_session", required = false) String token,
-                                                       @Valid @RequestBody OrderRequest request) {
-        User user = auth.requireUser(token, "customer");
-        return ResponseEntity.status(201).body(orders.create(user, request));
-    }
-
     @GetMapping("/orders")
     public List<Map<String, Object>> list(@CookieValue(value = "foodie_session", required = false) String token) {
         return orders.list(auth.requireUser(token));
+    }
+
+    @GetMapping("/orders/history")
+    public Map<String, Object> history(@CookieValue(value = "foodie_session", required = false) String token,
+                                       @org.springframework.web.bind.annotation.RequestParam(required = false) String status,
+                                       @org.springframework.web.bind.annotation.RequestParam(required = false) Long after,
+                                       @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int limit) {
+        if (limit < 1 || limit > 50 || after != null && after < 1) throw new com.foodie.api.ApiException(400, "Paginação inválida");
+        return orders.history(auth.requireUser(token), status, after, limit);
     }
 
     @GetMapping("/orders/{id}")
@@ -69,7 +71,9 @@ public class OrderController {
                                @NotEmpty @Size(max = 30) List<@Valid Item> items,
                                @NotBlank @Pattern(regexp = "cash|card|pix") String paymentMethod,
                                @Min(0) @Max(100_000_000) Integer changeForCents,
-                               @Pattern(regexp = "on_delivery|online") String modality) {}
-    public record Item(@Positive long productId, @Positive @Max(20) int quantity) {}
+                               @Pattern(regexp = "on_delivery|online") String modality,
+                               @Size(max = 40) String couponCode,
+                               @Size(max = 30) String scheduledFor) {}
+    public record Item(@Positive long productId, @Positive Long variationId, @Positive @Max(20) int quantity, @Size(max = 20) List<@Positive Long> addonIds) {}
     public record StatusRequest(@NotBlank String action, @Positive Long courierId, @Size(max = 255) String reason) {}
 }

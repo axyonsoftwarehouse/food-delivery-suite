@@ -2,12 +2,15 @@ package com.foodie.api.orders;
 
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
+import com.foodie.api.catalog.AddonService;
 import com.foodie.api.catalog.PostalCoverageService;
 import com.foodie.api.hours.RestaurantHoursService;
 import com.foodie.api.notifications.NotificationService;
 import com.foodie.api.routing.DeliveryService;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -30,8 +33,10 @@ public class OrderService {
     private final PaymentService payments;
     private final DeliveryService delivery;
     private final NotificationService notifications;
+    private final AddonService addonService;
+    private final CouponService couponService;
 
-    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications) {
+    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService) {
         this.jdbc = jdbc;
         this.namedJdbc = namedJdbc;
         this.postalCoverage = postalCoverage;
@@ -39,12 +44,20 @@ public class OrderService {
         this.payments = payments;
         this.delivery = delivery;
         this.notifications = notifications;
+        this.addonService = addonService;
+        this.couponService = couponService;
     }
 
     @Transactional
     public Map<String, Object> create(User customer, OrderController.OrderRequest request) {
         Set<Long> distinctIds = new HashSet<>();
-        for (var item : request.items()) if (!distinctIds.add(item.productId())) throw new ApiException(400, "Produto repetido no pedido");
+        Set<String> distinctLines = new HashSet<>();
+        for (var item : request.items()) {
+            long variationId = item.variationId() == null ? 0 : item.variationId();
+            String addonKey = AddonService.key(item.addonIds());
+            if (!distinctLines.add(item.productId() + ":" + variationId + ":" + addonKey)) throw new ApiException(400, "Item repetido no pedido");
+            distinctIds.add(item.productId());
+        }
         List<Map<String, Object>> addresses = jdbc.queryForList(
             "SELECT a.id, a.zone_id, a.postal_code, a.street, a.number, a.neighborhood, a.complement, a.latitude, a.longitude, z.city, z.state, z.delivery_fee_cents, z.base_fee_cents, z.per_km_cents, z.minimum_order_cents FROM addresses a JOIN zones z ON z.id = a.zone_id AND z.active = TRUE WHERE a.id = ? AND a.user_id = ?",
             request.addressId(), customer.id()
@@ -59,27 +72,81 @@ public class OrderService {
             request.restaurantId(), zoneId
         );
         if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante não atende este endereço ou está fechado");
-        if (!hours.isOpen(request.restaurantId(), (String) restaurants.getFirst().get("timezone"))) {
+        String timezone = (String) restaurants.getFirst().get("timezone");
+        LocalDateTime scheduledAt = null;
+        if (request.scheduledFor() != null && !request.scheduledFor().isBlank()) {
+            try {
+                scheduledAt = LocalDateTime.parse(request.scheduledFor().trim());
+            } catch (java.time.format.DateTimeParseException error) {
+                throw new ApiException(400, "Data de agendamento inválida");
+            }
+            LocalDateTime now = LocalDateTime.now();
+            if (!scheduledAt.isAfter(now.plusMinutes(15))) throw new ApiException(400, "Agende com pelo menos 15 minutos de antecedência");
+            if (scheduledAt.isAfter(now.plusDays(7))) throw new ApiException(400, "O agendamento é limitado a 7 dias");
+            hours.requireOpenAt(request.restaurantId(), timezone, scheduledAt);
+        } else if (!hours.isOpen(request.restaurantId(), timezone)) {
             throw new ApiException(409, "Restaurante está fora do horário de funcionamento");
         }
         List<Map<String, Object>> rows = namedJdbc.queryForList(
-            "SELECT id, name, price_cents FROM products WHERE restaurant_id = :restaurantId AND available = TRUE AND id IN (:ids) FOR UPDATE",
+            "SELECT id, name, price_cents, stock FROM products WHERE restaurant_id = :restaurantId AND available = TRUE AND id IN (:ids) "
+                + "AND (available_from IS NULL OR available_until IS NULL OR CURTIME() BETWEEN available_from AND available_until) FOR UPDATE",
             new MapSqlParameterSource("restaurantId", request.restaurantId()).addValue("ids", distinctIds)
         );
-        if (rows.size() != request.items().size()) throw new ApiException(400, "Há produtos indisponíveis");
+        if (rows.size() != distinctIds.size()) throw new ApiException(400, "Há produtos indisponíveis");
         Map<Long, Map<String, Object>> products = new HashMap<>();
+        Map<Long, Integer> needed = new HashMap<>();
         for (Map<String, Object> row : rows) products.put(number(row, "id"), row);
+        for (var item : request.items()) needed.merge(item.productId(), item.quantity(), Integer::sum);
+        for (Map.Entry<Long, Integer> entry : needed.entrySet()) {
+            Object stock = products.get(entry.getKey()).get("stock");
+            if (stock != null && ((Number) stock).intValue() < entry.getValue()) {
+                throw new ApiException(409, "Estoque insuficiente para " + products.get(entry.getKey()).get("name"));
+            }
+        }
+        Set<Long> variationIds = new HashSet<>();
+        for (var item : request.items()) if (item.variationId() != null) variationIds.add(item.variationId());
+        Map<Long, Map<String, Object>> variations = new HashMap<>();
+        if (!variationIds.isEmpty()) {
+            List<Map<String, Object>> variationRows = namedJdbc.queryForList(
+                "SELECT v.id, v.product_id, v.name, v.price_delta_cents FROM product_variations v WHERE v.available = TRUE AND v.id IN (:ids)",
+                new MapSqlParameterSource("ids", variationIds)
+            );
+            for (Map<String, Object> row : variationRows) variations.put(number(row, "id"), row);
+            if (variations.size() != variationIds.size()) throw new ApiException(400, "Há variações indisponíveis");
+        }
+        Map<String, Long> unitPrices = new HashMap<>();
+        Map<String, List<Map<String, Object>>> addonsByLine = new HashMap<>();
         long subtotal = 0;
         try {
             for (var item : request.items()) {
-                subtotal = Math.addExact(subtotal, Math.multiplyExact(number(products.get(item.productId()), "price_cents"), item.quantity()));
+                long variationId = item.variationId() == null ? 0 : item.variationId();
+                String addonKey = AddonService.key(item.addonIds());
+                String lineKey = item.productId() + ":" + variationId + ":" + addonKey;
+                long unit = number(products.get(item.productId()), "price_cents");
+                if (variationId != 0) {
+                    Map<String, Object> variation = variations.get(variationId);
+                    if (variation == null || number(variation, "product_id") != item.productId()) {
+                        throw new ApiException(400, "Variação não pertence ao produto");
+                    }
+                    unit = Math.addExact(unit, number(variation, "price_delta_cents"));
+                }
+                List<Map<String, Object>> addons = addonService.validate(item.productId(), variationId, item.addonIds());
+                unit = Math.addExact(unit, addonService.priceCents(addons));
+                addonsByLine.put(lineKey, addons);
+                unitPrices.put(lineKey, unit);
+                subtotal = Math.addExact(subtotal, Math.multiplyExact(unit, item.quantity()));
             }
         } catch (ArithmeticException error) {
             throw new ApiException(400, "Valor do pedido inválido");
         }
         DeliveryService.Estimate estimate = delivery.estimate(address, restaurants.getFirst(), address);
         long fee = estimate.feeCents();
-        long total = OrderWorkflow.total(subtotal, fee, number(address, "minimum_order_cents"));
+        CouponService.Applied coupon = null;
+        if (request.couponCode() != null && !request.couponCode().isBlank()) {
+            coupon = couponService.validate(request.couponCode(), request.restaurantId(), subtotal);
+        }
+        long discount = coupon == null ? 0 : coupon.discountCents();
+        long total = Math.max(0, OrderWorkflow.total(subtotal, fee, number(address, "minimum_order_cents")) - discount);
         long finalSubtotal = subtotal;
         Long distanceMeters = estimate.distanceMeters();
         Long durationSeconds = estimate.durationSeconds();
@@ -88,9 +155,11 @@ public class OrderService {
             + (complement == null || complement.isEmpty() ? "" : ", " + complement)
             + " • " + address.get("neighborhood") + " • " + address.get("city") + "/" + address.get("state") + " • CEP " + address.get("postal_code");
         GeneratedKeyHolder key = new GeneratedKeyHolder();
+        final CouponService.Applied appliedCoupon = coupon;
+        final LocalDateTime orderScheduledAt = scheduledAt;
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, total_cents, distance_meters, duration_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, discount_cents, coupon_code, total_cents, distance_meters, duration_seconds, scheduled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 Statement.RETURN_GENERATED_KEYS
             );
             statement.setLong(1, customer.id());
@@ -100,26 +169,57 @@ public class OrderService {
             statement.setString(5, addressText);
             statement.setLong(6, finalSubtotal);
             statement.setLong(7, fee);
-            statement.setLong(8, total);
-            if (distanceMeters == null) statement.setNull(9, java.sql.Types.INTEGER); else statement.setLong(9, distanceMeters);
-            if (durationSeconds == null) statement.setNull(10, java.sql.Types.INTEGER); else statement.setLong(10, durationSeconds);
+            statement.setLong(8, discount);
+            if (appliedCoupon == null) statement.setNull(9, java.sql.Types.VARCHAR); else statement.setString(9, appliedCoupon.code());
+            statement.setLong(10, total);
+            if (distanceMeters == null) statement.setNull(11, java.sql.Types.INTEGER); else statement.setLong(11, distanceMeters);
+            if (durationSeconds == null) statement.setNull(12, java.sql.Types.INTEGER); else statement.setLong(12, durationSeconds);
+            if (orderScheduledAt == null) statement.setNull(13, java.sql.Types.TIMESTAMP); else statement.setObject(13, orderScheduledAt);
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
         for (var item : request.items()) {
+            long variationId = item.variationId() == null ? 0 : item.variationId();
+            String lineKey = item.productId() + ":" + variationId + ":" + AddonService.key(item.addonIds());
             Map<String, Object> product = products.get(item.productId());
-            jdbc.update("INSERT INTO order_items (order_id, product_id, name, quantity, unit_price_cents) VALUES (?, ?, ?, ?, ?)",
-                orderId, item.productId(), product.get("name"), item.quantity(), number(product, "price_cents"));
+            String variationName = variationId == 0 ? null : (String) variations.get(variationId).get("name");
+            GeneratedKeyHolder itemKey = new GeneratedKeyHolder();
+            jdbc.update(connection -> {
+                PreparedStatement statement = connection.prepareStatement(
+                    "INSERT INTO order_items (order_id, product_id, variation_id, name, variation_name, quantity, unit_price_cents) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS
+                );
+                statement.setLong(1, orderId);
+                statement.setLong(2, item.productId());
+                if (variationId == 0) statement.setNull(3, java.sql.Types.BIGINT); else statement.setLong(3, variationId);
+                statement.setString(4, (String) product.get("name"));
+                if (variationName == null) statement.setNull(5, java.sql.Types.VARCHAR); else statement.setString(5, variationName);
+                statement.setInt(6, item.quantity());
+                statement.setLong(7, unitPrices.get(lineKey));
+                return statement;
+            }, itemKey);
+            long orderItemId = itemKey.getKey().longValue();
+            for (Map<String, Object> addon : addonsByLine.getOrDefault(lineKey, List.of())) {
+                jdbc.update("INSERT INTO order_item_addons (order_item_id, addon_id, name, price_cents) VALUES (?, ?, ?, ?)",
+                    orderItemId, ((Number) addon.get("id")).longValue(), (String) addon.get("name"), ((Number) addon.get("price_cents")).longValue());
+            }
+            if (product.get("stock") != null) {
+                jdbc.update("UPDATE products SET stock = stock - ? WHERE id = ?", item.quantity(), item.productId());
+            }
         }
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status) VALUES (?, ?, NULL, ?)", orderId, customer.id(), "placed");
         payments.create(orderId, request.paymentMethod(), request.modality(), total, request.changeForCents());
         notifications.notifyRestaurant(request.restaurantId(), "order_placed", "Novo pedido #" + orderId, "Aguardando aceite do restaurante.", orderId);
+        if (coupon != null) couponService.consume(coupon.couponId());
         Map<String, Object> created = new LinkedHashMap<>();
         created.put("id", orderId);
         created.put("status", "placed");
         created.put("subtotalCents", subtotal);
         created.put("deliveryFeeCents", fee);
+        created.put("discountCents", discount);
+        if (coupon != null) created.put("couponCode", coupon.code());
         created.put("totalCents", total);
+        if (orderScheduledAt != null) created.put("scheduledAt", orderScheduledAt.toString());
         created.put("address", addressText);
         created.put("paymentMethod", request.paymentMethod());
         created.put("distanceMeters", distanceMeters);
@@ -128,14 +228,54 @@ public class OrderService {
         return created;
     }
 
+    private static final String ORDER_BASE = "SELECT o.id, o.status, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, r.name AS restaurant_name, p.method AS payment_method, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN order_payments p ON p.order_id = o.id ";
+    private static final String TERMINAL = "'delivered','rejected','cancelled','expired','failed'";
+    private static final int ACTIVE_LIMIT = 200;
+    private static final int HISTORY_LIMIT = 100;
+
     public List<Map<String, Object>> list(User user) {
         expireStale();
-        String base = "SELECT o.id, o.status, o.subtotal_cents, o.delivery_fee_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.created_at, r.name AS restaurant_name, p.method AS payment_method, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN order_payments p ON p.order_id = o.id ";
+        Scope scope = scope(user);
+        List<Map<String, Object>> active = jdbc.queryForList(ORDER_BASE + "WHERE " + scope.where() + " AND o.status NOT IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + ACTIVE_LIMIT, scope.args().toArray());
+        List<Map<String, Object>> terminal = jdbc.queryForList(ORDER_BASE + "WHERE " + scope.where() + " AND o.status IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + HISTORY_LIMIT, scope.args().toArray());
+        List<Map<String, Object>> merged = new ArrayList<>(active);
+        merged.addAll(terminal);
+        merged.sort((a, b) -> Long.compare(((Number) b.get("id")).longValue(), ((Number) a.get("id")).longValue()));
+        return merged;
+    }
+
+    public Map<String, Object> history(User user, String status, Long after, int limit) {
+        expireStale();
+        Scope scope = scope(user);
+        StringBuilder sql = new StringBuilder(ORDER_BASE + "WHERE " + scope.where() + " AND o.status IN (" + TERMINAL + ")");
+        List<Object> args = new ArrayList<>(scope.args());
+        if (status != null && !status.isBlank()) {
+            if (!TERMINAL.contains("'" + status + "'")) throw new ApiException(400, "Filtro de status inválido");
+            sql.append(" AND o.status = ?");
+            args.add(status);
+        }
+        if (after != null) {
+            sql.append(" AND o.id < ?");
+            args.add(after);
+        }
+        sql.append(" ORDER BY o.id DESC LIMIT ").append(limit + 1);
+        List<Map<String, Object>> rows = jdbc.queryForList(sql.toString(), args.toArray());
+        boolean hasMore = rows.size() > limit;
+        List<Map<String, Object>> items = hasMore ? rows.subList(0, limit) : rows;
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("items", items);
+        result.put("nextCursor", hasMore ? ((Number) items.getLast().get("id")).longValue() : null);
+        return result;
+    }
+
+    private record Scope(String where, List<Object> args) {}
+
+    private static Scope scope(User user) {
         return switch (user.role()) {
-            case "customer" -> jdbc.queryForList(base + "WHERE o.customer_id = ? ORDER BY o.id DESC LIMIT 100", user.id());
-            case "restaurant" -> jdbc.queryForList(base + "WHERE o.restaurant_id = ? ORDER BY o.id DESC LIMIT 100", user.restaurantId());
-            case "courier" -> jdbc.queryForList(base + "WHERE o.courier_id = ? ORDER BY o.id DESC LIMIT 100", user.id());
-            default -> jdbc.queryForList(base + "ORDER BY o.id DESC LIMIT 100");
+            case "customer" -> new Scope("o.customer_id = ?", List.of(user.id()));
+            case "restaurant", "kitchen" -> new Scope("o.restaurant_id = ?", List.of(user.restaurantId() == null ? -1L : user.restaurantId()));
+            case "courier" -> new Scope("o.courier_id = ?", List.of(user.id()));
+            default -> new Scope("1 = 1", List.of());
         };
     }
 
@@ -146,7 +286,10 @@ public class OrderService {
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);
         Map<String, Object> result = new LinkedHashMap<>(order);
-        result.put("items", jdbc.queryForList("SELECT name, quantity, unit_price_cents FROM order_items WHERE order_id = ?", orderId));
+        result.put("items", jdbc.queryForList(
+            "SELECT oi.id, oi.name, oi.variation_name, oi.quantity, oi.unit_price_cents, "
+                + "(SELECT GROUP_CONCAT(oia.name SEPARATOR ', ') FROM order_item_addons oia WHERE oia.order_item_id = oi.id) AS addons "
+                + "FROM order_items oi WHERE oi.order_id = ?", orderId));
         result.put("history", jdbc.queryForList("SELECT from_status, to_status, reason, created_at FROM order_events WHERE order_id = ? ORDER BY id", orderId));
         result.put("payment", payments.detail(orderId));
         return result;
@@ -202,7 +345,7 @@ public class OrderService {
         }
     }
 
-    private void expireStale() {        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE)", (rs, row) -> rs.getLong(1));
+    private void expireStale() {        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())", (rs, row) -> rs.getLong(1));
         for (Long id : stale) {
             if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
                 payments.cancelPending(id);
@@ -214,7 +357,7 @@ public class OrderService {
     private static void checkAccess(User user, Map<String, Object> order) {
         boolean denied = switch (user.role()) {
             case "customer" -> number(order, "customer_id") != user.id();
-            case "restaurant" -> user.restaurantId() == null || number(order, "restaurant_id") != user.restaurantId();
+            case "restaurant", "kitchen" -> user.restaurantId() == null || number(order, "restaurant_id") != user.restaurantId();
             case "courier" -> order.get("courier_id") == null || number(order, "courier_id") != user.id();
             default -> false;
         };

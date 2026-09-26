@@ -19,6 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class AuthController {
+    /** Cabeçalho lido pelos apps móveis para guardar o token e enviá-lo como {@code Authorization: Bearer}. */
+    public static final String TOKEN_HEADER = "X-Foodie-Token";
+
     private final AuthService auth;
     private final AccountService account;
     private final boolean cookieSecure;
@@ -32,14 +35,20 @@ public class AuthController {
     @PostMapping("/auth/login")
     public ResponseEntity<User> login(HttpServletRequest request, @Valid @RequestBody LoginRequest body) {
         AuthService.Login login = auth.login(body.email(), body.password(), clientIp(request));
-        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookie(login.token(), Duration.ofDays(7)).toString()).body(login.user());
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookie(login.token(), Duration.ofDays(7)).toString())
+            .header(TOKEN_HEADER, login.token())
+            .body(login.user());
     }
 
     @PostMapping("/auth/signup")
     public ResponseEntity<User> signup(HttpServletRequest request, @Valid @RequestBody SignupRequest body) {
         AuthService.Login signup = auth.signup(body.name(), body.email(), body.password(), clientIp(request));
         account.sendVerification(signup.user());
-        return ResponseEntity.status(201).header(HttpHeaders.SET_COOKIE, cookie(signup.token(), Duration.ofDays(7)).toString()).body(signup.user());
+        return ResponseEntity.status(201)
+            .header(HttpHeaders.SET_COOKIE, cookie(signup.token(), Duration.ofDays(7)).toString())
+            .header(TOKEN_HEADER, signup.token())
+            .body(signup.user());
     }
 
     @PostMapping("/auth/logout")

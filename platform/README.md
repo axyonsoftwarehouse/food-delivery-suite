@@ -28,7 +28,14 @@ O pedido é demonstrativo. A zona é determinada por faixas de CEP sem sobreposi
 
 ## Interface do cliente
 
-O cliente pode criar uma conta pela página inicial. Após o login, a home tem uma apresentação móvel inspirada no [Figma Foodie](https://www.figma.com/design/mlPWwBrTwJ53AHH4zC1gsT/Foodie---Food-Delivery-App-UI-Kit?node-id=727-25421): endereço em destaque, faixa com fotografia, categorias, busca por prato ou restaurante, cardápio e carrinho com vários itens do mesmo restaurante. A home consulta `/catalog/meta` e carrega pratos por zona em `/catalog/search`, com filtro de categoria, limite de 12 por página e cursor para "Ver mais pratos"; `/catalog` permanece disponível para as telas operacionais. O carrinho fica salvo no MariaDB por cliente, pode ser retomado em outro navegador/dispositivo e permite atualização manual para buscar mudanças feitas em outra sessão. Ao entrar pela primeira vez, a página importa itens válidos do antigo carrinho local se a conta ainda não tiver itens no servidor. A API remove produtos indisponíveis e limita quantidade e restaurante. O checkout é transacional: confirma o total mostrado na tela, cria o pedido e limpa o carrinho juntos; se o preço ou a taxa mudaram, pede atualização antes de continuar. Cliente, restaurante, admin e entregador podem abrir cada pedido para conferir itens, totais, endereço e histórico de estados; o cliente pode expandir a lista além dos cinco pedidos mais recentes. O restaurante pode pausar ou reativar os próprios produtos na interface. O catálogo é editável por completo: o admin mexe em qualquer restaurante em `/admin/restaurants/{id}/catalog` e o restaurante nas rotas equivalentes `/restaurant/...` — criar, renomear e excluir categorias, criar, editar (nome, preço, descrição, categoria), pausar e excluir produtos. Pausar sempre é permitido; excluir é bloqueado quando o produto já foi usado em pedidos (409) ou quando a categoria ainda tem produtos. O banner usa a imagem original gerada em `apps/web/public/foodie-burger-hero.png` (prompt: fotografia editorial de hambúrguer artesanal, fundo marfim e espaço à esquerda para texto; ferramenta integrada de geração de imagens). Nenhum recurso visual foi copiado do kit. A interface se atualiza sozinha a cada **8 segundos** (pausa quando a aba fica oculta e retoma ao voltar), exibe o estado da conexão com a hora da última sincronização, avisa restaurante e admin quando entra **novo pedido** (sinal sonoro e prefixo no título da aba) e marca pedidos aguardando aceite há mais de 10 minutos como atrasados. Se a API falhar, a tela mantém o último estado e tenta reconectar, voltando ao normal quando a conexão retorna.
+O cliente pode criar uma conta pela página inicial. Após o login, a home tem uma apresentação móvel inspirada no [Figma Foodie](https://www.figma.com/design/mlPWwBrTwJ53AHH4zC1gsT/Foodie---Food-Delivery-App-UI-Kit?node-id=727-25421): endereço em destaque, faixa com fotografia, categorias, busca por prato ou restaurante, cardápio e carrinho com vários itens do mesmo restaurante. A home consulta `/catalog/meta` e carrega pratos por zona em `/catalog/search`, com filtro de categoria, limite de 12 por página e cursor para "Ver mais pratos"; `/catalog` permanece disponível para as telas operacionais. O carrinho fica salvo no MariaDB por cliente, pode ser retomado em outro navegador/dispositivo e permite atualização manual para buscar mudanças feitas em outra sessão. Ao entrar pela primeira vez, a página importa itens válidos do antigo carrinho local se a conta ainda não tiver itens no servidor. A API remove produtos indisponíveis e limita quantidade e restaurante. O checkout é transacional: confirma o total mostrado na tela, cria o
+pedido e limpa o carrinho juntos; se o preço ou a taxa mudaram, pede atualização antes de continuar.
+O carrinho devolve um `version` (hash da composição e preços); o checkout envia `expectedVersion` e
+recusa (409) se o carrinho mudou, mesmo com total igual. O checkout aceita `idempotencyKey`: repetir a
+mesma operação devolve o mesmo pedido (tabela `order_idempotency`, `V023`). O endpoint transitório
+`POST /orders` foi retirado — o único caminho de criação é o carrinho. A listagem `GET /orders`
+devolve **todos os pedidos ativos** mais os 100 terminais mais recentes, e `GET /orders/history`
+pagina o histórico por cursor (`after`, `status`, `limit`). Cliente, restaurante, admin e entregador podem abrir cada pedido para conferir itens, totais, endereço e histórico de estados; o cliente pode expandir a lista além dos cinco pedidos mais recentes. O restaurante pode pausar ou reativar os próprios produtos na interface. O catálogo é editável por completo: o admin mexe em qualquer restaurante em `/admin/restaurants/{id}/catalog` e o restaurante nas rotas equivalentes `/restaurant/...` — criar, renomear e excluir categorias, criar, editar (nome, preço, descrição, categoria), pausar e excluir produtos. Pausar sempre é permitido; excluir é bloqueado quando o produto já foi usado em pedidos (409) ou quando a categoria ainda tem produtos. O banner usa a imagem original gerada em `apps/web/public/foodie-burger-hero.png` (prompt: fotografia editorial de hambúrguer artesanal, fundo marfim e espaço à esquerda para texto; ferramenta integrada de geração de imagens). Nenhum recurso visual foi copiado do kit. A interface se atualiza sozinha a cada **8 segundos** (pausa quando a aba fica oculta e retoma ao voltar), exibe o estado da conexão com a hora da última sincronização, avisa restaurante e admin quando entra **novo pedido** (sinal sonoro e prefixo no título da aba) e marca pedidos aguardando aceite há mais de 10 minutos como atrasados. Se a API falhar, a tela mantém o último estado e tenta reconectar, voltando ao normal quando a conexão retorna.
 
 ## Primeira base Java
 
@@ -37,6 +44,62 @@ O cliente pode criar uma conta pela página inicial. Após o login, a home tem u
 Para executar localmente com JDK 21 e o banco demonstrativo em funcionamento, configure as variáveis de `apps/api-java/.env.example` no terminal e rode `mvn spring-boot:run` dentro de `apps/api-java`. O servidor Java escuta em `127.0.0.1:4001` e pode ser validado em `/health`, `/catalog` e `/zones`. Para compilar e testar: `mvn test`.
 
 Com Docker Desktop ativo e `platform/.env` configurado, `docker compose --profile java up -d --build` inicia o MariaDB e a API Java em paralelo. O MariaDB precisa estar previamente migrado; esse comando não cria nem altera tabelas. Em ambiente HTTPS, defina `COOKIE_SECURE=true` para enviar o cookie apenas por HTTPS. Para validar o fluxo completo em um banco **somente de teste**, mantenha a API Java na porta 4001 e execute `pnpm --filter @foodie/api smoke` com `API_PORT=4001` e `DEMO_PASSWORD` configurados no terminal. Execute `pnpm smoke:cart` para testar duas sessões, isolamento entre clientes, incrementos simultâneos, importação local e checkout; os dois comandos criam usuários e pedidos de teste. A migration `003_cart.sql` adiciona a tabela do carrinho. As migrations passarão para o Java quando ele assumir a propriedade do schema, evitando dois sistemas de migração simultâneos.
+
+## Preparação para os apps móveis
+
+A autenticação continua por cookie de sessão no web, e os apps móveis usam o **mesmo token** via
+`Authorization: Bearer`. No login e no cadastro, a API devolve o token também no cabeçalho
+`X-Foodie-Token`; o filtro `MobileSessionFilter` aceita esse Bearer e o reaproveita como a sessão
+existente, sem tocar nos controladores. O contrato OpenAPI está em `GET /v3/api-docs` e a interface
+em `/swagger-ui.html`.
+
+Para push nativo, `POST /notifications/device-tokens` registra o token do dispositivo
+(`{ "token": "...", "platform": "android|ios|web" }`) e `DELETE` remove. A tabela `device_tokens`
+vem da migration `V016__device_tokens.sql` e as entregas em `device_deliveries` (V017). O envio usa
+o **Firebase Cloud Messaging HTTP v1** (`FirebaseFcmSender` + `FcmDispatcher`): configure
+`FCM_SERVICE_ACCOUNT_JSON` (JSON da conta de serviço em uma linha) e, se quiser, `FCM_PROJECT_ID`.
+Sem essa variável o envio fica desativado e tokens inválidos são descartados automaticamente.
+
+O retorno do pagamento online em app usa `MOBILE_PAYMENT_RETURN_URL`; quando definido, ele entra
+como `back_urls` na preferência do Mercado Pago (Pix não usa `back_urls`).
+
+## Catálogo com imagens e variações
+
+Produtos podem ter imagens e variações (`V018__catalog_variants.sql`). A leitura pública
+(`GET /catalog`, `/catalog/search`) inclui `image_url`, `variation_count` e `from_price_cents`;
+`GET /catalog/products/{id}` traz as imagens e variações disponíveis. Admin e restaurante gerenciam
+por `GET`/`POST`/`PATCH`/`DELETE .../products/{id}/variations[/{variationId}]` e
+`GET`/`PUT .../products/{id}/images`. No carrinho, `PATCH /cart/items/{productId}` aceita
+`variationId` opcional, e o pedido guarda a variação escolhida (`order_items.variation_name`) com o
+preço recalculado no servidor. O seed de demonstração cria duas variações e uma imagem para o
+"Prato da casa". No painel, cada produto tem "Variações e imagens" para editar tamanhos e capas; no
+catálogo do cliente, pratos com variações abrem um seletor e a capa aparece no card.
+
+**Adicionais (Fase 2)** vêm de `V019__catalog_addons.sql`. Admin e restaurante gerenciam grupos e
+itens por `GET`/`POST`/`PATCH`/`DELETE /admin/addon-groups[/{id}][/addons[/{addonId}]]` (restaurante
+na mesma rota com prefixo `/restaurant`), vinculam grupos ao prato por
+`GET`/`PUT .../products/{id}/addon-groups` e o cliente seleciona no modal. O servidor valida
+mínimo/máximo/obrigatório, recalcula o preço e grava os adicionais em `order_item_addons`.
+
+**Tags, cupons e avaliações (Fases 3 e 4)** vêm de `V020__catalog_tags.sql`,
+`V021__coupons.sql` e `V022__reviews.sql`. Tags têm CRUD por
+`/admin|restaurant/tags`, vínculo por `GET`/`PUT .../products/{id}/tags`, filtro em
+`/catalog/search?tagId=` e lista em `GET /catalog/tags?zoneId=`. Cupons têm CRUD em
+`/admin/coupons`, validação em `POST /coupons/validate` e aplicação no checkout (desconto gravado
+no pedido). Avaliações: `POST /orders/{id}/review` (só pedido entregue), `GET /orders/{id}/review`
+e `GET /restaurants/{id}/reviews` (público). O seed cria a tag "Destaque" e o cupom `BEMVINDO` (10%).
+
+**Combos, estoque e horário (`V024__catalog_combos_stock.sql`).** Um produto pode ser combo
+(`is_combo`) com composição em `combo_items` (`GET`/`PUT .../products/{id}/combo-items`), ter
+estoque finito (`stock`) e janela de disponibilidade (`available_from`/`available_until`). O catálogo
+oculta itens fora do horário ou sem estoque; o checkout valida e baixa o estoque. O seed traz **3
+restaurantes** com cardápios completos (variações, adicionais, combos, tags), cupons e pedidos
+entregues com avaliações.
+
+**Adicionais por variação e agendamento (`V025`/`V026`).** Grupos de adicionais podem ser vinculados
+a uma variação específica (`?variationId=`, 0 = todas) e o cliente só vê/aplica os grupos da variação
+escolhida. O checkout aceita `scheduledFor` (ISO local, >= 15 min e até 7 dias, respeitando o horário
+do restaurante) e grava `orders.scheduled_at`; pedidos agendados não expiram antes da hora.
 
 ## Organização
 

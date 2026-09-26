@@ -76,7 +76,7 @@ class PublicApiContractTest {
         when(catalog.restaurants()).thenReturn(List.of());
         when(catalog.categories()).thenReturn(List.of());
         when(catalog.coverage()).thenReturn(List.of());
-        when(catalog.search(eq(4L), eq("pizza"), eq(null), eq(null), eq(1)))
+        when(catalog.search(eq(4L), eq("pizza"), eq(null), eq(null), eq(null), eq(1)))
             .thenReturn(new CatalogRepository.SearchPage(List.of(Map.of("id", 9, "name", "Pizza")), 9L));
 
         mvc.perform(get("/catalog/meta"))
@@ -88,6 +88,21 @@ class PublicApiContractTest {
             .andExpect(jsonPath("$.nextCursor").value(9));
         mvc.perform(get("/catalog/search").param("zoneId", "4").param("limit", "31"))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void productDetailReturnsImagesAndVariations() throws Exception {
+        when(catalog.productDetail(9L)).thenReturn(Map.of(
+            "id", 9L, "name", "Pizza",
+            "images", List.of(Map.of("id", 4L, "url", "https://cdn.foodie.local/p.png", "is_cover", true)),
+            "variations", List.of(Map.of("id", 3L, "name", "Grande", "price_delta_cents", 500))));
+
+        mvc.perform(get("/catalog/products/9"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.variations[0].price_delta_cents").value(500))
+            .andExpect(jsonPath("$.images[0].is_cover").value(true));
+        when(catalog.productDetail(404L)).thenReturn(null);
+        mvc.perform(get("/catalog/products/404")).andExpect(status().isNotFound());
     }
 
     @Test

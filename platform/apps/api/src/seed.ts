@@ -7,32 +7,211 @@ if (!password || password.length < 12 || password === 'change-this-before-seedin
   throw new Error('Defina DEMO_PASSWORD com pelo menos 12 caracteres no arquivo .env da API.');
 }
 
+type IdRow = { id: number };
+
+async function firstId(sql: string, params: unknown[]): Promise<number | null> {
+  const rows = (await db.query(sql, params)) as IdRow[];
+  return rows.length ? Number(rows[0].id) : null;
+}
+
+async function insert(sql: string, params: unknown[]): Promise<number> {
+  const result = (await db.query(sql, params)) as { insertId: number };
+  return Number(result.insertId);
+}
+
+async function restaurant(name: string, slug: string): Promise<number> {
+  await db.query('INSERT INTO restaurants (name, slug) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)', [name, slug]);
+  return (await firstId('SELECT id FROM restaurants WHERE slug = ?', [slug]))!;
+}
+
+async function category(restaurantId: number, name: string): Promise<number> {
+  const existing = await firstId('SELECT id FROM categories WHERE restaurant_id = ? AND name = ?', [restaurantId, name]);
+  return existing ?? insert('INSERT INTO categories (restaurant_id, name) VALUES (?, ?)', [restaurantId, name]);
+}
+
+async function product(restaurantId: number, categoryId: number, name: string, priceCents: number, description = ''): Promise<number> {
+  const existing = await firstId('SELECT id FROM products WHERE restaurant_id = ? AND name = ?', [restaurantId, name]);
+  if (existing) return existing;
+  return insert('INSERT INTO products (restaurant_id, category_id, name, description, price_cents) VALUES (?, ?, ?, ?, ?)', [restaurantId, categoryId, name, description, priceCents]);
+}
+
+async function variation(productId: number, name: string, delta: number, sort: number) {
+  await db.query('INSERT INTO product_variations (product_id, name, price_delta_cents, sort) SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM product_variations WHERE product_id = ? AND name = ?)', [productId, name, delta, sort, productId, name]);
+}
+
+async function image(productId: number, url: string, cover = true) {
+  await db.query('INSERT INTO product_images (product_id, url, is_cover, sort) SELECT ?, ?, ?, 0 WHERE NOT EXISTS (SELECT 1 FROM product_images WHERE product_id = ?)', [productId, url, cover, productId]);
+}
+
+async function addonGroup(restaurantId: number, name: string, min: number, max: number, required = false): Promise<number> {
+  const existing = await firstId('SELECT id FROM addon_groups WHERE restaurant_id = ? AND name = ?', [restaurantId, name]);
+  return existing ?? insert('INSERT INTO addon_groups (restaurant_id, name, min_select, max_select, required) VALUES (?, ?, ?, ?, ?)', [restaurantId, name, min, max, required]);
+}
+
+async function addon(groupId: number, name: string, price: number, sort: number) {
+  await db.query('INSERT INTO addons (addon_group_id, name, price_cents, sort) SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM addons WHERE addon_group_id = ? AND name = ?)', [groupId, name, price, sort, groupId, name]);
+}
+
+async function tag(restaurantId: number, name: string): Promise<number> {
+  const existing = await firstId('SELECT id FROM tags WHERE restaurant_id = ? AND name = ?', [restaurantId, name]);
+  return existing ?? insert('INSERT INTO tags (restaurant_id, name) VALUES (?, ?)', [restaurantId, name]);
+}
+
+async function linkGroup(productId: number, groupId: number, sort = 0) {
+  await db.query('INSERT IGNORE INTO product_addon_groups (product_id, addon_group_id, sort) VALUES (?, ?, ?)', [productId, groupId, sort]);
+}
+
+async function linkTag(productId: number, tagId: number) {
+  await db.query('INSERT IGNORE INTO product_tags (product_id, tag_id) VALUES (?, ?)', [productId, tagId]);
+}
+
+async function linkCombo(comboId: number, components: [number, number][]) {
+  for (const [componentId, quantity] of components) await db.query('INSERT IGNORE INTO combo_items (product_id, component_product_id, quantity) VALUES (?, ?, ?)', [comboId, componentId, quantity]);
+}
+
 try {
   await db.query("INSERT INTO zones (name, slug, city, state, delivery_fee_cents, minimum_order_cents) VALUES ('Fortaleza • demonstração', 'fortaleza-demo', 'Fortaleza', 'CE', 599, 1500) ON DUPLICATE KEY UPDATE name = VALUES(name)");
-  const zones = await db.query("SELECT id FROM zones WHERE slug = 'fortaleza-demo'") as { id: number }[];
-  const zoneId = zones[0].id;
+  const zoneId = (await firstId("SELECT id FROM zones WHERE slug = 'fortaleza-demo'", []))!;
   await db.query("INSERT INTO zone_postal_ranges (zone_id, postal_start, postal_end) SELECT ?, '60000000', '60000999' WHERE NOT EXISTS (SELECT 1 FROM zone_postal_ranges WHERE zone_id = ? AND postal_start = '60000000' AND postal_end = '60000999')", [zoneId, zoneId]);
-  await db.query("INSERT INTO restaurants (name, slug) VALUES ('Cozinha Demo', 'cozinha-demo') ON DUPLICATE KEY UPDATE name = VALUES(name)");
-  const restaurants = await db.query("SELECT id FROM restaurants WHERE slug = 'cozinha-demo'") as { id: number }[];
-  const restaurantId = restaurants[0].id;
-  await db.query('INSERT IGNORE INTO restaurant_zones (restaurant_id, zone_id) VALUES (?, ?)', [restaurantId, zoneId]);
+
+  const cozinha = await restaurant('Cozinha Demo', 'cozinha-demo');
+  const cantina = await restaurant('Cantina do Bairro', 'cantina-do-bairro');
+  const doceria = await restaurant('Doceria Estrela', 'doceria-estrela');
+  for (const id of [cozinha, cantina, doceria]) await db.query('INSERT IGNORE INTO restaurant_zones (restaurant_id, zone_id) VALUES (?, ?)', [id, zoneId]);
+
   const users = [
     ['Admin Demo', 'admin@demo.local', 'admin', null],
-    ['Restaurante Demo', 'restaurante@demo.local', 'restaurant', restaurantId],
+    ['Restaurante Demo', 'restaurante@demo.local', 'restaurant', cozinha],
+    ['Restaurante Cantina', 'restaurante2@demo.local', 'restaurant', cantina],
+    ['Doceria Estrela', 'doceria@demo.local', 'restaurant', doceria],
     ['Entregador Demo', 'entregador@demo.local', 'courier', null],
     ['Cliente Demo', 'cliente@demo.local', 'customer', null],
   ] as const;
-  for (const [name, email, role, userRestaurantId] of users) {
-    await db.query(
-      'INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
-      [name, email, hashPassword(password), role, userRestaurantId],
-    );
+  for (const [name, email, role, restaurantId] of users) {
+    await db.query('INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)', [name, email, hashPassword(password), role, restaurantId]);
   }
   await db.query("UPDATE users SET courier_approved_at = COALESCE(courier_approved_at, NOW()) WHERE role = 'courier'");
-  await db.query("INSERT INTO categories (restaurant_id, name) SELECT ?, 'Pratos' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE restaurant_id = ? AND name = 'Pratos')", [restaurantId, restaurantId]);
-  const categories = await db.query("SELECT id FROM categories WHERE restaurant_id = ? AND name = 'Pratos'", [restaurantId]) as { id: number }[];
-  await db.query("INSERT INTO products (restaurant_id, category_id, name, description, price_cents) SELECT ?, ?, 'Prato da casa', 'Pedido demonstrativo', 2990 WHERE NOT EXISTS (SELECT 1 FROM products WHERE restaurant_id = ? AND name = 'Prato da casa')", [restaurantId, categories[0].id, restaurantId]);
-  console.log('Dados demonstrativos prontos. Usuários: admin, restaurante, entregador e cliente em @demo.local.');
+
+  // ---- Cozinha Demo ----
+  const pratos = await category(cozinha, 'Pratos');
+  const bebidas = await category(cozinha, 'Bebidas');
+  const caseiro = await product(cozinha, pratos, 'Prato da casa', 2990, 'Pedido demonstrativo');
+  await variation(caseiro, 'Porção normal', 0, 0);
+  await variation(caseiro, 'Porção grande', 500, 1);
+  await image(caseiro, '/foodie-burger-hero.png', true);
+  const bowl = await product(cozinha, pratos, 'Bowl de frango grelhado', 3490, 'Frango, arroz integral, legumes e molho da casa.');
+  await variation(bowl, 'Médio', 0, 0);
+  await variation(bowl, 'Grande', 900, 1);
+  const suco = await product(cozinha, bebidas, 'Suco natural', 1290, 'Laranja, limão ou maracujá.');
+  await variation(suco, '300 ml', 0, 0);
+  await variation(suco, '500 ml', 400, 1);
+  const brownie = await product(cozinha, pratos, 'Brownie com sorvete', 1990, 'Brownie quente com sorvete de creme.');
+  const extras = await addonGroup(cozinha, 'Adicionais', 0, 3, false);
+  await addon(extras, 'Queijo extra', 300, 0);
+  await addon(extras, 'Bacon', 500, 1);
+  await addon(extras, 'Ovo', 250, 2);
+  const ponto = await addonGroup(cozinha, 'Ponto da carne', 1, 1, true);
+  await addon(ponto, 'Mal passada', 0, 0);
+  await addon(ponto, 'Ao ponto', 0, 1);
+  await addon(ponto, 'Bem passada', 0, 2);
+  await linkGroup(caseiro, extras, 0);
+  await db.query('DELETE FROM product_addon_groups WHERE product_id = ? AND addon_group_id = ? AND variation_id = 0', [bowl, ponto]);
+  const grande = await firstId('SELECT id FROM product_variations WHERE product_id = ? AND name = ?', [bowl, 'Grande']);
+  if (grande) await db.query('INSERT IGNORE INTO product_addon_groups (product_id, addon_group_id, variation_id, sort) VALUES (?, ?, ?, 0)', [bowl, ponto, grande]);
+  await linkGroup(bowl, extras, 1);
+  const comboAlmoco = await product(cozinha, pratos, 'Combo almoço (prato + suco)', 3990, 'Prato do dia acompanhado de suco natural.');
+  await db.query('UPDATE products SET is_combo = TRUE WHERE id = ?', [comboAlmoco]);
+  await linkCombo(comboAlmoco, [[caseiro, 1], [suco, 1]]);
+  const torta = await product(cozinha, pratos, 'Torta do dia (limitada)', 1590, 'Feita todos os dias, apenas 10 unidades.');
+  await db.query('UPDATE products SET stock = 10 WHERE id = ? AND stock IS NULL', [torta]);
+  const executivo = await product(cozinha, pratos, 'Executivo do almoço', 2590, 'Disponível apenas no horário do almoço.');
+  await db.query("UPDATE products SET available_from = '11:00:00', available_until = '15:00:00' WHERE id = ? AND available_from IS NULL", [executivo]);
+  const destaque = await tag(cozinha, 'Destaque');
+  const vegano = await tag(cozinha, 'Vegano');
+  await linkTag(caseiro, destaque);
+  await linkTag(bowl, destaque);
+  await linkTag(bowl, vegano);
+
+  // ---- Cantina do Bairro ----
+  const massas = await category(cantina, 'Massas');
+  const entradas = await category(cantina, 'Entradas');
+  const lasanha = await product(cantina, massas, 'Lasanha à bolonhesa', 3690, 'Massa fresca, ragu de carne e muito queijo.');
+  await variation(lasanha, 'Individual', 0, 0);
+  await variation(lasanha, 'Para dividir', 1200, 1);
+  const nhoque = await product(cantina, massas, 'Nhoque ao sugo', 3290, 'Nhoque de batata com molho de tomate e manjericão.');
+  const focaccia = await product(cantina, entradas, 'Focaccia de alho', 1890, 'Assada na hora, com alecrim e flor de sal.');
+  const vinho = await category(cantina, 'Bebidas');
+  const limonada = await product(cantina, vinho, 'Limonada italiana', 1490, 'Limão siciliano, gelo e hortelã.');
+  const massasExtras = await addonGroup(cantina, 'Para a massa', 0, 2, false);
+  await addon(massasExtras, 'Parmesão extra', 400, 0);
+  await addon(massasExtras, 'Molho branco', 600, 1);
+  await linkGroup(lasanha, massasExtras, 0);
+  await linkGroup(nhoque, massasExtras, 0);
+  const italiano = await tag(cantina, 'Italiano');
+  await linkTag(lasanha, italiano);
+  await linkTag(focaccia, italiano);
+  const comboItaliano = await product(cantina, massas, 'Combo italiano', 4590, 'Massa + limonada.');
+  await db.query('UPDATE products SET is_combo = TRUE WHERE id = ?', [comboItaliano]);
+  await linkCombo(comboItaliano, [[nhoque, 1], [limonada, 1]]);
+
+  // ---- Doceria Estrela ----
+  const doces = await category(doceria, 'Doces');
+  const cafeterias = await category(doceria, 'Cafés');
+  const bolo = await product(doceria, doces, 'Fatia de bolo de chocolate', 1790, 'Bolo úmido com ganache meio amargo.');
+  await variation(bolo, 'Fatia', 0, 0);
+  await variation(bolo, 'Inteiro (encomenda)', 8900, 1);
+  const coxinhaDoce = await product(doceria, doces, 'Brigadeiro gourmet', 590, 'Feito com chocolate belga.');
+  const cappuccino = await product(doceria, cafeterias, 'Cappuccino', 1390, 'Expresso com leite vaporizado e cacau.');
+  await variation(cappuccino, 'Médio', 0, 0);
+  await variation(cappuccino, 'Grande', 300, 1);
+  const coberturas = await addonGroup(doceria, 'Coberturas', 0, 2, false);
+  await addon(coberturas, 'Calda de morango', 300, 0);
+  await addon(coberturas, 'Chantilly', 350, 1);
+  await linkGroup(bolo, coberturas, 0);
+  const docesTag = await tag(doceria, 'Doce');
+  await linkTag(bolo, docesTag);
+  await linkTag(coxinhaDoce, docesTag);
+  const cafeComDoce = await product(doceria, doces, 'Combo café com doce', 1990, 'Cappuccino médio + brigadeiro.');
+  await db.query('UPDATE products SET is_combo = TRUE WHERE id = ?', [cafeComDoce]);
+  await linkCombo(cafeComDoce, [[cappuccino, 1], [coxinhaDoce, 1]]);
+
+  // ---- Cupons ----
+  await db.query("INSERT INTO coupons (code, discount_type, discount_value, min_order_cents) SELECT 'BEMVINDO', 'percent', 10, 0 WHERE NOT EXISTS (SELECT 1 FROM coupons WHERE code = 'BEMVINDO')");
+  await db.query("INSERT INTO coupons (code, discount_type, discount_value, min_order_cents) SELECT 'FRETE10', 'fixed', 1000, 4000 WHERE NOT EXISTS (SELECT 1 FROM coupons WHERE code = 'FRETE10')");
+  await db.query("INSERT INTO coupons (restaurant_id, code, discount_type, discount_value, min_order_cents) SELECT ?, 'CANTINA15', 'percent', 15, 3000 WHERE NOT EXISTS (SELECT 1 FROM coupons WHERE code = 'CANTINA15')", [cantina]);
+
+  // ---- Pedidos entregues e avaliações (mocks) ----
+  const customerId = (await firstId("SELECT id FROM users WHERE email = 'cliente@demo.local'", []))!;
+  const reviews = (await db.query('SELECT COUNT(*) AS c FROM reviews WHERE customer_id = ?', [customerId])) as { c: number }[];
+  if (Number(reviews[0].c) === 0) {
+    let addressId = await firstId('SELECT id FROM addresses WHERE user_id = ? LIMIT 1', [customerId]);
+    if (!addressId) {
+      addressId = await insert("INSERT INTO addresses (user_id, zone_id, postal_code, label, street, number, neighborhood) VALUES (?, ?, '60000001', 'Casa', 'Rua Demo', '100', 'Centro')", [customerId, zoneId]);
+    }
+    const fee = Number(((await db.query('SELECT delivery_fee_cents FROM zones WHERE id = ?', [zoneId])) as { delivery_fee_cents: number }[])[0].delivery_fee_cents);
+    const demoOrders: { restaurantId: number; items: [number, string, number, number][]; daysAgo: number; rating: number; comment: string }[] = [
+      { restaurantId: cozinha, items: [[caseiro, 'Prato da casa', 2990, 1], [suco, 'Suco natural', 1290, 2]], daysAgo: 2, rating: 5, comment: 'Chegou quentinho e muito saboroso!' },
+      { restaurantId: cantina, items: [[lasanha, 'Lasanha à bolonhesa', 3690, 1], [limonada, 'Limonada italiana', 1490, 1]], daysAgo: 5, rating: 4, comment: 'Massa ótima; a limonada podia ter mais gelo.' },
+      { restaurantId: doceria, items: [[bolo, 'Fatia de bolo de chocolate', 1790, 2], [cappuccino, 'Cappuccino', 1390, 2]], daysAgo: 9, rating: 5, comment: 'Melhor bolo da região.' },
+    ];
+    for (const entry of demoOrders) {
+      const subtotal = entry.items.reduce((sum, [, , price, quantity]) => sum + price * quantity, 0);
+      const total = subtotal + fee;
+      const orderId = await insert(
+        "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, total_cents, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'delivered', DATE_SUB(NOW(), INTERVAL ? DAY))",
+        [customerId, entry.restaurantId, zoneId, addressId, 'Rua Demo, 100 • Centro • Fortaleza/CE • CEP 60000001', subtotal, fee, total, entry.daysAgo],
+      );
+      for (const [productId, name, price, quantity] of entry.items) {
+        await db.query('INSERT INTO order_items (order_id, product_id, name, quantity, unit_price_cents) VALUES (?, ?, ?, ?, ?)', [orderId, productId, name, quantity, price]);
+      }
+      await db.query("INSERT INTO order_payments (order_id, method, status, amount_due_cents, amount_received_cents, change_cents, confirmed_at) VALUES (?, 'cash', 'paid', ?, ?, 0, NOW())", [orderId, total, total]);
+      await db.query("INSERT INTO order_events (order_id, actor_id, from_status, to_status) VALUES (?, ?, NULL, 'placed')", [orderId, customerId]);
+      await db.query("INSERT INTO order_events (order_id, actor_id, from_status, to_status) VALUES (?, ?, 'placed', 'delivered')", [orderId, customerId]);
+      await db.query('INSERT INTO reviews (order_id, customer_id, restaurant_id, rating, comment) VALUES (?, ?, ?, ?, ?)', [orderId, customerId, entry.restaurantId, entry.rating, entry.comment]);
+    }
+  }
+
+  console.log('Dados demonstrativos prontos: 3 restaurantes, cardápios com variações/adicionais/combos, tags, cupons e avaliações. Usuários demo em @demo.local.');
 } finally {
   await db.end();
 }

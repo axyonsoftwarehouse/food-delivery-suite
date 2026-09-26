@@ -24,7 +24,7 @@
 |---|---|
 | Controllers | 161 |
 | Models | 128 |
-| Migrations / tabelas | 358 / ~143 |
+| Migrations / tabelas | 358 / ~140 |
 | Rotas API v1 (+v2) | ~295 (+1) |
 | Rotas Admin (Blade) | ~729 |
 | Rotas Vendor (Blade) | ~243 |

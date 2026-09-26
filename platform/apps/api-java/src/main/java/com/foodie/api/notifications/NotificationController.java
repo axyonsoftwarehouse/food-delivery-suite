@@ -5,11 +5,13 @@ import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -79,4 +81,25 @@ public class NotificationController {
                                       @NotBlank @Size(max = 255) String auth) {}
 
     public record UnsubscribeRequest(@NotBlank @Size(max = 512) String endpoint) {}
+
+    @PostMapping("/device-tokens")
+    public Map<String, Boolean> registerDevice(@CookieValue(value = "foodie_session", required = false) String token,
+                                               @Valid @RequestBody DeviceTokenRequest body) {
+        long userId = auth.requireUser(token).id();
+        jdbc.update("INSERT INTO device_tokens (user_id, token, platform) VALUES (?, ?, ?) "
+                + "ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), platform = VALUES(platform), last_seen_at = NOW()",
+            userId, body.token(), body.platform());
+        return Map.of("ok", true);
+    }
+
+    @DeleteMapping("/device-tokens")
+    public Map<String, Boolean> unregisterDevice(@CookieValue(value = "foodie_session", required = false) String token,
+                                                 @Valid @RequestBody DeviceTokenRequest body) {
+        long userId = auth.requireUser(token).id();
+        jdbc.update("DELETE FROM device_tokens WHERE user_id = ? AND token = ?", userId, body.token());
+        return Map.of("ok", true);
+    }
+
+    public record DeviceTokenRequest(@NotBlank @Size(max = 255) String token,
+                                     @NotBlank @Pattern(regexp = "android|ios|web") String platform) {}
 }

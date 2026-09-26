@@ -42,7 +42,8 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.restaurantId").value(org.hamcrest.Matchers.nullValue()))
             .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("foodie_session=")))
             .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly")))
-            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("SameSite=Lax")));
+            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("SameSite=Lax")))
+            .andExpect(header().string("X-Foodie-Token", "a".repeat(64)));
     }
 
     @Test

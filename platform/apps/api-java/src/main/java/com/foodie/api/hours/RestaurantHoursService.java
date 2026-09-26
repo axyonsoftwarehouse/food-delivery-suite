@@ -30,6 +30,14 @@ public class RestaurantHoursService {
         return RestaurantSchedule.isOpen(intervals(restaurantId), RestaurantSchedule.dayOfWeek(now), now.toLocalTime());
     }
 
+    /** Verifica se o restaurante está aberto em um horário local específico (para pedidos agendados). */
+    public void requireOpenAt(long restaurantId, String timezone, LocalDateTime local) {
+        if (timezone == null || timezone.isBlank()) return;
+        if (!RestaurantSchedule.isOpen(intervals(restaurantId), RestaurantSchedule.dayOfWeek(local), local.toLocalTime())) {
+            throw new ApiException(409, "O restaurante não abre nesse horário");
+        }
+    }
+
     public String timezone(long restaurantId) {
         List<String> values = jdbc.query("SELECT timezone FROM restaurants WHERE id = ?", (rs, row) -> rs.getString("timezone"), restaurantId);
         if (values.isEmpty()) throw new ApiException(404, "Restaurante não encontrado");
