@@ -90,6 +90,7 @@ try {
   for (const [name, email, role, restaurantId] of users) {
     await db.query('INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)', [name, email, hashPassword(password), role, restaurantId]);
   }
+  await db.query("UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE email LIKE '%@demo.local'");
   await db.query("UPDATE users SET courier_approved_at = COALESCE(courier_approved_at, NOW()) WHERE role = 'courier'");
 
   // ---- Cozinha Demo ----

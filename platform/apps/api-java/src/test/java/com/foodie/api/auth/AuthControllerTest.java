@@ -36,6 +36,9 @@ class AuthControllerTest {
     @MockitoBean
     private SocialAuthService social;
 
+    @MockitoBean
+    private EmailVerificationGuard verification;
+
     @Test
     void loginKeepsResponseAndCookieContract() throws Exception {
         var user = new User(7, "Cliente", "cliente@demo.local", "customer", null);

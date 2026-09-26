@@ -26,20 +26,23 @@ public class AuthController {
     private final AccountService account;
     private final PhoneOtpService otp;
     private final SocialAuthService social;
+    private final EmailVerificationGuard verification;
     private final boolean cookieSecure;
 
     public AuthController(AuthService auth, AccountService account, PhoneOtpService otp, SocialAuthService social,
-                          @Value("${app.cookie-secure:false}") boolean cookieSecure) {
+                          EmailVerificationGuard verification, @Value("${app.cookie-secure:false}") boolean cookieSecure) {
         this.auth = auth;
         this.account = account;
         this.otp = otp;
         this.social = social;
+        this.verification = verification;
         this.cookieSecure = cookieSecure;
     }
 
     @PostMapping("/auth/login")
     public ResponseEntity<User> login(HttpServletRequest request, @Valid @RequestBody LoginRequest body) {
         AuthService.Login login = auth.login(body.email(), body.password(), clientIp(request));
+        verification.requireVerified(login.user());
         return ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, cookie(login.token(), Duration.ofDays(7)).toString())
             .header(TOKEN_HEADER, login.token())

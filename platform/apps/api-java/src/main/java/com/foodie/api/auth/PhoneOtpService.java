@@ -46,6 +46,7 @@ public class PhoneOtpService {
                 : name.strip();
             return repository.createCustomerWithPhone(displayName, normalized, passwords.hash(Tokens.random()));
         });
+        repository.markEmailVerified(user.id());
         String token = Tokens.random();
         repository.createSession(Tokens.hash(token), user.id());
         return new AuthService.Login(user, token);

@@ -19,6 +19,7 @@ public class SocialAuthService {
         GoogleIdentityService.GoogleIdentity identity = google.verify(idToken);
         User user = repository.findByEmail(identity.email()).orElseGet(() ->
             repository.createCustomer(identity.name(), identity.email(), passwords.hash(Tokens.random())));
+        repository.markEmailVerified(user.id());
         String token = Tokens.random();
         repository.createSession(Tokens.hash(token), user.id());
         return new AuthService.Login(user, token);

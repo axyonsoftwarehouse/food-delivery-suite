@@ -8,6 +8,7 @@ app:
   payments:
     default-provider: ${PAYMENTS_DEFAULT_PROVIDER:mercadopago}
   auth:
+    require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
     google:
       client-id: ${GOOGLE_CLIENT_ID:}
       base-url: ${GOOGLE_BASE_URL:https://oauth2.googleapis.com}

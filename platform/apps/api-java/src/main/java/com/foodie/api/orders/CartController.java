@@ -2,6 +2,7 @@ package com.foodie.api.orders;
 
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
+import com.foodie.api.auth.EmailVerificationGuard;
 import com.foodie.api.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -26,10 +27,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class CartController {
     private final AuthService auth;
     private final CartService cart;
+    private final EmailVerificationGuard verification;
 
-    public CartController(AuthService auth, CartService cart) {
+    public CartController(AuthService auth, CartService cart, EmailVerificationGuard verification) {
         this.auth = auth;
         this.cart = cart;
+        this.verification = verification;
     }
 
     @GetMapping
@@ -59,7 +62,9 @@ public class CartController {
     @PostMapping("/checkout")
     public ResponseEntity<Map<String, Object>> checkout(@CookieValue(value = "foodie_session", required = false) String token,
                                                         @Valid @RequestBody CheckoutRequest request) {
-        return ResponseEntity.status(201).body(cart.checkout(customer(token), request.addressId(), request.expectedTotalCents(), request.expectedVersion(), request.idempotencyKey(), request.paymentMethod(), request.changeForCents(), request.modality(), request.couponCode(), request.scheduledFor(), request.orderType(), request.tableId(), request.partySize()));
+        User customer = customer(token);
+        verification.requireVerified(customer);
+        return ResponseEntity.status(201).body(cart.checkout(customer, request.addressId(), request.expectedTotalCents(), request.expectedVersion(), request.idempotencyKey(), request.paymentMethod(), request.changeForCents(), request.modality(), request.couponCode(), request.scheduledFor(), request.orderType(), request.tableId(), request.partySize()));
     }
 
     private User customer(String token) {
