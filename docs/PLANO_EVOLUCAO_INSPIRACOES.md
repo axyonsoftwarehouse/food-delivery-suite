@@ -189,6 +189,10 @@ Cada epic traz: inspiração, objetivo, entregas, dependências e critério de p
   dark mode; painéis de analytics.
 - **Depende de:** —
 - **Pronto quando:** um idioma além de pt-BR e o modo manutenção por canal funcionam.
+- **Status (26/09/2026):** base de i18n entregue no web com **inglês e espanhol** (sem RTL):
+  dicionários pt/en/es, `I18nProvider`/`useI18n`, seletor de idioma persistido por cookie e
+  aplicação no **login**, no **painel** (menu, topo, rodapé) e na **loja** (navegação, cabeçalho).
+  As demais telas migram incrementalmente. **Modo manutenção por canal** ainda pendente.
 
 ### E17 — Melhorias do KDS (nossa cozinha)
 - **Inspiração:** eFood Kitchen.

@@ -3,41 +3,43 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { labels, useApp } from '../app-context';
+import { useApp } from '../app-context';
+import { LanguageSwitcher, useI18n } from '../i18n';
 import NotificationsBell from '../NotificationsBell';
 
-type Item = { href: string; label: string; icon: string };
+type Item = { href: string; key: string; icon: string };
 
 const menuFor: Record<string, Item[]> = {
   admin: [
-    { href: '/painel', label: 'Visão geral', icon: '◫' },
-    { href: '/painel/pedidos', label: 'Pedidos', icon: '▤' },
-    { href: '/painel/catalogo', label: 'Catálogo', icon: '◉' },
-    { href: '/painel/horarios', label: 'Horários', icon: '◔' },
-    { href: '/painel/operacao', label: 'Operação', icon: '◎' },
-    { href: '/painel/zonas', label: 'Zonas e cobertura', icon: '⬡' },
-    { href: '/painel/financeiro', label: 'Financeiro', icon: '$' },
-    { href: '/painel/cupons', label: 'Cupons', icon: '%' },
-    { href: '/painel/equipe', label: 'Equipe e acessos', icon: '☰' },
-    { href: '/painel/configuracoes', label: 'Configurações', icon: '⚙' },
+    { href: '/painel', key: 'nav.panel.overview', icon: '◫' },
+    { href: '/painel/pedidos', key: 'nav.panel.orders', icon: '▤' },
+    { href: '/painel/catalogo', key: 'nav.panel.catalog', icon: '◉' },
+    { href: '/painel/horarios', key: 'nav.panel.hours', icon: '◔' },
+    { href: '/painel/operacao', key: 'nav.panel.operation', icon: '◎' },
+    { href: '/painel/zonas', key: 'nav.panel.zones', icon: '⬡' },
+    { href: '/painel/financeiro', key: 'nav.panel.finance', icon: '$' },
+    { href: '/painel/cupons', key: 'nav.panel.coupons', icon: '%' },
+    { href: '/painel/equipe', key: 'nav.panel.team', icon: '☰' },
+    { href: '/painel/configuracoes', key: 'nav.panel.settings', icon: '⚙' },
   ],
   restaurant: [
-    { href: '/painel', label: 'Visão geral', icon: '◫' },
-    { href: '/painel/pedidos', label: 'Pedidos', icon: '▤' },
-    { href: '/painel/catalogo', label: 'Catálogo', icon: '◉' },
-    { href: '/painel/horarios', label: 'Horários', icon: '◔' },
-    { href: '/painel/configuracoes', label: 'Configurações', icon: '⚙' },
+    { href: '/painel', key: 'nav.panel.overview', icon: '◫' },
+    { href: '/painel/pedidos', key: 'nav.panel.orders', icon: '▤' },
+    { href: '/painel/catalogo', key: 'nav.panel.catalog', icon: '◉' },
+    { href: '/painel/horarios', key: 'nav.panel.hours', icon: '◔' },
+    { href: '/painel/configuracoes', key: 'nav.panel.settings', icon: '⚙' },
   ],
   courier: [
-    { href: '/painel', label: 'Visão geral', icon: '◫' },
-    { href: '/painel/pedidos', label: 'Minhas entregas', icon: '▤' },
-    { href: '/painel/configuracoes', label: 'Configurações', icon: '⚙' },
+    { href: '/painel', key: 'nav.panel.overview', icon: '◫' },
+    { href: '/painel/pedidos', key: 'nav.panel.deliveries', icon: '▤' },
+    { href: '/painel/configuracoes', key: 'nav.panel.settings', icon: '⚙' },
   ],
 };
 
 export default function PainelLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { t, locale } = useI18n();
   const { user, initializing, connection, lastSync, busy, message, newOrderNotice, setNewOrderNotice, logout, permissions } = useApp();
 
   useEffect(() => {
@@ -47,30 +49,33 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
   }, [initializing, user, router]);
 
   if (initializing || !user || user.role === 'customer') {
-    return <main className="app-loading" role="status"><span className="app-loading-brand">✦ foodie<span>.</span></span><p>Carregando painel...</p></main>;
+    return <main className="app-loading" role="status"><span className="app-loading-brand">✦ foodie<span>.</span></span><p>{t('panel.loading')}</p></main>;
   }
 
   const menu = [...(menuFor[user.role] ?? [])];
   if ((user.role === 'restaurant' || user.role === 'admin') && permissions.includes('staff.manage') && !menu.some((item) => item.href === '/painel/equipe')) {
-    menu.splice(Math.max(menu.length - 1, 0), 0, { href: '/painel/equipe', label: 'Equipe e acessos', icon: '👥' });
+    menu.splice(Math.max(menu.length - 1, 0), 0, { href: '/painel/equipe', key: 'nav.panel.team', icon: '☰' });
   }
+
+  const timeLocale = locale === 'pt' ? 'pt-BR' : locale === 'en' ? 'en-US' : 'es-ES';
+  const syncedAt = lastSync ? lastSync.toLocaleTimeString(timeLocale) : '';
 
   return <main className="shell">
     <aside className="sidebar">
       <Link className="brand" href="/painel"><span className="brand-mark">F</span><span>foodie<span className="brand-dot">.</span></span></Link>
-      <div className="side-kicker">PLATAFORMA INDEPENDENTE</div>
+      <div className="side-kicker">{t('panel.kicker')}</div>
       <nav className="side-nav">
-        {menu.map((item) => <Link key={item.href} className={`nav-item${pathname === item.href ? ' active' : ''}`} href={item.href}><span>{item.icon}</span> {item.label}</Link>)}
+        {menu.map((item) => <Link key={item.href} className={`nav-item${pathname === item.href ? ' active' : ''}`} href={item.href}><span>{item.icon}</span> {t(item.key)}</Link>)}
       </nav>
-      <div className="side-bottom"><div className="side-art">✦<br /><span>Seu próximo pedido<br />começa aqui.</span></div><small>Protótipo funcional • dados de demonstração</small></div>
+      <div className="side-bottom"><div className="side-art">✦<br /><span>{t('panel.sideArt')}</span></div><small>{t('panel.prototype')}</small></div>
     </aside>
 
     <section className="content">
-      <header className="topbar"><div><span className="eyebrow">FOODIE / OPERAÇÃO</span><h1>Olá, {user.name.split(' ')[0]}!</h1></div><div className="top-actions"><span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString('pt-BR')}` : ''}>{connection === 'online' ? `● ao vivo${lastSync ? ` · ${lastSync.toLocaleTimeString('pt-BR')}` : ''}` : '● sem conexão'}</span><NotificationsBell onOpenOrder={(orderId) => router.push(`/painel/pedidos?order=${orderId}`)} /><span className="role-pill">{labels[user.role]}</span><button className="text-button" onClick={logout} disabled={busy}>Sair</button></div></header>
+      <header className="topbar"><div><span className="eyebrow">FOODIE / OPERAÇÃO</span><h1>{t('panel.greeting', { name: user.name.split(' ')[0] })}</h1></div><div className="top-actions"><span className={`live-status ${connection}`} title={syncedAt ? t('panel.syncAt', { time: syncedAt }) : ''}>{connection === 'online' ? `● ${t('panel.live')}` : `● ${t('panel.offline')}`}</span><LanguageSwitcher /><NotificationsBell onOpenOrder={(orderId) => router.push(`/painel/pedidos?order=${orderId}`)} /><span className="role-pill">{t(`role.${user.role}`)}</span><button className="text-button" onClick={logout} disabled={busy}>{t('common.logout')}</button></div></header>
       {message && <div className="notice" role="status">{message}</div>}
-      {newOrderNotice && <div className="notice alert" role="alert">{newOrderNotice}<button className="text-button" onClick={() => setNewOrderNotice('')}>Dispensar</button></div>}
+      {newOrderNotice && <div className="notice alert" role="alert">{newOrderNotice}<button className="text-button" onClick={() => setNewOrderNotice('')}>{t('panel.dismiss')}</button></div>}
       {children}
-      <footer>© 2026 Axyon Software House <span>Plataforma independente • primeira versão de teste</span></footer>
+      <footer>{t('footer.copy')} <span>{t('panel.footerNote')}</span></footer>
     </section>
   </main>;
 }
