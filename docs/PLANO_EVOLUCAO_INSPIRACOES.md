@@ -59,6 +59,11 @@ Cada epic traz: inspiração, objetivo, entregas, dependências e critério de p
 - **Depende de:** decisão de provedor (ver §6).
 - **Pronto quando:** login por Google e por OTP funcionando em homologação, sem regressão no
   login por email/senha.
+- **Status (26/09/2026):** entregue — login com **Google** (`POST /auth/social/google`, verificação
+  do ID token; requer `GOOGLE_CLIENT_ID`) e **OTP por telefone** (`/auth/otp/request`,
+  `/auth/otp/verify`) sobre **provedor de SMS abstrato** (`app.sms.provider`; `local` por padrão,
+  `twilio` com estrutura pronta). UI de login com Google e telefone no web. **Apple** e provedor de
+  SMS real ficam para quando decidido. 115 testes Java; contrato regerado.
 
 ### E03 — Dine-in, mesa e take-away
 - **Inspiração:** eFood Table (mesa/filial, capacidade, **kiosk de mesa fixa**, sessão por mesa

@@ -24,11 +24,16 @@ public class AuthController {
 
     private final AuthService auth;
     private final AccountService account;
+    private final PhoneOtpService otp;
+    private final SocialAuthService social;
     private final boolean cookieSecure;
 
-    public AuthController(AuthService auth, AccountService account, @Value("${app.cookie-secure:false}") boolean cookieSecure) {
+    public AuthController(AuthService auth, AccountService account, PhoneOtpService otp, SocialAuthService social,
+                          @Value("${app.cookie-secure:false}") boolean cookieSecure) {
         this.auth = auth;
         this.account = account;
+        this.otp = otp;
+        this.social = social;
         this.cookieSecure = cookieSecure;
     }
 
@@ -49,6 +54,30 @@ public class AuthController {
             .header(HttpHeaders.SET_COOKIE, cookie(signup.token(), Duration.ofDays(7)).toString())
             .header(TOKEN_HEADER, signup.token())
             .body(signup.user());
+    }
+
+    @PostMapping("/auth/social/google")
+    public ResponseEntity<User> googleLogin(@Valid @RequestBody GoogleRequest body) {
+        AuthService.Login login = social.google(body.idToken());
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookie(login.token(), Duration.ofDays(7)).toString())
+            .header(TOKEN_HEADER, login.token())
+            .body(login.user());
+    }
+
+    @PostMapping("/auth/otp/request")
+    public Map<String, Boolean> otpRequest(@Valid @RequestBody OtpRequest body) {
+        otp.request(body.phone());
+        return Map.of("ok", true);
+    }
+
+    @PostMapping("/auth/otp/verify")
+    public ResponseEntity<User> otpVerify(@Valid @RequestBody OtpVerifyRequest body) {
+        AuthService.Login login = otp.verify(body.phone(), body.code(), body.name());
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookie(login.token(), Duration.ofDays(7)).toString())
+            .header(TOKEN_HEADER, login.token())
+            .body(login.user());
     }
 
     @PostMapping("/auth/logout")
@@ -110,4 +139,9 @@ public class AuthController {
     public record VerifyRequest(@NotBlank @Size(max = 128) String token) {}
     public record ForgotRequest(@NotBlank @Email @Size(max = 190) String email) {}
     public record ResetRequest(@NotBlank @Size(max = 128) String token, @NotBlank @Size(min = 12, max = 128) String password) {}
+    public record GoogleRequest(@NotBlank @Size(max = 4096) String idToken) {}
+    public record OtpRequest(@NotBlank @Size(max = 20) String phone) {}
+    public record OtpVerifyRequest(@NotBlank @Size(max = 20) String phone,
+                                   @NotBlank @Size(min = 4, max = 8) String code,
+                                   @Size(max = 120) String name) {}
 }

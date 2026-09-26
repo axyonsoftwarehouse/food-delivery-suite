@@ -90,6 +90,14 @@ type AppValue = {
   setAuthMode: (value: 'login' | 'signup') => void;
   signupName: string;
   setSignupName: (value: string) => void;
+  otpPhone: string;
+  setOtpPhone: (value: string) => void;
+  otpCode: string;
+  setOtpCode: (value: string) => void;
+  otpSent: boolean;
+  googleLogin: (idToken: string) => Promise<void>;
+  requestOtp: () => Promise<void>;
+  verifyOtp: (event: React.SyntheticEvent) => Promise<void>;
   refresh: (activeUser?: User | null) => Promise<void>;
   run: (action: () => Promise<unknown>, success: string) => Promise<boolean>;
   askReason: (title: string) => string | null;
@@ -121,6 +129,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [signupName, setSignupName] = useState('');
+  const [otpPhone, setOtpPhone] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [email, setEmail] = useState('admin@demo.local');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -274,6 +285,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     finally { setBusy(false); }
   }
 
+  async function googleLogin(idToken: string) {
+    setBusy(true); setMessage('');
+    try {
+      const signedIn = await api<User>('/auth/social/google', { method: 'POST', body: JSON.stringify({ idToken }) });
+      await refresh(signedIn);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível entrar com o Google'); }
+    finally { setBusy(false); }
+  }
+
+  async function requestOtp() {
+    if (!otpPhone.trim()) { setMessage('Informe o telefone com DDD.'); return; }
+    setBusy(true); setMessage('');
+    try {
+      await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ phone: otpPhone }) });
+      setOtpSent(true);
+      setMessage('Enviamos um código por SMS. Ele vale por alguns minutos.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível enviar o código'); }
+    finally { setBusy(false); }
+  }
+
+  async function verifyOtp(event: React.SyntheticEvent) {
+    event.preventDefault();
+    setBusy(true); setMessage('');
+    try {
+      const signedIn = await api<User>('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ phone: otpPhone, code: otpCode }) });
+      setOtpCode(''); setOtpSent(false); await refresh(signedIn);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Código inválido'); }
+    finally { setBusy(false); }
+  }
+
   async function forgotPassword() {
     if (!email) { setMessage('Informe seu email para recuperar a senha.'); return; }
     setBusy(true); setMessage('');
@@ -295,6 +336,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     user, initializing, busy, message, setMessage, catalog, zones, addresses, orders, couriers, postalRanges, permissions,
     connection, lastSync, newOrderNotice, setNewOrderNotice, expandedOrderId, setExpandedOrderId,
     email, setEmail, password, setPassword, authMode, setAuthMode, signupName, setSignupName,
+    otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, googleLogin, requestOtp, verifyOtp,
     refresh, run, askReason, login, signup, forgotPassword, logout, receivePayment, refundPayment,
   };
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

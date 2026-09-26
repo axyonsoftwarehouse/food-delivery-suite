@@ -484,6 +484,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/social/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["googleLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/signup": {
         parameters: {
             query?: never;
@@ -510,6 +526,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/otp/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["otpVerify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/otp/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["otpRequest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1868,10 +1916,8 @@ export interface components {
         VerifyRequest: {
             token: string;
         };
-        SignupRequest: {
-            name: string;
-            email: string;
-            password: string;
+        GoogleRequest: {
+            idToken: string;
         };
         User: {
             /** Format: int64 */
@@ -1882,9 +1928,22 @@ export interface components {
             /** Format: int64 */
             restaurantId?: number;
         };
+        SignupRequest: {
+            name: string;
+            email: string;
+            password: string;
+        };
         ResetRequest: {
             token: string;
             password: string;
+        };
+        OtpVerifyRequest: {
+            phone: string;
+            code: string;
+            name?: string;
+        };
+        OtpRequest: {
+            phone: string;
         };
         LoginRequest: {
             email: string;
@@ -3382,6 +3441,30 @@ export interface operations {
             };
         };
     };
+    googleLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["User"];
+                };
+            };
+        };
+    };
     signup: {
         parameters: {
             query?: never;
@@ -3416,6 +3499,56 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ResetRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+        };
+    };
+    otpVerify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OtpVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["User"];
+                };
+            };
+        };
+    };
+    otpRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OtpRequest"];
             };
         };
         responses: {

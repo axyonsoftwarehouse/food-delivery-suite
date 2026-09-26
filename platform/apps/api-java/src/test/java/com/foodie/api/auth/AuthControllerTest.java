@@ -30,6 +30,12 @@ class AuthControllerTest {
     @MockitoBean
     private AccountService account;
 
+    @MockitoBean
+    private PhoneOtpService otp;
+
+    @MockitoBean
+    private SocialAuthService social;
+
     @Test
     void loginKeepsResponseAndCookieContract() throws Exception {
         var user = new User(7, "Cliente", "cliente@demo.local", "customer", null);
@@ -126,5 +132,35 @@ class AuthControllerTest {
         mvc.perform(get("/auth/security").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.emailVerified").value(true));
+    }
+
+    @Test
+    void googleLoginDelegatesAndReturnsToken() throws Exception {
+        var user = new User(11, "Google", "google@demo.local", "customer", null);
+        when(social.google("id-token")).thenReturn(new AuthService.Login(user, "c".repeat(64)));
+
+        mvc.perform(post("/auth/social/google").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idToken\":\"id-token\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.email").value("google@demo.local"))
+            .andExpect(header().string("X-Foodie-Token", "c".repeat(64)));
+        verify(social).google("id-token");
+    }
+
+    @Test
+    void otpRequestAndVerifyDelegate() throws Exception {
+        mvc.perform(post("/auth/otp/request").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"phone\":\"+5585999999999\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.ok").value(true));
+        verify(otp).request("+5585999999999");
+
+        var user = new User(12, "Cliente", "5585999999999@phone.foodie.local", "customer", null);
+        when(otp.verify("+5585999999999", "123456", null)).thenReturn(new AuthService.Login(user, "d".repeat(64)));
+
+        mvc.perform(post("/auth/otp/verify").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"phone\":\"+5585999999999\",\"code\":\"123456\"}"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("X-Foodie-Token", "d".repeat(64)));
     }
 }

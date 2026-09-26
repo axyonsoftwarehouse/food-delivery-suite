@@ -232,3 +232,6 @@
 .team-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .team-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; background: var(--gray-100); border-radius: var(--radius-md); padding: 10px 14px; font-size: var(--text-sm); }
 .team-list select { max-width: 220px; }
+/* Login alternativo (Google e OTP) */
+.alt-login { display: grid; gap: 10px; margin-top: var(--space-4); border-top: 1px solid #e5e7eb; padding-top: var(--space-4); }
+.alt-login .form-help { color: var(--text-muted); }

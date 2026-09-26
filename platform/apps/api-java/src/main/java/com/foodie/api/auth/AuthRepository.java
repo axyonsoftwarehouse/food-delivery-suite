@@ -3,6 +3,7 @@ package com.foodie.api.auth;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
@@ -119,6 +120,54 @@ public class AuthRepository {
             return statement;
         }, key);
         return new User(key.getKey().longValue(), name, email, "customer", null);
+    }
+
+    public Optional<User> findByEmail(String email) {
+        List<User> rows = jdbc.query("SELECT id, name, email, role, restaurant_id FROM users WHERE email = ? LIMIT 1", (rs, row) -> user(rs), email);
+        return rows.stream().findFirst();
+    }
+
+    public Optional<User> findByPhone(String phone) {
+        List<User> rows = jdbc.query("SELECT id, name, email, role, restaurant_id FROM users WHERE phone = ? LIMIT 1", (rs, row) -> user(rs), phone);
+        return rows.stream().findFirst();
+    }
+
+    public User createCustomerWithPhone(String name, String phone, String passwordHash) {
+        GeneratedKeyHolder key = new GeneratedKeyHolder();
+        String email = phone + "@phone.foodie.local";
+        jdbc.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO users (name, email, password_hash, role, restaurant_id, phone) VALUES (?, ?, ?, 'customer', NULL, ?)",
+                Statement.RETURN_GENERATED_KEYS
+            );
+            statement.setString(1, name);
+            statement.setString(2, email);
+            statement.setString(3, passwordHash);
+            statement.setString(4, phone);
+            return statement;
+        }, key);
+        return new User(key.getKey().longValue(), name, email, "customer", null);
+    }
+
+    public void replaceOtp(String phone, String codeHash, int minutes) {
+        jdbc.update("DELETE FROM auth_otp WHERE phone = ? AND used_at IS NULL", phone);
+        jdbc.update("INSERT INTO auth_otp (phone, code_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))", phone, codeHash, minutes);
+    }
+
+    public boolean consumeOtp(String phone, String codeHash, int maxAttempts) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT id, code_hash, attempts FROM auth_otp WHERE phone = ? AND used_at IS NULL AND expires_at > NOW() ORDER BY id DESC LIMIT 1", phone);
+        if (rows.isEmpty()) return false;
+        Map<String, Object> row = rows.getFirst();
+        long id = ((Number) row.get("id")).longValue();
+        int attempts = ((Number) row.get("attempts")).intValue();
+        if (attempts >= maxAttempts) return false;
+        if (codeHash.equals(row.get("code_hash"))) {
+            jdbc.update("UPDATE auth_otp SET used_at = NOW() WHERE id = ?", id);
+            return true;
+        }
+        jdbc.update("UPDATE auth_otp SET attempts = attempts + 1 WHERE id = ?", id);
+        return false;
     }
 
     private static User user(ResultSet rs) throws SQLException {
