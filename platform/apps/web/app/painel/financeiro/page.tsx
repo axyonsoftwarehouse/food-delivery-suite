@@ -1,10 +1,13 @@
 'use client';
 
-import PaymentsPanel from '../../PaymentsPanel';
+import FinancePanel from '../finance-panel';
+import RestaurantFinancePanel from '../restaurant-finance-panel';
 import { useApp } from '../../app-context';
 
 export default function FinanceiroPage() {
-  const { user, setMessage } = useApp();
-  if (!user || user.role !== 'admin') return <section className="panel"><div className="empty-state">Financeiro disponível para a administração.</div></section>;
-  return <PaymentsPanel onMessage={setMessage} />;
+  const { user } = useApp();
+  if (!user) return null;
+  if (user.role === 'admin') return <FinancePanel />;
+  if (user.role === 'restaurant') return <RestaurantFinancePanel />;
+  return <section className="panel"><div className="empty-state">Financeiro disponível para administração e restaurante.</div></section>;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { uploadFile } from './files';
 
 type Restaurant = { id: number; name: string };
 type Category = { id: number; restaurant_id: number; name: string };
@@ -65,6 +66,8 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
   const [newVariation, setNewVariation] = useState({ name: '', price: '' });
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [coverIndex, setCoverIndex] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [groups, setGroups] = useState<AddonGroup[]>([]);
   const [groupDraft, setGroupDraft] = useState({ name: '', min: '0', max: '1', required: false });
   const [addonDraft, setAddonDraft] = useState<Record<number, { name: string; price: string }>>({});
@@ -259,6 +262,27 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
     void runDetail(id, () => request(`${productBase}/${id}/images`, { method: 'PUT', body: JSON.stringify({ images }) }), 'Imagens atualizadas.');
   }
 
+  async function generateDescription() {
+    if (!newProduct.name.trim()) { onMessage('Informe o nome do prato.'); return; }
+    setAiBusy(true);
+    try {
+      const result = await request<{ suggestion: string }>(`${isAdmin ? '/admin' : '/restaurant'}/ai/describe`, { method: 'POST', body: JSON.stringify({ name: newProduct.name }) });
+      setNewProduct((current) => ({ ...current, description: result.suggestion }));
+      onMessage('Descrição sugerida pela IA.');
+    } catch (error) { onMessage(messageOf(error, 'Não foi possível gerar a descrição.')); }
+    finally { setAiBusy(false); }
+  }
+
+  async function uploadImage(index: number, file: File) {
+    setUploading(true);
+    try {
+      const stored = await uploadFile(file, 'product');
+      setImageUrls((current) => current.map((value, position) => position === index ? stored.url : value));
+      onMessage('Imagem enviada. Salve as imagens para aplicar.');
+    } catch (error) { onMessage(messageOf(error, 'Não foi possível enviar a imagem.')); }
+    finally { setUploading(false); }
+  }
+
   function createGroup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isAdmin && !restaurantId) return;
@@ -370,6 +394,7 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
         {imageUrls.map((url, index) => <div className="catalog-image-row" key={index}>
           <input value={url} onChange={(event) => setImageUrls(imageUrls.map((current, position) => position === index ? event.target.value : current))} placeholder="https://..." aria-label={`URL da imagem ${index + 1}`} />
           <label className="catalog-cover"><input type="radio" name={`cover-${product.id}`} checked={coverIndex === index} onChange={() => setCoverIndex(index)} /> capa</label>
+          <label className="catalog-cover upload"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" style={{ display: 'none' }} disabled={busy || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(index, file); event.target.value = ''; }} />{uploading ? 'enviando...' : 'enviar'}</label>
           <button type="button" className="availability-button" disabled={busy} onClick={() => setImageUrls(imageUrls.filter((_, position) => position !== index))}>Remover</button>
         </div>)}
         <div className="catalog-detail-actions">
@@ -409,7 +434,7 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
     {isAdmin && <label>Restaurante<select value={restaurantId ?? ''} onChange={(event) => { setRestaurantId(Number(event.target.value)); setEditingId(null); setExpandedId(null); setDetail(null); }}>{restaurants.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}</select></label>}
     <div className="form-grid">
       <form onSubmit={addCategory}><h3>Nova categoria</h3><label>Nome<input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} minLength={2} maxLength={120} placeholder="Ex.: Bebidas" required /></label><button className="secondary-button" disabled={busy || (isAdmin && !restaurantId)}>Adicionar categoria</button></form>
-      <form onSubmit={addProduct}><h3>Novo produto</h3><label>Categoria<select value={newProduct.categoryId} onChange={(event) => setNewProduct({ ...newProduct, categoryId: Number(event.target.value) })}>{catalog.categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Nome<input value={newProduct.name} onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })} minLength={2} maxLength={160} placeholder="Ex.: Bowl da casa" required /></label><label>Preço em R$<input inputMode="decimal" value={newProduct.price} onChange={(event) => setNewProduct({ ...newProduct, price: event.target.value })} placeholder="29,90" required /></label><label>Descrição<input value={newProduct.description} onChange={(event) => setNewProduct({ ...newProduct, description: event.target.value })} maxLength={500} placeholder="Ingredientes, porção..." /></label><button className="secondary-button" disabled={busy || !newProduct.categoryId}>Adicionar produto</button></form>
+      <form onSubmit={addProduct}><h3>Novo produto</h3><label>Categoria<select value={newProduct.categoryId} onChange={(event) => setNewProduct({ ...newProduct, categoryId: Number(event.target.value) })}>{catalog.categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Nome<input value={newProduct.name} onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })} minLength={2} maxLength={160} placeholder="Ex.: Bowl da casa" required /></label><label>Preço em R$<input inputMode="decimal" value={newProduct.price} onChange={(event) => setNewProduct({ ...newProduct, price: event.target.value })} placeholder="29,90" required /></label><label>Descrição<input value={newProduct.description} onChange={(event) => setNewProduct({ ...newProduct, description: event.target.value })} maxLength={500} placeholder="Ingredientes, porção..." /></label><button className="secondary-button" type="button" disabled={busy || aiBusy} onClick={() => void generateDescription()}>{aiBusy ? 'Gerando...' : '✦ Gerar descrição com IA'}</button><button className="secondary-button" disabled={busy || !newProduct.categoryId}>Adicionar produto</button></form>
     </div>
     <div className="courier-list" style={{ marginTop: 16 }}><h3>Categorias</h3>{loading ? <p className="form-help">Carregando...</p> : catalog.categories.length ? catalog.categories.map((category) => <div className="courier-row" key={category.id}><div><strong>{category.name}</strong><span>{catalog.products.filter((product) => product.category_id === category.id).length} produto(s)</span></div><div className="courier-actions"><button className="secondary-button" disabled={busy} onClick={() => renameCategory(category)}>Renomear</button><button className="availability-button" disabled={busy} onClick={() => removeCategory(category)}>Excluir</button></div></div>) : <p className="form-help">Nenhuma categoria cadastrada.</p>}</div>
     <div className="courier-list" style={{ marginTop: 16 }}><h3>Grupos de adicionais</h3>{groups.length ? groups.map((group) => <div className="addon-admin-group" key={group.id}>

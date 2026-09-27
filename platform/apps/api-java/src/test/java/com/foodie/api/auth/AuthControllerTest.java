@@ -39,6 +39,9 @@ class AuthControllerTest {
     @MockitoBean
     private EmailVerificationGuard verification;
 
+    @MockitoBean
+    private com.foodie.api.rewards.RewardsService rewards;
+
     @Test
     void loginKeepsResponseAndCookieContract() throws Exception {
         var user = new User(7, "Cliente", "cliente@demo.local", "customer", null);

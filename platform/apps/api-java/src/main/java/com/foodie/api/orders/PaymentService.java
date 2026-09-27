@@ -2,6 +2,8 @@ package com.foodie.api.orders;
 
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
+import com.foodie.api.finance.LedgerService;
+import com.foodie.api.rewards.RewardsService;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -14,9 +16,13 @@ public class PaymentService {
     public static final Set<String> METHODS = Set.of("cash", "card", "pix");
 
     private final JdbcTemplate jdbc;
+    private final LedgerService ledger;
+    private final RewardsService rewards;
 
-    public PaymentService(JdbcTemplate jdbc) {
+    public PaymentService(JdbcTemplate jdbc, LedgerService ledger, RewardsService rewards) {
         this.jdbc = jdbc;
+        this.ledger = ledger;
+        this.rewards = rewards;
     }
 
     @Transactional
@@ -71,6 +77,8 @@ public class PaymentService {
         result.put("amountReceivedCents", amountReceivedCents);
         result.put("changeCents", change);
         if (trimmed != null && !trimmed.isEmpty()) result.put("note", trimmed);
+        ledger.postOrder(orderId);
+        rewards.onOrderCompleted(orderId);
         return result;
     }
 
@@ -83,6 +91,7 @@ public class PaymentService {
         int changed = jdbc.update("UPDATE order_payments SET status = 'refunded', note = ?, refunded_by = ?, refunded_at = NOW() WHERE order_id = ? AND status = 'paid'",
             (trimmed == null || trimmed.isEmpty()) ? null : trimmed, actor.id(), orderId);
         if (changed == 0) throw new ApiException(409, "Só é possível estornar um pagamento confirmado");
+        ledger.reverseOrder(orderId);
         java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("orderId", orderId);
         result.put("method", rows.getFirst().get("method"));

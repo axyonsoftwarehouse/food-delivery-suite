@@ -64,7 +64,7 @@ public class CartController {
                                                         @Valid @RequestBody CheckoutRequest request) {
         User customer = customer(token);
         verification.requireVerified(customer);
-        return ResponseEntity.status(201).body(cart.checkout(customer, request.addressId(), request.expectedTotalCents(), request.expectedVersion(), request.idempotencyKey(), request.paymentMethod(), request.changeForCents(), request.modality(), request.couponCode(), request.scheduledFor(), request.orderType(), request.tableId(), request.partySize()));
+        return ResponseEntity.status(201).body(cart.checkout(customer, request.addressId(), request.expectedTotalCents(), request.expectedVersion(), request.idempotencyKey(), request.paymentMethod(), request.changeForCents(), request.modality(), request.couponCode(), request.scheduledFor(), request.orderType(), request.tableId(), request.partySize(), request.tipCents()));
     }
 
     private User customer(String token) {
@@ -84,5 +84,6 @@ public class CartController {
                                   @Size(max = 30) String scheduledFor,
                                   @jakarta.validation.constraints.Pattern(regexp = "delivery|take_away|dine_in") String orderType,
                                   @Positive Long tableId,
-                                  @jakarta.validation.constraints.Min(1) @Max(50) Integer partySize) {}
+                                  @jakarta.validation.constraints.Min(1) @Max(50) Integer partySize,
+                                  @jakarta.validation.constraints.Min(0) @Max(100_000) Integer tipCents) {}
 }

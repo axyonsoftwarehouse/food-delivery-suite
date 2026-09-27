@@ -12,6 +12,9 @@ app:
     google:
       client-id: ${GOOGLE_CLIENT_ID:}
       base-url: ${GOOGLE_BASE_URL:https://oauth2.googleapis.com}
+    facebook:
+      app-id: ${FACEBOOK_APP_ID:}
+      base-url: ${FACEBOOK_BASE_URL:https://graph.facebook.com}
     otp:
       ttl-minutes: ${OTP_TTL_MINUTES:10}
       max-attempts: ${OTP_MAX_ATTEMPTS:5}
@@ -22,6 +25,12 @@ app:
       account-sid: ${TWILIO_ACCOUNT_SID:}
       auth-token: ${TWILIO_AUTH_TOKEN:}
       base-url: ${TWILIO_BASE_URL:https://api.twilio.com}
+    generic:
+      url: ${SMS_GENERIC_URL:}
+      token: ${SMS_GENERIC_TOKEN:}
+  openai:
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    model: ${OPENAI_MODEL:gpt-4o-mini}
   mail:
     provider: ${MAIL_PROVIDER:log}
     from: ${MAIL_FROM:}
@@ -42,6 +51,12 @@ app:
   fcm:
     service-account-json: ${FCM_SERVICE_ACCOUNT_JSON:}
     project-id: ${FCM_PROJECT_ID:}
+  storage:
+    driver: ${STORAGE_DRIVER:local}
+    local-dir: ${STORAGE_LOCAL_DIR:./data/uploads}
+    public-base-url: ${STORAGE_PUBLIC_BASE_URL:http://127.0.0.1:4001}
+    max-image-bytes: ${STORAGE_MAX_IMAGE_BYTES:5242880}
+    max-document-bytes: ${STORAGE_MAX_DOCUMENT_BYTES:10485760}
 management:
   endpoints:
     web:
@@ -61,6 +76,10 @@ logging:
 spring:
   application:
     name: foodie-api
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
   flyway:
     enabled: true
     locations: classpath:db/migration

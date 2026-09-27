@@ -44,7 +44,7 @@ public class CatalogRepository {
 
     public Map<String, Object> productDetail(long productId) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT p.id, p.restaurant_id, p.category_id, p.name, p.description, p.price_cents, p.is_combo, p.stock, p.available_from, p.available_until, r.name AS restaurant_name "
+            "SELECT p.id, p.restaurant_id, p.category_id, p.name, p.description, p.price_cents, p.is_combo, p.stock, p.available_from, p.available_until, p.calories, p.allergens, p.nutrition, r.name AS restaurant_name "
                 + "FROM products p JOIN restaurants r ON r.id = p.restaurant_id WHERE p.id = ? AND r.active = TRUE AND p.available = TRUE",
             productId);
         if (rows.isEmpty()) return null;
@@ -53,6 +53,8 @@ public class CatalogRepository {
             "SELECT id, url, is_cover, sort FROM product_images WHERE product_id = ? ORDER BY is_cover DESC, sort, id", productId));
         product.put("variations", jdbc.queryForList(
             "SELECT id, name, price_delta_cents, available, sort FROM product_variations WHERE product_id = ? AND available = TRUE ORDER BY sort, id", productId));
+        product.put("attributes", jdbc.queryForList(
+            "SELECT a.id, a.name FROM product_attributes pa JOIN attributes a ON a.id = pa.attribute_id WHERE pa.product_id = ? ORDER BY a.name", productId));
         product.put("addonGroups", addonGroups(productId));
         product.put("comboItems", jdbc.queryForList(
             "SELECT ci.component_product_id, ci.quantity, p.name FROM combo_items ci JOIN products p ON p.id = ci.component_product_id WHERE ci.product_id = ? ORDER BY p.name", productId));

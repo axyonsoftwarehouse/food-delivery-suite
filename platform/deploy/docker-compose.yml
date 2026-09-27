@@ -50,6 +50,11 @@ services:
       WEBPUSH_PUBLIC_KEY: ${WEBPUSH_PUBLIC_KEY:-}
       WEBPUSH_PRIVATE_KEY: ${WEBPUSH_PRIVATE_KEY:-}
       WEBPUSH_SUBJECT: ${WEBPUSH_SUBJECT:-mailto:contato@foodie.local}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      STORAGE_LOCAL_DIR: /data/uploads
+      STORAGE_PUBLIC_BASE_URL: https://api.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io}
+    volumes:
+      - foodie_uploads:/data/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -105,3 +110,4 @@ volumes:
   foodie_platform_data:
   foodie_caddy_data:
   foodie_caddy_config:
+  foodie_uploads:

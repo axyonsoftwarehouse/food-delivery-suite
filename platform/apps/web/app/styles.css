@@ -41,3 +41,11 @@
 .shell-solo{display:block}.shell-solo .content{max-width:1200px}.side-nav a.nav-item{text-decoration:none}
 .customer-nav{display:flex;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);margin-bottom:8px;position:sticky;top:0;background:var(--cream);z-index:8}.customer-nav a{display:flex;gap:8px;align-items:center;text-decoration:none;color:#3e604c;font-weight:700;font-size:13px;padding:9px 14px;border-radius:12px}.customer-nav a.active{background:#e6f2e9;color:#178c4e}
 @media(max-width:600px){.customer-nav{position:fixed;left:0;right:0;bottom:0;top:auto;border-bottom:0;border-top:1px solid var(--line);background:#fff;justify-content:space-around;padding:8px 6px;margin:0;z-index:12}.customer-nav a{flex-direction:column;gap:2px;font-size:10px;padding:6px 8px}.customer-nav a span{font-size:18px}.customer-cart-dock{bottom:78px}.customer-content{padding-bottom:20px}}
+.permission-groups{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:6px 0}.permission-groups legend{font-size:12px;font-weight:700;color:var(--muted);padding:0 6px}.permission-group{display:grid;gap:2px;margin:8px 0}.permission-group strong{font-size:12px;color:#3e604c}.permission-group .check{font-weight:500}
+html[data-theme="dark"] body{background:#12160f;color:#e7ece5}
+html[data-theme="dark"] .panel,html[data-theme="dark"] .ui-card,html[data-theme="dark"] .customer-card,html[data-theme="dark"] .dash-card,html[data-theme="dark"] .postal-range-list>div,html[data-theme="dark"] .courier-row{background:#1b211a;border-color:#2c352a;color:#e7ece5}
+html[data-theme="dark"] .sidebar{background:#0d2b24}
+html[data-theme="dark"] .ui-select,html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:#12160f;color:#e7ece5;border-color:#2c352a}
+html[data-theme="dark"] .customer-header,html[data-theme="dark"] .customer-nav{background:#1b211a;border-color:#2c352a}
+html[data-theme="dark"] .dash-card.accent{background:#0d2b24}
+.customer-fav{position:absolute;top:10px;left:10px;z-index:3;border:0;background:rgba(255,255,255,.9);border-radius:50%;width:34px;height:34px;display:grid;place-items:center;color:#d9534f;font-size:17px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.12)}

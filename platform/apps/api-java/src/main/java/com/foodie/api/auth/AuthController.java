@@ -1,5 +1,6 @@
 package com.foodie.api.auth;
 
+import com.foodie.api.rewards.RewardsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -27,15 +28,18 @@ public class AuthController {
     private final PhoneOtpService otp;
     private final SocialAuthService social;
     private final EmailVerificationGuard verification;
+    private final RewardsService rewards;
     private final boolean cookieSecure;
 
     public AuthController(AuthService auth, AccountService account, PhoneOtpService otp, SocialAuthService social,
-                          EmailVerificationGuard verification, @Value("${app.cookie-secure:false}") boolean cookieSecure) {
+                          EmailVerificationGuard verification, RewardsService rewards,
+                          @Value("${app.cookie-secure:false}") boolean cookieSecure) {
         this.auth = auth;
         this.account = account;
         this.otp = otp;
         this.social = social;
         this.verification = verification;
+        this.rewards = rewards;
         this.cookieSecure = cookieSecure;
     }
 
@@ -52,6 +56,7 @@ public class AuthController {
     @PostMapping("/auth/signup")
     public ResponseEntity<User> signup(HttpServletRequest request, @Valid @RequestBody SignupRequest body) {
         AuthService.Login signup = auth.signup(body.name(), body.email(), body.password(), clientIp(request));
+        rewards.applyReferral(signup.user().id(), body.referralCode());
         account.sendVerification(signup.user());
         return ResponseEntity.status(201)
             .header(HttpHeaders.SET_COOKIE, cookie(signup.token(), Duration.ofDays(7)).toString())
@@ -61,7 +66,15 @@ public class AuthController {
 
     @PostMapping("/auth/social/google")
     public ResponseEntity<User> googleLogin(@Valid @RequestBody GoogleRequest body) {
-        AuthService.Login login = social.google(body.idToken());
+        return socialResponse(social.google(body.idToken()));
+    }
+
+    @PostMapping("/auth/social/facebook")
+    public ResponseEntity<User> facebookLogin(@Valid @RequestBody FacebookRequest body) {
+        return socialResponse(social.facebook(body.accessToken()));
+    }
+
+    private ResponseEntity<User> socialResponse(AuthService.Login login) {
         return ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, cookie(login.token(), Duration.ofDays(7)).toString())
             .header(TOKEN_HEADER, login.token())
@@ -138,11 +151,13 @@ public class AuthController {
     public record LoginRequest(@NotBlank @Email @Size(max = 190) String email, @NotBlank @Size(max = 128) String password) {}
     public record SignupRequest(@NotBlank @Size(min = 2, max = 120) String name,
                                 @NotBlank @Email @Size(max = 190) String email,
-                                @NotBlank @Size(min = 12, max = 128) String password) {}
+                                @NotBlank @Size(min = 12, max = 128) String password,
+                                @Size(max = 20) String referralCode) {}
     public record VerifyRequest(@NotBlank @Size(max = 128) String token) {}
     public record ForgotRequest(@NotBlank @Email @Size(max = 190) String email) {}
     public record ResetRequest(@NotBlank @Size(max = 128) String token, @NotBlank @Size(min = 12, max = 128) String password) {}
     public record GoogleRequest(@NotBlank @Size(max = 4096) String idToken) {}
+    public record FacebookRequest(@NotBlank @Size(max = 4096) String accessToken) {}
     public record OtpRequest(@NotBlank @Size(max = 20) String phone) {}
     public record OtpVerifyRequest(@NotBlank @Size(max = 20) String phone,
                                    @NotBlank @Size(min = 4, max = 8) String code,

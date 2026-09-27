@@ -18,7 +18,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 class PaymentServiceTest {
     private final JdbcTemplate jdbc = Mockito.mock(JdbcTemplate.class);
-    private final PaymentService service = new PaymentService(jdbc);
+    private final com.foodie.api.finance.LedgerService ledger = Mockito.mock(com.foodie.api.finance.LedgerService.class);
+    private final com.foodie.api.rewards.RewardsService rewards = Mockito.mock(com.foodie.api.rewards.RewardsService.class);
+    private final PaymentService service = new PaymentService(jdbc, ledger, rewards);
     private final User admin = new User(1, "Admin", "admin@demo.local", "admin", null);
     private final User courier = new User(5, "Entregador", "entregador@demo.local", "courier", null);
 

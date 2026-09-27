@@ -96,6 +96,7 @@ type AppValue = {
   setOtpCode: (value: string) => void;
   otpSent: boolean;
   googleLogin: (idToken: string) => Promise<void>;
+  facebookLogin: (accessToken: string) => Promise<void>;
   requestOtp: () => Promise<void>;
   verifyOtp: (event: React.SyntheticEvent) => Promise<void>;
   refresh: (activeUser?: User | null) => Promise<void>;
@@ -294,6 +295,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     finally { setBusy(false); }
   }
 
+  async function facebookLogin(accessToken: string) {
+    setBusy(true); setMessage('');
+    try {
+      const signedIn = await api<User>('/auth/social/facebook', { method: 'POST', body: JSON.stringify({ accessToken }) });
+      await refresh(signedIn);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível entrar com o Facebook'); }
+    finally { setBusy(false); }
+  }
+
   async function requestOtp() {
     if (!otpPhone.trim()) { setMessage('Informe o telefone com DDD.'); return; }
     setBusy(true); setMessage('');
@@ -336,7 +346,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     user, initializing, busy, message, setMessage, catalog, zones, addresses, orders, couriers, postalRanges, permissions,
     connection, lastSync, newOrderNotice, setNewOrderNotice, expandedOrderId, setExpandedOrderId,
     email, setEmail, password, setPassword, authMode, setAuthMode, signupName, setSignupName,
-    otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, googleLogin, requestOtp, verifyOtp,
+    otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, googleLogin, facebookLogin, requestOtp, verifyOtp,
     refresh, run, askReason, login, signup, forgotPassword, logout, receivePayment, refundPayment,
   };
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

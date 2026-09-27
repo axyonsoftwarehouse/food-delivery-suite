@@ -1,6 +1,7 @@
 package com.foodie.api.permissions;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import jakarta.validation.Valid;
@@ -28,11 +29,13 @@ public class RoleController {
     private final AuthService auth;
     private final PermissionService permissions;
     private final RoleService roles;
+    private final AdminPermissionService adminPermissions;
 
-    public RoleController(AuthService auth, PermissionService permissions, RoleService roles) {
+    public RoleController(AuthService auth, PermissionService permissions, RoleService roles, AdminPermissionService adminPermissions) {
         this.auth = auth;
         this.permissions = permissions;
         this.roles = roles;
+        this.adminPermissions = adminPermissions;
     }
 
     @GetMapping("/permissions")
@@ -46,7 +49,8 @@ public class RoleController {
         User user = auth.requireUser(token);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("role", user.role());
-        result.put("permissions", permissions.effective(user).stream().sorted().toList());
+        var effective = "admin".equals(user.role()) ? adminPermissions.effective(user) : permissions.effective(user);
+        result.put("permissions", effective.stream().sorted().toList());
         return result;
     }
 

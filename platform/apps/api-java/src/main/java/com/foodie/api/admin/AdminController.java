@@ -3,6 +3,7 @@ package com.foodie.api.admin;
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.PasswordVerifier;
+import com.foodie.api.auth.User;
 import com.foodie.api.catalog.PostalCoverageService;
 import com.foodie.api.routing.GeocodingService;
 import jakarta.validation.Valid;
@@ -41,21 +42,29 @@ public class AdminController {
     private final PasswordVerifier passwords;
     private final PostalCoverageService postalCoverage;
     private final GeocodingService geocoding;
+    private final AdminPermissionService permissions;
+    private final AdminAccessService access;
+    private final AdminAuditService auditor;
 
-    public AdminController(AuthService auth, JdbcTemplate jdbc, PasswordVerifier passwords, PostalCoverageService postalCoverage, GeocodingService geocoding) {
+    public AdminController(AuthService auth, JdbcTemplate jdbc, PasswordVerifier passwords, PostalCoverageService postalCoverage,
+                           GeocodingService geocoding, AdminPermissionService permissions, AdminAccessService access, AdminAuditService auditor) {
         this.auth = auth;
         this.jdbc = jdbc;
         this.passwords = passwords;
         this.postalCoverage = postalCoverage;
         this.geocoding = geocoding;
+        this.permissions = permissions;
+        this.access = access;
+        this.auditor = auditor;
     }
 
     @PostMapping("/zones")
     public ResponseEntity<Map<String, Object>> zone(@CookieValue(value = "foodie_session", required = false) String token,
                                                      @Valid @RequestBody ZoneRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.ZONES_MANAGE);
         long id = insert("INSERT INTO zones (name, slug, city, state, delivery_fee_cents, minimum_order_cents) VALUES (?, ?, ?, ?, ?, ?)",
             body.name().trim(), body.slug(), body.city().trim(), body.state(), body.deliveryFeeCents(), body.minimumOrderCents());
+        audit(actor, "create", "zone", id, "Zona " + body.name().trim());
         return created(Map.of("id", id, "name", body.name().trim(), "slug", body.slug(), "city", body.city().trim(), "state", body.state(), "deliveryFeeCents", body.deliveryFeeCents(), "minimumOrderCents", body.minimumOrderCents()));
     }
 
@@ -63,10 +72,11 @@ public class AdminController {
     public Map<String, Object> zonePricing(@CookieValue(value = "foodie_session", required = false) String token,
                                            @PathVariable @Positive long id,
                                            @Valid @RequestBody ZonePricingRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.ZONES_MANAGE);
         int changed = jdbc.update("UPDATE zones SET delivery_fee_cents = ?, base_fee_cents = ?, per_km_cents = ?, minimum_order_cents = ? WHERE id = ?",
             body.deliveryFeeCents(), body.baseFeeCents(), body.perKmCents(), body.minimumOrderCents(), id);
         if (changed == 0) throw new ApiException(404, "Zona não encontrada");
+        audit(actor, "update", "zone", id, "Preços da zona");
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", id);
         result.put("deliveryFeeCents", body.deliveryFeeCents());
@@ -80,41 +90,45 @@ public class AdminController {
     @PostMapping("/coverage")
     public ResponseEntity<Map<String, Object>> coverage(@CookieValue(value = "foodie_session", required = false) String token,
                                                          @Valid @RequestBody CoverageRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.ZONES_MANAGE);
         Integer match = jdbc.query("SELECT 1 FROM restaurants r JOIN zones z ON z.id = ? AND z.active = TRUE WHERE r.id = ? AND r.active = TRUE",
             rs -> rs.next() ? 1 : null, body.zoneId(), body.restaurantId());
         if (match == null) throw new ApiException(400, "Restaurante ou zona indisponível");
         jdbc.update("INSERT INTO restaurant_zones (restaurant_id, zone_id) VALUES (?, ?)", body.restaurantId(), body.zoneId());
+        audit(actor, "create", "coverage", body.restaurantId(), "Cobertura restaurante " + body.restaurantId() + " / zona " + body.zoneId());
         return created(Map.of("restaurantId", body.restaurantId(), "zoneId", body.zoneId()));
     }
 
     @GetMapping("/postal-ranges")
     public List<Map<String, Object>> postalRanges(@CookieValue(value = "foodie_session", required = false) String token) {
-        admin(token);
+        admin(token, AdminPermissions.ZONES_MANAGE);
         return postalCoverage.ranges();
     }
 
     @PostMapping("/postal-ranges")
     public ResponseEntity<Map<String, Object>> addPostalRange(@CookieValue(value = "foodie_session", required = false) String token,
                                                                 @Valid @RequestBody PostalRangeRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.ZONES_MANAGE);
         postalCoverage.addRange(body.zoneId(), body.postalStart(), body.postalEnd());
+        audit(actor, "create", "postal_range", body.zoneId(), "Faixa " + body.postalStart() + "–" + body.postalEnd());
         return created(Map.of("zoneId", body.zoneId(), "postalStart", postalCoverage.normalize(body.postalStart()), "postalEnd", postalCoverage.normalize(body.postalEnd())));
     }
 
     @DeleteMapping("/postal-ranges/{id}")
     public Map<String, Boolean> deletePostalRange(@CookieValue(value = "foodie_session", required = false) String token,
                                                    @PathVariable @Positive long id) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.ZONES_MANAGE);
         postalCoverage.deleteRange(id);
+        audit(actor, "delete", "postal_range", id, "Faixa removida");
         return Map.of("ok", true);
     }
 
     @PostMapping("/restaurants")
     public ResponseEntity<Map<String, Object>> restaurant(@CookieValue(value = "foodie_session", required = false) String token,
                                                            @Valid @RequestBody RestaurantRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.RESTAURANTS_MANAGE);
         long id = insert("INSERT INTO restaurants (name, slug) VALUES (?, ?)", body.name().trim(), body.slug());
+        audit(actor, "create", "restaurant", id, "Restaurante " + body.name().trim());
         return created(Map.of("id", id, "name", body.name().trim(), "slug", body.slug()));
     }
 
@@ -122,10 +136,11 @@ public class AdminController {
     public Map<String, Object> restaurantAvailability(@CookieValue(value = "foodie_session", required = false) String token,
                                                        @PathVariable @Positive long id,
                                                        @Valid @RequestBody AvailabilityRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.RESTAURANTS_MANAGE);
         if (jdbc.update("UPDATE restaurants SET active = ? WHERE id = ?", body.active(), id) == 0) {
             throw new ApiException(404, "Restaurante não encontrado");
         }
+        audit(actor, "update", "restaurant", id, body.active() ? "Restaurante reaberto" : "Restaurante fechado");
         return Map.of("id", id, "active", body.active());
     }
 
@@ -133,17 +148,19 @@ public class AdminController {
     public Map<String, Object> restaurantServiceFee(@CookieValue(value = "foodie_session", required = false) String token,
                                                     @PathVariable @Positive long id,
                                                     @Valid @RequestBody ServiceFeeRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.RESTAURANTS_MANAGE);
         if (jdbc.update("UPDATE restaurants SET service_fee_percent = ? WHERE id = ?", body.percent(), id) == 0) {
             throw new ApiException(404, "Restaurante não encontrado");
         }
+        audit(actor, "update", "restaurant", id, "Taxa de serviço " + body.percent());
         return Map.of("id", id, "serviceFeePercent", body.percent());
     }
 
-    @PatchMapping("/restaurants/{id}/location")    public Map<String, Object> restaurantLocation(@CookieValue(value = "foodie_session", required = false) String token,
+    @PatchMapping("/restaurants/{id}/location")
+    public Map<String, Object> restaurantLocation(@CookieValue(value = "foodie_session", required = false) String token,
                                                   @PathVariable @Positive long id,
                                                   @Valid @RequestBody LocationRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.RESTAURANTS_MANAGE);
         if (jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, id) == null) {
             throw new ApiException(404, "Restaurante não encontrado");
         }
@@ -158,6 +175,7 @@ public class AdminController {
             }
         }
         jdbc.update("UPDATE restaurants SET address_text = ?, latitude = ?, longitude = ? WHERE id = ?", address, latitude, longitude, id);
+        audit(actor, "update", "restaurant", id, "Localização atualizada");
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", id);
         result.put("addressText", address);
@@ -170,7 +188,7 @@ public class AdminController {
     @PostMapping("/restaurant-users")
     public ResponseEntity<Map<String, Object>> restaurantUser(@CookieValue(value = "foodie_session", required = false) String token,
                                                                @Valid @RequestBody RestaurantUserRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.RESTAURANTS_MANAGE);
         Integer match = jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, body.restaurantId());
         if (match == null) throw new ApiException(400, "Restaurante não encontrado");
         String email = body.email().toLowerCase(java.util.Locale.ROOT);
@@ -179,27 +197,30 @@ public class AdminController {
         if (exists != null) throw new ApiException(409, "Já existe um acesso com este email");
         long id = insert("INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, ?, ?)",
             body.name().trim(), email, passwords.hash(body.password()), role, body.restaurantId());
+        audit(actor, "create", "restaurant_user", id, "Acesso " + email + " (" + role + ")");
         return created(Map.of("id", id, "name", body.name().trim(), "email", email, "role", role, "restaurantId", body.restaurantId()));
     }
 
     @PostMapping("/couriers")
     public ResponseEntity<Map<String, Object>> courier(@CookieValue(value = "foodie_session", required = false) String token,
                                                         @Valid @RequestBody CourierRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.COURIERS_MANAGE);
         String email = body.email().toLowerCase(java.util.Locale.ROOT);
         Integer exists = jdbc.query("SELECT 1 FROM users WHERE email = ?", rs -> rs.next() ? 1 : null, email);
         if (exists != null) throw new ApiException(409, "Já existe um acesso com este email");
         long id = insert("INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, 'courier', NULL)",
             body.name().trim(), email, passwords.hash(body.password()));
+        audit(actor, "create", "courier", id, "Entregador " + body.name().trim());
         return created(Map.of("id", id, "name", body.name().trim(), "email", email, "suspended", false, "approved", false));
     }
 
     @PatchMapping("/couriers/{id}/approval")
     public Map<String, Boolean> approveCourier(@CookieValue(value = "foodie_session", required = false) String token,
                                                 @PathVariable @Positive long id) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.COURIERS_MANAGE);
         int changed = jdbc.update("UPDATE users SET courier_approved_at = COALESCE(courier_approved_at, NOW()) WHERE id = ? AND role = 'courier'", id);
         if (changed == 0) throw new ApiException(404, "Entregador não encontrado");
+        audit(actor, "update", "courier", id, "Entregador aprovado");
         return Map.of("ok", true);
     }
 
@@ -207,10 +228,11 @@ public class AdminController {
     public Map<String, Boolean> suspendCourier(@CookieValue(value = "foodie_session", required = false) String token,
                                                 @PathVariable @Positive long id,
                                                 @Valid @RequestBody SuspensionRequest body) {
-        admin(token);
+        User actor = admin(token, AdminPermissions.COURIERS_MANAGE);
         Integer exists = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier'", rs -> rs.next() ? 1 : null, id);
         if (exists == null) throw new ApiException(404, "Entregador não encontrado");
         auth.setSuspended(id, body.suspended(), body.reason());
+        audit(actor, "update", "courier", id, body.suspended() ? "Entregador suspenso" : "Entregador reativado");
         return Map.of("ok", true);
     }
 
@@ -218,14 +240,24 @@ public class AdminController {
     public Map<String, Boolean> suspendUser(@CookieValue(value = "foodie_session", required = false) String token,
                                              @PathVariable @Positive long id,
                                              @Valid @RequestBody SuspensionRequest body) {
-        var administrator = auth.requireUser(token, "admin");
+        User administrator = admin(token, AdminPermissions.USERS_SUSPEND);
         if (administrator.id() == id) throw new ApiException(409, "Não é permitido suspender o próprio acesso");
+        if (body.suspended() && access.isLastActiveAdmin(id)) {
+            throw new ApiException(409, "É necessário manter ao menos um administrador ativo");
+        }
         if (!auth.setSuspended(id, body.suspended(), body.reason())) throw new ApiException(404, "Usuário não encontrado");
+        audit(administrator, "update", "user", id, body.suspended() ? "Acesso suspenso" : "Acesso reativado");
         return Map.of("ok", true);
     }
 
-    private void admin(String token) {
-        auth.requireUser(token, "admin");
+    private User admin(String token, String permission) {
+        User user = auth.requireUser(token, "admin");
+        permissions.require(user, permission);
+        return user;
+    }
+
+    private void audit(User actor, String action, String entity, Long entityId, String summary) {
+        auditor.record(actor, action, entity, entityId, summary);
     }
 
     private long insert(String sql, Object... values) {

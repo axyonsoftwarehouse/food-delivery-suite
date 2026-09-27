@@ -1,0 +1,71 @@
+ALTER TABLE restaurants
+  ADD COLUMN approval ENUM('approved','pending','denied') NOT NULL DEFAULT 'approved',
+  ADD COLUMN discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0;
+
+CREATE TABLE restaurant_tags (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  restaurant_id BIGINT UNSIGNED NOT NULL,
+  name VARCHAR(60) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_restaurant_tags (restaurant_id, name),
+  CONSTRAINT fk_restaurant_tags FOREIGN KEY (restaurant_id) REFERENCES restaurants (id) ON DELETE CASCADE
+);
+
+CREATE TABLE courier_profiles (
+  user_id BIGINT UNSIGNED NOT NULL,
+  vehicle_type VARCHAR(30) NOT NULL DEFAULT 'moto',
+  vehicle_plate VARCHAR(20) NOT NULL DEFAULT '',
+  extra_fee_cents INT UNSIGNED NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  CONSTRAINT fk_courier_profile FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE courier_shifts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  courier_id BIGINT UNSIGNED NOT NULL,
+  started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ended_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  INDEX ix_courier_shifts (courier_id),
+  CONSTRAINT fk_shift_courier FOREIGN KEY (courier_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE courier_incentives (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  courier_id BIGINT UNSIGNED NULL,
+  description VARCHAR(255) NOT NULL,
+  amount_cents BIGINT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX ix_incentive_courier (courier_id),
+  CONSTRAINT fk_incentive_courier FOREIGN KEY (courier_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE campaigns (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(120) NOT NULL,
+  type ENUM('basic','item') NOT NULL,
+  percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+  restaurant_id BIGINT UNSIGNED NULL,
+  product_id BIGINT UNSIGNED NULL,
+  starts_at DATE NULL DEFAULT NULL,
+  ends_at DATE NULL DEFAULT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_campaign_restaurant FOREIGN KEY (restaurant_id) REFERENCES restaurants (id) ON DELETE CASCADE,
+  CONSTRAINT fk_campaign_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+);
+
+CREATE TABLE banners (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  title VARCHAR(160) NOT NULL DEFAULT '',
+  image_url VARCHAR(512) NOT NULL,
+  link_url VARCHAR(512) NULL DEFAULT NULL,
+  sort INT NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useApp } from '../app-context';
 import { LanguageSwitcher, useI18n } from '../i18n';
 import NotificationsBell from '../NotificationsBell';
+import ThemeToggle from '../ThemeToggle';
 
 type Item = { href: string; key: string; icon: string };
 
@@ -17,6 +18,11 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/horarios', key: 'nav.panel.hours', icon: '◔' },
     { href: '/painel/operacao', key: 'nav.panel.operation', icon: '◎' },
     { href: '/painel/zonas', key: 'nav.panel.zones', icon: '⬡' },
+    { href: '/painel/relatorios', key: 'nav.panel.reports', icon: '📊' },
+    { href: '/painel/clientes', key: 'nav.panel.customers', icon: '👥' },
+    { href: '/painel/lojas', key: 'nav.panel.tenants', icon: '🏬' },
+    { href: '/painel/promocoes', key: 'nav.panel.promotions', icon: '🎯' },
+    { href: '/painel/conteudo', key: 'nav.panel.content', icon: '📄' },
     { href: '/painel/financeiro', key: 'nav.panel.finance', icon: '$' },
     { href: '/painel/cupons', key: 'nav.panel.coupons', icon: '%' },
     { href: '/painel/equipe', key: 'nav.panel.team', icon: '☰' },
@@ -29,11 +35,16 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/horarios', key: 'nav.panel.hours', icon: '◔' },
     { href: '/painel/pos', key: 'nav.panel.pos', icon: '🧾' },
     { href: '/painel/mesas', key: 'nav.panel.tables', icon: '🍽' },
+    { href: '/painel/estoque', key: 'nav.panel.inventory', icon: '📦' },
+    { href: '/painel/promocoes', key: 'nav.panel.promotions', icon: '🎯' },
+    { href: '/painel/financeiro', key: 'nav.panel.finance', icon: '$' },
+    { href: '/painel/carteira', key: 'nav.panel.wallet', icon: '👛' },
     { href: '/painel/configuracoes', key: 'nav.panel.settings', icon: '⚙' },
   ],
   courier: [
     { href: '/painel', key: 'nav.panel.overview', icon: '◫' },
     { href: '/painel/pedidos', key: 'nav.panel.deliveries', icon: '▤' },
+    { href: '/painel/carteira', key: 'nav.panel.wallet', icon: '👛' },
     { href: '/painel/configuracoes', key: 'nav.panel.settings', icon: '⚙' },
   ],
 };
@@ -73,7 +84,7 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
     </aside>
 
     <section className="content">
-      <header className="topbar"><div><span className="eyebrow">FOODIE / OPERAÇÃO</span><h1>{t('panel.greeting', { name: user.name.split(' ')[0] })}</h1></div><div className="top-actions"><span className={`live-status ${connection}`} title={syncedAt ? t('panel.syncAt', { time: syncedAt }) : ''}>{connection === 'online' ? `● ${t('panel.live')}` : `● ${t('panel.offline')}`}</span><LanguageSwitcher /><NotificationsBell onOpenOrder={(orderId) => router.push(`/painel/pedidos?order=${orderId}`)} /><span className="role-pill">{t(`role.${user.role}`)}</span><button className="text-button" onClick={logout} disabled={busy}>{t('common.logout')}</button></div></header>
+      <header className="topbar"><div><span className="eyebrow">FOODIE / OPERAÇÃO</span><h1>{t('panel.greeting', { name: user.name.split(' ')[0] })}</h1></div><div className="top-actions"><span className={`live-status ${connection}`} title={syncedAt ? t('panel.syncAt', { time: syncedAt }) : ''}>{connection === 'online' ? `● ${t('panel.live')}` : `● ${t('panel.offline')}`}</span><LanguageSwitcher /><ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/painel/pedidos?order=${orderId}`)} /><span className="role-pill">{t(`role.${user.role}`)}</span><button className="text-button" onClick={logout} disabled={busy}>{t('common.logout')}</button></div></header>
       {message && <div className="notice" role="status">{message}</div>}
       {newOrderNotice && <div className="notice alert" role="alert">{newOrderNotice}<button className="text-button" onClick={() => setNewOrderNotice('')}>{t('panel.dismiss')}</button></div>}
       {children}

@@ -71,6 +71,8 @@ type CustomerValue = {
   setScheduledFor: (value: string) => void;
   orderType: 'delivery' | 'take_away' | 'dine_in';
   setOrderType: (value: 'delivery' | 'take_away' | 'dine_in') => void;
+  tip: string;
+  setTip: (value: string) => void;
   tables: { id: number; number: string; capacity: number }[];
   tableId: number | null;
   setTableId: (value: number | null) => void;
@@ -178,6 +180,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [couponBusy, setCouponBusy] = useState(false);
   const [scheduledFor, setScheduledFor] = useState('');
   const [orderType, setOrderType] = useState<'delivery' | 'take_away' | 'dine_in'>('delivery');
+  const [tip, setTip] = useState('');
   const [tables, setTables] = useState<{ id: number; number: string; capacity: number }[]>([]);
   const [tableId, setTableId] = useState<number | null>(null);
   const [partySize, setPartySize] = useState(2);
@@ -402,8 +405,9 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     setPlacing(true); setLocalMessage(''); setOnlineCode(null);
     try {
       if (!checkoutKey.current) checkoutKey.current = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ck-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const tipCents = orderType === 'delivery' && tip.trim() ? Math.round(Number(tip.replace(',', '.')) * 100) : undefined;
       const body: Record<string, unknown> = {
-        expectedTotalCents: subtotal + orderFee - (appliedCoupon?.discountCents ?? 0) + serviceFee,
+        expectedTotalCents: subtotal + orderFee - (appliedCoupon?.discountCents ?? 0) + serviceFee + (tipCents ?? 0),
         expectedVersion: cartVersion,
         idempotencyKey: checkoutKey.current,
         paymentMethod: manual ? 'pix' : paymentMethod,
@@ -412,6 +416,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
         couponCode: appliedCoupon?.code,
         scheduledFor: scheduledFor || undefined,
         orderType,
+        tipCents,
       };
       if (orderType === 'delivery') body.addressId = selectedAddress?.id;
       if (orderType === 'dine_in') { body.tableId = tableId; body.partySize = partySize; }
@@ -482,7 +487,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
     cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
     tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, scheduledFor, setScheduledFor,
-    orderType, setOrderType, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
+    orderType, setOrderType, tip, setTip, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
     manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, submitReview, loadHistory,
     localMessage, showAddressForm, setShowAddressForm, addressForm, setAddressForm,
     postalZone, postalMessage, postalLoading, saveAddress, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode, placing,

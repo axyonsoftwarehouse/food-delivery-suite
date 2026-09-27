@@ -19,6 +19,7 @@ public final class Permissions {
     public static final String HOURS_MANAGE = "hours.manage";
     public static final String TABLES_MANAGE = "tables.manage";
     public static final String POS_MANAGE = "pos.manage";
+    public static final String INVENTORY_MANAGE = "inventory.manage";
     public static final String STAFF_MANAGE = "staff.manage";
     public static final String REPORTS_VIEW = "reports.view";
     public static final String PAYMENTS_MANAGE = "payments.manage";
@@ -36,6 +37,7 @@ public final class Permissions {
         new Descriptor(HOURS_MANAGE, "Gerenciar horários", "Operação"),
         new Descriptor(TABLES_MANAGE, "Gerenciar mesas", "Operação"),
         new Descriptor(POS_MANAGE, "Usar o PDV/balcão", "Operação"),
+        new Descriptor(INVENTORY_MANAGE, "Gerenciar estoque e fornecedores", "Operação"),
         new Descriptor(STAFF_MANAGE, "Gerenciar equipe", "Equipe"),
         new Descriptor(REPORTS_VIEW, "Ver relatórios", "Relatórios"),
         new Descriptor(PAYMENTS_MANAGE, "Gerenciar pagamentos", "Financeiro"),

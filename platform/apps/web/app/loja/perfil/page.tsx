@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { api, useApp } from '../../app-context';
 import { useCustomer } from '../customer-context';
 import AddressForm from '../address-form';
+import RewardsCard from './rewards-card';
+import PersonalizationCard from './personalization-card';
 
 export default function PerfilClientePage() {
   const { logout, busy } = useApp();
@@ -26,5 +28,8 @@ export default function PerfilClientePage() {
       {showAddressForm && <AddressForm />}
       {addresses.length ? <div className="customer-order-list">{addresses.map((address) => <div className="customer-cart-row" key={address.id}><div><strong>{address.label}</strong><small>{address.street}, {address.number} · {address.neighborhood} · {address.city}/{address.state}{address.postal_code ? ` · CEP ${address.postal_code}` : ' · recadastre com CEP'}</small></div></div>)}</div> : <p className="customer-muted">Nenhum endereço cadastrado.</p>}
     </section>
+
+    <RewardsCard />
+    <PersonalizationCard />
   </>;
 }

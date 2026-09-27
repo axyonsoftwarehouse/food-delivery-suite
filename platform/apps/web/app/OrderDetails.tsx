@@ -82,6 +82,28 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
     }
   }
 
+  async function requestRefund() {
+    const note = window.prompt('Descreva o motivo do reembolso:') ?? '';
+    if (note.trim().length < 3) return;
+    try {
+      await api(`/orders/${orderId}/refund-request`, { method: 'POST', body: JSON.stringify({ note: note.trim() }) });
+      window.alert('Solicitação de reembolso enviada.');
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : 'Não foi possível solicitar o reembolso.');
+    }
+  }
+
+  async function track() {
+    try {
+      const data = await api<{ courierLocation: { latitude: number; longitude: number } | null }>(`/orders/${orderId}/tracking`);
+      const location = data.courierLocation;
+      if (location) window.open(`https://www.google.com/maps?q=${location.latitude},${location.longitude}`, '_blank');
+      else window.alert('O entregador ainda não compartilhou a localização.');
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : 'Não foi possível rastrear.');
+    }
+  }
+
   if (loading) return <div className="order-details" aria-live="polite"><p>Carregando detalhes...</p></div>;
   if (error || !detail) return <div className="order-details" aria-live="polite"><p role="alert">{error}</p></div>;
 
@@ -95,6 +117,11 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
       <div><h3>Andamento</h3><ol>{detail.history.map((event, index) => <li key={index}><strong>{statusLabels[event.to_status] ?? event.to_status}</strong>{event.reason && <em> · {event.reason}</em>}<time dateTime={event.created_at}>{date(event.created_at)}</time></li>)}</ol></div>
     </div>
     <div className="order-details-summary"><span>Subtotal {money(detail.subtotal_cents)}</span><span>Entrega {money(detail.delivery_fee_cents)}</span><strong>Total {money(detail.total_cents)}</strong>{payment && <span>Pagamento {paymentMethods[payment.method] ?? payment.method} · {paymentStatuses[payment.status] ?? payment.status}{payment.change_cents ? ` · troco ${money(payment.change_cents)}` : ''}</span>}</div>
+    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+      <a className="ui-btn ui-btn--secondary ui-btn--sm" href={`/backend/orders/${orderId}/invoice`} target="_blank" rel="noreferrer">Fatura</a>
+      <button className="ui-btn ui-btn--secondary ui-btn--sm" type="button" onClick={() => void track()}>Rastrear entrega</button>
+      {user?.role === 'customer' && ['delivered', 'completed', 'served'].includes(status) && <button className="ui-btn ui-btn--danger ui-btn--sm" type="button" onClick={() => void requestRefund()}>Solicitar reembolso</button>}
+    </div>
     {payment && payment.modality === 'offline' && (
       <div className="order-proof">
         <span className="customer-kicker">PAGAMENTO MANUAL</span>

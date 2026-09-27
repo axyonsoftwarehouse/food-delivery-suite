@@ -4,6 +4,8 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.Tokens;
 import com.foodie.api.auth.User;
 import com.foodie.api.catalog.AddonService;
+import com.foodie.api.settings.SettingsCatalog;
+import com.foodie.api.settings.SettingsService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -21,12 +23,14 @@ public class CartService {
     private final OrderService orders;
     private final AddonService addonService;
     private final ObjectMapper json;
+    private final SettingsService settings;
 
-    public CartService(JdbcTemplate jdbc, OrderService orders, AddonService addonService, ObjectMapper json) {
+    public CartService(JdbcTemplate jdbc, OrderService orders, AddonService addonService, ObjectMapper json, SettingsService settings) {
         this.jdbc = jdbc;
         this.orders = orders;
         this.addonService = addonService;
         this.json = json;
+        this.settings = settings;
     }
 
     @Transactional
@@ -96,7 +100,7 @@ public class CartService {
     }
 
     @Transactional
-    public Map<String, Object> checkout(User customer, Long addressId, long expectedTotalCents, String expectedVersion, String idempotencyKey, String paymentMethod, Integer changeForCents, String modality, String couponCode, String scheduledFor, String orderType, Long tableId, Integer partySize) {
+    public Map<String, Object> checkout(User customer, Long addressId, long expectedTotalCents, String expectedVersion, String idempotencyKey, String paymentMethod, Integer changeForCents, String modality, String couponCode, String scheduledFor, String orderType, Long tableId, Integer partySize, Integer tipCents) {
         lock(customer.id());
         prune(customer.id());
         String key = idempotencyKey == null ? null : idempotencyKey.trim();
@@ -104,6 +108,15 @@ public class CartService {
             List<Map<String, Object>> saved = jdbc.queryForList("SELECT response FROM order_idempotency WHERE customer_id = ? AND idem_key = ?", customer.id(), key);
             if (!saved.isEmpty()) return readResponse((String) saved.getFirst().get("response"));
         }
+        if (settings.maintenanceActive()) throw new ApiException(503, settings.maintenanceMessage());
+        String type = orderType == null || orderType.isBlank() ? "delivery" : orderType;
+        boolean typeEnabled = switch (type) {
+            case "delivery" -> settings.bool(SettingsCatalog.ORDER_DELIVERY);
+            case "take_away" -> settings.bool(SettingsCatalog.ORDER_TAKEAWAY);
+            case "dine_in" -> settings.bool(SettingsCatalog.ORDER_DINE_IN);
+            default -> false;
+        };
+        if (!typeEnabled) throw new ApiException(400, "Tipo de pedido indisponível no momento");
         CartSnapshot current = snapshot(customer.id());
         if (current.items().isEmpty()) throw new ApiException(400, "O carrinho está vazio");
         if (expectedVersion != null && !expectedVersion.isBlank() && !expectedVersion.equals(current.version())) {
@@ -114,7 +127,7 @@ public class CartService {
         for (CartItem item : current.items()) {
             items.add(new OrderController.Item(item.productId(), item.variationId() == 0 ? null : item.variationId(), item.quantity(), item.addonIds().isEmpty() ? null : item.addonIds()));
         }
-        Map<String, Object> order = orders.create(customer, new OrderController.OrderRequest(restaurantId, addressId, items, paymentMethod, changeForCents, modality, couponCode, scheduledFor, orderType, tableId, partySize));
+        Map<String, Object> order = orders.create(customer, new OrderController.OrderRequest(restaurantId, addressId, items, paymentMethod, changeForCents, modality, couponCode, scheduledFor, orderType, tableId, partySize, tipCents));
         if (((Number) order.get("totalCents")).longValue() != expectedTotalCents) {
             throw new ApiException(409, "O valor do pedido mudou. Atualize o carrinho antes de continuar");
         }

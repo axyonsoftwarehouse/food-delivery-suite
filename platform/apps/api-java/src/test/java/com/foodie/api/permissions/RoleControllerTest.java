@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import java.util.List;
@@ -34,6 +35,9 @@ class RoleControllerTest {
 
     @MockitoBean
     private RoleRepository roleRepository;
+
+    @MockitoBean
+    private AdminPermissionService adminPermissions;
 
     @Test
     void ownerListsRoles() throws Exception {

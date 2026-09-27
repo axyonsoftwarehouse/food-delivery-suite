@@ -2,12 +2,15 @@
 
 import { useMemo } from 'react';
 import { money, useApp } from '../app-context';
+import AdminDashboard from './admin-dashboard';
 
 export default function OverviewPanel() {
-  const { catalog, orders } = useApp();
+  const { user, catalog, orders } = useApp();
   const placed = useMemo(() => orders.filter((order) => order.status === 'placed').length, [orders]);
   const active = useMemo(() => orders.filter((order) => ['accepted', 'ready', 'assigned', 'picked_up'].includes(order.status)).length, [orders]);
-  const revenue = useMemo(() => orders.filter((order) => order.status === 'delivered').reduce((sum, order) => sum + order.total_cents, 0), [orders]);
+  const revenue = useMemo(() => orders.filter((order) => ['delivered', 'completed', 'served'].includes(order.status)).reduce((sum, order) => sum + order.total_cents, 0), [orders]);
+
+  if (user?.role === 'admin') return <AdminDashboard />;
 
   return <section className="stat-grid">
     <div className="stat-card"><span>Restaurantes</span><strong>{catalog.restaurants.length.toString().padStart(2, '0')}</strong><small>No catálogo</small></div>

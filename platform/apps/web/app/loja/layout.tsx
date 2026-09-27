@@ -7,6 +7,7 @@ import { money, useApp } from '../app-context';
 import { LanguageSwitcher, useI18n } from '../i18n';
 import { CustomerProvider, useCustomer } from './customer-context';
 import NotificationsBell from '../NotificationsBell';
+import ThemeToggle from '../ThemeToggle';
 
 const nav = [
   { href: '/loja', key: 'nav.customer.home', icon: '🏠' },
@@ -26,7 +27,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return <main className="customer-app">
     <header className="customer-header">
       <Link className="customer-brand" href="/loja" aria-label="Foodie"><span className="customer-brand-mark">✦</span> foodie<span>.</span></Link>
-      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? t('panel.syncAt', { time: lastSync.toLocaleTimeString(timeLocale) }) : ''}>{connection === 'online' ? `● ${t('panel.live')}` : `● ${t('panel.offline')}`}</span>}<LanguageSwitcher /><NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} /><span>{t('panel.greeting', { name: user.name.split(' ')[0] })}</span><button onClick={logout} disabled={busy}>{t('common.logout')}</button></div>
+      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? t('panel.syncAt', { time: lastSync.toLocaleTimeString(timeLocale) }) : ''}>{connection === 'online' ? `● ${t('panel.live')}` : `● ${t('panel.offline')}`}</span>}<LanguageSwitcher /><ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} /><span>{t('panel.greeting', { name: user.name.split(' ')[0] })}</span><button onClick={logout} disabled={busy}>{t('common.logout')}</button></div>
     </header>
 
     <nav className="customer-nav" aria-label={t('common.language')}>

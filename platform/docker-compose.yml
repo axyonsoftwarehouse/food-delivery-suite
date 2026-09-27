@@ -18,8 +18,13 @@ services:
       MOBILE_PAYMENT_RETURN_URL: ${MOBILE_PAYMENT_RETURN_URL:-}
       FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
       FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-http://127.0.0.1:4001}
+      STORAGE_LOCAL_DIR: /data/uploads
     ports:
       - "127.0.0.1:4001:4001"
+    volumes:
+      - foodie_uploads:/data/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -43,3 +48,4 @@ services:
 
 volumes:
   foodie_platform_db:
+  foodie_uploads:

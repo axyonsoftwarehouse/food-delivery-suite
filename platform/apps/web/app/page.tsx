@@ -3,13 +3,14 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import GoogleSignInButton from './GoogleSignInButton';
+import FacebookSignInButton from './FacebookSignInButton';
 import { roleHome, useApp } from './app-context';
 import { LanguageSwitcher, useI18n } from './i18n';
 
 export default function Home() {
   const router = useRouter();
   const { t } = useI18n();
-  const { user, initializing, authMode, setAuthMode, signupName, setSignupName, email, setEmail, password, setPassword, message, setMessage, busy, login, signup, forgotPassword, googleLogin, otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, requestOtp, verifyOtp } = useApp();
+  const { user, initializing, authMode, setAuthMode, signupName, setSignupName, email, setEmail, password, setPassword, message, setMessage, busy, login, signup, forgotPassword, googleLogin, facebookLogin, otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, requestOtp, verifyOtp } = useApp();
 
   useEffect(() => {
     if (!initializing && user) router.replace(roleHome(user.role));
@@ -37,6 +38,7 @@ export default function Home() {
           {authMode === 'login' && <div className="alt-login">
             <span className="eyebrow">{t('auth.otherWays')}</span>
             <GoogleSignInButton onToken={googleLogin} disabled={busy} />
+            <FacebookSignInButton onToken={facebookLogin} disabled={busy} />
             <label>{t('auth.phone')}<input value={otpPhone} onChange={(event) => setOtpPhone(event.target.value)} placeholder="+55 85 99999-9999" autoComplete="tel" /></label>
             {otpSent && <label>{t('auth.code')}<input value={otpCode} onChange={(event) => setOtpCode(event.target.value)} inputMode="numeric" maxLength={8} autoComplete="one-time-code" /></label>}
             {otpSent ? <button className="secondary-button" type="button" onClick={(event) => verifyOtp(event)} disabled={busy || otpCode.length < 4}>{t('auth.verify')}</button> : <button className="secondary-button" type="button" onClick={requestOtp} disabled={busy || otpPhone.trim().length < 8}>{t('auth.sendCode')}</button>}

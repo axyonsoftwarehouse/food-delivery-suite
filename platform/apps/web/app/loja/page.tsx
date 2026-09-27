@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { money, useApp } from '../app-context';
+import { api, money, useApp } from '../app-context';
 import { Alert, Button, Card, Chip } from '../ui';
 import { useCustomer } from './customer-context';
 import AddressForm from './address-form';
@@ -13,11 +13,35 @@ export default function LojaPage() {
   const [selectedAddons, setSelectedAddons] = useState<number[]>([]);
   const [pickerError, setPickerError] = useState('');
 
+  const [favorites, setFavorites] = useState<Set<number>>(new Set());
+
   useEffect(() => {
     setChosen(selectedProduct?.variations[0]?.id ?? null);
     setSelectedAddons([]);
     setPickerError('');
   }, [selectedProduct]);
+
+  useEffect(() => { api<{ id: number }[]>('/me/favorites').then((rows) => setFavorites(new Set(rows.map((row) => row.id)))).catch(() => {}); }, []);
+
+  async function toggleFavorite(productId: number) {
+    const next = new Set(favorites);
+    try {
+      if (next.has(productId)) { await api(`/me/favorites/${productId}`, { method: 'DELETE' }); next.delete(productId); }
+      else { await api(`/me/favorites/${productId}`, { method: 'POST' }); next.add(productId); }
+      setFavorites(next);
+    } catch { /* silencioso */ }
+  }
+
+  function voiceSearch() {
+    type Recognition = { lang: string; onresult: (event: { results: Array<Array<{ transcript: string }>> }) => void; start: () => void };
+    const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
+    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!Ctor) { window.alert('Busca por voz não disponível neste navegador.'); return; }
+    const recognition = new Ctor();
+    recognition.lang = 'pt-BR';
+    recognition.onresult = (event) => setSearch(event.results[0][0].transcript);
+    recognition.start();
+  }
 
   const chosenVariation = selectedProduct?.variations.find((variation) => variation.id === chosen) ?? selectedProduct?.variations[0];
 
@@ -69,7 +93,7 @@ export default function LojaPage() {
 
     <section className="customer-section" id="cardapio">
       <div className="customer-section-heading"><div><span className="customer-kicker">O QUE VAI SER HOJE?</span><h2>Encontre seu próximo favorito</h2></div><span>{selectedAddress ? `${visibleProducts.length} ${visibleProducts.length === 1 ? 'opção exibida' : 'opções exibidas'} para ${selectedAddress.neighborhood}` : 'Escolha um endereço'}</span></div>
-      <label className="customer-search"><span className="sr-only">Buscar pratos ou restaurantes</span><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Busque pratos ou restaurantes" /></label>
+      <label className="customer-search"><span className="sr-only">Buscar pratos ou restaurantes</span><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Busque pratos ou restaurantes" /><button type="button" className="customer-link-button" onClick={voiceSearch} aria-label="Buscar por voz">🎤</button></label>
       <div className="customer-categories" role="group" aria-label="Filtrar por categoria"><button className={categoryId === null ? 'selected' : ''} onClick={() => setCategoryId(null)}>Todos</button>{availableCategories.map((category) => <button key={category.id} className={categoryId === category.id ? 'selected' : ''} onClick={() => setCategoryId(category.id)}>{category.name}</button>)}</div>
       {tags.length > 0 && <div className="customer-categories" role="group" aria-label="Filtrar por tag"><button className={tagId === null ? 'selected' : ''} onClick={() => setTagId(null)}>Todas as tags</button>{tags.map((tag) => <button key={tag.id} className={tagId === tag.id ? 'selected' : ''} onClick={() => setTagId(tag.id)}>{tag.name}</button>)}</div>}
       {!selectedAddress ? <div className="customer-empty">Adicione um endereço para ver os restaurantes que entregam na sua região.</div>
@@ -86,6 +110,7 @@ export default function LojaPage() {
                 {product.image_url ? <img src={product.image_url} alt="" className="customer-product-img" /> : <span>🍽</span>}
                 {product.is_combo && <span className="ui-badge ui-badge--info customer-product-tag">COMBO</span>}
                 {hasVariations && <span className="ui-badge ui-badge--brand customer-product-tag--right">{product.variation_count} tamanhos</span>}
+                <button className="customer-fav" type="button" aria-label={favorites.has(product.id) ? 'Remover dos favoritos' : 'Favoritar'} onClick={() => void toggleFavorite(product.id)}>{favorites.has(product.id) ? '♥' : '♡'}</button>
               </div>
               <div className="customer-product-body"><span className="customer-product-restaurant">{restaurant?.name}{closed ? ' · Fechado' : ''}{product.tags ? ` · ${product.tags.split(',').join(' · ')}` : ''}</span><h3>{product.name}</h3><p>{product.description || 'Preparado com cuidado para você.'}</p><div className="customer-product-footer"><strong>{hasVariations ? `a partir de ${money(fromPrice)}` : money(product.price_cents)}</strong><button onClick={() => void openProduct(product)} disabled={busy || cartBusy || productLoading || !cartLoaded || closed} title={closed ? 'Restaurante fora do horário de funcionamento' : undefined} aria-label={`${hasVariations ? 'Escolher opção de' : 'Adicionar'} ${product.name}`}>{closed ? 'Fechado' : hasVariations ? 'Escolher' : '+ Adicionar'}</button></div></div>
             </article>;

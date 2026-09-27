@@ -4,8 +4,10 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
 import com.foodie.api.catalog.AddonService;
 import com.foodie.api.catalog.PostalCoverageService;
+import com.foodie.api.finance.LedgerService;
 import com.foodie.api.hours.RestaurantHoursService;
 import com.foodie.api.notifications.NotificationService;
+import com.foodie.api.rewards.RewardsService;
 import com.foodie.api.routing.DeliveryService;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
@@ -35,8 +37,10 @@ public class OrderService {
     private final NotificationService notifications;
     private final AddonService addonService;
     private final CouponService couponService;
+    private final LedgerService ledger;
+    private final RewardsService rewards;
 
-    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService) {
+    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, LedgerService ledger, RewardsService rewards) {
         this.jdbc = jdbc;
         this.namedJdbc = namedJdbc;
         this.postalCoverage = postalCoverage;
@@ -46,6 +50,8 @@ public class OrderService {
         this.notifications = notifications;
         this.addonService = addonService;
         this.couponService = couponService;
+        this.ledger = ledger;
+        this.rewards = rewards;
     }
 
     @Transactional
@@ -165,7 +171,9 @@ public class OrderService {
         long minimum = deliveryOrder ? number(address, "minimum_order_cents") : 0;
         long total = Math.max(0, OrderWorkflow.total(subtotal, fee, minimum) - discount);
         long serviceFee = serviceFeePercent <= 0 ? 0 : Math.round(total * serviceFeePercent / 100.0);
+        long tip = request.tipCents() == null ? 0 : Math.max(0, Math.min(request.tipCents(), 100_000));
         long finalTotal = total + serviceFee;
+        long payable = finalTotal + tip;
         long finalSubtotal = subtotal;
         Long distanceMeters = estimate == null ? null : estimate.distanceMeters();
         Long durationSeconds = estimate == null ? null : estimate.durationSeconds();
@@ -221,7 +229,7 @@ public class OrderService {
         final LocalDateTime orderScheduledAt = scheduledAt;
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, discount_cents, coupon_code, total_cents, distance_meters, duration_seconds, scheduled_at, order_type, table_id, party_size, service_fee_cents, table_session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, discount_cents, coupon_code, total_cents, distance_meters, duration_seconds, scheduled_at, order_type, table_id, party_size, service_fee_cents, table_session_id, tip_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 Statement.RETURN_GENERATED_KEYS
             );
             statement.setLong(1, customer.id());
@@ -233,7 +241,7 @@ public class OrderService {
             statement.setLong(7, fee);
             statement.setLong(8, discount);
             if (appliedCoupon == null) statement.setNull(9, java.sql.Types.VARCHAR); else statement.setString(9, appliedCoupon.code());
-            statement.setLong(10, finalTotal);
+            statement.setLong(10, payable);
             if (distanceMeters == null) statement.setNull(11, java.sql.Types.INTEGER); else statement.setLong(11, distanceMeters);
             if (durationSeconds == null) statement.setNull(12, java.sql.Types.INTEGER); else statement.setLong(12, durationSeconds);
             if (orderScheduledAt == null) statement.setNull(13, java.sql.Types.TIMESTAMP); else statement.setObject(13, orderScheduledAt);
@@ -242,6 +250,7 @@ public class OrderService {
             if (partySizeForOrder == null) statement.setNull(16, java.sql.Types.INTEGER); else statement.setInt(16, partySizeForOrder);
             statement.setLong(17, serviceFee);
             if (sessionIdForOrder == null) statement.setNull(18, java.sql.Types.BIGINT); else statement.setLong(18, sessionIdForOrder);
+            statement.setLong(19, tip);
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
@@ -275,7 +284,7 @@ public class OrderService {
             }
         }
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status) VALUES (?, ?, NULL, ?)", orderId, customer.id(), "placed");
-        payments.create(orderId, request.paymentMethod(), request.modality(), finalTotal, request.changeForCents());
+        payments.create(orderId, request.paymentMethod(), request.modality(), payable, request.changeForCents());
         notifications.notifyRestaurant(request.restaurantId(), "order_placed", "Novo pedido #" + orderId, "Aguardando aceite do restaurante.", orderId);
         if (coupon != null) couponService.consume(coupon.couponId());
         Map<String, Object> created = new LinkedHashMap<>();
@@ -286,8 +295,9 @@ public class OrderService {
         created.put("deliveryFeeCents", fee);
         created.put("discountCents", discount);
         if (coupon != null)         created.put("couponCode", coupon.code());
-        created.put("totalCents", finalTotal);
+        created.put("totalCents", payable);
         if (serviceFee > 0) created.put("serviceFeeCents", serviceFee);
+        if (tip > 0) created.put("tipCents", tip);
         if (sessionIdForOrder != null) created.put("tableSessionId", sessionIdForOrder);
         if (orderScheduledAt != null) created.put("scheduledAt", orderScheduledAt.toString());
         created.put("address", addressText);
@@ -394,6 +404,8 @@ public class OrderService {
         if (Set.of("rejected", "cancelled", "expired", "failed").contains(next)) payments.cancelPending(orderId);
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, ?, ?, ?, ?)", orderId, user.id(), current, next, trimmed);
         notifyTransition(order, orderId, next, courierId);
+        ledger.postOrder(orderId);
+        rewards.onOrderCompleted(orderId);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", orderId);
         result.put("status", next);
