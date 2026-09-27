@@ -76,6 +76,7 @@ type AppValue = {
   couriers: Courier[];
   postalRanges: PostalRange[];
   permissions: string[];
+  modules: string[];
   connection: 'online' | 'offline';
   lastSync: Date | null;
   newOrderNotice: string;
@@ -128,6 +129,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [postalRanges, setPostalRanges] = useState<PostalRange[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [modules, setModules] = useState<string[]>([]);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [signupName, setSignupName] = useState('');
   const [otpPhone, setOtpPhone] = useState('');
@@ -151,7 +153,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const version = ++refreshVersion.current;
     try {
       const me = activeUser === undefined ? (await api<{ user: User | null }>('/me')).user : activeUser;
-      const [catalogData, orderData, courierData, zoneData, addressData, postalRangeData, permissionData] = await Promise.all([
+      const [catalogData, orderData, courierData, zoneData, addressData, postalRangeData, permissionData, moduleData] = await Promise.all([
         api<Catalog>(me?.role === 'customer' ? '/catalog/meta' : '/catalog'),
         me ? api<Order[]>('/orders') : Promise.resolve([]),
         me?.role === 'admin' ? api<Courier[]>('/admin/couriers') : Promise.resolve([]),
@@ -159,6 +161,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         me?.role === 'customer' ? api<Address[]>('/addresses') : Promise.resolve([]),
         me?.role === 'admin' ? api<PostalRange[]>('/admin/postal-ranges') : Promise.resolve([]),
         me ? api<{ role: string; permissions: string[] }>('/me/permissions') : Promise.resolve({ role: '', permissions: [] as string[] }),
+        me?.role === 'restaurant' ? api<{ modules: string[] }>('/restaurant/modules').then((data) => data.modules).catch(() => [] as string[]) : Promise.resolve([] as string[]),
       ]);
       if (version !== refreshVersion.current) return;
       setCatalog(catalogData);
@@ -168,6 +171,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAddresses(addressData);
       setPostalRanges(postalRangeData);
       setPermissions(permissionData.permissions);
+      setModules(moduleData);
       setUser(me);
       setConnection('online');
       setLastSync(new Date());
@@ -343,7 +347,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   const value: AppValue = {
-    user, initializing, busy, message, setMessage, catalog, zones, addresses, orders, couriers, postalRanges, permissions,
+    user, initializing, busy, message, setMessage, catalog, zones, addresses, orders, couriers, postalRanges, permissions, modules,
     connection, lastSync, newOrderNotice, setNewOrderNotice, expandedOrderId, setExpandedOrderId,
     email, setEmail, password, setPassword, authMode, setAuthMode, signupName, setSignupName,
     otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, googleLogin, facebookLogin, requestOtp, verifyOtp,

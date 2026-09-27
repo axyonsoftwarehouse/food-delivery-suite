@@ -8,7 +8,7 @@ import { LanguageSwitcher, useI18n } from '../i18n';
 import NotificationsBell from '../NotificationsBell';
 import ThemeToggle from '../ThemeToggle';
 
-type Item = { href: string; key: string; icon: string };
+type Item = { href: string; key: string; icon: string; module?: string };
 
 const menuFor: Record<string, Item[]> = {
   admin: [
@@ -35,9 +35,10 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/horarios', key: 'nav.panel.hours', icon: '◔' },
     { href: '/painel/pos', key: 'nav.panel.pos', icon: '🧾' },
     { href: '/painel/mesas', key: 'nav.panel.tables', icon: '🍽' },
-    { href: '/painel/estoque', key: 'nav.panel.inventory', icon: '📦' },
-    { href: '/painel/promocoes', key: 'nav.panel.promotions', icon: '🎯' },
-    { href: '/painel/financeiro', key: 'nav.panel.finance', icon: '$' },
+    { href: '/painel/estoque', key: 'nav.panel.inventory', icon: '📦', module: 'inventory' },
+    { href: '/painel/promocoes', key: 'nav.panel.promotions', icon: '🎯', module: 'marketing' },
+    { href: '/painel/financeiro', key: 'nav.panel.finance', icon: '$', module: 'finance' },
+    { href: '/painel/minha-pagina', key: 'nav.panel.storefront', icon: '🏪', module: 'storefront' },
     { href: '/painel/carteira', key: 'nav.panel.wallet', icon: '👛' },
     { href: '/painel/configuracoes', key: 'nav.panel.settings', icon: '⚙' },
   ],
@@ -53,7 +54,7 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
   const router = useRouter();
   const pathname = usePathname();
   const { t, locale } = useI18n();
-  const { user, initializing, connection, lastSync, busy, message, newOrderNotice, setNewOrderNotice, logout, permissions } = useApp();
+  const { user, initializing, connection, lastSync, busy, message, newOrderNotice, setNewOrderNotice, logout, permissions, modules } = useApp();
 
   useEffect(() => {
     if (initializing) return;
@@ -65,7 +66,7 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
     return <main className="app-loading" role="status"><span className="app-loading-brand">✦ foodie<span>.</span></span><p>{t('panel.loading')}</p></main>;
   }
 
-  const menu = [...(menuFor[user.role] ?? [])];
+  const menu = [...(menuFor[user.role] ?? [])].filter((item) => !item.module || user.role !== 'restaurant' || modules.includes(item.module));
   if ((user.role === 'restaurant' || user.role === 'admin') && permissions.includes('staff.manage') && !menu.some((item) => item.href === '/painel/equipe')) {
     menu.splice(Math.max(menu.length - 1, 0), 0, { href: '/painel/equipe', key: 'nav.panel.team', icon: '☰' });
   }
