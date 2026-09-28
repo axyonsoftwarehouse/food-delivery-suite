@@ -35,4 +35,4 @@ Pedidos recorrentes e aplicação de campanhas no checkout foram implementados n
 
 ## Verificação desta atualização
 
-`VERIFY_INTEGRATION=1 pnpm verify` passou: 224 testes Java, testes TypeScript, tipos e build Next, migration V053 e seed em MariaDB efêmero, além dos smokes de pedido, carrinho, exceções e contas. A home pública e o link para `/entrar` foram conferidos em navegador local; a lista de restaurantes depende da API do ambiente.
+`VERIFY_INTEGRATION=1 pnpm verify` passou: 225 testes Java, testes TypeScript, tipos e build Next, migration V053 e seed em MariaDB efêmero, além dos smokes de pedido, carrinho, exceções e contas. A home pública e o link para `/entrar` foram conferidos em navegador local; a lista de restaurantes depende da API do ambiente.
