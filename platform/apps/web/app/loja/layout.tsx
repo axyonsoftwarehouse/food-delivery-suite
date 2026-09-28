@@ -50,7 +50,7 @@ export default function LojaLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (initializing) return;
-    if (!user) router.replace('/');
+    if (!user) router.replace('/entrar');
     else if (user.role !== 'customer') router.replace('/painel');
   }, [initializing, user, router]);
 

@@ -1,6 +1,7 @@
 package com.foodie.api.restaurant;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.admin.ModuleAccessService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.PermissionService;
@@ -35,11 +36,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class InventoryController {
     private final AuthService auth;
     private final PermissionService permissions;
+    private final ModuleAccessService modules;
     private final JdbcTemplate jdbc;
 
-    public InventoryController(AuthService auth, PermissionService permissions, JdbcTemplate jdbc) {
+    public InventoryController(AuthService auth, PermissionService permissions, ModuleAccessService modules, JdbcTemplate jdbc) {
         this.auth = auth;
         this.permissions = permissions;
+        this.modules = modules;
         this.jdbc = jdbc;
     }
 
@@ -169,6 +172,7 @@ public class InventoryController {
         User user = auth.requireUser(token, "restaurant", "kitchen");
         if (user.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
         permissions.require(user, Permissions.INVENTORY_MANAGE);
+        modules.require(user.restaurantId(), "inventory");
         requireItem(id, user.restaurantId());
         if (body.delta().signum() == 0) throw new ApiException(400, "Movimentação nula");
         jdbc.update("INSERT INTO inventory_movements (item_id, delta, reason, created_by) VALUES (?, ?, ?, ?)",
@@ -192,6 +196,7 @@ public class InventoryController {
         User user = auth.requireUser(token, "restaurant", "kitchen");
         if (user.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
         permissions.require(user, Permissions.INVENTORY_MANAGE);
+        modules.require(user.restaurantId(), "inventory");
         return user.restaurantId();
     }
 

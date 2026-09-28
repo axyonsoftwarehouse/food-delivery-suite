@@ -24,13 +24,15 @@ public class CartService {
     private final AddonService addonService;
     private final ObjectMapper json;
     private final SettingsService settings;
+    private final CampaignService campaigns;
 
-    public CartService(JdbcTemplate jdbc, OrderService orders, AddonService addonService, ObjectMapper json, SettingsService settings) {
+    public CartService(JdbcTemplate jdbc, OrderService orders, AddonService addonService, ObjectMapper json, SettingsService settings, CampaignService campaigns) {
         this.jdbc = jdbc;
         this.orders = orders;
         this.addonService = addonService;
         this.json = json;
         this.settings = settings;
+        this.campaigns = campaigns;
     }
 
     @Transactional
@@ -38,6 +40,18 @@ public class CartService {
         lock(customer.id());
         prune(customer.id());
         return snapshot(customer.id());
+    }
+
+    @Transactional
+    public Map<String, Object> campaign(User customer) {
+        CartSnapshot current = get(customer);
+        if (current.items().isEmpty()) return Map.of("discountCents", 0);
+        CampaignService.Applied applied = campaigns.best(current.items().getFirst().restaurantId(),
+            current.items().stream().map(item -> new CampaignService.Line(item.productId(),
+                item.unitPriceCents() * item.quantity())).toList());
+        if (applied == null) return Map.of("discountCents", 0);
+        return Map.of("campaignId", applied.campaignId(), "name", applied.name(),
+            "discountCents", applied.discountCents());
     }
 
     @Transactional

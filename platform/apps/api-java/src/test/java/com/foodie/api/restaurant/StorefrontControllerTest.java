@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.admin.ModuleAccessService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.PermissionService;
@@ -33,6 +34,9 @@ class StorefrontControllerTest {
 
     @MockitoBean
     private PermissionService permissions;
+
+    @MockitoBean
+    private ModuleAccessService modules;
 
     @MockitoBean
     private JdbcTemplate jdbc;

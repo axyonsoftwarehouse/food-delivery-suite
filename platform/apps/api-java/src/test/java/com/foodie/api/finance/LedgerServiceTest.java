@@ -8,7 +8,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,8 +16,7 @@ import org.junit.jupiter.api.Test;
 
 class LedgerServiceTest {
     private final LedgerRepository ledger = mock(LedgerRepository.class);
-    private final CommissionRepository commissions = mock(CommissionRepository.class);
-    private final LedgerService service = new LedgerService(ledger, commissions);
+    private final LedgerService service = new LedgerService(ledger);
 
     private Map<String, Object> order(Long courierId, long subtotal, long fee, long serviceFee, String status, String paymentStatus) {
         Map<String, Object> row = new HashMap<>();
@@ -33,17 +31,15 @@ class LedgerServiceTest {
     }
 
     @Test
-    void postsSaleCommissionAndDeliveryFee() {
+    void postsCourierFeesWithoutMerchantWalletOrCommission() {
         when(ledger.orderPosted(10)).thenReturn(false);
         when(ledger.orderFinance(10)).thenReturn(Optional.of(order(5L, 10000, 500, 0, "delivered", "paid")));
-        when(commissions.forRestaurant(1)).thenReturn(Optional.of(new BigDecimal("10")));
+        when(ledger.markOrderPosted(10)).thenReturn(true);
 
         service.postOrder(10);
 
-        verify(ledger).insert("restaurant", 1L, 10L, "sale", 10000, "Venda do pedido #10");
-        verify(ledger).insert("restaurant", 1L, 10L, "commission", -1000, "Comissão do pedido #10");
-        verify(ledger).insert("admin", null, 10L, "commission", 1000, "Comissão do pedido #10");
         verify(ledger).insert("courier", 5L, 10L, "delivery_fee", 500, "Taxa de entrega do pedido #10");
+        verify(ledger, never()).insert(org.mockito.ArgumentMatchers.eq("restaurant"), any(), any(), anyString(), anyLong(), anyString());
     }
 
     @Test
@@ -59,6 +55,14 @@ class LedgerServiceTest {
         when(ledger.orderPosted(12)).thenReturn(true);
         service.postOrder(12);
         verify(ledger, never()).orderFinance(12);
+    }
+
+    @Test
+    void skipsWhenAnotherTransactionPostedFirst() {
+        when(ledger.orderFinance(13)).thenReturn(Optional.of(order(5L, 10000, 500, 0, "delivered", "paid")));
+        when(ledger.markOrderPosted(13)).thenReturn(false);
+        service.postOrder(13);
+        verify(ledger, never()).insert(anyString(), any(), any(), anyString(), anyLong(), anyString());
     }
 
     @Test

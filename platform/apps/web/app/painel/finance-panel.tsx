@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, money, useApp } from '../app-context';
 import PaymentsPanel from '../PaymentsPanel';
 
-type Commission = { global: number; rules: { scope: string; restaurant_id: number | null; percent: number; restaurant_name: string | null }[] };
 type Payout = { id: number; party: string; party_id: number; amount_cents: number; status: string; note: string; party_name: string | null; created_at: string };
 type Expense = { id: number; category: string; description: string; amount_cents: number; incurred_at: string; created_by_name: string | null };
 type LedgerEntry = { id: number; party: string; party_id: number | null; order_id: number | null; kind: string; amount_cents: number; description: string; created_at: string };
@@ -29,60 +28,17 @@ export default function FinancePanel() {
   const [tab, setTab] = useState('payments');
 
   return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">FINANCEIRO</span><h2>Dinheiro da operação</h2></div><p>Comissão, repasses, despesas e extrato do razão.</p></div>
+    <div className="panel-heading"><div><span className="eyebrow">FINANCEIRO</span><h2>Dinheiro da operação</h2></div><p>Pagamentos, repasses dos entregadores, despesas e histórico financeiro.</p></div>
     <div className="ui-chips" style={{ marginBottom: 16 }}>
-      {[['payments', 'Pagamentos'], ['earnings', 'Ganhos'], ['commission', 'Comissão'], ['payouts', 'Repasses'], ['expenses', 'Despesas'], ['ledger', 'Extrato']].map(([id, label]) =>
+      {[['payments', 'Pagamentos'], ['earnings', 'Histórico'], ['payouts', 'Repasses'], ['expenses', 'Despesas'], ['ledger', 'Extrato']].map(([id, label]) =>
         <button key={id} type="button" className={`ui-chip${tab === id ? ' selected' : ''}`} onClick={() => setTab(id)}>{label}</button>)}
     </div>
     {tab === 'payments' && <PaymentsPanel onMessage={setMessage} />}
     {tab === 'earnings' && <EarningsTab onMessage={setMessage} />}
-    {tab === 'commission' && <CommissionTab onMessage={setMessage} />}
     {tab === 'payouts' && <PayoutsTab onMessage={setMessage} />}
     {tab === 'expenses' && <ExpensesTab onMessage={setMessage} />}
     {tab === 'ledger' && <LedgerTab onMessage={setMessage} />}
   </section>;
-}
-
-function CommissionTab({ onMessage }: { onMessage: (m: string) => void }) {
-  const [data, setData] = useState<Commission | null>(null);
-  const [percent, setPercent] = useState('10');
-  const [restaurantId, setRestaurantId] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const result = await api<Commission>('/admin/finance/commission');
-      setData(result);
-      setPercent(String(result.global));
-    } catch (error) { onMessage(error instanceof Error ? error.message : 'Erro ao carregar comissão.'); }
-  }, [onMessage]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    try {
-      const body = restaurantId ? { restaurantId: Number(restaurantId), percent: Number(percent.replace(',', '.')) } : { percent: Number(percent.replace(',', '.')) };
-      const result = await api<Commission>('/admin/finance/commission', { method: 'PATCH', body: JSON.stringify(body) });
-      setData(result);
-      onMessage('Comissão atualizada.');
-    } catch (error) { onMessage(error instanceof Error ? error.message : 'Não foi possível salvar.'); }
-    finally { setBusy(false); }
-  }
-
-  return <div className="form-grid">
-    <form onSubmit={save}>
-      <h3>Definir comissão</h3>
-      <label>Restaurante<select value={restaurantId} onChange={(event) => setRestaurantId(event.target.value)}><option value="">Toda a plataforma (global)</option>{data?.rules.filter((rule) => rule.scope === 'restaurant').map((rule) => <option key={rule.restaurant_id} value={rule.restaurant_id ?? ''}>{rule.restaurant_name ?? `#${rule.restaurant_id}`}</option>)}</select></label>
-      <label>Percentual (%)<input inputMode="decimal" value={percent} onChange={(event) => setPercent(event.target.value)} required /></label>
-      <button className="secondary-button" disabled={busy}>Salvar comissão</button>
-    </form>
-    <div className="courier-list">
-      <h3>Regras ativas</h3>
-      {data?.rules.length ? data.rules.map((rule, index) => <div className="courier-row" key={index}><div><strong>{rule.scope === 'global' ? 'Global' : rule.restaurant_name ?? `#${rule.restaurant_id}`}</strong><span>{rule.percent}%</span></div></div>) : <p className="form-help">Sem regras.</p>}
-    </div>
-  </div>;
 }
 
 function PayoutsTab({ onMessage }: { onMessage: (m: string) => void }) {
@@ -194,7 +150,7 @@ function LedgerTab({ onMessage }: { onMessage: (m: string) => void }) {
 
   return <>
     <div className="ui-chips" style={{ marginBottom: 12 }}>
-      <select value={party} onChange={(event) => setParty(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurante</option><option value="courier">Entregador</option></select>
+      <select value={party} onChange={(event) => setParty(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurante (histórico)</option><option value="courier">Entregador</option></select>
       {party !== 'admin' && <input inputMode="numeric" value={partyId} onChange={(event) => setPartyId(event.target.value)} placeholder="ID da parte" />}
       <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
       <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
@@ -222,7 +178,7 @@ function EarningsTab({ onMessage }: { onMessage: (m: string) => void }) {
 
   return <>
     <div className="ui-chips" style={{ marginBottom: 12 }}>
-      <select value={scope} onChange={(event) => setScope(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurantes</option><option value="courier">Entregadores</option></select>
+      <select value={scope} onChange={(event) => setScope(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurantes (histórico)</option><option value="courier">Entregadores</option></select>
       <select value={groupBy} onChange={(event) => setGroupBy(event.target.value)}><option value="day">Por dia</option><option value="week">Por semana</option><option value="month">Por mês</option></select>
       <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
       <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />

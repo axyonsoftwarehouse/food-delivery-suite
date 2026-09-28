@@ -23,6 +23,10 @@ type Detail = {
   delivery_address_text: string | null;
   subtotal_cents: number;
   delivery_fee_cents: number;
+  discount_cents: number;
+  campaign_name: string | null;
+  campaign_discount_cents: number;
+  coupon_code: string | null;
   total_cents: number;
   items: Item[];
   history: Event[];
@@ -116,7 +120,7 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
       <div><h3>Itens</h3><ul>{detail.items.map((item, index) => <li key={index}><span>{item.quantity} × {item.name}</span><strong>{money(item.quantity * item.unit_price_cents)}</strong></li>)}</ul></div>
       <div><h3>Andamento</h3><ol>{detail.history.map((event, index) => <li key={index}><strong>{statusLabels[event.to_status] ?? event.to_status}</strong>{event.reason && <em> · {event.reason}</em>}<time dateTime={event.created_at}>{date(event.created_at)}</time></li>)}</ol></div>
     </div>
-    <div className="order-details-summary"><span>Subtotal {money(detail.subtotal_cents)}</span><span>Entrega {money(detail.delivery_fee_cents)}</span><strong>Total {money(detail.total_cents)}</strong>{payment && <span>Pagamento {paymentMethods[payment.method] ?? payment.method} · {paymentStatuses[payment.status] ?? payment.status}{payment.change_cents ? ` · troco ${money(payment.change_cents)}` : ''}</span>}</div>
+    <div className="order-details-summary"><span>Subtotal {money(detail.subtotal_cents)}</span>{detail.campaign_discount_cents > 0 && <span>Campanha {detail.campaign_name}: −{money(detail.campaign_discount_cents)}</span>}{detail.coupon_code && <span>Cupom {detail.coupon_code}: −{money(Math.max(0, detail.discount_cents - detail.campaign_discount_cents))}</span>}{detail.discount_cents > 0 && !detail.campaign_name && !detail.coupon_code && <span>Desconto: −{money(detail.discount_cents)}</span>}<span>Entrega {money(detail.delivery_fee_cents)}</span><strong>Total {money(detail.total_cents)}</strong>{payment && <span>Pagamento {paymentMethods[payment.method] ?? payment.method} · {paymentStatuses[payment.status] ?? payment.status}{payment.change_cents ? ` · troco ${money(payment.change_cents)}` : ''}</span>}</div>
     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
       <a className="ui-btn ui-btn--secondary ui-btn--sm" href={`/backend/orders/${orderId}/invoice`} target="_blank" rel="noreferrer">Fatura</a>
       <button className="ui-btn ui-btn--secondary ui-btn--sm" type="button" onClick={() => void track()}>Rastrear entrega</button>

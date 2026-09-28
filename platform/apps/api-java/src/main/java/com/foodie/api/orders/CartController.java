@@ -40,6 +40,11 @@ public class CartController {
         return cart.get(customer(token));
     }
 
+    @GetMapping("/campaign")
+    public Map<String, Object> campaign(@CookieValue(value = "foodie_session", required = false) String token) {
+        return cart.campaign(customer(token));
+    }
+
     @PatchMapping("/items/{productId}")
     public CartService.CartSnapshot change(@CookieValue(value = "foodie_session", required = false) String token,
                                            @PathVariable @Positive long productId,

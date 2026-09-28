@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 
 const base = process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:4001';
 const password = process.env.DEMO_PASSWORD;
@@ -32,7 +33,8 @@ const courier = await login('entregador@demo.local');
 
 const restaurantProducts = await call('/restaurant/products', { cookie: restaurant });
 assert.ok(restaurantProducts.length > 0, 'Restaurante demo sem produtos no seed');
-const product = restaurantProducts.find((item) => item.available) ?? restaurantProducts[0];
+const product = restaurantProducts.find((item) => item.name === 'Prato da casa' && item.available);
+assert.ok(product, 'Prato da casa demonstrativo indisponível');
 const restaurantId = product.restaurant_id;
 
 const catalog = await call('/catalog');
@@ -44,8 +46,15 @@ const address = await call('/addresses', { cookie: customer, method: 'POST', exp
   body: { postalCode: '60000001', label: 'Exceções', street: 'Rua de Teste', number: '1', neighborhood: 'Centro' } });
 assert.equal(address.zoneId, zone.id, 'CEP 60000001 deveria resolver a zona do restaurante demo');
 
-const place = () => call('/orders', { cookie: customer, method: 'POST', expected: 201,
-  body: { restaurantId, addressId: address.id, items: [{ productId: product.id, quantity: 1 }], paymentMethod: 'cash' } });
+async function place() {
+  await call('/cart', { cookie: customer, method: 'DELETE' });
+  await call(`/cart/items/${product.id}`, { cookie: customer, method: 'PATCH', body: { delta: 1 } });
+  const cart = await call('/cart', { cookie: customer });
+  return call('/cart/checkout', { cookie: customer, method: 'POST', expected: 201,
+    body: { addressId: address.id, expectedVersion: cart.version,
+      expectedTotalCents: product.price_cents + zone.delivery_fee_cents,
+      paymentMethod: 'cash', idempotencyKey: `exceptions-${randomUUID()}` } });
+}
 
 let demoCourier = (await call('/admin/couriers', { cookie: admin })).find((item) => item.email === 'entregador@demo.local');
 assert.ok(demoCourier, 'Entregador demo ausente');

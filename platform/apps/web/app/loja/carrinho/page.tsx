@@ -1,13 +1,37 @@
 'use client';
 
-import { money, useApp } from '../../app-context';
+import { useState } from 'react';
+import Link from 'next/link';
+import { api, money, useApp } from '../../app-context';
 import { useCustomer } from '../customer-context';
 
 export default function CarrinhoPage() {
   const { busy } = useApp();
-  const { cartEntries, cartCount, subtotal, fee, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote } = useCustomer();
+  const [frequencyDays, setFrequencyDays] = useState(7);
+  const [firstRunAt, setFirstRunAt] = useState('');
+  const [recurringBusy, setRecurringBusy] = useState(false);
+  const [recurringMessage, setRecurringMessage] = useState('');
+  const { cartEntries, cartCount, subtotal, fee, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote } = useCustomer();
   const parsedTip = Number(tip.replace(',', '.'));
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
+
+  async function createRecurring() {
+    if (!selectedAddress || !cartEntries.length) return;
+    setRecurringBusy(true); setRecurringMessage('');
+    try {
+      await api('/me/subscriptions', { method: 'POST', body: JSON.stringify({
+        restaurantId: cartEntries[0].product.restaurant_id,
+        addressId: selectedAddress.id,
+        frequencyDays,
+        firstRunAt: firstRunAt || undefined,
+        paymentMethod,
+        items: cartEntries.map((entry) => ({ productId: entry.product.id, variationId: entry.variationId || null, quantity: entry.quantity })),
+      }) });
+      setRecurringMessage('Recorrência criada. O primeiro pedido será gerado no próximo ciclo.');
+    } catch (error) {
+      setRecurringMessage(error instanceof Error ? error.message : 'Não foi possível criar a recorrência.');
+    } finally { setRecurringBusy(false); }
+  }
 
   return <section className="customer-card customer-cart" id="carrinho">
     <div className="customer-card-title"><div><span className="customer-kicker">SEU PEDIDO</span><h2>Carrinho</h2></div><div className="customer-cart-heading-actions"><span>{cartCount} {cartCount === 1 ? 'item' : 'itens'}</span><button onClick={refreshCart} disabled={cartBusy || !cartLoaded}>Atualizar</button>{cartCount > 0 && <button onClick={() => mutateCart('/cart', 'DELETE', undefined, 'Carrinho esvaziado.')} disabled={cartBusy}>Esvaziar</button>}</div></div>
@@ -15,7 +39,7 @@ export default function CarrinhoPage() {
     {onlineCode && <section className="customer-card customer-online-payment"><div className="customer-card-title"><div><span className="customer-kicker">PAGAMENTO ONLINE</span><h2>Finalize o pagamento</h2></div></div>{onlineCode.base64 && <img className="customer-qr" src={`data:image/png;base64,${onlineCode.base64}`} alt="QR Code Pix" />}{onlineCode.text && <><label>Pix copia e cola<textarea readOnly rows={3} value={onlineCode.text} /></label><button className="customer-solid-button" type="button" onClick={() => { void navigator.clipboard?.writeText(onlineCode.text ?? ''); }}>Copiar código Pix</button></>}{onlineCode.url && <a className="customer-solid-button" href={onlineCode.url} target="_blank" rel="noreferrer">Abrir pagamento</a>}</section>}
 
     {cartEntries.length ? <><div className="customer-cart-items">{cartEntries.map(({ product, quantity, variationId, variationName, addonIds, addonNames, unitPriceCents }) => <div className="customer-cart-row" key={`${product.id}-${variationId}-${addonIds.join('.')}`}><div><strong>{product.name}{variationName ? ` · ${variationName}` : ''}</strong><small>{money(unitPriceCents)} cada{addonNames.length ? ` · ${addonNames.join(', ')}` : ''}</small></div><div className="customer-quantity"><button onClick={() => changeQuantity(product.id, variationId, addonIds, -1)} disabled={cartBusy} aria-label={`Remover uma unidade de ${product.name}`}>−</button><span>{quantity}</span><button onClick={() => changeQuantity(product.id, variationId, addonIds, 1)} disabled={cartBusy} aria-label={`Adicionar uma unidade de ${product.name}`}>+</button></div></div>)}</div>
-      <div className="customer-totals"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div>{discount > 0 && <div><span>Desconto</span><strong>−{money(discount)}</strong></div>}{orderType === 'delivery' && <div><span>Entrega</span><strong>{selectedZone ? money(orderFee) : '—'}</strong></div>}{serviceFee > 0 && <div><span>Serviço</span><strong>{money(serviceFee)}</strong></div>}{tipCents > 0 && <div><span>Gorjeta</span><strong>{money(tipCents)}</strong></div>}<div className="grand-total"><span>Total</span><strong>{money(subtotal + orderFee - discount + serviceFee + tipCents)}</strong></div></div>
+      <div className="customer-totals"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div>{campaign && <div><span>Campanha: {campaign.name}</span><strong>−{money(campaign.discountCents)}</strong></div>}{appliedCoupon && <div><span>Cupom: {appliedCoupon.code}</span><strong>−{money(Math.max(0, discount - (campaign?.discountCents ?? 0)))}</strong></div>}{orderType === 'delivery' && <div><span>Entrega</span><strong>{selectedZone ? money(orderFee) : '—'}</strong></div>}{serviceFee > 0 && <div><span>Serviço</span><strong>{money(serviceFee)}</strong></div>}{tipCents > 0 && <div><span>Gorjeta</span><strong>{money(tipCents)}</strong></div>}<div className="grand-total"><span>Total</span><strong>{money(subtotal + orderFee - discount + serviceFee + tipCents)}</strong></div></div>
       <div className="customer-payment"><span className="customer-kicker">TIPO DE PEDIDO</span>
         <div className="customer-payment-methods" role="group" aria-label="Tipo de pedido">
           <button type="button" className={orderType === 'delivery' ? 'selected' : ''} onClick={() => setOrderType('delivery')}>Entrega</button>
@@ -38,7 +62,7 @@ export default function CarrinhoPage() {
       {orderType === 'delivery' && !cartCovered && <p className="customer-minimum">Este restaurante não entrega no endereço selecionado. Escolha outro endereço ou esvazie o carrinho.</p>}
       {cartRestaurantClosed && <p className="customer-minimum">Este restaurante está fora do horário de funcionamento agora. Aguarde a reabertura para concluir o pedido.</p>}
       {orderType === 'delivery' && selectedAddress && !selectedAddress.postal_code && <p className="customer-minimum">Este endereço é anterior à validação por CEP. Cadastre-o novamente para continuar.</p>}
-      <div className="customer-payment"><span className="customer-kicker">PAGAMENTO</span><div className="customer-payment-methods" role="group" aria-label="Modalidade de pagamento"><button type="button" className={!manual && modality === 'on_delivery' ? 'selected' : ''} onClick={() => { setManual(false); setModality('on_delivery'); }}>Na entrega</button><button type="button" className={!manual && modality === 'online' ? 'selected' : ''} onClick={() => { setManual(false); setModality('online'); if (paymentMethod === 'cash') setPaymentMethod('pix'); }}>Pagar agora (online)</button><button type="button" className={manual ? 'selected' : ''} onClick={() => setManual(true)}>Pagamento manual</button></div><div className="customer-payment-methods" role="group" aria-label="Forma de pagamento">{!manual && modality === 'on_delivery' && <button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => setPaymentMethod('cash')}>Dinheiro</button>}<button type="button" className={paymentMethod === 'card' ? 'selected' : ''} onClick={() => setPaymentMethod('card')}>Cartão</button><button type="button" className={paymentMethod === 'pix' ? 'selected' : ''} onClick={() => setPaymentMethod('pix')}>Pix</button></div>{!manual && modality === 'on_delivery' && paymentMethod === 'cash' && <label className="customer-change">Troco para (opcional)<input inputMode="decimal" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} placeholder="Ex.: 50,00" /></label>}{!manual && modality === 'online' && <p className="form-help">Pix: o QR aparece após confirmar. Cartão: abre a tela do provedor. Requer o Mercado Pago configurado.</p>}</div>
+      <div className="customer-payment"><span className="customer-kicker">PAGAMENTO</span><div className="customer-payment-methods" role="group" aria-label="Modalidade de pagamento"><button type="button" className={!manual ? 'selected' : ''} onClick={() => { setManual(false); setModality('on_delivery'); }}>Na entrega</button><button type="button" className={manual ? 'selected' : ''} onClick={() => setManual(true)}>Pagamento manual</button></div><div className="customer-payment-methods" role="group" aria-label="Forma de pagamento">{!manual && <button type="button" className={paymentMethod === 'cash' ? 'selected' : ''} onClick={() => setPaymentMethod('cash')}>Dinheiro</button>}<button type="button" className={paymentMethod === 'card' ? 'selected' : ''} onClick={() => setPaymentMethod('card')}>Cartão</button><button type="button" className={paymentMethod === 'pix' ? 'selected' : ''} onClick={() => setPaymentMethod('pix')}>Pix</button></div>{!manual && paymentMethod === 'cash' && <label className="customer-change">Troco para (opcional)<input inputMode="decimal" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} placeholder="Ex.: 50,00" /></label>}</div>
       {manual && <div className="customer-payment"><span className="customer-kicker">PAGAMENTO MANUAL</span>
         <label className="customer-change">Método<select value={manualMethodId ?? ''} onChange={(event) => setManualMethodId(event.target.value ? Number(event.target.value) : null)}><option value="">Escolha o método</option>{offlineMethods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select></label>
         {offlineMethods.find((method) => method.id === manualMethodId)?.instructions && <p className="form-help">{offlineMethods.find((method) => method.id === manualMethodId)?.instructions}</p>}
@@ -52,6 +76,14 @@ export default function CarrinhoPage() {
         {cartRestaurantClosed && !scheduledFor && <p className="form-help">Restaurante fechado agora. Escolha um horário em "Entregar em" para continuar.</p>}
       </div>
       {orderType === 'delivery' && <div className="customer-payment"><span className="customer-kicker">GORJETA</span><label className="customer-change">Gorjeta para o entregador (opcional)<input inputMode="decimal" value={tip} onChange={(event) => setTip(event.target.value)} placeholder="Ex.: 5,00" /></label></div>}
+      {orderType === 'delivery' && <div className="customer-payment"><span className="customer-kicker">PEDIDO RECORRENTE</span>
+        <p className="form-help">Repita estes itens no endereço selecionado. O preço e as campanhas serão conferidos em cada pedido. Pagamento na entrega; o restaurante precisa aceitar cada pedido.</p>
+        <label className="customer-change">Repetir a cada<input type="number" min={1} max={90} value={frequencyDays} onChange={(event) => setFrequencyDays(Number(event.target.value))} /> dias</label>
+        <label className="customer-change">Primeiro ciclo (opcional)<input type="datetime-local" value={firstRunAt} onChange={(event) => setFirstRunAt(event.target.value)} /></label>
+        <button type="button" className="secondary-button" onClick={() => void createRecurring()} disabled={recurringBusy || cartBusy || !selectedAddress?.postal_code || !cartCovered || !meetsMinimum || modality !== 'on_delivery' || manual || cartEntries.some((entry) => entry.addonIds.length > 0) || frequencyDays < 1 || frequencyDays > 90}>{recurringBusy ? 'Salvando...' : 'Criar recorrência'}</button>
+        {cartEntries.some((entry) => entry.addonIds.length > 0) && <p className="form-help">Remova os adicionais para criar uma recorrência.</p>}
+        {recurringMessage && <p role="status" className="form-help">{recurringMessage} <Link href="/loja/perfil">Ver minhas recorrências</Link></p>}
+      </div>}
       <button className="customer-solid-button customer-checkout" onClick={placeOrder} disabled={busy || placing || cartBusy || (orderType === 'delivery' && (!selectedAddress?.postal_code || !meetsMinimum || !cartCovered)) || (orderType === 'dine_in' && tableId === null) || (manual && (!manualMethodId || (offlineMethods.find((method) => method.id === manualMethodId)?.requires_proof && !proofUrl.trim()))) || (cartRestaurantClosed && !scheduledFor)}>{placing ? 'Processando...' : 'Fazer pedido'} <span>↗</span></button>
     </> : <p className="customer-muted">{cartLoaded ? 'Adicione um prato para começar. Você pode escolher vários itens do mesmo restaurante.' : 'Carregando seu carrinho...'}</p>}
   </section>;

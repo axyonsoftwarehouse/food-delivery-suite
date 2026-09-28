@@ -38,17 +38,16 @@ class PaymentServiceTest {
         assertEquals(400, assertThrows(ApiException.class, () -> service.create(1, "bitcoin", "on_delivery", 1000, null)).status());
         assertEquals(400, assertThrows(ApiException.class, () -> service.create(1, "card", "on_delivery", 1000, 2000)).status());
         assertEquals(400, assertThrows(ApiException.class, () -> service.create(1, "cash", "on_delivery", 1000, 500)).status());
-        assertEquals(400, assertThrows(ApiException.class, () -> service.create(1, "cash", "online", 1000, null)).status());
-        assertEquals(400, assertThrows(ApiException.class, () -> service.create(1, "pix", "online", 1000, 1000)).status());
+        assertEquals(409, assertThrows(ApiException.class, () -> service.create(1, "cash", "online", 1000, null)).status());
+        assertEquals(409, assertThrows(ApiException.class, () -> service.create(1, "pix", "online", 1000, 1000)).status());
         assertEquals(400, assertThrows(ApiException.class, () -> service.create(1, "pix", "nonsense", 1000, null)).status());
     }
 
     @Test
-    void acceptsOnlinePixAndCard() {
-        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
-        service.create(1, "pix", "online", 1000, null);
-        service.create(1, "card", "online", 1000, null);
-        verify(jdbc, Mockito.times(2)).update(anyString(), any(Object[].class));
+    void rejectsNewOnlineCharges() {
+        assertEquals(409, assertThrows(ApiException.class, () -> service.create(1, "pix", "online", 1000, null)).status());
+        assertEquals(409, assertThrows(ApiException.class, () -> service.create(1, "card", "online", 1000, null)).status());
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
     }
 
     @Test

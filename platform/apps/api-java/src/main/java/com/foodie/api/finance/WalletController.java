@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Carteira do cliente, do restaurante e do entregador (E11/E15). */
+/** Recompensas do cliente e carteira de repasse do entregador. */
 @RestController
 public class WalletController {
     private final AuthService auth;
@@ -84,13 +84,13 @@ public class WalletController {
     }
 
     private User walletUser(String token) {
-        User user = auth.requireUser(token);
+        User user = auth.requireUser(token, "customer", "courier");
         if (Party.of(user) == null) throw new ApiException(403, "Acesso não autorizado");
         return user;
     }
 
     private User payoutUser(String token) {
-        User user = auth.requireUser(token, "restaurant", "courier");
+        User user = auth.requireUser(token, "courier");
         if (Party.of(user) == null) throw new ApiException(403, "Acesso não autorizado");
         return user;
     }

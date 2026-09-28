@@ -8,10 +8,10 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Métodos de saque, solicitações de repasse e decisão do admin (E15). */
+/** Repasses atuais do entregador e conclusão dos pedidos históricos da loja. */
 @Service
 public class PayoutService {
-    private static final Set<String> ACTIVE = Set.of("restaurant", "courier");
+    private static final Set<String> ACTIVE = Set.of("courier");
     private static final Set<String> OPEN = Set.of("requested", "approved");
 
     private final PayoutRepository payouts;
@@ -26,7 +26,7 @@ public class PayoutService {
 
     private static Party requestParty(User user) {
         Party party = Party.of(user);
-        if (party == null || !ACTIVE.contains(party.party())) throw new ApiException(403, "Apenas restaurante ou entregador possuem carteira");
+        if (party == null || !ACTIVE.contains(party.party())) throw new ApiException(403, "A carteira de repasses está disponível apenas para entregadores");
         return party;
     }
 

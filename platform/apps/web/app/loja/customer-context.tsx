@@ -67,6 +67,7 @@ type CustomerValue = {
   applyCoupon: () => Promise<void>;
   removeCoupon: () => void;
   discount: number;
+  campaign: { campaignId: number; name: string; discountCents: number } | null;
   scheduledFor: string;
   setScheduledFor: (value: string) => void;
   orderType: 'delivery' | 'take_away' | 'dine_in';
@@ -177,6 +178,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [tagId, setTagId] = useState<number | null>(null);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountCents: number } | null>(null);
+  const [campaign, setCampaign] = useState<{ campaignId: number; name: string; discountCents: number } | null>(null);
   const [couponBusy, setCouponBusy] = useState(false);
   const [scheduledFor, setScheduledFor] = useState('');
   const [orderType, setOrderType] = useState<'delivery' | 'take_away' | 'dine_in'>('delivery');
@@ -269,6 +271,14 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const cartCovered = !cartRestaurantId || coveredRestaurants.has(cartRestaurantId);
   const cartCount = cartEntries.reduce((sum, entry) => sum + entry.quantity, 0);
   const subtotal = cartEntries.reduce((sum, entry) => sum + entry.unitPriceCents * entry.quantity, 0);
+  useEffect(() => {
+    if (!cartLoaded || !cartEntries.length) { setCampaign(null); return; }
+    let active = true;
+    request<{ campaignId?: number; name?: string; discountCents: number }>('/cart/campaign')
+      .then((result) => { if (active) setCampaign(result.campaignId && result.name ? { campaignId: result.campaignId, name: result.name, discountCents: result.discountCents } : null); })
+      .catch(() => { if (active) setCampaign(null); });
+    return () => { active = false; };
+  }, [cartVersion, cartLoaded]);
   const fee = deliveryEstimate?.feeCents ?? selectedZone?.delivery_fee_cents ?? 0;
   const meetsMinimum = subtotal >= (selectedZone?.minimum_order_cents ?? 0);
 
@@ -375,7 +385,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     setCouponCode('');
   }
 
-  const discount = appliedCoupon?.discountCents ?? 0;
+  const discount = Math.min(subtotal, (appliedCoupon?.discountCents ?? 0) + (campaign?.discountCents ?? 0));
   const orderFee = orderType === 'delivery' ? fee : 0;
   const serviceFeePercent = orderType === 'dine_in' && cartRestaurantId ? (restaurantById.get(cartRestaurantId)?.service_fee_percent ?? 0) : 0;
   const serviceFee = serviceFeePercent > 0 ? Math.round(((subtotal - discount) * serviceFeePercent) / 100) : 0;
@@ -404,10 +414,13 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     const changeForCents = !manual && orderType === 'delivery' && modality === 'on_delivery' && paymentMethod === 'cash' && changeFor.trim() ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
     setPlacing(true); setLocalMessage(''); setOnlineCode(null);
     try {
+      const currentCampaign = await request<{ campaignId?: number; name?: string; discountCents: number }>('/cart/campaign');
+      const currentDiscount = Math.min(subtotal, (appliedCoupon?.discountCents ?? 0) + currentCampaign.discountCents);
+      setCampaign(currentCampaign.campaignId && currentCampaign.name ? { campaignId: currentCampaign.campaignId, name: currentCampaign.name, discountCents: currentCampaign.discountCents } : null);
       if (!checkoutKey.current) checkoutKey.current = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ck-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const tipCents = orderType === 'delivery' && tip.trim() ? Math.round(Number(tip.replace(',', '.')) * 100) : undefined;
       const body: Record<string, unknown> = {
-        expectedTotalCents: subtotal + orderFee - (appliedCoupon?.discountCents ?? 0) + serviceFee + (tipCents ?? 0),
+        expectedTotalCents: subtotal + orderFee - currentDiscount + (serviceFeePercent > 0 ? Math.round(((subtotal - currentDiscount) * serviceFeePercent) / 100) : 0) + (tipCents ?? 0),
         expectedVersion: cartVersion,
         idempotencyKey: checkoutKey.current,
         paymentMethod: manual ? 'pix' : paymentMethod,
@@ -486,7 +499,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     search, setSearch, categoryId, setCategoryId, visibleProducts, nextCursor, searchLoading, searchError, loadMore,
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
     cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
-    tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, scheduledFor, setScheduledFor,
+    tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor,
     orderType, setOrderType, tip, setTip, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
     manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, submitReview, loadHistory,
     localMessage, showAddressForm, setShowAddressForm, addressForm, setAddressForm,

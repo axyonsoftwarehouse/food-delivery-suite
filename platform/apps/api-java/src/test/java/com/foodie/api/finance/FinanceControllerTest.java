@@ -6,6 +6,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -74,5 +75,15 @@ class FinanceControllerTest {
 
         mvc.perform(get("/admin/finance/commission").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rejectsNewCommissionRules() throws Exception {
+        when(auth.requireUser("s", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
+        mvc.perform(patch("/admin/finance/commission")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))
+                .contentType("application/json")
+                .content("{\"percent\":10}"))
+            .andExpect(status().isGone());
     }
 }

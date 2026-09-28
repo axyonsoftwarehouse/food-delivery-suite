@@ -90,10 +90,10 @@ async function setExtra(productId: number, calories: number, allergens: string, 
   await db.query('UPDATE products SET calories = ?, allergens = ?, nutrition = ? WHERE id = ?', [calories, allergens, nutrition, productId]);
 }
 async function storefront(restaurantId: number, headline: string, about: string, cover: string, whatsapp = '', instagram = '') {
-  await db.query('INSERT INTO storefronts (restaurant_id, headline, about, cover_url, whatsapp, instagram) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE headline = VALUES(headline), about = VALUES(about), cover_url = VALUES(cover_url), whatsapp = VALUES(whatsapp), instagram = VALUES(instagram)', [restaurantId, headline, about, cover, whatsapp, instagram]);
+  await db.query('INSERT IGNORE INTO storefronts (restaurant_id, headline, about, cover_url, whatsapp, instagram) VALUES (?, ?, ?, ?, ?, ?)', [restaurantId, headline, about, cover, whatsapp, instagram]);
 }
 async function enableModules(restaurantId: number, keys: string[]) {
-  for (const key of keys) await db.query('INSERT INTO restaurant_modules (restaurant_id, module_key, enabled) VALUES (?, ?, TRUE) ON DUPLICATE KEY UPDATE enabled = TRUE', [restaurantId, key]);
+  for (const key of keys) await db.query('INSERT IGNORE INTO restaurant_modules (restaurant_id, module_key, enabled) VALUES (?, ?, TRUE)', [restaurantId, key]);
 }
 async function supplier(restaurantId: number, name: string, contact: string): Promise<number> {
   const existing = await firstId('SELECT id FROM suppliers WHERE restaurant_id = ? AND name = ?', [restaurantId, name]);
@@ -161,7 +161,7 @@ try {
     await db.query('INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)', [name, email, hashPassword(password), role, restaurantId]);
   }
   await db.query("UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE email LIKE '%@demo.local'");
-  await db.query("UPDATE users SET courier_approved_at = COALESCE(courier_approved_at, NOW()) WHERE role = 'courier'");
+  await db.query("UPDATE users SET courier_approved_at = COALESCE(courier_approved_at, NOW()) WHERE email = 'entregador@demo.local' AND role = 'courier'");
 
   // ---- Cozinha Demo ----
   const pratos = await category(cozinha, 'Pratos');
@@ -253,6 +253,7 @@ try {
 
   // ---- Pedidos entregues e avaliações (mocks) ----
   const customerId = (await firstId("SELECT id FROM users WHERE email = 'cliente@demo.local'", []))!;
+  const newDemoOrderIds: number[] = [];
   const reviews = (await db.query('SELECT COUNT(*) AS c FROM reviews WHERE customer_id = ?', [customerId])) as { c: number }[];
   if (Number(reviews[0].c) === 0) {
     let addressId = await firstId('SELECT id FROM addresses WHERE user_id = ? LIMIT 1', [customerId]);
@@ -267,11 +268,13 @@ try {
     ];
     for (const entry of demoOrders) {
       const subtotal = entry.items.reduce((sum, [, , price, quantity]) => sum + price * quantity, 0);
-      const total = subtotal + fee;
+      const tip = 300;
+      const total = subtotal + fee + tip;
       const orderId = await insert(
-        "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, total_cents, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'delivered', DATE_SUB(NOW(), INTERVAL ? DAY))",
-        [customerId, entry.restaurantId, zoneId, addressId, 'Rua Demo, 100 • Centro • Fortaleza/CE • CEP 60000001', subtotal, fee, total, entry.daysAgo],
+        "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, tip_cents, total_cents, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'delivered', DATE_SUB(NOW(), INTERVAL ? DAY))",
+        [customerId, entry.restaurantId, zoneId, addressId, 'Rua Demo, 100 • Centro • Fortaleza/CE • CEP 60000001', subtotal, fee, tip, total, entry.daysAgo],
       );
+      newDemoOrderIds.push(orderId);
       for (const [productId, name, price, quantity] of entry.items) {
         await db.query('INSERT INTO order_items (order_id, product_id, name, quantity, unit_price_cents) VALUES (?, ?, ?, ?, ?)', [orderId, productId, name, quantity, price]);
       }
@@ -384,9 +387,9 @@ try {
   await cashbackRule(cantina, 5, 4000);
 
   // Assinaturas (SaaS) e recorrência
-  const essencial = await subscriptionPackage('Essencial', 9900, 30, 10);
-  const pro = await subscriptionPackage('Pro', 19900, 30, 7);
-  await subscriptionPackage('Premium', 34900, 30, 5);
+  const essencial = await subscriptionPackage('Essencial', 9900, 30, 0);
+  const pro = await subscriptionPackage('Pro', 19900, 30, 0);
+  await subscriptionPackage('Premium', 34900, 30, 0);
   await restaurantSubscription(cozinha, pro, 'active');
   await restaurantSubscription(cantina, essencial, 'active');
   await restaurantSubscription(doceria, essencial, 'trial');
@@ -408,31 +411,24 @@ try {
   await courierIncentive(courierId, 'Meta semanal de 50 entregas', 5000);
   await db.query('INSERT INTO courier_shifts (courier_id, started_at, ended_at) SELECT ?, DATE_SUB(NOW(), INTERVAL 8 HOUR), DATE_SUB(NOW(), INTERVAL 2 HOUR) WHERE NOT EXISTS (SELECT 1 FROM courier_shifts WHERE courier_id = ?)', [courierId, courierId]);
 
-  // Repasses
-  await db.query("INSERT INTO payout_methods (party, party_id, type, details) SELECT 'restaurant', ?, 'pix', 'pix@cozinhademo.local' WHERE NOT EXISTS (SELECT 1 FROM payout_methods WHERE party='restaurant' AND party_id = ?)", [cozinha, cozinha]);
-  await db.query("INSERT INTO payout_requests (party, party_id, amount_cents, status, note) SELECT 'restaurant', ?, 5000, 'requested', 'Retirada semanal' WHERE NOT EXISTS (SELECT 1 FROM payout_requests WHERE party='restaurant' AND party_id = ?)", [cozinha, cozinha]);
-
   // Indicação (referral)
   await db.query("UPDATE users SET referral_code = 'FOODIE01' WHERE email = 'cliente@demo.local' AND (referral_code IS NULL OR referral_code = '')");
-  await db.query("INSERT INTO users (name, email, password_hash, role) VALUES ('Cliente Indicado', 'cliente2@demo.local', ?, 'customer') ON DUPLICATE KEY UPDATE name = VALUES(name)", [hashPassword(password)]);
+  await db.query("INSERT INTO users (name, email, password_hash, role, email_verified_at) VALUES ('Cliente Indicado', 'cliente2@demo.local', ?, 'customer', NOW()) ON DUPLICATE KEY UPDATE name = VALUES(name)", [hashPassword(password)]);
   const referredId = (await firstId("SELECT id FROM users WHERE email = 'cliente2@demo.local'", []))!;
   await db.query("INSERT INTO referrals (referrer_id, referred_id, code, status, reward_cents, rewarded_at) SELECT ?, ?, 'FOODIE01', 'rewarded', 500, NOW() WHERE NOT EXISTS (SELECT 1 FROM referrals WHERE referred_id = ?)", [customerId, referredId, referredId]);
 
   // Ledger para pedidos entregues (financeiro do lojista/admin/entregador)
-  await db.query("UPDATE orders SET courier_id = ? WHERE status = 'delivered' AND courier_id IS NULL", [courierId]);
-  await db.query("UPDATE orders SET tip_cents = 300 WHERE status = 'delivered' AND tip_cents = 0");
-  const delivered = (await db.query("SELECT o.id, o.restaurant_id, o.courier_id, o.subtotal_cents, o.delivery_fee_cents, o.service_fee_cents, o.tip_cents FROM orders o WHERE o.status IN ('delivered','completed','served') AND NOT EXISTS (SELECT 1 FROM ledger_entries l WHERE l.order_id = o.id AND l.kind = 'sale')")) as any[];
+  const ids = newDemoOrderIds.map(() => '?').join(', ');
+  if (newDemoOrderIds.length) {
+    await db.query(`UPDATE orders SET courier_id = ? WHERE id IN (${ids})`, [courierId, ...newDemoOrderIds]);
+  }
+  const delivered = newDemoOrderIds.length
+    ? (await db.query(`SELECT id, restaurant_id, courier_id, subtotal_cents, delivery_fee_cents, service_fee_cents, tip_cents FROM orders WHERE id IN (${ids})`, newDemoOrderIds)) as any[]
+    : [];
   for (const o of delivered) {
-    const subtotal = Number(o.subtotal_cents);
-    const serviceFee = Number(o.service_fee_cents ?? 0);
     const fee = Number(o.delivery_fee_cents ?? 0);
     const tip = Number(o.tip_cents ?? 0);
-    const commission = Math.round((subtotal * 10) / 100);
-    await ledger('restaurant', Number(o.restaurant_id), Number(o.id), 'sale', subtotal + serviceFee, `Venda do pedido #${o.id}`);
-    if (commission > 0) {
-      await ledger('restaurant', Number(o.restaurant_id), Number(o.id), 'commission', -commission, `Comissão do pedido #${o.id}`);
-      await ledger('admin', null, Number(o.id), 'commission', commission, `Comissão do pedido #${o.id}`);
-    }
+    await db.query('INSERT IGNORE INTO order_finance_postings (order_id) VALUES (?)', [Number(o.id)]);
     if (o.courier_id) {
       if (fee > 0) await ledger('courier', Number(o.courier_id), Number(o.id), 'delivery_fee', fee, `Taxa de entrega do pedido #${o.id}`);
       if (tip > 0) await ledger('courier', Number(o.courier_id), Number(o.id), 'tip', tip, `Gorjeta do pedido #${o.id}`);
@@ -440,7 +436,9 @@ try {
   }
 
   // Fidelidade e cashback do cliente
-  const customerOrders = (await db.query("SELECT id, total_cents FROM orders WHERE customer_id = ? AND status IN ('delivered','completed','served')", [customerId])) as any[];
+  const customerOrders = newDemoOrderIds.length
+    ? (await db.query(`SELECT id, total_cents FROM orders WHERE id IN (${ids}) AND customer_id = ?`, [...newDemoOrderIds, customerId])) as any[]
+    : [];
   for (const o of customerOrders) {
     const points = Math.floor(Number(o.total_cents) / 100);
     await db.query("INSERT INTO loyalty_transactions (user_id, order_id, points, kind, description) SELECT ?, ?, ?, 'earn', ? WHERE NOT EXISTS (SELECT 1 FROM loyalty_transactions WHERE order_id = ? AND kind = 'earn')", [customerId, Number(o.id), points, `Pontos do pedido #${o.id}`, Number(o.id)]);
@@ -455,7 +453,7 @@ try {
   await translation('es', 'nav.panel.finance', 'Finanzas');
   await translation('en', 'nav.panel.finance', 'Finance');
 
-  console.log('Dados demonstrativos prontos: 6 restaurantes, cuisines, storefronts, módulos, banners, campanhas, anúncios, cashback, assinaturas, estoque, repasses, fidelidade, indicação e financeiro populado.');
+  console.log('Dados demonstrativos prontos: 6 restaurantes, cuisines, storefronts, módulos, banners, campanhas, anúncios, cashback, assinaturas, estoque, fidelidade, indicação e financeiro populado.');
 } finally {
   await db.end();
 }

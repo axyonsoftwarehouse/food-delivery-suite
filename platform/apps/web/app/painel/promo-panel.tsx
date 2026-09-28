@@ -67,13 +67,19 @@ function Campaigns({ onMessage }: { onMessage: (m: string) => void }) {
   const [type, setType] = useState('basic');
   const [percent, setPercent] = useState('10');
   const [restaurantId, setRestaurantId] = useState('');
+  const [productId, setProductId] = useState('');
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
   return <div className="form-grid">
-    <form onSubmit={(e) => { e.preventDefault(); void act('/admin/commerce/campaigns', 'POST', { name, type, percent: Number(percent.replace(',', '.')), restaurantId: restaurantId ? Number(restaurantId) : null }, 'Campanha criada.', reload, onMessage); setName(''); }}>
+    <form onSubmit={(e) => { e.preventDefault(); void act('/admin/commerce/campaigns', 'POST', { name, type, percent: Number(percent.replace(',', '.')), restaurantId: restaurantId ? Number(restaurantId) : null, productId: type === 'item' ? Number(productId) : null, startsAt: startsAt || null, endsAt: endsAt || null }, 'Campanha criada.', reload, onMessage); setName(''); }}>
       <h3>Nova campanha</h3>
       <label>Nome<input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} /></label>
       <label>Tipo<select value={type} onChange={(e) => setType(e.target.value)}><option value="basic">Básica (restaurante)</option><option value="item">Item</option></select></label>
       <label>Desconto (%)<input inputMode="decimal" value={percent} onChange={(e) => setPercent(e.target.value)} required /></label>
       <label>Restaurante (ID, opcional)<input inputMode="numeric" value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)} /></label>
+      {type === 'item' && <label>Produto (ID)<input inputMode="numeric" value={productId} onChange={(e) => setProductId(e.target.value)} required /></label>}
+      <label>Início (opcional)<input type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></label>
+      <label>Fim (opcional)<input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} min={startsAt || undefined} /></label>
       <button className="secondary-button">Criar campanha</button>
     </form>
     <div className="courier-list"><h3>Campanhas</h3>
@@ -242,24 +248,22 @@ function Cuisines({ onMessage }: { onMessage: (m: string) => void }) {
 }
 
 function Subscriptions({ onMessage }: { onMessage: (m: string) => void }) {
-  const { rows: packages, reload: reloadPackages } = useJsonArray<{ id: number; name: string; price_cents: number; period_days: number; commission_percent: number; active: boolean }>('/admin/subscription-packages', onMessage);
+  const { rows: packages, reload: reloadPackages } = useJsonArray<{ id: number; name: string; price_cents: number; period_days: number; active: boolean }>('/admin/subscription-packages', onMessage);
   const { rows: assigned, reload: reloadAssigned } = useJsonArray<{ id: number; restaurant_name: string; package_name: string; status: string; ends_at: string | null }>('/admin/restaurant-subscriptions', onMessage);
   const [restaurants, setRestaurants] = useState<{ id: number; name: string }[]>([]);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('99');
   const [periodDays, setPeriodDays] = useState('30');
-  const [commission, setCommission] = useState('0');
   const [restaurantId, setRestaurantId] = useState('');
   const [packageId, setPackageId] = useState('');
   const [trialDays, setTrialDays] = useState('0');
   useEffect(() => { api<{ restaurants: { id: number; name: string }[] }>('/catalog').then((data) => setRestaurants(data.restaurants)).catch(() => {}); }, []);
   return <div className="form-grid">
-    <form onSubmit={(e) => { e.preventDefault(); void act('/admin/subscription-packages', 'POST', { name, priceCents: Math.round(Number(price.replace(',', '.')) * 100), periodDays: Number(periodDays), commissionPercent: Number(commission.replace(',', '.')) }, 'Pacote criado.', reloadPackages, onMessage); setName(''); }}>
+    <form onSubmit={(e) => { e.preventDefault(); void act('/admin/subscription-packages', 'POST', { name, priceCents: Math.round(Number(price.replace(',', '.')) * 100), periodDays: Number(periodDays) }, 'Pacote criado.', reloadPackages, onMessage); setName(''); }}>
       <h3>Novo pacote</h3>
       <label>Nome<input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} /></label>
       <label>Preço (R$)<input inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required /></label>
       <label>Período (dias)<input inputMode="numeric" value={periodDays} onChange={(e) => setPeriodDays(e.target.value)} required /></label>
-      <label>Comissão (%)<input inputMode="decimal" value={commission} onChange={(e) => setCommission(e.target.value)} /></label>
       <button className="secondary-button">Criar pacote</button>
       <h3 style={{ marginTop: 16 }}>Atribuir a restaurante</h3>
       <label>Restaurante<select value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)}>{restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
@@ -268,7 +272,7 @@ function Subscriptions({ onMessage }: { onMessage: (m: string) => void }) {
       <button className="secondary-button" type="button" disabled={!restaurantId || !packageId} onClick={() => void act('/admin/restaurant-subscriptions', 'POST', { restaurantId: Number(restaurantId), packageId: Number(packageId), trialDays: Number(trialDays) }, 'Assinatura criada.', reloadAssigned, onMessage)}>Atribuir assinatura</button>
     </form>
     <div>
-      <div className="courier-list"><h3>Pacotes</h3>{packages.length ? packages.map((p) => <div className="courier-row" key={p.id}><div><strong>{p.name}</strong><span>{money(p.price_cents)} · {p.period_days} dias · comissão {p.commission_percent}%</span></div><button className="availability-button" onClick={() => void act(`/admin/subscription-packages/${p.id}`, 'DELETE', undefined, 'Removido.', reloadPackages, onMessage)}>Excluir</button></div>) : <p className="form-help">Nenhum pacote.</p>}</div>
+      <div className="courier-list"><h3>Pacotes</h3>{packages.length ? packages.map((p) => <div className="courier-row" key={p.id}><div><strong>{p.name}</strong><span>{money(p.price_cents)} · {p.period_days} dias</span></div><button className="availability-button" onClick={() => void act(`/admin/subscription-packages/${p.id}`, 'DELETE', undefined, 'Removido.', reloadPackages, onMessage)}>Excluir</button></div>) : <p className="form-help">Nenhum pacote.</p>}</div>
       <div className="courier-list" style={{ marginTop: 12 }}><h3>Assinaturas</h3>{assigned.length ? assigned.map((s) => <div className="courier-row" key={s.id}><div><strong>{s.restaurant_name}</strong><span>{s.package_name} · {s.status}{s.ends_at ? ` · até ${new Date(s.ends_at).toLocaleDateString('pt-BR')}` : ''}</span></div></div>) : <p className="form-help">Nenhuma assinatura.</p>}</div>
     </div>
   </div>;

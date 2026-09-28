@@ -6,6 +6,7 @@ import { useCustomer } from '../customer-context';
 import AddressForm from '../address-form';
 import RewardsCard from './rewards-card';
 import PersonalizationCard from './personalization-card';
+import RecurringOrdersCard from './recurring-orders-card';
 
 export default function PerfilClientePage() {
   const { logout, busy } = useApp();
@@ -30,6 +31,7 @@ export default function PerfilClientePage() {
     </section>
 
     <RewardsCard />
+    <RecurringOrdersCard />
     <PersonalizationCard />
   </>;
 }

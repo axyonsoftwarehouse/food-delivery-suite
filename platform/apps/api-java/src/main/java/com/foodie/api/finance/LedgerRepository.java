@@ -15,8 +15,12 @@ public class LedgerRepository {
     }
 
     public boolean orderPosted(long orderId) {
-        Integer found = jdbc.query("SELECT 1 FROM ledger_entries WHERE order_id = ? AND kind = 'sale' LIMIT 1", rs -> rs.next() ? 1 : null, orderId);
+        Integer found = jdbc.query("SELECT 1 FROM order_finance_postings WHERE order_id = ?", rs -> rs.next() ? 1 : null, orderId);
         return found != null;
+    }
+
+    public boolean markOrderPosted(long orderId) {
+        return jdbc.update("INSERT IGNORE INTO order_finance_postings (order_id) VALUES (?)", orderId) == 1;
     }
 
     public boolean orderReversed(long orderId) {

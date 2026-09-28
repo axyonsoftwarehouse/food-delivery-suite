@@ -2,12 +2,10 @@ package com.foodie.api.payments;
 
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
-import java.sql.Timestamp;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,16 +42,7 @@ public class OnlinePaymentService {
         if ("pending".equals(paymentStatus) && (payment.get("qr_code") != null || payment.get("ticket_url") != null)) {
             return detail(orderId);
         }
-
-        long total = ((Number) order.get("total_cents")).longValue();
-        String payerEmail = jdbc.query("SELECT email FROM users WHERE id = ?", rs -> rs.next() ? rs.getString(1) : null, actor.id());
-        PaymentGateway gateway = gateways.resolve(provider);
-        String idempotency = "order-" + orderId + "-" + UUID.randomUUID();
-        PaymentGateway.Charge charge = gateway.create(new PaymentGateway.ChargeRequest(orderId, total, method, "Pedido #" + orderId, payerEmail, idempotency, null));
-        jdbc.update("UPDATE order_payments SET modality = 'online', provider = ?, external_id = ?, idempotency_key = ?, status = ?, raw_status = ?, qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ? WHERE order_id = ?",
-            gateway.provider(), charge.externalId(), idempotency, charge.status(), charge.rawStatus(), charge.qrCode(), charge.qrCodeBase64(), charge.ticketUrl(),
-            charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), orderId);
-        return detail(orderId);
+        throw new ApiException(409, "Novas cobranças online exigem recebimento direto pelo restaurante");
     }
 
     @Transactional

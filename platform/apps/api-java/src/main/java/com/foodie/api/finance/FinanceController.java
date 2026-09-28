@@ -73,16 +73,8 @@ public class FinanceController {
     @PatchMapping("/commission")
     public Map<String, Object> setCommission(@CookieValue(value = "foodie_session", required = false) String token,
                                              @Valid @RequestBody CommissionRequest body) {
-        User actor = admin(token, AdminPermissions.FINANCE_MANAGE);
-        if (body.restaurantId() == null) {
-            commissions.upsertGlobal(body.percent());
-        } else {
-            Integer exists = jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, body.restaurantId());
-            if (exists == null) throw new ApiException(400, "Restaurante não encontrado");
-            commissions.upsertRestaurant(body.restaurantId(), body.percent());
-        }
-        audit.record(actor, "update", "commission", body.restaurantId(), "Comissão " + body.percent() + "%");
-        return commission(token);
+        admin(token, AdminPermissions.FINANCE_MANAGE);
+        throw new ApiException(410, "Comissões por pedido foram descontinuadas; use assinaturas");
     }
 
     @GetMapping("/ledger")
@@ -106,8 +98,6 @@ public class FinanceController {
         admin(token, AdminPermissions.FINANCE_VIEW);
         List<Map<String, Object>> entries = new ArrayList<>();
         entries.add(balanceEntry("admin", null, "Plataforma"));
-        jdbc.queryForList("SELECT id, name FROM restaurants WHERE active = TRUE ORDER BY name").forEach((row) ->
-            entries.add(balanceEntry("restaurant", ((Number) row.get("id")).longValue(), (String) row.get("name"))));
         jdbc.queryForList("SELECT id, name FROM users WHERE role = 'courier' ORDER BY name").forEach((row) ->
             entries.add(balanceEntry("courier", ((Number) row.get("id")).longValue(), (String) row.get("name"))));
         Map<String, Object> result = new LinkedHashMap<>();

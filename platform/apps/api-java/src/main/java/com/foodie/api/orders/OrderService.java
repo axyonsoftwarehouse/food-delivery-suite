@@ -37,10 +37,11 @@ public class OrderService {
     private final NotificationService notifications;
     private final AddonService addonService;
     private final CouponService couponService;
+    private final CampaignService campaignService;
     private final LedgerService ledger;
     private final RewardsService rewards;
 
-    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, LedgerService ledger, RewardsService rewards) {
+    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards) {
         this.jdbc = jdbc;
         this.namedJdbc = namedJdbc;
         this.postalCoverage = postalCoverage;
@@ -50,6 +51,7 @@ public class OrderService {
         this.notifications = notifications;
         this.addonService = addonService;
         this.couponService = couponService;
+        this.campaignService = campaignService;
         this.ledger = ledger;
         this.rewards = rewards;
     }
@@ -167,7 +169,12 @@ public class OrderService {
         if (request.couponCode() != null && !request.couponCode().isBlank()) {
             coupon = couponService.validate(request.couponCode(), request.restaurantId(), subtotal);
         }
-        long discount = coupon == null ? 0 : coupon.discountCents();
+        CampaignService.Applied campaign = campaignService.best(request.restaurantId(), request.items().stream()
+            .map(item -> new CampaignService.Line(item.productId(),
+                unitPrices.get(item.productId() + ":" + (item.variationId() == null ? 0 : item.variationId()) + ":" + AddonService.key(item.addonIds())) * item.quantity()))
+            .toList());
+        long campaignDiscount = campaign == null ? 0 : campaign.discountCents();
+        long discount = Math.min(subtotal, campaignDiscount + (coupon == null ? 0 : coupon.discountCents()));
         long minimum = deliveryOrder ? number(address, "minimum_order_cents") : 0;
         long total = Math.max(0, OrderWorkflow.total(subtotal, fee, minimum) - discount);
         long serviceFee = serviceFeePercent <= 0 ? 0 : Math.round(total * serviceFeePercent / 100.0);
@@ -254,6 +261,8 @@ public class OrderService {
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
+        if (campaign != null) jdbc.update("UPDATE orders SET campaign_id = ?, campaign_name = ?, campaign_discount_cents = ? WHERE id = ?",
+            campaign.campaignId(), campaign.name(), campaignDiscount, orderId);
         for (var item : request.items()) {
             long variationId = item.variationId() == null ? 0 : item.variationId();
             String lineKey = item.productId() + ":" + variationId + ":" + AddonService.key(item.addonIds());
@@ -294,6 +303,11 @@ public class OrderService {
         created.put("subtotalCents", subtotal);
         created.put("deliveryFeeCents", fee);
         created.put("discountCents", discount);
+        if (campaign != null) {
+            created.put("campaignId", campaign.campaignId());
+            created.put("campaignName", campaign.name());
+            created.put("campaignDiscountCents", campaignDiscount);
+        }
         if (coupon != null)         created.put("couponCode", coupon.code());
         created.put("totalCents", payable);
         if (serviceFee > 0) created.put("serviceFeeCents", serviceFee);

@@ -1,6 +1,7 @@
 package com.foodie.api.restaurant;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.admin.ModuleAccessService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.PermissionService;
@@ -39,11 +40,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class RestaurantMarketingController {
     private final AuthService auth;
     private final PermissionService permissions;
+    private final ModuleAccessService modules;
     private final JdbcTemplate jdbc;
 
-    public RestaurantMarketingController(AuthService auth, PermissionService permissions, JdbcTemplate jdbc) {
+    public RestaurantMarketingController(AuthService auth, PermissionService permissions, ModuleAccessService modules, JdbcTemplate jdbc) {
         this.auth = auth;
         this.permissions = permissions;
+        this.modules = modules;
         this.jdbc = jdbc;
     }
 
@@ -111,6 +114,11 @@ public class RestaurantMarketingController {
     public ResponseEntity<Map<String, Object>> createCampaign(@CookieValue(value = "foodie_session", required = false) String token,
                                                               @Valid @RequestBody CampaignRequest body) {
         long restaurantId = manager(token);
+        if ("item".equals(body.type())) {
+            Integer product = body.productId() == null ? null : jdbc.query("SELECT 1 FROM products WHERE id = ? AND restaurant_id = ?", rs -> rs.next() ? 1 : null, body.productId(), restaurantId);
+            if (product == null) throw new ApiException(400, "Selecione um produto deste restaurante");
+        } else if (body.productId() != null) throw new ApiException(400, "Campanha geral não aceita produto");
+        if (body.startsAt() != null && body.endsAt() != null && body.startsAt().compareTo(body.endsAt()) > 0) throw new ApiException(400, "Período da campanha inválido");
         jdbc.update("INSERT INTO campaigns (restaurant_id, name, type, percent, product_id, starts_at, ends_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             restaurantId, body.name().strip(), body.type(), body.percent(), body.productId(), body.startsAt(), body.endsAt());
         return ResponseEntity.status(201).body(Map.of("ok", true));
@@ -226,6 +234,7 @@ public class RestaurantMarketingController {
         User user = auth.requireUser(token, "restaurant", "kitchen");
         if (user.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
         permissions.require(user, Permissions.PROMOTIONS_MANAGE);
+        modules.require(user.restaurantId(), "marketing");
         return user.restaurantId();
     }
 

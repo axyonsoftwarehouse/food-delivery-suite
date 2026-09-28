@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,6 +49,7 @@ public class ModuleController {
     }
 
     @PutMapping("/admin/restaurants/{id}/modules")
+    @Transactional
     public Map<String, Boolean> setModules(@CookieValue(value = "foodie_session", required = false) String token,
                                            @PathVariable @Positive long id,
                                            @Valid @RequestBody ModulesRequest body) {
@@ -55,6 +57,12 @@ public class ModuleController {
         if (jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, id) == null) {
             throw new ApiException(404, "Restaurante não encontrado");
         }
+        var requested = new java.util.HashSet<>(body.moduleKeys());
+        if (requested.contains(null) || requested.size() != body.moduleKeys().size()) {
+            throw new ApiException(400, "Lista de módulos inválida");
+        }
+        List<String> known = jdbc.queryForList("SELECT module_key FROM modules", String.class);
+        if (!known.containsAll(requested)) throw new ApiException(400, "Módulo desconhecido");
         jdbc.update("UPDATE restaurant_modules SET enabled = FALSE WHERE restaurant_id = ?", id);
         for (String key : body.moduleKeys()) {
             jdbc.update("INSERT INTO restaurant_modules (restaurant_id, module_key, enabled) VALUES (?, ?, TRUE) "

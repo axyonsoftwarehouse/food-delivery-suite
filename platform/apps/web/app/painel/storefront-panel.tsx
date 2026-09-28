@@ -48,7 +48,7 @@ export default function StorefrontPanel() {
       <label className="check"><input type="checkbox" checked={data.published} onChange={(event) => update({ published: event.target.checked })} /> Publicar página</label>
       <div className="courier-actions" style={{ marginTop: 12 }}>
         <button className="secondary-button" disabled={saving}>{saving ? 'Salvando...' : 'Salvar página'}</button>
-        {restaurantId && <a className="secondary-button" href={`/backend/public/restaurants/${restaurantId}/storefront`} target="_blank" rel="noreferrer">Ver página pública</a>}
+        {restaurantId && <a className="secondary-button" href={`/restaurantes/${restaurantId}`} target="_blank" rel="noreferrer">Ver página pública</a>}
       </div>
     </form>
   </section>;

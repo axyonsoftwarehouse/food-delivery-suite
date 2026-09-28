@@ -58,6 +58,11 @@ public class CommerceController {
     public ResponseEntity<Map<String, Object>> createCampaign(@CookieValue(value = "foodie_session", required = false) String token,
                                                               @Valid @RequestBody CampaignRequest body) {
         User actor = admin(token);
+        if ("item".equals(body.type())) {
+            Integer product = body.productId() == null ? null : jdbc.query("SELECT 1 FROM products WHERE id = ? AND (? IS NULL OR restaurant_id = ?)", rs -> rs.next() ? 1 : null, body.productId(), body.restaurantId(), body.restaurantId());
+            if (product == null) throw new ApiException(400, "Produto da campanha inválido");
+        } else if (body.productId() != null) throw new ApiException(400, "Campanha geral não aceita produto");
+        if (body.startsAt() != null && body.endsAt() != null && body.startsAt().compareTo(body.endsAt()) > 0) throw new ApiException(400, "Período da campanha inválido");
         var key = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbc.update(connection -> {
             var statement = connection.prepareStatement(

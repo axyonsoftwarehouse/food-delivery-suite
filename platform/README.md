@@ -1,5 +1,7 @@
 # Plataforma Foodie independente
 
+> Estado em 28/09/2026: `/` mostra a home pública e `/entrar` recebe os acessos. A monetização prevista é assinatura da loja; a carteira de saque do restaurante e comissões por pedido foram descontinuadas para novos pedidos. Novas cobranças online pela conta global da plataforma estão suspensas até haver recebimento direto por restaurante. As seções históricas abaixo ainda descrevem capacidades anteriores; consulte `docs/PENDENCIAS_IMPLEMENTACAO_2026-09-28.md` para as pendências atuais.
+
 Plataforma própria da Foodie — **a única base de código do produto** desde que o pacote comercial StackFood (legado) foi removido em 2026-09-25. Contém uma API TypeScript **transitória** com banco MariaDB próprio e um site Next.js para os papéis de cliente, restaurante, administração e entregador. O backend definitivo é **Java 21/Spring Boot**; a transição está descrita em `docs/PLANO_RECONSTRUCAO_PROPRIA.md`.
 
 ## Preparar localmente
@@ -92,7 +94,7 @@ e `GET /restaurants/{id}/reviews` (público). O seed cria a tag "Destaque" e o c
 **Combos, estoque e horário (`V024__catalog_combos_stock.sql`).** Um produto pode ser combo
 (`is_combo`) com composição em `combo_items` (`GET`/`PUT .../products/{id}/combo-items`), ter
 estoque finito (`stock`) e janela de disponibilidade (`available_from`/`available_until`). O catálogo
-oculta itens fora do horário ou sem estoque; o checkout valida e baixa o estoque. O seed traz **3
+oculta itens fora do horário ou sem estoque; o checkout valida e baixa o estoque. O seed traz **6
 restaurantes** com cardápios completos (variações, adicionais, combos, tags), cupons e pedidos
 entregues com avaliações.
 

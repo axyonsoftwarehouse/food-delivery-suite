@@ -24,12 +24,10 @@ class PayoutServiceTest {
     private final User admin = new User(1, "Admin", "admin@demo.local", "admin", null);
 
     @Test
-    void rejectsRequestAboveAvailable() {
-        when(ledgerService.balance(any())).thenReturn(5000L);
-        when(payouts.reserved("restaurant", 1L)).thenReturn(4000L);
+    void rejectsNewRestaurantRequest() {
         assertThatThrownBy(() -> service.createRequest(restaurant, 2000, null, null))
             .isInstanceOf(ApiException.class)
-            .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(409));
+            .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(403));
     }
 
     @Test

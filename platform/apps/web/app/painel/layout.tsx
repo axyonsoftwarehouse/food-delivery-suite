@@ -39,7 +39,6 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/promocoes', key: 'nav.panel.promotions', icon: '🎯', module: 'marketing' },
     { href: '/painel/financeiro', key: 'nav.panel.finance', icon: '$', module: 'finance' },
     { href: '/painel/minha-pagina', key: 'nav.panel.storefront', icon: '🏪', module: 'storefront' },
-    { href: '/painel/carteira', key: 'nav.panel.wallet', icon: '👛' },
     { href: '/painel/configuracoes', key: 'nav.panel.settings', icon: '⚙' },
   ],
   courier: [
@@ -58,7 +57,7 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (initializing) return;
-    if (!user) router.replace('/');
+    if (!user) router.replace('/entrar');
     else if (user.role === 'customer') router.replace('/loja');
   }, [initializing, user, router]);
 

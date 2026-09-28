@@ -77,16 +77,23 @@ function Coupons({ onMessage }: { onMessage: (m: string) => void }) {
 }
 
 function Campaigns({ onMessage }: { onMessage: (m: string) => void }) {
+  const { catalog, user } = useApp();
   const { rows, reload } = useList<Campaign>('/restaurant/marketing/campaigns', onMessage);
   const [name, setName] = useState('');
   const [type, setType] = useState('basic');
   const [percent, setPercent] = useState('10');
+  const [productId, setProductId] = useState('');
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
   return <div className="form-grid">
-    <form onSubmit={(event) => { event.preventDefault(); void act('/restaurant/marketing/campaigns', 'POST', { name, type, percent: Number(percent.replace(',', '.')) }, 'Campanha criada.', reload, onMessage); setName(''); }}>
+    <form onSubmit={(event) => { event.preventDefault(); void act('/restaurant/marketing/campaigns', 'POST', { name, type, percent: Number(percent.replace(',', '.')), productId: type === 'item' ? Number(productId) : null, startsAt: startsAt || null, endsAt: endsAt || null }, 'Campanha criada.', reload, onMessage); setName(''); }}>
       <h3>Nova campanha</h3>
       <label>Nome<input value={name} onChange={(event) => setName(event.target.value)} required minLength={2} /></label>
       <label>Tipo<select value={type} onChange={(event) => setType(event.target.value)}><option value="basic">Básica</option><option value="item">Item</option></select></label>
+      {type === 'item' && <label>Produto<select value={productId} onChange={(event) => setProductId(event.target.value)} required><option value="">Escolha o produto</option>{catalog.products.filter((product) => product.restaurant_id === user?.restaurantId).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label>}
       <label>Desconto (%)<input inputMode="decimal" value={percent} onChange={(event) => setPercent(event.target.value)} required /></label>
+      <label>Início (opcional)<input type="date" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
+      <label>Fim (opcional)<input type="date" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} min={startsAt || undefined} /></label>
       <button className="secondary-button">Criar campanha</button>
     </form>
     <div className="courier-list"><h3>Campanhas</h3>

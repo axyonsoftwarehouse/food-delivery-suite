@@ -8,7 +8,7 @@ Com `FOODIE_DOMAIN=staging.2.29.42.104.sslip.io`, o Caddy publica (perfil `publi
 
 | Host | Destino |
 | --- | --- |
-| `staging.<domínio>` | site (todos os papéis; o login define) |
+| `staging.<domínio>` | home pública Foodie em `/`; login dos papéis em `/entrar` |
 | `api.<domínio>` | API Java |
 | `cliente.<domínio>`, `restaurante.<domínio>`, `entregador.<domínio>`, `admin.<domínio>` | o mesmo site (endereços por papel; o login ainda define o papel) |
 

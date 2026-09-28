@@ -1,33 +1,22 @@
 package com.foodie.api.finance;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Razão financeiro (E15). É a fonte única de saldos: saldo de uma parte é a soma dos lançamentos.
- * Lançamentos nunca são editados; correções entram como lançamento compensatório.
- */
+/** Razão de repasses do entregador e histórico financeiro anterior à assinatura. */
 @Service
 public class LedgerService {
     public static final Set<String> COMPLETED = Set.of("delivered", "completed", "served");
 
     private final LedgerRepository ledger;
-    private final CommissionRepository commissions;
-
-    public LedgerService(LedgerRepository ledger, CommissionRepository commissions) {
+    public LedgerService(LedgerRepository ledger) {
         this.ledger = ledger;
-        this.commissions = commissions;
     }
 
-    public BigDecimal commissionFor(long restaurantId) {
-        return commissions.forRestaurant(restaurantId).or(() -> commissions.global()).orElse(BigDecimal.ZERO);
-    }
-
-    /** Lança a venda de um pedido concluído e pago. Idempotente. */
+    /** Registra entrega e gorjeta de um pedido concluído e pago, sem crédito de venda à loja. */
     @Transactional
     public void postOrder(long orderId) {
         if (ledger.orderPosted(orderId)) return;
@@ -36,19 +25,10 @@ public class LedgerService {
         if (!COMPLETED.contains(String.valueOf(order.get("status")))) return;
         if (!"paid".equals(order.get("payment_status"))) return;
 
-        long restaurantId = number(order, "restaurant_id");
-        long subtotal = number(order, "subtotal_cents");
-        long serviceFee = number(order, "service_fee_cents");
         long fee = number(order, "delivery_fee_cents");
         long tip = order.get("tip_cents") == null ? 0 : number(order, "tip_cents");
         Long courierId = order.get("courier_id") == null ? null : number(order, "courier_id");
-        long commission = Math.round(subtotal * commissionFor(restaurantId).doubleValue() / 100.0);
-
-        ledger.insert("restaurant", restaurantId, orderId, "sale", subtotal + serviceFee, "Venda do pedido #" + orderId);
-        if (commission > 0) {
-            ledger.insert("restaurant", restaurantId, orderId, "commission", -commission, "Comissão do pedido #" + orderId);
-            ledger.insert("admin", null, orderId, "commission", commission, "Comissão do pedido #" + orderId);
-        }
+        if (!ledger.markOrderPosted(orderId)) return;
         if (courierId != null && fee > 0) {
             ledger.insert("courier", courierId, orderId, "delivery_fee", fee, "Taxa de entrega do pedido #" + orderId);
         }

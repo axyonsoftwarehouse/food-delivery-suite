@@ -28,12 +28,10 @@ public class PaymentService {
     @Transactional
     public void create(long orderId, String method, String modality, long amountDueCents, Integer changeForCents) {
         String mode = (modality == null || modality.isBlank()) ? "on_delivery" : modality;
-        if (!"on_delivery".equals(mode) && !"online".equals(mode)) throw new ApiException(400, "Modalidade de pagamento inválida");
+        if ("online".equals(mode)) throw new ApiException(409, "Pagamento online indisponível até a integração de recebimento direto do restaurante");
+        if (!"on_delivery".equals(mode)) throw new ApiException(400, "Modalidade de pagamento inválida");
         if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento inválida");
-        if ("online".equals(mode)) {
-            if ("cash".equals(method)) throw new ApiException(400, "Pagamento online não aceita dinheiro");
-            if (changeForCents != null) throw new ApiException(400, "Troco só se aplica a pagamento na entrega");
-        } else if (changeForCents != null) {
+        if (changeForCents != null) {
             if (!"cash".equals(method)) throw new ApiException(400, "Troco só se aplica a pagamento em dinheiro");
             if (changeForCents < amountDueCents) throw new ApiException(400, "O troco deve cobrir o total do pedido");
         }

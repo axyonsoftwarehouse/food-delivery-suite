@@ -1,6 +1,7 @@
 package com.foodie.api.restaurant;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.admin.ModuleAccessService;
 import com.foodie.api.admin.DashboardService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
@@ -35,11 +36,13 @@ public class RestaurantFinanceController {
 
     private final AuthService auth;
     private final PermissionService permissions;
+    private final ModuleAccessService modules;
     private final JdbcTemplate jdbc;
 
-    public RestaurantFinanceController(AuthService auth, PermissionService permissions, JdbcTemplate jdbc) {
+    public RestaurantFinanceController(AuthService auth, PermissionService permissions, ModuleAccessService modules, JdbcTemplate jdbc) {
         this.auth = auth;
         this.permissions = permissions;
+        this.modules = modules;
         this.jdbc = jdbc;
     }
 
@@ -57,24 +60,18 @@ public class RestaurantFinanceController {
         User user = manager(token, Permissions.REPORTS_VIEW);
         long restaurantId = user.restaurantId();
         Range r = range(from, to);
-        Map<String, Object> ledger = jdbc.queryForMap(
-            "SELECT COALESCE(SUM(CASE WHEN kind='sale' THEN amount_cents ELSE 0 END),0) AS sales, "
-                + "COALESCE(SUM(CASE WHEN kind='commission' THEN amount_cents ELSE 0 END),0) AS commission, "
-                + "COALESCE(SUM(amount_cents),0) AS net "
-                + "FROM ledger_entries WHERE party='restaurant' AND party_id = ? AND created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)",
-            restaurantId, r.from(), r.to());
         Map<String, Object> orders = jdbc.queryForMap(
-            "SELECT COUNT(*) AS count, COALESCE(SUM(CASE WHEN status IN " + COMPLETED + " THEN total_cents ELSE 0 END),0) AS revenue "
-                + "FROM orders WHERE restaurant_id = ? AND created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)",
+            "SELECT COUNT(*) AS count, COALESCE(SUM(GREATEST(0, o.total_cents - o.delivery_fee_cents - COALESCE(o.tip_cents,0))),0) AS revenue "
+                + "FROM orders o JOIN order_payments p ON p.order_id = o.id "
+                + "WHERE o.restaurant_id = ? AND o.status IN " + COMPLETED + " AND p.status = 'paid' "
+                + "AND o.created_at >= ? AND o.created_at < DATE_ADD(?, INTERVAL 1 DAY)",
             restaurantId, r.from(), r.to());
         long count = ((Number) orders.get("count")).longValue();
         long revenue = ((Number) orders.get("revenue")).longValue();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("from", r.from());
         result.put("to", r.to());
-        result.put("salesCents", number(ledger, "sales"));
-        result.put("commissionCents", number(ledger, "commission"));
-        result.put("netCents", number(ledger, "net"));
+        result.put("salesCents", revenue);
         result.put("orders", count);
         result.put("revenueCents", revenue);
         result.put("averageTicketCents", count == 0 ? 0 : revenue / count);
@@ -95,30 +92,17 @@ public class RestaurantFinanceController {
         };
         Range r = range(from, to);
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT DATE_FORMAT(created_at, ?) AS period, kind, SUM(amount_cents) AS total "
-                + "FROM ledger_entries WHERE party='restaurant' AND party_id = ? AND created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY) "
-                + "GROUP BY period, kind ORDER BY period",
+            "SELECT DATE_FORMAT(o.created_at, ?) AS period, "
+                + "SUM(GREATEST(0, o.total_cents - o.delivery_fee_cents - COALESCE(o.tip_cents,0))) AS saleCents, COUNT(*) AS orders "
+                + "FROM orders o JOIN order_payments p ON p.order_id = o.id "
+                + "WHERE o.restaurant_id = ? AND o.status IN " + COMPLETED + " AND p.status = 'paid' "
+                + "AND o.created_at >= ? AND o.created_at < DATE_ADD(?, INTERVAL 1 DAY) "
+                + "GROUP BY period ORDER BY period",
             format, user.restaurantId(), r.from(), r.to());
-        Map<String, Map<String, Object>> buckets = new LinkedHashMap<>();
-        for (Map<String, Object> row : rows) {
-            String period = String.valueOf(row.get("period"));
-            Map<String, Object> bucket = buckets.computeIfAbsent(period, key -> {
-                Map<String, Object> created = new LinkedHashMap<>();
-                created.put("period", key);
-                created.put("saleCents", 0L);
-                created.put("commissionCents", 0L);
-                created.put("netCents", 0L);
-                return created;
-            });
-            String kind = String.valueOf(row.get("kind"));
-            long total = ((Number) row.get("total")).longValue();
-            bucket.put(kind + "Cents", total);
-            bucket.put("netCents", ((Number) bucket.get("netCents")).longValue() + total);
-        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("from", r.from());
         result.put("to", r.to());
-        result.put("buckets", buckets.values());
+        result.put("buckets", rows);
         return result;
     }
 
@@ -203,6 +187,7 @@ public class RestaurantFinanceController {
         User user = auth.requireUser(token, "restaurant", "kitchen");
         if (user.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
         permissions.require(user, permission);
+        modules.require(user.restaurantId(), "finance");
         return user;
     }
 

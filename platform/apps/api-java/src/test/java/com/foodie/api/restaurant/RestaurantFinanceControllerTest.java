@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.admin.ModuleAccessService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.PermissionService;
@@ -36,25 +37,24 @@ class RestaurantFinanceControllerTest {
     private PermissionService permissions;
 
     @MockitoBean
+    private ModuleAccessService modules;
+
+    @MockitoBean
     private JdbcTemplate jdbc;
 
     @Test
-    void summaryComputesFromLedgerAndOrders() throws Exception {
+    void summaryComputesFromPaidCompletedOrders() throws Exception {
         when(auth.requireUser("s", "restaurant", "kitchen")).thenReturn(new User(3, "Dono", "dono@demo.local", "restaurant", 1L));
         doNothing().when(permissions).require(any(), eq(Permissions.REPORTS_VIEW));
-        Map<String, Object> ledger = new HashMap<>();
-        ledger.put("sales", 10000L);
-        ledger.put("commission", -1000L);
-        ledger.put("net", 9000L);
         Map<String, Object> orders = new HashMap<>();
         orders.put("count", 5L);
         orders.put("revenue", 10000L);
-        when(jdbc.queryForMap(anyString(), any(Object[].class))).thenReturn(ledger, orders);
+        when(jdbc.queryForMap(anyString(), any(Object[].class))).thenReturn(orders);
 
         mvc.perform(get("/restaurant/finance/summary").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.salesCents").value(10000))
-            .andExpect(jsonPath("$.netCents").value(9000))
+            .andExpect(jsonPath("$.revenueCents").value(10000))
             .andExpect(jsonPath("$.averageTicketCents").value(2000));
     }
 

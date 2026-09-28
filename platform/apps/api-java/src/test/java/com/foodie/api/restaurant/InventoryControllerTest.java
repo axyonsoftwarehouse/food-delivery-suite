@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.admin.ModuleAccessService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.PermissionService;
@@ -36,6 +37,9 @@ class InventoryControllerTest {
     private PermissionService permissions;
 
     @MockitoBean
+    private ModuleAccessService modules;
+
+    @MockitoBean
     private JdbcTemplate jdbc;
 
     @Test
@@ -55,6 +59,15 @@ class InventoryControllerTest {
         doThrow(new ApiException(403, "Acesso não autorizado")).when(permissions).require(any(), eq(Permissions.INVENTORY_MANAGE));
 
         mvc.perform(get("/restaurant/inventory").cookie(new jakarta.servlet.http.Cookie("foodie_session", "k")))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void disabledModuleIsForbiddenEvenWithPermission() throws Exception {
+        when(auth.requireUser("s", "restaurant", "kitchen")).thenReturn(new User(3, "Dono", "dono@demo.local", "restaurant", 1L));
+        doThrow(new ApiException(403, "Módulo não habilitado para esta loja")).when(modules).require(1L, "inventory");
+
+        mvc.perform(get("/restaurant/suppliers").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
             .andExpect(status().isForbidden());
     }
 }

@@ -2,7 +2,7 @@ package com.foodie.api.finance;
 
 import com.foodie.api.auth.User;
 
-/** Parte financeira (dona de saldo no razão): admin, restaurante ou entregador. */
+/** Parte do razão: admin e restaurante para histórico; entregador para repasses atuais. */
 public record Party(String party, Long id) {
     public static Party of(User user) {
         return switch (user.role()) {

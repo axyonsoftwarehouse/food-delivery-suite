@@ -5,6 +5,7 @@ import com.foodie.api.admin.AdminAuditService;
 import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
+import com.foodie.api.auth.EmailVerificationGuard;
 import com.foodie.api.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -17,8 +18,11 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,12 +36,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class SubscriptionController {
     private final AuthService auth;
+    private final EmailVerificationGuard verification;
     private final AdminPermissionService permissions;
     private final AdminAuditService audit;
     private final JdbcTemplate jdbc;
 
-    public SubscriptionController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc) {
+    public SubscriptionController(AuthService auth, EmailVerificationGuard verification, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc) {
         this.auth = auth;
+        this.verification = verification;
         this.permissions = permissions;
         this.audit = audit;
         this.jdbc = jdbc;
@@ -65,7 +71,7 @@ public class SubscriptionController {
             statement.setString(1, body.name().strip());
             statement.setInt(2, body.priceCents());
             statement.setInt(3, body.periodDays());
-            statement.setBigDecimal(4, body.commissionPercent());
+            statement.setBigDecimal(4, java.math.BigDecimal.ZERO);
             return statement;
         }, key);
         long id = key.getKey().longValue();
@@ -133,27 +139,66 @@ public class SubscriptionController {
     public List<Map<String, Object>> mySubscriptions(@CookieValue(value = "foodie_session", required = false) String token) {
         User customer = auth.requireUser(token, "customer");
         return jdbc.queryForList(
-            "SELECT s.id, s.restaurant_id, r.name AS restaurant_name, s.frequency_days, s.next_run_at, s.status, s.notes, s.created_at "
+            "SELECT s.id, s.restaurant_id, r.name AS restaurant_name, s.address_id, s.payment_method, s.frequency_days, s.next_run_at, s.status, s.notes, s.last_error, s.created_at "
                 + "FROM subscriptions s JOIN restaurants r ON r.id = s.restaurant_id WHERE s.customer_id = ? ORDER BY s.id DESC", customer.id());
     }
 
+    @GetMapping("/me/subscriptions/{id}/runs")
+    public List<Map<String, Object>> runs(@CookieValue(value = "foodie_session", required = false) String token,
+                                          @PathVariable @Positive long id) {
+        User customer = auth.requireUser(token, "customer");
+        Integer own = jdbc.query("SELECT 1 FROM subscriptions WHERE id = ? AND customer_id = ?", rs -> rs.next() ? 1 : null, id, customer.id());
+        if (own == null) throw new ApiException(404, "Assinatura não encontrada");
+        return jdbc.queryForList("SELECT scheduled_for, order_id, status, reason, created_at FROM subscription_order_runs WHERE subscription_id = ? ORDER BY id DESC LIMIT 30", id);
+    }
+
     @PostMapping("/me/subscriptions")
+    @Transactional
     public ResponseEntity<Map<String, Object>> createSubscription(@CookieValue(value = "foodie_session", required = false) String token,
                                                                   @Valid @RequestBody SubscriptionRequest body) {
         User customer = auth.requireUser(token, "customer");
+        verification.requireVerified(customer);
         Integer restaurant = jdbc.query("SELECT 1 FROM restaurants WHERE id = ? AND active = TRUE", rs -> rs.next() ? 1 : null, body.restaurantId());
         if (restaurant == null) throw new ApiException(400, "Restaurante indisponível");
+        Integer address = jdbc.query("SELECT 1 FROM addresses WHERE id = ? AND user_id = ?", rs -> rs.next() ? 1 : null, body.addressId(), customer.id());
+        if (address == null) throw new ApiException(400, "Endereço não encontrado");
+        Integer coverage = jdbc.query("SELECT 1 FROM addresses a JOIN restaurant_zones rz ON rz.zone_id = a.zone_id WHERE a.id = ? AND rz.restaurant_id = ?", rs -> rs.next() ? 1 : null, body.addressId(), body.restaurantId());
+        if (coverage == null) throw new ApiException(400, "Restaurante não atende este endereço");
+        Set<String> unique = new HashSet<>();
+        for (Item item : body.items()) {
+            if (!unique.add(item.productId() + ":" + item.variationId())) throw new ApiException(400, "Item repetido na recorrência");
+            Integer product = jdbc.query("SELECT 1 FROM products WHERE id = ? AND restaurant_id = ? AND available = TRUE", rs -> rs.next() ? 1 : null, item.productId(), body.restaurantId());
+            if (product == null) throw new ApiException(400, "Produto indisponível para este restaurante");
+            if (item.variationId() != null) {
+                Integer variation = jdbc.query("SELECT 1 FROM product_variations WHERE id = ? AND product_id = ? AND available = TRUE", rs -> rs.next() ? 1 : null, item.variationId(), item.productId());
+                if (variation == null) throw new ApiException(400, "Variação indisponível para este produto");
+            }
+        }
+        java.time.LocalDateTime firstRun;
+        try {
+            firstRun = body.firstRunAt() == null || body.firstRunAt().isBlank()
+                ? java.time.LocalDateTime.now().plusDays(body.frequencyDays())
+                : java.time.LocalDateTime.parse(body.firstRunAt());
+        } catch (java.time.format.DateTimeParseException error) {
+            throw new ApiException(400, "Data do primeiro ciclo inválida");
+        }
+        if (firstRun.isBefore(java.time.LocalDateTime.now().plusMinutes(15))
+            || firstRun.isAfter(java.time.LocalDateTime.now().plusDays(90))) {
+            throw new ApiException(400, "Escolha o primeiro ciclo entre 15 minutos e 90 dias");
+        }
+        final java.time.LocalDateTime nextRun = firstRun;
         var key = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbc.update(connection -> {
             var statement = connection.prepareStatement(
-                "INSERT INTO subscriptions (customer_id, restaurant_id, address_id, frequency_days, next_run_at, notes) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? DAY), ?)",
+                "INSERT INTO subscriptions (customer_id, restaurant_id, address_id, frequency_days, next_run_at, notes, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 java.sql.Statement.RETURN_GENERATED_KEYS);
             statement.setLong(1, customer.id());
             statement.setLong(2, body.restaurantId());
             if (body.addressId() == null) statement.setNull(3, java.sql.Types.BIGINT); else statement.setLong(3, body.addressId());
             statement.setInt(4, body.frequencyDays());
-            statement.setInt(5, body.frequencyDays());
+            statement.setObject(5, nextRun);
             statement.setString(6, body.notes() == null ? "" : body.notes().strip());
+            statement.setString(7, body.paymentMethod());
             return statement;
         }, key);
         long id = key.getKey().longValue();
@@ -169,7 +214,9 @@ public class SubscriptionController {
                                           @PathVariable @Positive long id, @Valid @RequestBody StatusRequest body) {
         User customer = auth.requireUser(token, "customer");
         if (!List.of("active", "paused", "cancelled").contains(body.status())) throw new ApiException(400, "Status inválido");
-        if (jdbc.update("UPDATE subscriptions SET status = ? WHERE id = ? AND customer_id = ?", body.status(), id, customer.id()) == 0) {
+        Integer cancelled = jdbc.query("SELECT 1 FROM subscriptions WHERE id = ? AND customer_id = ? AND status = 'cancelled'", rs -> rs.next() ? 1 : null, id, customer.id());
+        if (cancelled != null && !"cancelled".equals(body.status())) throw new ApiException(409, "Recorrência cancelada não pode ser retomada");
+        if (jdbc.update("UPDATE subscriptions SET status = ?, last_error = IF(? = 'active', NULL, last_error) WHERE id = ? AND customer_id = ?", body.status(), body.status(), id, customer.id()) == 0) {
             throw new ApiException(404, "Assinatura não encontrada");
         }
         return Map.of("ok", true);
@@ -193,14 +240,15 @@ public class SubscriptionController {
 
     public record PackageRequest(@NotBlank @Size(min = 2, max = 120) String name,
                                  @Min(0) @Max(100_000_000) int priceCents,
-                                 @Min(1) @Max(3650) int periodDays,
-                                 @NotNull java.math.BigDecimal commissionPercent) {}
+                                 @Min(1) @Max(3650) int periodDays) {}
     public record AssignRequest(@Positive long restaurantId, @Positive long packageId, @Min(0) @Max(365) Integer trialDays) {}
     public record StatusRequest(@NotBlank @Pattern(regexp = "trial|active|expired|cancelled|paused") String status) {}
     public record SubscriptionRequest(@Positive long restaurantId, @Positive Long addressId,
                                       @Min(1) @Max(90) int frequencyDays,
                                       @Size(max = 255) String notes,
-                                      @NotEmpty @Size(max = 30) List<@Valid Item> items) {}
+                                      @NotEmpty @Size(max = 30) List<@Valid Item> items,
+                                      @NotBlank @Pattern(regexp = "cash|card|pix") String paymentMethod,
+                                      @Size(max = 30) String firstRunAt) {}
     public record Item(@Positive long productId, @Positive Long variationId, @Min(1) @Max(50) int quantity) {}
     public record PauseRequest(@NotBlank @Pattern(regexp = "\\d{4}-\\d{2}-\\d{2}") String startsAt,
                                @NotBlank @Pattern(regexp = "\\d{4}-\\d{2}-\\d{2}") String endsAt) {}

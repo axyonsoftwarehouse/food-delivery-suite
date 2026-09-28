@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, labels, money, useApp } from '../app-context';
 
-type Summary = { salesCents: number; commissionCents: number; netCents: number; orders: number; revenueCents: number; averageTicketCents: number };
-type Bucket = { period: string; saleCents: number; commissionCents: number; netCents: number };
+type Summary = { salesCents: number; orders: number; revenueCents: number; averageTicketCents: number };
+type Bucket = { period: string; saleCents: number; orders: number };
 type OrderRow = { status: string; count: number; total_cents: number };
 type ProductRow = { id: number; name: string; quantity: number; revenue_cents: number };
 type DayRow = { day: string; orders: number; revenue_cents: number };
@@ -23,7 +23,7 @@ export default function RestaurantFinancePanel() {
   const [to, setTo] = useState(isoDaysAgo(0));
   const query = `from=${from}&to=${to}`;
   return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">FINANCEIRO</span><h2>Gestão do seu negócio</h2></div><p>Vendas, comissão, extrato, relatórios e despesas da sua loja.</p></div>
+    <div className="panel-heading"><div><span className="eyebrow">FINANCEIRO</span><h2>Gestão do seu negócio</h2></div><p>Vendas confirmadas, relatórios e despesas da sua loja. Os recebimentos são geridos por você.</p></div>
     <div className="ui-chips" style={{ marginBottom: 12 }}>
       {[['summary', 'Resumo'], ['earnings', 'Ganhos'], ['reports', 'Relatórios'], ['expenses', 'Despesas']].map(([id, label]) => <button key={id} type="button" className={`ui-chip${tab === id ? ' selected' : ''}`} onClick={() => setTab(id)}>{label}</button>)}
     </div>
@@ -47,10 +47,9 @@ function useGet<T>(path: string, query: string, onMessage: (m: string) => void) 
 
 function SummaryTab({ query, onMessage }: { query: string; onMessage: (m: string) => void }) {
   const data = useGet<Summary>('/restaurant/finance/summary', query, onMessage);
-  return <section className="dash-cards" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
-    <div className="dash-card accent"><span>Vendas brutas</span><strong>{money(data?.salesCents ?? 0)}</strong><small>{data?.orders ?? 0} pedidos</small></div>
-    <div className="dash-card"><span>Comissão da plataforma</span><strong>{money(Math.abs(data?.commissionCents ?? 0))}</strong><small>retida no período</small></div>
-    <div className="dash-card"><span>Líquido</span><strong>{money(data?.netCents ?? 0)}</strong><small>ticket médio {money(data?.averageTicketCents ?? 0)}</small></div>
+  return <section className="dash-cards" style={{ gridTemplateColumns: 'repeat(2,minmax(0,1fr))' }}>
+    <div className="dash-card accent"><span>Vendas confirmadas</span><strong>{money(data?.salesCents ?? 0)}</strong><small>{data?.orders ?? 0} pedidos pagos e concluídos</small></div>
+    <div className="dash-card"><span>Ticket médio</span><strong>{money(data?.averageTicketCents ?? 0)}</strong><small>Sem frete e gorjetas</small></div>
   </section>;
 }
 
@@ -59,7 +58,7 @@ function EarningsTab({ query, onMessage }: { query: string; onMessage: (m: strin
   const data = useGet<{ buckets: Bucket[] }>('/restaurant/finance/earnings', `groupBy=${groupBy}&${query}`, onMessage);
   return <>
     <div className="ui-chips" style={{ marginBottom: 12 }}><select value={groupBy} onChange={(event) => setGroupBy(event.target.value)}><option value="day">Por dia</option><option value="week">Por semana</option><option value="month">Por mês</option></select></div>
-    <div className="postal-range-list">{data?.buckets.length ? data.buckets.map((bucket) => <div key={bucket.period}><span><strong>{bucket.period}</strong></span><span>vendas {money(bucket.saleCents)} · comissão {money(Math.abs(bucket.commissionCents))} · líquido {money(bucket.netCents)}</span></div>) : <p className="form-help">Sem lançamentos no período.</p>}</div>
+    <div className="postal-range-list">{data?.buckets.length ? data.buckets.map((bucket) => <div key={bucket.period}><span><strong>{bucket.period}</strong></span><span>{bucket.orders} pedidos · {money(bucket.saleCents)} em vendas confirmadas</span></div>) : <p className="form-help">Sem vendas confirmadas no período.</p>}</div>
   </>;
 }
 
