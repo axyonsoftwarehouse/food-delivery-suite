@@ -31,7 +31,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     </header>
 
     <nav className="customer-nav" aria-label={t('common.language')}>
-      {nav.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href ? 'active' : ''}><span aria-hidden="true">{item.icon}</span>{t(item.key)}{item.href === '/loja/carrinho' && cartCount > 0 ? ` (${cartCount})` : ''}</Link>)}
+      {nav.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href || (item.href === '/loja' && pathname.startsWith('/loja/restaurantes/')) ? 'active' : ''}><span aria-hidden="true">{item.icon}</span>{t(item.key)}{item.href === '/loja/carrinho' && cartCount > 0 ? ` (${cartCount})` : ''}</Link>)}
     </nav>
 
     <div className="customer-content">

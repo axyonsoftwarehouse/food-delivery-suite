@@ -180,6 +180,17 @@
 .customer-product-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .customer-product-tag { position: absolute; top: 10px; left: 10px; }
 .customer-product-art .ui-badge { font-size: var(--text-xs); filter: none; line-height: 1.2; max-width: calc(100% - 20px); }
+.customer-restaurant-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 17px; }
+.customer-restaurant-card { display: flex; align-items: center; gap: 16px; min-width: 0; min-height: 118px; padding: 21px; border: 1px solid var(--border); border-radius: 21px; background: var(--surface); color: var(--text); text-decoration: none; box-shadow: var(--shadow-sm); }
+.customer-restaurant-card:hover { border-color: var(--brand-500); transform: translateY(-2px); }
+.customer-restaurant-card:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
+.customer-restaurant-mark { flex: 0 0 55px; height: 55px; display: grid; place-items: center; border-radius: 17px; background: var(--brand-050); color: var(--brand-700); font: 800 26px var(--font-display); }
+.customer-restaurant-info { display: grid; gap: 6px; min-width: 0; flex: 1; }
+.customer-restaurant-info strong { overflow: hidden; text-overflow: ellipsis; font-size: 16px; }
+.customer-restaurant-info small { color: var(--text-muted); font-size: 12px; }
+.customer-restaurant-arrow { color: var(--brand-600); font-size: 22px; }
+@media (max-width: 900px) { .customer-restaurant-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .customer-restaurant-grid { grid-template-columns: 1fr; } }
 
 /* Editor de variações e imagens (catálogo operacional) */
 .restaurant-product-entry { border-top: 1px solid var(--border); }

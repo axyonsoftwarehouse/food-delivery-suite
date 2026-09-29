@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Address, Catalog, Order, Product, Role, User, Zone, api, useApp } from '../app-context';
 
 type Restaurant = { id: number; name: string; slug: string; open?: boolean };
@@ -27,6 +28,7 @@ type CustomerValue = {
   setSelectedAddressId: (value: number) => void;
   selectedAddress: Address | undefined;
   selectedZone: Zone | undefined;
+  restaurantId: number | null;
   availableCategories: Catalog['categories'];
   restaurantById: Map<number, Catalog['restaurants'][number]>;
   search: string;
@@ -146,6 +148,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const app = useApp();
+  const pathname = usePathname();
+  const restaurantId = Number(/^\/loja\/restaurantes\/([1-9]\d*)\/?$/.exec(pathname)?.[1] ?? 0) || null;
   const user = app.user;
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
@@ -194,6 +198,13 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [deliveryEstimate, setDeliveryEstimate] = useState<Estimate | null>(null);
   const expandedOrderId = app.expandedOrderId;
   const setExpandedOrderId = app.setExpandedOrderId;
+
+  useEffect(() => {
+    setSearch('');
+    setCategoryId(null);
+    setTagId(null);
+    setSelectedProduct(null);
+  }, [restaurantId]);
 
   function applyCart(snapshot: CartSnapshot) {
     setCart(snapshot.items);
@@ -263,7 +274,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const coveredRestaurants = useMemo(() => new Set(app.catalog.coverage
     .filter((coverage) => coverage.zone_id === selectedAddress?.zone_id)
     .map((coverage) => coverage.restaurant_id)), [app.catalog.coverage, selectedAddress?.zone_id]);
-  const availableCategories = app.catalog.categories.filter((category) => coveredRestaurants.has(category.restaurant_id));
+  const availableCategories = app.catalog.categories.filter((category) => coveredRestaurants.has(category.restaurant_id) && category.restaurant_id === restaurantId);
   const cartEntries = cart.map((item) => ({ product: { id: item.productId, name: item.name, restaurant_id: item.restaurantId, price_cents: item.priceCents }, variationId: item.variationId, variationName: item.variationName, unitPriceCents: item.unitPriceCents, addonIds: item.addonIds ?? [], addonNames: item.addonNames ?? [], quantity: item.quantity }));
   const cartRestaurantId = cart[0]?.restaurantId;
   const restaurantById = useMemo(() => new Map(app.catalog.restaurants.map((restaurant) => [restaurant.id, restaurant])), [app.catalog.restaurants]);
@@ -284,12 +295,12 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const version = ++searchVersion.current;
-    if (!selectedAddress?.zone_id) { setVisibleProducts([]); setNextCursor(null); setSearchLoading(false); return () => { searchVersion.current++; }; }
+    if (!selectedAddress?.zone_id || !restaurantId || !coveredRestaurants.has(restaurantId)) { setVisibleProducts([]); setNextCursor(null); setSearchError(''); setSearchLoading(false); return () => { searchVersion.current++; }; }
     const controller = new AbortController();
+    setSearchLoading(true); setSearchError(''); setVisibleProducts([]); setNextCursor(null);
     const timer = window.setTimeout(async () => {
-      setSearchLoading(true); setSearchError(''); setVisibleProducts([]); setNextCursor(null);
       try {
-        const params = new URLSearchParams({ zoneId: String(selectedAddress.zone_id), q: search.trim(), limit: '12' });
+        const params = new URLSearchParams({ zoneId: String(selectedAddress.zone_id), restaurantId: String(restaurantId), q: search.trim(), limit: '12' });
         if (categoryId !== null) params.set('categoryId', String(categoryId));
         if (tagId !== null) params.set('tagId', String(tagId));
         const page = await request<SearchPage>(`/catalog/search?${params}`, { signal: controller.signal });
@@ -299,24 +310,24 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
       } finally { if (!controller.signal.aborted && searchVersion.current === version) setSearchLoading(false); }
     }, 250);
     return () => { window.clearTimeout(timer); controller.abort(); searchVersion.current++; };
-  }, [selectedAddress?.zone_id, search, categoryId, tagId]);
+  }, [selectedAddress?.zone_id, restaurantId, coveredRestaurants, search, categoryId, tagId]);
 
   useEffect(() => {
-    if (!selectedAddress?.zone_id) { setTags([]); setTagId(null); return; }
+    if (!selectedAddress?.zone_id || !restaurantId) { setTags([]); setTagId(null); return; }
     let cancelled = false;
-    fetch(`/backend/catalog/tags?zoneId=${selectedAddress.zone_id}`, { credentials: 'same-origin' })
+    fetch(`/backend/catalog/tags?zoneId=${selectedAddress.zone_id}&restaurantId=${restaurantId}`, { credentials: 'same-origin' })
       .then((response) => response.json())
       .then((data) => { if (!cancelled) setTags(Array.isArray(data) ? data : []); })
       .catch(() => { if (!cancelled) setTags([]); });
     return () => { cancelled = true; };
-  }, [selectedAddress?.zone_id]);
+  }, [selectedAddress?.zone_id, restaurantId]);
 
   async function loadMore() {
-    if (!selectedAddress || nextCursor === null || searchLoading) return;
+    if (!selectedAddress || !restaurantId || nextCursor === null || searchLoading) return;
     const version = searchVersion.current;
     setSearchLoading(true); setSearchError('');
     try {
-      const params = new URLSearchParams({ zoneId: String(selectedAddress.zone_id), q: search.trim(), after: String(nextCursor), limit: '12' });
+      const params = new URLSearchParams({ zoneId: String(selectedAddress.zone_id), restaurantId: String(restaurantId), q: search.trim(), after: String(nextCursor), limit: '12' });
       if (categoryId !== null) params.set('categoryId', String(categoryId));
       if (tagId !== null) params.set('tagId', String(tagId));
       const page = await request<SearchPage>(`/catalog/search?${params}`);
@@ -495,7 +506,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
 
   const value: CustomerValue = {
     user, catalog: app.catalog, zones: app.zones, addresses: app.addresses, orders: app.orders, busy: app.busy, message: app.message,
-    connection: app.connection, lastSync: app.lastSync, selectedAddressId, setSelectedAddressId, selectedAddress, selectedZone, availableCategories, restaurantById,
+    connection: app.connection, lastSync: app.lastSync, selectedAddressId, setSelectedAddressId, selectedAddress, selectedZone, restaurantId, availableCategories, restaurantById,
     search, setSearch, categoryId, setCategoryId, visibleProducts, nextCursor, searchLoading, searchError, loadMore,
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
     cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, selectedProduct, productLoading, openProduct, closeProduct, addSelected,

@@ -76,17 +76,19 @@ class PublicApiContractTest {
         when(catalog.restaurants()).thenReturn(List.of());
         when(catalog.categories()).thenReturn(List.of());
         when(catalog.coverage()).thenReturn(List.of());
-        when(catalog.search(eq(4L), eq("pizza"), eq(null), eq(null), eq(null), eq(1)))
+        when(catalog.search(eq(4L), eq("pizza"), eq(2L), eq(null), eq(null), eq(null), eq(1)))
             .thenReturn(new CatalogRepository.SearchPage(List.of(Map.of("id", 9, "name", "Pizza")), 9L));
 
         mvc.perform(get("/catalog/meta"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.products").isEmpty());
-        mvc.perform(get("/catalog/search").param("zoneId", "4").param("q", "pizza").param("limit", "1"))
+        mvc.perform(get("/catalog/search").param("zoneId", "4").param("restaurantId", "2").param("q", "pizza").param("limit", "1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.items[0].name").value("Pizza"))
             .andExpect(jsonPath("$.nextCursor").value(9));
         mvc.perform(get("/catalog/search").param("zoneId", "4").param("limit", "31"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(get("/catalog/search").param("zoneId", "4").param("restaurantId", "0"))
             .andExpect(status().isBadRequest());
     }
 
