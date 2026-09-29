@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { api, money } from '../../app-context';
 
-type Wallet = { balanceCents: number; items: { id: number; kind: string; amount_cents: number; description: string; created_at: string }[] };
+type Wallet = { balanceCents: number };
+type LedgerEntry = { id: number; kind: string; amount_cents: number; description: string; created_at: string };
 type Loyalty = { points: number };
 type Referral = { code: string; rewardCents: number; invited: { id: number; name: string; status: string }[] };
 
@@ -11,11 +12,13 @@ const KIND_LABEL: Record<string, string> = { sale: 'Venda', tip: 'Gorjeta', refu
 
 export default function RewardsCard() {
   const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loyalty, setLoyalty] = useState<Loyalty | null>(null);
   const [referral, setReferral] = useState<Referral | null>(null);
 
   useEffect(() => {
     api<Wallet>('/me/wallet').then(setWallet).catch(() => {});
+    api<LedgerEntry[]>('/me/wallet/ledger').then(setEntries).catch(() => {});
     api<Loyalty>('/me/loyalty').then(setLoyalty).catch(() => {});
     api<Referral>('/me/referral').then(setReferral).catch(() => {});
   }, []);
@@ -28,6 +31,6 @@ export default function RewardsCard() {
       {referral && <div className="customer-cart-row"><div><strong>Seu código de indicação</strong><small>ganhe {money(referral.rewardCents)} por indicado</small></div><strong>{referral.code}</strong></div>}
     </div>
     {referral && referral.invited.length > 0 && <div className="customer-order-list">{referral.invited.map((item) => <div className="customer-cart-row" key={item.id}><div><strong>{item.name}</strong><small>{item.status === 'rewarded' ? 'recompensado' : 'aguardando primeiro pedido'}</small></div></div>)}</div>}
-    {wallet && wallet.items.length > 0 && <div className="customer-order-list">{wallet.items.slice(0, 5).map((entry) => <div className="customer-cart-row" key={entry.id}><div><strong>{KIND_LABEL[entry.kind] ?? entry.kind}</strong><small>{entry.description}</small></div><span>{money(entry.amount_cents)}</span></div>)}</div>}
+    {entries.length > 0 && <div className="customer-order-list">{entries.slice(0, 5).map((entry) => <div className="customer-cart-row" key={entry.id}><div><strong>{KIND_LABEL[entry.kind] ?? entry.kind}</strong><small>{entry.description}</small></div><span>{money(entry.amount_cents)}</span></div>)}</div>}
   </section>;
 }

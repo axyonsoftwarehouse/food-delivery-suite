@@ -176,8 +176,10 @@
 .ui-modal-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-5); }
 
 /* Card de produto do cliente */
+.customer-product-art { position: relative; }
 .customer-product-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .customer-product-tag { position: absolute; top: 10px; left: 10px; }
+.customer-product-art .ui-badge { font-size: var(--text-xs); filter: none; line-height: 1.2; max-width: calc(100% - 20px); }
 
 /* Editor de variações e imagens (catálogo operacional) */
 .restaurant-product-entry { border-top: 1px solid var(--border); }
@@ -260,6 +262,53 @@
 
 /* Combos e destaques */
 .customer-product-tag--right { position: absolute; top: 10px; right: 10px; }
+.customer-product-art:has(.customer-product-tag) .customer-product-tag--right { top: 42px; }
+
+/* A área do cliente usa superfícies próprias além dos tokens compartilhados. */
+html[data-theme='dark'] {
+  --cream: #161a17;
+  --ink: #f2f5f0;
+  --muted: #a8b2a5;
+  --line: #333a33;
+}
+html[data-theme='dark'] .customer-app { background: var(--background); color: var(--text); }
+html[data-theme='dark'] .customer-header,
+html[data-theme='dark'] .customer-nav,
+html[data-theme='dark'] .customer-card,
+html[data-theme='dark'] .customer-product-card,
+html[data-theme='dark'] .customer-categories button,
+html[data-theme='dark'] .customer-search,
+html[data-theme='dark'] .customer-address-form,
+html[data-theme='dark'] .order-details { background: var(--surface); border-color: var(--border); color: var(--text); }
+html[data-theme='dark'] .customer-header-actions { color: var(--text-muted); }
+html[data-theme='dark'] .customer-header-actions button,
+html[data-theme='dark'] .customer-card-title > button,
+html[data-theme='dark'] .customer-product-footer button,
+html[data-theme='dark'] .customer-quantity button,
+html[data-theme='dark'] .customer-address-select select { background: var(--surface-muted); color: #a4e5b7; border-color: var(--border); }
+html[data-theme='dark'] .customer-nav a,
+html[data-theme='dark'] .customer-link-button,
+html[data-theme='dark'] .customer-brand { color: #a4e5b7; }
+html[data-theme='dark'] .customer-nav a.active { background: #17402a; color: #b8efc5; }
+html[data-theme='dark'] .customer-categories button.selected { background: var(--brand-600); border-color: var(--brand-600); color: #fff; }
+html[data-theme='dark'] .customer-hero { background-image: linear-gradient(90deg,rgba(17,43,29,.98) 0%,rgba(17,43,29,.9) 39%,rgba(17,43,29,.08) 69%),url('/foodie-burger-hero.png'); }
+html[data-theme='dark'] .customer-hero h2 { color: #e9f7eb; }
+html[data-theme='dark'] .customer-hero p { color: #c5d9c9; }
+html[data-theme='dark'] .customer-product-art { background: radial-gradient(circle,#3c4933 0%,#263326 100%); }
+html[data-theme='dark'] .customer-product-body p,
+html[data-theme='dark'] .customer-muted,
+html[data-theme='dark'] .customer-cart-row small,
+html[data-theme='dark'] .customer-order-row small,
+html[data-theme='dark'] .customer-section-heading > span { color: var(--text-muted); }
+html[data-theme='dark'] .customer-cart-row,
+html[data-theme='dark'] .customer-order-row { border-color: var(--border); }
+html[data-theme='dark'] .customer-search input { background: transparent; color: var(--text); }
+html[data-theme='dark'] .customer-empty { border-color: var(--border-strong); color: var(--text-muted); }
+html[data-theme='dark'] .customer-totals strong,
+html[data-theme='dark'] .customer-totals .grand-total { color: var(--text); }
+@media (max-width: 600px) {
+  html[data-theme='dark'] .customer-hero { background-image: linear-gradient(180deg,rgba(17,43,29,.99) 0%,rgba(17,43,29,.9) 47%,rgba(17,43,29,0) 71%),url('/foodie-burger-hero.png'); }
+}
 .combo-items { margin-top: var(--space-4); }
 .combo-items ul { margin: var(--space-2) 0 0; padding-left: 18px; color: var(--text-muted); font-size: var(--text-sm); display: grid; gap: 4px; }
 .combo-admin-item { display: inline-flex; align-items: center; gap: 8px; background: var(--gray-100); border-radius: var(--radius-pill); padding: 6px 10px; font-size: var(--text-sm); }

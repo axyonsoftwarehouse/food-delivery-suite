@@ -6,7 +6,8 @@ export default function ThemeToggle() {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    const stored = typeof localStorage !== 'undefined' && localStorage.getItem('foodie_theme') === 'dark';
+    let stored = false;
+    try { stored = localStorage.getItem('foodie_theme') === 'dark'; } catch { /* armazenamento opcional */ }
     setDark(stored);
     document.documentElement.dataset.theme = stored ? 'dark' : 'light';
   }, []);
