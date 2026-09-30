@@ -76,8 +76,9 @@ bash restore.sh backups/foodie_platform-XXXXXXXX-XXXXXX.sql
 ## Publicação manual (plano B)
 
 ```powershell
-# no PC, na raiz do repositório
-git archive --format=tar -o platform-release-<sha>.tar <sha>:platform
+# no PC, na raiz do repositório. O -c core.autocrlf=false é obrigatório: sem ele
+# o git archive grava CRLF e os .sh quebram no Linux.
+git -c core.autocrlf=false -c core.eol=lf archive --format=tar -o platform-release-<sha>.tar <sha>:platform
 scp -i "$env:USERPROFILE\.ssh\foodie_vps" platform-release-<sha>.tar deploy@2.29.42.104:/home/deploy/
 ```
 

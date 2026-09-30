@@ -110,7 +110,11 @@ e não commitado NÃO iria para a VPS. Commite antes de publicar, ou rode com
     if (Test-Path $tarPath) { Remove-Item $tarPath -Force }
 
     Step 'Empacotando (git archive <sha>:platform)'
-    & git archive --format=tar -o $tarPath "${sha}:platform"
+    # core.autocrlf=true (padrão no Windows) faz o 'git archive' gravar CRLF nos
+    # arquivos de texto. Em Linux isso quebra os .sh: 'set -euo pipefail\r' morre
+    # com "invalid option name". Forçamos LF no pacote, sem depender da
+    # configuração da máquina.
+    & git -c core.autocrlf=false -c core.eol=lf archive --format=tar -o $tarPath "${sha}:platform"
     if ($LASTEXITCODE -ne 0) { Fail 'git archive falhou.' }
     if (-not (Test-Path $tarPath)) { Fail 'o pacote não foi gerado.' }
 

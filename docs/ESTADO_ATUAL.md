@@ -260,6 +260,10 @@ Werner.**
 - **Os `.sh` do repositório estão em modo 644** (sem bit de execução): na VPS,
   `./backup.sh` falha com `Permission denied`. Use `bash backup.sh`. O
   `deploy.sh` aplica `chmod +x` depois de cada release.
+- **`core.autocrlf=true`** nesta máquina: o `git archive` grava CRLF no pacote,
+  e em Linux os `.sh` morrem (`invalid option name`). Gere pacotes com
+  `git -c core.autocrlf=false -c core.eol=lf archive ...` — o `release.ps1` já
+  faz isso, e o `deploy.sh` recusa pacotes com CRLF.
 
 ### Contas de demonstração
 

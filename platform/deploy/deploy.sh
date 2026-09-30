@@ -87,11 +87,23 @@ done
 # deploy criaria um banco novo e vazio.
 CHECK_DIR="$(mktemp -d)"
 tar -xf "$PACKAGE" -C "$CHECK_DIR" deploy/docker-compose.yml
-FIRST_LINE="$(sed -n '1p' "$CHECK_DIR/deploy/docker-compose.yml")"
+FIRST_LINE="$(sed -n '1p' "$CHECK_DIR/deploy/docker-compose.yml" | tr -d '\r')"
 rm -rf "$CHECK_DIR"
 [ "$FIRST_LINE" = "name: foodie-staging" ] || \
   die "o docker-compose.yml do pacote não declara 'name: foodie-staging' (linha 1: '$FIRST_LINE')"
 info "ok: projeto Compose fixado em foodie-staging"
+
+# Fim de linha dos scripts. No Windows, 'core.autocrlf=true' faz o 'git archive'
+# gravar CRLF; em Linux 'bash backup.sh' morre com
+# "set: pipefail: invalid option name". Melhor barrar aqui do que subir scripts
+# quebrados. Verificado em 30/09/2026.
+CR_COUNT="$(tar -xOf "$PACKAGE" deploy/backup.sh | grep -c $'\r' || true)"
+if [ "$CR_COUNT" != "0" ]; then
+  die "o pacote tem CRLF nos scripts (deploy/backup.sh: $CR_COUNT linha(s) com CR).
+     Gere o pacote com fim de linha LF:
+       git -c core.autocrlf=false -c core.eol=lf archive --format=tar -o <arquivo>.tar <sha>:platform"
+fi
+info "ok: scripts com fim de linha LF"
 
 # ------------------------------------------------- estado atual
 PREVIOUS="desconhecido"

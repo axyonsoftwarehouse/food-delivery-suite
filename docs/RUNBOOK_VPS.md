@@ -170,7 +170,10 @@ bash backup.sh
 No seu PC, na raiz do repositório:
 
 ```powershell
-git archive --format=tar -o platform-release-$(git rev-parse --short HEAD).tar HEAD:platform
+# O -c core.autocrlf=false é obrigatório: com autocrlf=true (padrão no Windows)
+# o git archive grava CRLF, e os .sh quebram no Linux.
+git -c core.autocrlf=false -c core.eol=lf archive --format=tar `
+    -o platform-release-$(git rev-parse --short HEAD).tar HEAD:platform
 scp -i "$env:USERPROFILE\.ssh\foodie_vps" `
     platform-release-*.tar `
     deploy@2.29.42.104:/home/deploy/
@@ -181,6 +184,12 @@ scp -i "$env:USERPROFILE\.ssh\foodie_vps" `
 > respeita os fins de linha e **deixa de fora** `node_modules`, `.next` e o
 > `.env` local. Um `tar` da pasta levaria tudo isso para a VPS — inclusive
 > segredos. É por isso que o `.env` da VPS sobreviveu intacto desde 25/09.
+>
+> ⚠️ **`core.autocrlf=true` (padrão no Windows) quebra este passo.** Com ele, o
+> `git archive` grava CRLF nos arquivos de texto, e no Linux
+> `set -euo pipefail\r` morre com `invalid option name` — os `.sh` deixam de
+> funcionar. Por isso o comando acima força `core.autocrlf=false`. O `deploy.sh`
+> confere isso e **recusa pacotes com CRLF** antes de aplicar qualquer coisa.
 
 Na VPS:
 
@@ -357,8 +366,8 @@ docker builder prune -f
 > ⚠️ **Nunca rode `docker system prune -a` nem nada com `--volumes` aqui.**
 > E **não remova** as imagens `cf78e76683b9` e `ff02b58f971e`: aparecem como
 > `<none>` ("dangling"), mas são exatamente as imagens **em uso** por
-> `production-postgres-1` e `production-redis-1` — o **outro projeto**
-> (seção 8). Um `docker rmi -f` nelas derruba aquele banco.
+> `production-postgres-1` e `production-redis-1` (seção 8). Um `docker rmi -f`
+> nelas derruba o scaffold — que está vazio, mas derruba.
 
 **Sinais de alarme:**
 
@@ -388,28 +397,57 @@ uso de 3,7 Gi, api `healthy`, 0 reinícios.
 - ❌ Deixar senha em script versionado.
 - ❌ Rodar `docker system prune` no meio de um deploy.
 
-## 8. Projeto Compose `production` — NÃO É DO FOODIE (não tocar)
+## 8. Projeto Compose `production` — scaffold do provisionamento, ocioso
 
-Confirmado na VPS em 30/09/2026. O projeto `production` está **rodando há duas
-semanas**, é **ativo** e **não tem relação com o Foodie**:
+Investigado na VPS em 30/09/2026. **Não é um projeto alheio e não tem dados.**
+É um andaime criado pelo próprio provisionamento do servidor.
 
-| Contêiner | Imagem | Desde |
-| --- | --- | --- |
-| `production-postgres-1` | `postgres:16-alpine` | 15/09/2026 |
-| `production-redis-1` | `redis:7-alpine` | 15/09/2026 |
-| `production-pgbouncer-1` | `edoburu/pgbouncer:v1.25.2-p0` | 15/09/2026 |
+| Contêiner | Imagem | Desde | Uso |
+| --- | --- | --- | --- |
+| `production-postgres-1` | `postgres:16-alpine` | 15/09/2026 01:27 | banco `platform`, **zero tabelas** |
+| `production-redis-1` | `redis:7-alpine` | 15/09/2026 01:27 | **zero chaves** (`DBSIZE` = 0) |
+| `production-pgbouncer-1` | `edoburu/pgbouncer:v1.25.2-p0` | 15/09/2026 01:27 | pool, sem clientes |
 
-- Arquivo Compose: **`/opt/production/compose.yaml`** (com `/opt/production/.env`)
-- Volumes: **`production_postgres_data`**, **`production_redis_data`**
+**Quem criou:** `/root/bootstrap-production.sh` (15/09 01:11) — o **mesmo script
+que criou o usuário `deploy`, endureceu o SSH (`PermitRootLogin no`,
+`AllowUsers deploy`) e configurou o `ufw`**. A última seção dele diz
+"Create an isolated application stack. Database and cache have no host ports."
+e grava `/opt/production/{.env,compose.yaml}` com `POSTGRES_DB=platform`.
 
-O `.hermes.md` já registrava isso: "`production`: Postgres/Redis de outro
-projeto — **não tocar**".
+**Evidência de que nunca foi usado:**
 
-> ⚠️ **Uma versão anterior deste runbook mandava remover esses contêineres,
-> volumes e as pastas `/opt/production` e `/opt/containers`. Era uma instrução
-> errada e destrutiva: `/opt/production/compose.yaml` é a configuração de um
-> projeto alheio em produção, e remover os volumes apagaria o banco dele.**
-> A instrução foi retirada.
+- banco `platform` com **0 tabelas** e 7519 kB — exatamente o tamanho de um
+  banco vazio (`\dt` → "Did not find any relations");
+- Redis com 0 chaves; volume `production_postgres_data` com 47 MB;
+- **nenhuma conexão** em 5432/6379 e logs parados em 15/09 01:32;
+- consumo somado dos três contêineres: **~19 MiB de RAM**.
+
+**Como foi configurado:** rede `internal: true` (sem acesso externo), nenhuma
+porta publicada no host, volumes nomeados, `restart: unless-stopped`.
+
+**O que fazer com ele?** Como está vazio, remover não perde dado. Mas o ganho é
+pequeno — 47 MB de volume, ~19 MB de RAM e, se você também remover as imagens,
+~478 MB (`postgres:16-alpine` + `redis:7-alpine`). As duas imagens aparecem como
+`<none>` e são **as que esses contêineres usam**: só ficam removíveis depois de
+derrubar o projeto.
+
+```bash
+# se decidir remover (preserva os volumes, reversível):
+cd /opt/production && docker compose stop
+
+# removendo de vez — só depois de confirmar que nada usa:
+cd /opt/production && docker compose down
+docker volume rm production_postgres_data production_redis_data
+docker image rm postgres:16-alpine redis:7-alpine
+```
+
+> ⚠️ **Uma versão anterior deste runbook mandava `docker rm`, `docker volume rm`
+> e `sudo rm -rf /opt/production /opt/containers` "porque era legado".** A
+> instrução estava errada em dois níveis: (1) o projeto não é legado e (2) nada
+> disso é necessário para liberar espaço de verdade — o consumo está no cache de
+> imagens (seção 6). Ela foi retirada. O `.hermes.md` dizia "de outro projeto —
+> não tocar": agora se sabe que é um andaime do próprio provisionamento, sem
+> dados. Enquanto você não decidir, o mais barato é deixar como está.
 
 Para reidentificar a qualquer momento (somente leitura):
 
@@ -417,7 +455,6 @@ Para reidentificar a qualquer momento (somente leitura):
 docker compose ls -a
 docker inspect production-postgres-1 \
   --format '{{.Name}} | projeto={{index .Config.Labels "com.docker.compose.project"}} | dir={{index .Config.Labels "com.docker.compose.project.working_dir"}}'
-docker volume ls
 ```
 
 ## 9. Perfil público (Caddy)
