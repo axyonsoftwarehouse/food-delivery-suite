@@ -13,10 +13,6 @@ type Item = { href: string; key: string; icon: string; module?: string };
 const menuFor: Record<string, Item[]> = {
   admin: [
     { href: '/painel', key: 'nav.panel.overview', icon: '◫' },
-    { href: '/painel/pedidos', key: 'nav.panel.orders', icon: '▤' },
-    { href: '/painel/catalogo', key: 'nav.panel.catalog', icon: '◉' },
-    { href: '/painel/horarios', key: 'nav.panel.hours', icon: '◔' },
-    { href: '/painel/operacao', key: 'nav.panel.operation', icon: '◎' },
     { href: '/painel/zonas', key: 'nav.panel.zones', icon: '⬡' },
     { href: '/painel/relatorios', key: 'nav.panel.reports', icon: '📊' },
     { href: '/painel/clientes', key: 'nav.panel.customers', icon: '👥' },
