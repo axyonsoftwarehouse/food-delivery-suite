@@ -15,27 +15,25 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `aafb220` — "browse restaurants before their menus" (28/09 22:23) |
-| **Código na VPS** | **`bf8a6a3`** — verificado por hash de conteúdo em 30/09/2026 |
-| Schema local (`HEAD`) | `053` (`V053__retire_restaurant_wallet.sql`) |
-| **Schema na VPS** | **`053`** — `{"status":"ready","schemaVersion":"053"}` |
-| Distância | A VPS está **1 commit atrás** do `main` local |
-| Release `aafb220` | **preparado e não aplicado** (`/home/deploy/releases/aafb220/`) |
+| `main` local | `e226cb2` — deploy versionado, runbook e identificação do scaffold |
+| **Código na VPS** | **`e226cb2`** — publicado pelo `release.ps1` em 30/09/2026 03:46 UTC |
+| Schema (`/ready`) | `053` (`V053__retire_restaurant_wallet.sql`), na VPS e no `HEAD` |
+| Distância | **VPS e `main` alinhados** |
+| Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
 | Testes Java | **225** anotações `@Test` em 67 arquivos (contagem direta no `HEAD`) |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
-| Árvore de trabalho | **suja**: 2 arquivos modificados, 4 não versionados (ver seção 6) |
+| Árvore de trabalho | limpa — só o resíduo vazio `docs/Novo(a) Documento de Texto.txt` |
 
-Como a VPS foi confirmada: não há `.git` na VPS (é cópia, não clone), então
-o commit foi identificado comparando o **hash de blob** dos arquivos
-implantados com os commits locais. `apps/web/app/ui.css` corresponde
-exatamente a `bf8a6a3`; `loja/page.tsx` e `CatalogController.java` são as
-versões **anteriores** ao `aafb220`; e `loja/restaurant-menu.tsx` (criado no
-`aafb220`) **não existe** na VPS. O schema `053` fecha a conta: as migrations
-implantadas vão até `V053`.
+Como o deploy foi confirmado: não há `.git` na VPS (é cópia, não clone), então
+o commit foi conferido comparando o **hash de blob** dos arquivos implantados
+com os do repositório. `layout.tsx`, `loja/restaurant-menu.tsx` e `deploy.sh`
+batem exatamente com `e226cb2`. O mesmo método havia identificado antes que a
+VPS rodava `bf8a6a3` — o aviso de que ela estaria em `88efbe8`/schema `048`
+estava dois deploys desatualizado.
 
-Ou seja: o aviso antigo de que a VPS estaria em `88efbe8` / schema `048`
-estava desatualizado — ela já passou por `75dfe8c` (28/09) e `bf8a6a3`
-(29/09).
+Como publicar: `.\platform\deploy\release.ps1` (no PC). O script empacota o
+commit, envia e aplica com backup, verificação e rollback — ver
+`RUNBOOK_VPS.md` §4.
 
 ## 1. O que é o Foodie hoje
 
@@ -150,18 +148,22 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
   clone** (não há `.git`). O que foi implantado é o **conteúdo da pasta
   `platform/`**, então o deploy fica em `.../foodie-platform/deploy` — **não**
   em `.../platform/deploy`. Todo comando nesse caminho errado falha.
-- **Não existe** tarefa de "remover contêineres órfãos do legado". O projeto
-  Compose `production` está **rodando há 2 semanas** (`/opt/production/compose.yaml`,
-  volumes `production_postgres_data` e `production_redis_data`) e é **de outro
-  projeto**. Não tocar (`RUNBOOK_VPS.md` §8). O legado saiu em 25/09.
+- **Não existe** legado para remover: o StackFood saiu da VPS em 25/09. O
+  projeto Compose `production` (`/opt/production/compose.yaml`) **não é de
+  terceiros nem tem dados**: é um andaime criado pelo
+  `/root/bootstrap-production.sh` em 15/09 — o mesmo script que criou o usuário
+  `deploy` e endureceu SSH/ufw — com Postgres + pgbouncer + Redis em rede
+  interna, banco `platform` com **zero tabelas** e Redis com **zero chaves**,
+  sem conexões desde a subida (`RUNBOOK_VPS.md` §8).
 - **Firewall não tem nada redundante.** `ufw` ativo com 22, 80, 443 — as três
   regras necessárias. O item "limpeza de regras redundantes" **não se aplica**.
 - **SSH do root está desabilitado** (`PermitRootLogin no`,
   `PasswordAuthentication no`). O root tem senha (alterada em 16/09), usável só
   pelo console da Hetzner: rotacionar é higiene opcional.
-- **Disco em 73%** (26 GB de 38 GB), e o consumo está em `/var/lib/containerd`
-  (**22 GB**), não em `/var/lib/docker` (2,6 GB). Vale um `docker image prune`
-  quando houver janela.
+- **Disco em 79%** (29 GB de 38 GB) após o deploy — ele custou ~3 GB. O consumo
+  está em `/var/lib/containerd` (**22 GB**), não em `/var/lib/docker` (2,6 GB).
+  Vale limpar cache de build, imagens `foodie-staging-*` e `pre-<sha>` antigos
+  (`RUNBOOK_VPS.md` §6).
 - **Deploy versionado (resolvido em 30/09).** O procedimento era ad hoc: o que
   existia na VPS era `/home/deploy/releases/<sha>/` com backup e pacote, sem
   script. Agora há `platform/deploy/release.ps1` (no PC) e
@@ -192,42 +194,45 @@ com justificativa e trilha de auditoria.
    E47 e `E48` não aparece em nenhum documento. Antes de tratar isso como épico,
    registre o cartão no plano (o `IDEIAS_FUTURAS.md` define essa passagem:
    ideia amadurecida vira épico `E##` no plano).
-2. **A correção do menu está só na árvore de trabalho.** O `layout.tsx` remove
-   as 4 abas do perfil admin, mas está **modificado e não commitado**. As rotas
-   continuam existindo em `app/painel/` para o restaurante.
+2. **A correção do menu já está no ar** (`bc02740`, publicado em `e226cb2`):
+   as 4 abas saíram do perfil admin e as rotas continuam existindo em
+   `app/painel/` para o restaurante. Falta o push para o `origin`.
 
-**Na fila de infraestrutura (situação confirmada em 30/09):**
+**Na fila de infraestrutura (situação em 30/09):**
 
-1. **Publicar o `aafb220`** — é a única diferença entre a VPS e o `main`.
-   Agora é um comando: `.\platform\deploy\release.ps1`.
-2. **Commit da correção do menu** (`layout.tsx`) — o `release.ps1` recusa
-   publicar com a árvore suja, então essa pendência bloqueia o próximo deploy.
-3. **Commit dos scripts de deploy** (`platform/deploy/release.ps1`,
-   `deploy.sh`, `README.md`, `.gitignore`) — também ainda não versionados.
-4. Higiene: `docker image prune` + `docker builder prune` — disco em 73%, com
-   22 GB em `/var/lib/containerd` (`RUNBOOK_VPS.md` §6).
-5. **Não há legado para remover.** O StackFood saiu da VPS em 25/09; o que
-   sobrou de "antigo" são imagens `foodie-staging-*` (fase anterior do próprio
-   projeto) e cache de build.
+1. ~~Publicar o `aafb220`~~ — **feito**: `e226cb2` está no ar, conferido por
+   hash de blobs (`RUNBOOK_VPS.md` §0).
+2. **Push dos 4 commits** — o `origin/main` está em `aafb220`; falta o push
+   (`git push`). Nada quebra sem isso, mas o repositório remoto está atrasado.
+3. **Higiene de disco** — 79% de uso. Remover as imagens `foodie-staging-*`,
+   o cache de build e os `pre-<sha>` antigos (`RUNBOOK_VPS.md` §6). Cada deploy
+   custa ~3 GB até essa limpeza.
+4. **Decidir o scaffold `/opt/production`** — está vazio (0 tabelas, 0 chaves),
+   é um andaime do provisionamento de 15/09 e rende ~500 MB se removido
+   (`RUNBOOK_VPS.md` §8). Pode ficar como está sem custo relevante.
+5. **Copiar o backup de 30/09 para fora da VPS** — os de 27 e 28/09 ainda
+   existem; o de 28/09 já tem cópia local.
 
-## 6. Estado da árvore de trabalho (29/09)
+## 6. Estado da árvore de trabalho (30/09)
 
-Modificados, **não commitados**:
+Limpa, com três commits novos publicados e no ar:
 
-- `platform/apps/web/app/painel/layout.tsx` — remoção das 4 abas do admin
-  (é a correção citada na seção 5; **precisa ser commitada**)
-- `platform/apps/web/next-env.d.ts` — aponta para `.next/dev/types`; é ruído do
-  build local, provavelmente **não** deve ir junto
+| Commit | O que é |
+| --- | --- |
+| `bc02740` | `fix(web)`: remoção das 4 abas operacionais do menu do admin |
+| `1219758` | `feat(deploy)`: `release.ps1` + `deploy.sh` com backup, verificação e rollback |
+| `67d9ef2` | `docs`: runbook da VPS, estado atual e ideias futuras |
+| `e226cb2` | `fix(deploy)`: forçar LF no pacote, recusar CRLF e identificar o scaffold |
 
-Não versionados:
+Não versionado: apenas `docs/Novo(a) Documento de Texto.txt` (vazio, resíduo —
+pode apagar).
 
-- `docs/RUNBOOK_VPS.md`, `docs/ESTADO_ATUAL.md`, `docs/IDEIAS_FUTURAS.md`
-  (novos; `docs/` está versionado, estes arquivos ainda não)
-- `docs/Novo(a) Documento de Texto.txt` — arquivo vazio, resíduo; pode apagar
-- `platform-release-aafb220.tar` — release local, não é para o git
+Ignorados pelo `.gitignore`: `backups/`, `platform/deploy/backups/` e os
+pacotes `platform-release-*.tar`.
 
-Ignorados pelo `.gitignore` (correto): `backups/`,
-`platform/deploy/backups/`.
+**Não foi feito push.** O `origin/main` continua em `aafb220`; os quatro
+commits acima existem só localmente até você mandar. O deploy não depende
+disso (o pacote é gerado do commit local).
 
 Lembrete do `.hermes.md`: **nunca commitar nem dar push sem pedido explícito do
 Werner.**

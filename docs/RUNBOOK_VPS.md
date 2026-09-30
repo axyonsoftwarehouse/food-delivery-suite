@@ -16,27 +16,31 @@ na VPS **sem depender de IA** para cada passo.
 
 | Item | Valor |
 | --- | --- |
-| Código implantado | **`bf8a6a3`** — "fix(web): correct customer badges, dark theme and profile rewards" |
+| Código implantado | **`e226cb2`** — deploy feito pelo `release.ps1` em 30/09/2026 03:46 UTC |
 | Schema (`/ready`) | **`053`** |
-| `main` local | `aafb220` — **1 commit à frente** da VPS |
-| Release `aafb220` | **preparado e não aplicado** em `/home/deploy/releases/aafb220/` |
+| `main` local | `e226cb2` — **VPS e `main` alinhados** |
+| Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data, release anterior) |
 | Web público | `https://staging.2.29.42.104.sslip.io` → HTTP 200 |
 | API | `https://api.staging.2.29.42.104.sslip.io/ready` → `{"status":"ready","schemaVersion":"053"}` |
 | Contêineres | api `healthy`, db `healthy`, web e caddy `Up`, migrate `Exited (0)` |
 | Reinícios | `0` em todos os contêineres do `foodie-staging` |
-| Disco | `26G` de `38G` (**73%**), `9.9G` livres |
-| Memória | `3.7Gi` no total, `~2.4Gi` disponíveis, swap `2.0Gi` (232Mi em uso) |
+| Disco | `29G` de `38G` (**79%**), `7.7G` livres |
+| Memória | `3.7Gi` no total, `~2.4Gi` disponíveis, swap `2.0Gi` |
 | Firewall | `ufw` ativo: apenas 22, 80, 443 |
 | SSH root | **desabilitado** (`PermitRootLogin no`, `PasswordAuthentication no`) |
-| Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, schema, data) |
 
-> ⚠️ **A VPS não está no `main`.** Publique `aafb220` quando decidir — a partir
-> de agora é um comando só, no seu PC: `.\platform\deploy\release.ps1`
-> (seção 4).
+> **A VPS está alinhada com o `main`.** Publicar agora é um comando só, no seu
+> PC: `.\platform\deploy\release.ps1` (seção 4).
 >
-> O arquivo `.deployed` é gravado pelo `deploy.sh` a cada release. Enquanto ele
-> não existir (nada foi publicado pelo script ainda), descubra o commit no ar
-> comparando arquivos — foi assim que chegamos em `bf8a6a3`.
+> **Como conferir o que está no ar:** `cat /home/deploy/foodie-platform/.deployed`.
+> Para uma verificação independente (sem confiar no registro), compare o hash de
+> blob de um arquivo — foi assim que identificamos que a VPS rodava `bf8a6a3`:
+>
+> ```bash
+> f=/home/deploy/foodie-platform/apps/web/app/painel/layout.tsx
+> { printf 'blob %s\0' "$(stat -c%s "$f")"; cat "$f"; } | sha1sum
+> # compare com: git rev-parse HEAD:platform/apps/web/app/painel/layout.tsx
+> ```
 
 ## 1. Informações da VPS
 
@@ -337,17 +341,18 @@ curl -fsS -o /dev/null -w '%{http_code}\n' https://staging.2.29.42.104.sslip.io
 
 ### Recuperar espaço em disco (com segurança)
 
-Medido em 30/09/2026: **26 GB de 38 GB (73%)**. O consumo está em
-`/var/lib/containerd` (**22 GB** — imagens e camadas), não em
-`/var/lib/docker` (2,6 GB). Meça antes e depois com `df -h /`.
+Medido em 30/09/2026, **depois** do deploy do `e226cb2`: **29 GB de 38 GB
+(79%)**, 7,7 GB livres. Antes do deploy eram 26 GB (73%) — um deploy custa
+~3 GB. O consumo está em `/var/lib/containerd` (**22 GB** — imagens e camadas),
+não em `/var/lib/docker` (2,6 GB). Meça antes e depois com `df -h /`.
 
 > **Não existe projeto legado na VPS para remover.** O StackFood foi retirado
 > em 25/09/2026 (`down -v` nos contêineres, volumes e rede, mais os diretórios
 > `/opt/food-delivery-suite` e `/opt/foodie`) — ver
 > `platform/deploy/README.md`. Não há contêiner, volume, rede ou diretório do
 > legado sobrando. O que ocupa espaço é **imagem e cache de build**, e dois
-> itens não são legado: `/opt/production` (outro projeto, seção 8) e
-> `foodie-env-backup`.
+> itens não são legado: `/opt/production` (scaffold do provisionamento,
+> seção 8) e `foodie-env-backup`.
 
 ```bash
 # 1. ver o que dá para recuperar (só informa)
@@ -361,7 +366,16 @@ docker image rm foodie-staging-api:latest foodie-staging-migrate:latest \
 
 # 3. cache de build (nunca é usado em runtime)
 docker builder prune -f
+
+# 4. imagens de rollback antigas. Cada deploy guarda a anterior como
+#    foodie-staging-{api,web,...}:pre-<sha>. Mantenha a última e remova o resto:
+docker images --format '{{.Repository}}:{{.Tag}}' | grep '^foodie-staging-.*:pre-' | sort
+docker image rm foodie-staging-web:pre-bf8a6a3   # exemplo; confira antes
 ```
+
+> **Cada deploy custa ~3 GB** (imagens novas + cache de build) até você limpar.
+> Depois de dois ou três deploys bem-sucedidos, remova os `pre-<sha>` mais
+> antigos — mantenha só o último, que é o seu rollback.
 
 > ⚠️ **Nunca rode `docker system prune -a` nem nada com `--volumes` aqui.**
 > E **não remova** as imagens `cf78e76683b9` e `ff02b58f971e`: aparecem como
@@ -381,8 +395,8 @@ docker builder prune -f
 - `df -h` em `/` acima de 90% com contêineres saudáveis → quase sempre lixo de
   imagem/build, não dado.
 
-**Baseline (30/09/2026)** para comparar depois: disco 73%, memória 1,3 Gi em
-uso de 3,7 Gi, api `healthy`, 0 reinícios.
+**Baseline (30/09/2026, pós-deploy)** para comparar depois: disco 79%, memória
+1,3 Gi em uso de 3,7 Gi, api `healthy`, 0 reinícios.
 
 ## 7. O que NÃO fazer
 
@@ -481,6 +495,14 @@ docker compose --profile public up -d
 ```bash
 sudo ss -lntp | grep -E ':80|:443'
 ```
+
+> **Se você mudar o `Caddyfile`, recrie o contêiner:**
+> `docker compose --profile public up -d --force-recreate caddy`.
+> O `Caddyfile` é montado como **bind de arquivo**; o `rsync` do deploy troca
+> arquivos por *rename*, e um bind de arquivo pode continuar apontando para o
+> inode antigo depois da troca. O `up -d --build` não detecta mudança de
+> conteúdo no `Caddyfile` (ele não faz parte da config do serviço), então a
+> recriação explícita é a forma segura.
 
 Se aparecer outro proxy, **não** ative o perfil `public`: publique a rota no
 proxy existente e conecte-o à rede `foodie-staging_default`
