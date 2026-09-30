@@ -1,10 +1,8 @@
 # Homologação da plataforma Foodie
 
-Esta composição publica a plataforma independente: MariaDB, migrations (Flyway, aplicadas pelo contêiner Java), API Java, web Next e Caddy. O projeto Docker é nomeado `foodie-staging`, portanto não reutiliza redes, volumes, banco, imagens, domínio nem arquivos de outros projetos na VPS.
+Esta composição publica a plataforma independente: MariaDB, migrations (Flyway, aplicadas pelo contêiner Java), API Java, web Next e Caddy. O projeto Docker é nomeado `foodie-staging` (linha 1 do `docker-compose.yml`), portanto não reutiliza redes, volumes, banco, imagens, domínio nem arquivos de outros projetos na VPS. **Esse `name:` fixo é o que garante que mover ou republicar a pasta não crie um banco novo e vazio.**
 
 ## Endereços (homologação)
-
-Com `FOODIE_DOMAIN=staging.2.29.42.104.sslip.io`, o Caddy publica (perfil `public`):
 
 | Host | Destino |
 | --- | --- |
@@ -12,51 +10,124 @@ Com `FOODIE_DOMAIN=staging.2.29.42.104.sslip.io`, o Caddy publica (perfil `publi
 | `api.<domínio>` | API Java |
 | `cliente.<domínio>`, `restaurante.<domínio>`, `entregador.<domínio>`, `admin.<domínio>` | o mesmo site (endereços por papel; o login ainda define o papel) |
 
-O `sslip.io` é temporário e serve apenas homologação; para produção, troque por um domínio próprio apontando o DNS para a VPS.
+Com `FOODIE_DOMAIN=staging.2.29.42.104.sslip.io`, o perfil `public` (Caddy) está **ativo na VPS desde 25/09/2026** e é ele quem ocupa as portas 80/443. O `sslip.io` é temporário: para produção, aponte um domínio próprio para a VPS.
 
-## Preparação na VPS
+## Onde o código fica na VPS
 
-1. Copie `.env.example` para `.env` e informe o domínio de homologação e duas senhas exclusivas.
-2. Copie o diretório `platform/` para uma pasta nova na VPS; não o coloque dentro da pasta da composição `foodie`.
-3. Na primeira validação interna, na pasta `platform/deploy`, execute `docker compose up -d --build`. O Caddy fica desativado por padrão e não ocupa as portas públicas da VPS. Só depois da aprovação do domínio execute `docker compose --profile public up -d`.
+O que é implantado é o **conteúdo da pasta `platform/`** deste repositório (via `git archive <sha>:platform`), extraído diretamente em:
+
+```
+/home/deploy/foodie-platform/          # = conteúdo de platform/
+/home/deploy/foodie-platform/deploy/   # = platform/deploy/
+```
+
+Não existe `/home/deploy/foodie-platform/platform/`. E **não há `.git`** nessa árvore: a VPS recebe pacotes, não um clone.
+
+## Publicar um release (um comando)
+
+No seu PC:
+
+```powershell
+cd C:\Users\werne\WebstormProjects\food-delivery-suite\platform
+.\deploy\release.ps1                 # publica o commit HEAD
+.\deploy\release.ps1 -PackageOnly    # só gera o .tar e mostra os hashes
+.\deploy\release.ps1 -Sha bf8a6a3    # republica um commit anterior
+```
+
+O `release.ps1`:
+
+1. resolve o commit (e **aborta se houver arquivos versionados modificados não commitados** — o pacote vem do commit, não da pasta de trabalho);
+2. gera `platform-release-<sha>.tar` com `git archive` (só arquivos versionados: nada de `node_modules`, `.next` ou `.env`);
+3. envia o pacote e o `deploy.sh` para `/home/deploy/`;
+4. chama o `deploy.sh` na VPS e devolve o resultado.
+
+Na VPS, o `deploy.sh` ([deploy.sh](deploy.sh)) executa, em ordem:
+
+| # | Etapa | Detalhe |
+| --- | --- | --- |
+| 1 | Valida o pacote | sha256, conteúdo mínimo e `name: foodie-staging` |
+| 2 | Marca imagens atuais | `foodie-staging-{api,web,migrate,seed}:pre-<sha>` |
+| 3 | **Backup do banco** | `bash backup.sh` → `deploy/backups/` |
+| 4 | Snapshot do código | `releases/<sha>/backup-source.tar` |
+| 5 | Aplica | `rsync -a --delete`, preservando `deploy/.env` e `deploy/backups/` |
+| 6 | Reconstrói | `docker compose up -d --build` (mantém o perfil `public` se o Caddy está no ar) |
+| 7 | Verifica | espera `/ready` e compara `schemaVersion` com a maior migration do pacote |
+| 8 | Registra | `<tree>/.deployed` com sha, sha256, schema, data e o release anterior |
+| 9 | **Reverte** | se 6, 7 ou 8 falharem, restaura o snapshot, reconstrói e sai com erro |
+
+Uma trava (`flock`) impede dois deploys simultâneos, e tudo é registrado em `/home/deploy/deploy-<sha>-<data>.log`.
+
+Depois de publicar, confira:
+
+```bash
+cat /home/deploy/foodie-platform/.deployed
+curl -fsS https://api.staging.2.29.42.104.sslip.io/ready
+```
+
+### Limites do rollback
+
+O rollback automático devolve o **código**. O **banco não volta**: migrations aplicadas pelo Flyway permanecem aplicadas. Se o release novo migrou o schema e você precisa voltar de verdade, restaure o dump:
+
+```bash
+cd /home/deploy/foodie-platform/deploy
+bash restore.sh backups/foodie_platform-XXXXXXXX-XXXXXX.sql
+```
+
+## Publicação manual (plano B)
+
+```powershell
+# no PC, na raiz do repositório
+git archive --format=tar -o platform-release-<sha>.tar <sha>:platform
+scp -i "$env:USERPROFILE\.ssh\foodie_vps" platform-release-<sha>.tar deploy@2.29.42.104:/home/deploy/
+```
+
+```bash
+# na VPS
+bash /home/deploy/deploy.sh /home/deploy/platform-release-<sha>.tar <sha> <sha256>
+```
+
+Sem o script, o equivalente manual é: `bash backup.sh` → extrair o tar sobre `/home/deploy/foodie-platform` → `docker compose up -d --build` → conferir `/ready`. Note que `tar -xf` **não remove** arquivos que saíram do repositório; o `rsync --delete` do `deploy.sh` remove.
 
 ## Dados de demonstração
 
 O serviço `migrate` (imagem Java em modo `MIGRATE_ONLY`) aplica as migrations via Flyway e encerra com código zero; a API só sobe depois disso. Para uma homologação que precise dos quatro perfis de demonstração, rode o seed uma única vez, sem gravar a senha em arquivos versionados:
 
-```
+```bash
 DEMO_PASSWORD='uma-senha-forte' docker compose --profile tools run --rm seed
 ```
 
-## Operação, backup e rollback
+## Operação, backup e restauração
 
 - Confirme `GET /ready` (não só `/health`): ele só responde 200 com banco acessível e schema migrado.
-- Backup: `./backup.sh` gera um dump em `deploy/backups/` (fora do Git); mantenha uma cópia **fora da VPS**.
-- Restauração/rollback: `./restore.sh <arquivo.sql>`, confira `/ready` e, se necessário, republique a revisão anterior (`docker compose up -d --build api web`).
+- Backup: `bash backup.sh` gera um dump em `deploy/backups/` (fora do Git); mantenha uma cópia **fora da VPS**.
+- Restauração: `bash restore.sh <arquivo.sql>`, confira `/ready`.
 - Faça um ensaio de restauração em ambiente de teste antes de considerar o piloto pronto.
-- Quando outra composição já é proprietária das portas 80/443, não inicie o perfil `public`. Publique a rota de homologação no proxy existente e conecte-o à rede `foodie-staging_default`; valide a configuração e faça backup do proxy antes de recarregá-lo. Na VPS atual, essa rota usa um host `sslip.io` temporário e não substitui o domínio do legado.
+
+> **Chame os scripts com `bash`.** Os `.sh` do repositório estão em modo 644 (sem bit de execução), então `./backup.sh` falha com `Permission denied`. O `deploy.sh` aplica `chmod +x` depois de cada release, mas `bash backup.sh` funciona sempre.
 
 ## Observabilidade e alertas
 
 - A API expõe `/actuator/health`, `/actuator/metrics` e `/actuator/prometheus` (Micrometer) na porta interna 4001. Não publique `/actuator/*` diretamente: colete pela rede interna (ex.: Prometheus/agente no mesmo host).
+- O stack `foodie-monitoring` (Prometheus + Alertmanager + Blackbox) roda em `../monitoring/` e envia alertas para o Telegram.
 - Toda resposta traz `X-Request-Id` (aceito do cliente ou gerado) e o log de acesso registra método, rota, status, duração e o ID — útil para correlacionar um pedido com o servidor.
-- Alertas sugeridos: `/ready` indisponível, taxa de respostas 5xx acima do limiar e contêineres `db`/`api` fora de `healthy`. Aponte um monitor externo para `/ready` e para `/actuator/prometheus`.
+- Alertas sugeridos: `/ready` indisponível, taxa de respostas 5xx acima do limiar e contêineres `db`/`api` fora de `healthy`.
 - Metas de carga do piloto: p95 < 800 ms e erros < 1% (`pnpm load`).
-
-## Virada de tráfego (janela controlada)
-
-1. Gere um backup com `./backup.sh`, guarde cópia **fora da VPS** e faça um ensaio de restauração.
-2. Confirme `/ready` = `ready` e rode `pnpm load` contra o host de homologação com a carga esperada.
-3. Escolha a janela de baixo movimento e capture um backup final do legado antes de mexer no domínio.
-4. Aponte o domínio/proxy para a nova pilha (perfil `public` do Caddy ou rota no proxy existente), sem remover os 80/443 do legado.
-5. Valide os quatro papéis pelo domínio novo e acompanhe `/ready`, 5xx e latência por alguns minutos.
-6. Rollback: se houver problema, reverta o DNS/proxy para o legado e, se o banco novo já tiver recebido dados, restaure o último backup com `./restore.sh`.
-7. Só depois de estabilizar remova os recursos do legado (seção seguinte).
 
 ## Limites antes da produção pública
 
-Esta é uma base de homologação, não autorização para exposição comercial. Proteção de contas, recuperação, pagamento na entrega, estados excepcionais do pedido, observabilidade e backup/restauração já estão implementados. Antes de expor comercialmente ainda faltam: um provedor de email real (hoje o link de verificação/recuperação sai no log), a revisão de origem/CSRF nos domínios finais e um teste de carga na própria VPS.
+Esta é uma base de homologação, não autorização para exposição comercial. Proteção de contas, recuperação, pagamento na entrega, estados excepcionais do pedido, observabilidade e backup/restauração já estão implementados. Antes de expor comercialmente ainda faltam: um provedor de email real (hoje o link de verificação/recuperação sai no log), a revisão de origem/CSRF nos domínios finais, o ensaio de restauração e um teste de carga na própria VPS.
 
-## Desativação do Foodie legado
+## Legado StackFood: já removido
 
-Executada em **2026-09-25**: o projeto legado `deploy` foi derrubado com `down -v` (containers, volumes e rede) e removidos os diretórios `/opt/food-delivery-suite` e a recriação antiga `/opt/foodie`, junto das imagens não usadas e do cache de build. As portas 80/443 ficaram livres, mas o perfil `public` **não** foi iniciado — a plataforma Foodie segue **interna** até a janela de virada de domínio. Antes de reexpor qualquer coisa, capture backup, confirme `/ready` e siga o roteiro de virada acima.
+Executada em **25/09/2026**: o projeto legado `deploy` foi derrubado com `down -v` (contêineres, volumes e rede) e removidos os diretórios `/opt/food-delivery-suite` e a recriação antiga `/opt/foodie`, junto das imagens não usadas e do cache de build. O código do legado também saiu do repositório na mesma data (commit `04e5686`), preservado na tag `legacy-stackfood-v9` e nos apps Flutter em `reference/`.
+
+**Não há legado sobrando na VPS para limpar.** O que existe além do Foodie é:
+
+| Caminho / recurso | O que é | Pode mexer? |
+| --- | --- | --- |
+| `/opt/production` (projeto `production`) | Postgres/Redis/pgbouncer de **outro projeto**, no ar desde 15/09 | **Não** — ver `docs/RUNBOOK_VPS.md` §8 |
+| `/home/deploy/foodie-env-backup` | cópia do `.env` de homologação (18/09) | Não (contém segredos) |
+| imagens `foodie-staging-*` | fase anterior do **próprio** projeto | Sim, se nenhum contêiner usar |
+| `docker builder prune` | cache de build | Sim |
+
+Espaço em disco e limpeza segura: `docs/RUNBOOK_VPS.md` §6.

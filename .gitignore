@@ -79,5 +79,9 @@ tmp/
 # ===== Backups operacionais locais (fora do Git) =====
 backups/
 
+# ===== Pacotes de release gerados no PC (platform/deploy/release.ps1) =====
+platform-release-*.tar
+platform-release-*.tar.gz
+
 # ===== Monitoramento (segredos renderizados) =====
 platform/monitoring/alertmanager.rendered.yml
