@@ -148,9 +148,9 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
   clone** (não há `.git`). O que foi implantado é o **conteúdo da pasta
   `platform/`**, então o deploy fica em `.../foodie-platform/deploy` — **não**
   em `.../platform/deploy`. Todo comando nesse caminho errado falha.
-- **Não existe** legado para remover: o StackFood saiu da VPS em 25/09. O
-  projeto Compose `production` (`/opt/production/compose.yaml`) **não é de
-  terceiros nem tem dados**: é um andaime criado pelo
+- **Não existe** legado para remover: o StackFood saiu da VPS em 25/09 e o
+  scaffold `production` foi removido em 30/09. Esse scaffold **não era de
+  terceiros nem tinha dados**: era um andaime criado pelo
   `/root/bootstrap-production.sh` em 15/09 — o mesmo script que criou o usuário
   `deploy` e endureceu SSH/ufw — com Postgres + pgbouncer + Redis em rede
   interna, banco `platform` com **zero tabelas** e Redis com **zero chaves**,
@@ -160,10 +160,10 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 - **SSH do root está desabilitado** (`PermitRootLogin no`,
   `PasswordAuthentication no`). O root tem senha (alterada em 16/09), usável só
   pelo console da Hetzner: rotacionar é higiene opcional.
-- **Disco em 79%** (29 GB de 38 GB) após o deploy — ele custou ~3 GB. O consumo
-  está em `/var/lib/containerd` (**22 GB**), não em `/var/lib/docker` (2,6 GB).
-  Vale limpar cache de build, imagens `foodie-staging-*` e `pre-<sha>` antigos
-  (`RUNBOOK_VPS.md` §6).
+- **Disco em 43%** (16 GB de 38 GB, 21 GB livres). A limpeza de 30/09 levou de
+  79% para 43%: 13 GB recuperados, quase tudo cache de build (`RUNBOOK_VPS.md`
+  §6). Cada deploy novo volta a custar ~2–3 GB — repita a limpeza quando passar
+  de ~70%.
 - **Deploy versionado (resolvido em 30/09).** O procedimento era ad hoc: o que
   existia na VPS era `/home/deploy/releases/<sha>/` com backup e pacote, sem
   script. Agora há `platform/deploy/release.ps1` (no PC) e
@@ -202,16 +202,16 @@ com justificativa e trilha de auditoria.
 
 1. ~~Publicar o `aafb220`~~ — **feito**: `e226cb2` está no ar, conferido por
    hash de blobs (`RUNBOOK_VPS.md` §0).
-2. **Push dos 4 commits** — o `origin/main` está em `aafb220`; falta o push
-   (`git push`). Nada quebra sem isso, mas o repositório remoto está atrasado.
-3. **Higiene de disco** — 79% de uso. Remover as imagens `foodie-staging-*`,
-   o cache de build e os `pre-<sha>` antigos (`RUNBOOK_VPS.md` §6). Cada deploy
-   custa ~3 GB até essa limpeza.
-4. **Decidir o scaffold `/opt/production`** — está vazio (0 tabelas, 0 chaves),
-   é um andaime do provisionamento de 15/09 e rende ~500 MB se removido
-   (`RUNBOOK_VPS.md` §8). Pode ficar como está sem custo relevante.
-5. **Copiar o backup de 30/09 para fora da VPS** — os de 27 e 28/09 ainda
-   existem; o de 28/09 já tem cópia local.
+2. ~~Push dos commits~~ — **feito**: `origin/main` está em `669f875`.
+3. ~~Higiene de disco~~ — **feito**: 79% → **43%** (13 GB recuperados).
+4. ~~Decidir o scaffold `/opt/production`~~ — **removido** em 30/09, depois de
+   comprovado vazio (0 tabelas, 0 chaves). Config preservado em
+   `/home/deploy/production-scaffold-20260930.tar.gz` (`RUNBOOK_VPS.md` §8).
+5. **Copiar os backups de banco para fora da VPS** — há cinco em
+   `deploy/backups/` (27, 28 e três de 30/09); só o de 28/09 tem cópia local.
+6. **Versionar `/root/bootstrap-production.sh`** — é o único registro de como o
+   servidor foi endurecido (usuário `deploy`, SSH, `ufw`, fail2ban) e vive só na
+   VPS. Sugestão: revisar e guardar em `platform/deploy/vps/`.
 
 ## 6. Estado da árvore de trabalho (30/09)
 

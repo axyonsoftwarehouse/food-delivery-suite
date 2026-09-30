@@ -24,7 +24,7 @@ na VPS **sem depender de IA** para cada passo.
 | API | `https://api.staging.2.29.42.104.sslip.io/ready` → `{"status":"ready","schemaVersion":"053"}` |
 | Contêineres | api `healthy`, db `healthy`, web e caddy `Up`, migrate `Exited (0)` |
 | Reinícios | `0` em todos os contêineres do `foodie-staging` |
-| Disco | `29G` de `38G` (**79%**), `7.7G` livres |
+| Disco | `16G` de `38G` (**43%**), `21G` livres — era 79% antes da limpeza de 30/09 |
 | Memória | `3.7Gi` no total, `~2.4Gi` disponíveis, swap `2.0Gi` |
 | Firewall | `ufw` ativo: apenas 22, 80, 443 |
 | SSH root | **desabilitado** (`PermitRootLogin no`, `PasswordAuthentication no`) |
@@ -339,49 +339,49 @@ curl -fsS https://api.staging.2.29.42.104.sslip.io/ready
 curl -fsS -o /dev/null -w '%{http_code}\n' https://staging.2.29.42.104.sslip.io
 ```
 
-### Recuperar espaço em disco (com segurança)
+### Espaço em disco
 
-Medido em 30/09/2026, **depois** do deploy do `e226cb2`: **29 GB de 38 GB
-(79%)**, 7,7 GB livres. Antes do deploy eram 26 GB (73%) — um deploy custa
-~3 GB. O consumo está em `/var/lib/containerd` (**22 GB** — imagens e camadas),
-não em `/var/lib/docker` (2,6 GB). Meça antes e depois com `df -h /`.
+**Situação em 30/09/2026:** a limpeza levou o disco de **29 GB (79%)** para
+**16 GB (43%)** — 13 GB recuperados, 21 GB livres. O que rendeu:
 
-> **Não existe projeto legado na VPS para remover.** O StackFood foi retirado
-> em 25/09/2026 (`down -v` nos contêineres, volumes e rede, mais os diretórios
-> `/opt/food-delivery-suite` e `/opt/foodie`) — ver
-> `platform/deploy/README.md`. Não há contêiner, volume, rede ou diretório do
-> legado sobrando. O que ocupa espaço é **imagem e cache de build**, e dois
-> itens não são legado: `/opt/production` (scaffold do provisionamento,
-> seção 8) e `foodie-env-backup`.
+| Ação | Ganho |
+| --- | --- |
+| `docker builder prune -f` (cache de build) | ~11,8 GB |
+| Imagens `foodie-staging-*` (fase anterior do projeto) | ~2,4 GB |
+| Imagens do scaffold `production` (`postgres`, `redis`, `pgbouncer`) | ~0,5 GB |
+| Imagem `foodie-staging-web:pre-bf8a6a3` + dangling | ~1 GB |
+
+**O que sobrou é intencional:** as imagens `:pre-e226cb2` (rollback do último
+deploy, 2,6 GB) e as bases em uso (`mariadb`, `node`, `prom/*`). Não há mais
+nada grande e descartável. **Cada deploy novo volta a custar ~2–3 GB** — quando
+o disco passar de ~70%, repita:
 
 ```bash
-# 1. ver o que dá para recuperar (só informa)
+# 1. ver o que dá para recuperar
 docker system df
 
-# 2. imagens de uma fase anterior do projeto, sem nenhum contêiner usando.
-#    Confirme antes: estes nomes NÃO podem aparecer em 'docker ps -a'.
-docker ps -a --format '{{.Image}}' | sort -u
-docker image rm foodie-staging-api:latest foodie-staging-migrate:latest \
-                foodie-staging-seed:latest foodie-staging-web:latest
-
-# 3. cache de build (nunca é usado em runtime)
+# 2. cache de build (nunca é usado em runtime) — o maior ganho
 docker builder prune -f
 
-# 4. imagens de rollback antigas. Cada deploy guarda a anterior como
-#    foodie-staging-{api,web,...}:pre-<sha>. Mantenha a última e remova o resto:
-docker images --format '{{.Repository}}:{{.Tag}}' | grep '^foodie-staging-.*:pre-' | sort
-docker image rm foodie-staging-web:pre-bf8a6a3   # exemplo; confira antes
+# 3. imagens de rollback antigas: mantenha SÓ a última (a do deploy atual)
+docker images --format '{{.Repository}}:{{.Tag}}' | grep ':pre-' | sort
+docker image rm foodie-staging-web:pre-<sha-antigo>
+
+# 4. confirme que a imagem não é usada por nenhum contêiner antes de remover
+docker ps -a --format '{{.Image}}' | sort -u
 ```
 
-> **Cada deploy custa ~3 GB** (imagens novas + cache de build) até você limpar.
-> Depois de dois ou três deploys bem-sucedidos, remova os `pre-<sha>` mais
-> antigos — mantenha só o último, que é o seu rollback.
+> ⚠️ **Nunca rode `docker system prune -a` nem nada com `--volumes` aqui.** O
+> legado já foi retirado em 25/09 e o scaffold em 30/09 (seção 8): não há mais
+> resíduo de outros projetos. Os volumes existentes são os do `foodie-staging`
+> e do `foodie-monitoring`, e todos contêm dados em uso.
 
-> ⚠️ **Nunca rode `docker system prune -a` nem nada com `--volumes` aqui.**
-> E **não remova** as imagens `cf78e76683b9` e `ff02b58f971e`: aparecem como
-> `<none>` ("dangling"), mas são exatamente as imagens **em uso** por
-> `production-postgres-1` e `production-redis-1` (seção 8). Um `docker rmi -f`
-> nelas derruba o scaffold — que está vazio, mas derruba.
+> **Não existe legado na VPS para remover.** O StackFood foi retirado em
+> 25/09/2026 (`down -v` nos contêineres, volumes e rede, mais os diretórios
+> `/opt/food-delivery-suite` e `/opt/foodie`) — ver `platform/deploy/README.md`.
+> Não há contêiner, volume, rede ou diretório do legado sobrando. Os únicos
+> itens "não Foodie" que existiram — o scaffold `production` e as imagens
+> `foodie-*` — foram removidos em 30/09.
 
 **Sinais de alarme:**
 
@@ -411,16 +411,10 @@ docker image rm foodie-staging-web:pre-bf8a6a3   # exemplo; confira antes
 - ❌ Deixar senha em script versionado.
 - ❌ Rodar `docker system prune` no meio de um deploy.
 
-## 8. Projeto Compose `production` — scaffold do provisionamento, ocioso
+## 8. Scaffold `production` — investigado e removido em 30/09/2026
 
-Investigado na VPS em 30/09/2026. **Não é um projeto alheio e não tem dados.**
-É um andaime criado pelo próprio provisionamento do servidor.
-
-| Contêiner | Imagem | Desde | Uso |
-| --- | --- | --- | --- |
-| `production-postgres-1` | `postgres:16-alpine` | 15/09/2026 01:27 | banco `platform`, **zero tabelas** |
-| `production-redis-1` | `redis:7-alpine` | 15/09/2026 01:27 | **zero chaves** (`DBSIZE` = 0) |
-| `production-pgbouncer-1` | `edoburu/pgbouncer:v1.25.2-p0` | 15/09/2026 01:27 | pool, sem clientes |
+**Não era projeto de terceiros nem tinha dados.** Era um andaime criado pelo
+próprio provisionamento do servidor, e foi removido depois de confirmado vazio.
 
 **Quem criou:** `/root/bootstrap-production.sh` (15/09 01:11) — o **mesmo script
 que criou o usuário `deploy`, endureceu o SSH (`PermitRootLogin no`,
@@ -428,48 +422,61 @@ que criou o usuário `deploy`, endureceu o SSH (`PermitRootLogin no`,
 "Create an isolated application stack. Database and cache have no host ports."
 e grava `/opt/production/{.env,compose.yaml}` com `POSTGRES_DB=platform`.
 
-**Evidência de que nunca foi usado:**
+**O que era:** `production-postgres-1` (`postgres:16-alpine`),
+`production-redis-1` (`redis:7-alpine`) e `production-pgbouncer-1`, em rede
+`internal: true`, sem nenhuma porta publicada no host.
 
-- banco `platform` com **0 tabelas** e 7519 kB — exatamente o tamanho de um
-  banco vazio (`\dt` → "Did not find any relations");
-- Redis com 0 chaves; volume `production_postgres_data` com 47 MB;
-- **nenhuma conexão** em 5432/6379 e logs parados em 15/09 01:32;
+**Evidência de que nunca foi usado** (colhida antes de remover):
+
+- banco `platform` com **0 tabelas** e 7519 kB — o tamanho exato de um banco
+  vazio;
+- Redis com **0 chaves** (`DBSIZE` = 0);
+- **nenhuma conexão** em 5432/6379 e logs parados em 15/09 01:32 — só a subida;
 - consumo somado dos três contêineres: **~19 MiB de RAM**.
 
-**Como foi configurado:** rede `internal: true` (sem acesso externo), nenhuma
-porta publicada no host, volumes nomeados, `restart: unless-stopped`.
-
-**O que fazer com ele?** Como está vazio, remover não perde dado. Mas o ganho é
-pequeno — 47 MB de volume, ~19 MB de RAM e, se você também remover as imagens,
-~478 MB (`postgres:16-alpine` + `redis:7-alpine`). As duas imagens aparecem como
-`<none>` e são **as que esses contêineres usam**: só ficam removíveis depois de
-derrubar o projeto.
+**O que foi feito, em ordem:**
 
 ```bash
-# se decidir remover (preserva os volumes, reversível):
-cd /opt/production && docker compose stop
+# 1. backup do config (o script de provisionamento continua em /root)
+sudo tar -czf /home/deploy/production-scaffold-20260930.tar.gz -C /opt production
 
-# removendo de vez — só depois de confirmar que nada usa:
+# 2. derrubar o projeto (contêineres e rede), depois os volumes
 cd /opt/production && docker compose down
 docker volume rm production_postgres_data production_redis_data
-docker image rm postgres:16-alpine redis:7-alpine
+
+# 3. remover o diretório e as imagens que só ele usava
+sudo rm -rf /opt/production
+docker image rm postgres:16-alpine redis:7-alpine edoburu/pgbouncer:v1.25.2-p0
 ```
 
-> ⚠️ **Uma versão anterior deste runbook mandava `docker rm`, `docker volume rm`
-> e `sudo rm -rf /opt/production /opt/containers` "porque era legado".** A
-> instrução estava errada em dois níveis: (1) o projeto não é legado e (2) nada
-> disso é necessário para liberar espaço de verdade — o consumo está no cache de
-> imagens (seção 6). Ela foi retirada. O `.hermes.md` dizia "de outro projeto —
-> não tocar": agora se sabe que é um andaime do próprio provisionamento, sem
-> dados. Enquanto você não decidir, o mais barato é deixar como está.
+Resultado: `/opt` ficou só com `containerd`, o projeto saiu do
+`docker compose ls`, e a remoção rendeu ~0,5 GB (o grosso dos 13 GB veio do
+cache de build — seção 6).
 
-Para reidentificar a qualquer momento (somente leitura):
+**Se precisar recriar algum dia**, tudo está preservado:
+
+- o script de provisionamento: `/root/bootstrap-production.sh` — contém a seção
+  que recria o stack;
+- o config usado: `/home/deploy/production-scaffold-20260930.tar.gz` (697 bytes,
+  inclui o `.env` — **trate como segredo**).
+
+> ⚠️ **Uma versão anterior deste runbook mandava `docker rm`, `docker volume rm`
+> e `sudo rm -rf /opt/production /opt/containers` "porque era legado".** Estava
+> errada: o projeto não era legado, e o comando era destrutivo e sem
+> verificação. A remoção de 30/09 só aconteceu **depois** de comprovar que o
+> banco estava vazio — a ordem acima (conferir → copiar o config → derrubar →
+> remover) é o procedimento correto para qualquer projeto desconhecido.
+
+### Como identificar um projeto Compose desconhecido
 
 ```bash
 docker compose ls -a
-docker inspect production-postgres-1 \
+docker inspect <container> \
   --format '{{.Name}} | projeto={{index .Config.Labels "com.docker.compose.project"}} | dir={{index .Config.Labels "com.docker.compose.project.working_dir"}}'
 ```
+
+O rótulo `working_dir` diz de qual pasta o stack subiu — e o nome da pasta
+costuma dizer de quem é.
 
 ## 9. Perfil público (Caddy)
 

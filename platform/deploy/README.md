@@ -122,13 +122,13 @@ Esta é uma base de homologação, não autorização para exposição comercial
 
 Executada em **25/09/2026**: o projeto legado `deploy` foi derrubado com `down -v` (contêineres, volumes e rede) e removidos os diretórios `/opt/food-delivery-suite` e a recriação antiga `/opt/foodie`, junto das imagens não usadas e do cache de build. O código do legado também saiu do repositório na mesma data (commit `04e5686`), preservado na tag `legacy-stackfood-v9` e nos apps Flutter em `reference/`.
 
-**Não há legado sobrando na VPS para limpar.** O que existe além do Foodie é:
+**Não há legado sobrando na VPS para limpar.** Em 30/09/2026 também foi removido o scaffold `production` (Postgres/pgbouncer/Redis criados pelo provisionamento em 15/09, com banco vazio — ver `docs/RUNBOOK_VPS.md` §8). O que ainda existe além do Foodie é:
 
 | Caminho / recurso | O que é | Pode mexer? |
 | --- | --- | --- |
-| `/opt/production` (projeto `production`) | Postgres/Redis/pgbouncer de **outro projeto**, no ar desde 15/09 | **Não** — ver `docs/RUNBOOK_VPS.md` §8 |
 | `/home/deploy/foodie-env-backup` | cópia do `.env` de homologação (18/09) | Não (contém segredos) |
-| imagens `foodie-staging-*` | fase anterior do **próprio** projeto | Sim, se nenhum contêiner usar |
-| `docker builder prune` | cache de build | Sim |
+| `/root/bootstrap-production.sh` | script que provisionou e endureceu a VPS | Não apagar — é o único registro do setup |
+| `/home/deploy/production-scaffold-20260930.tar.gz` | config do scaffold removido (697 bytes) | Só se não precisar recriar |
+| `docker builder prune` | cache de build (~12 GB em 30/09) | Sim |
 
-Espaço em disco e limpeza segura: `docs/RUNBOOK_VPS.md` §6.
+Espaço em disco: `docs/RUNBOOK_VPS.md` §6 — a limpeza de 30/09 levou o disco de 79% para 43%.
