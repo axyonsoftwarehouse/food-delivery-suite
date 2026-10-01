@@ -44,6 +44,7 @@ Fora de escopo
 | **2. Comercial e pessoas** | Retenção e operação | E11 Carteira, E12 Fidelidade, E13 Cashback, E14 Referral, E16 Gorjeta, E08 Restaurantes, E09 Entregadores, E17 Campanhas, E19 Banners/promo, E27 Fatura, E28 Motivos de cancelamento, E29 Reembolso, E36 Templates de mensagem |
 | **3. Recorrência e conteúdo** | Receita e marca | E20 Assinatura SaaS, E21 Recorrência do cliente, E22 Cuisines, E23 Atributos/bulk, E24 Nutrição, E25 Moderação de avaliações, E18 Anúncios, E32 CMS/páginas, E33 Landing, E34 i18n admin, E35 Analytics, E37 Configs de terceiros |
 | **4. Experiência e integrações** | Cliente e canais | E38 Chat, E39 Favoritos, E40 Mapa/rastreio, E41 Busca por voz, E42 Tema/PWA/offline, E43 IA cardápio, E44 Interesses, E45 Gateways, E46 SMS, E47 Social Apple/Facebook |
+| **5. Governança** | Fronteira admin × loja (modelo descentralizado) | E48 Modo suporte do admin |
 
 Legenda de prioridade: **P0** bloqueia operação comercial séria; **P1** forte valor de retenção/
 operação; **P2** evolução; **P3** integração sob demanda do negócio.
@@ -584,6 +585,85 @@ Estender `SocialAuthService`. **P3.** Depende de E02.
 
 ---
 
+# ONDA 5 — Governança
+
+## E48 — Modo suporte do admin
+
+- **Bloco/Onda/Prioridade:** Governança / 5 / **P1**
+- **Depende de:** E01 (RBAC e `admin_audit_log`), E08 (restaurantes), `TenantHealthController`
+- **Status:** 📝 **Registrado em 01/10/2026** — não iniciado. Origem: `ESTADO_ATUAL.md` §5 e
+  `IDEIAS_FUTURAS.md`; conflitos de fronteira levantados em `REVISAO_ESCOPO_2026-09-27.md`.
+
+**Objetivo.** No modelo descentralizado (`PLANO_MODELO_NEGOCIO.md`), o super-admin **observa e
+apoia** a loja, não a opera. Substituir as quatro áreas operacionais que o admin compartilhava com
+o restaurante (`pedidos`, `catalogo`, `horarios`, `operacao`) por um painel único de suporte:
+busca por restaurante, leitura de estado, intervenção com justificativa e trilha de auditoria.
+
+**Ponto de partida (01/10/2026).**
+- As quatro abas já saíram do menu do admin (`bc02740`); as páginas seguem em `app/painel/` para
+  o restaurante.
+- A API ainda aceita escrita do admin em dados da loja: catálogo (`/admin/categories`,
+  `/admin/products`, variações e atributos), horários e fuso
+  (`/admin/restaurants/{id}/hours`, `/timezone`) e desconto
+  (`PATCH /admin/restaurants/{id}/discount`).
+- Ações do admin no pedido (cancelar, atribuir/trocar entregador) já exigem motivo e ficam em
+  `order_events`.
+- `admin_audit_log` (V034) registra ator, ação, entidade e resumo, **sem campo de justificativa**;
+  há leitura em `admin-audit-panel.tsx`. `/admin/tenants/health` alimenta `/painel/lojas`.
+
+**Escopo funcional.**
+1. **Busca e ficha da loja**: localizar por nome/ID/responsável; ficha somente leitura com
+   aprovação, plano e estado da assinatura, módulos, horário e aberto/fechado agora, pedidos ativos
+   e atrasados, cancelamentos recentes, saúde (`tenant health`) e ocorrências.
+2. **Leitura do estado operacional**: fila de pedidos da loja, cardápio e horários — **sem
+   edição** pelas telas atuais.
+3. **Intervenção com justificativa**: um conjunto fechado de ações de suporte, cada uma exigindo
+   motivo (texto) e registrada na auditoria. Mínimo: cancelar/reatribuir pedido (já existe),
+   pausar produto e fechar a loja temporariamente.
+4. **Trilha de auditoria por loja**: histórico de intervenções na ficha, filtrável por período e
+   ator.
+5. **Fronteira na API**: rotas admin de escrita em dados da loja que ficarem fora do conjunto de
+   suporte são removidas ou passam a exigir permissão de suporte + justificativa.
+
+**Modelo de dados (migrations a partir de `V054`).**
+- `admin_audit_log.reason` (texto, obrigatório para ações de suporte) e `restaurant_id` indexado
+  para a trilha por loja.
+- Eventual estado `temporarily_closed` da loja, se não houver equivalente (verificar antes).
+
+**API.**
+- `GET /admin/support/restaurants?q=` e `GET /admin/support/restaurants/{id}` (ficha agregada).
+- `POST /admin/support/restaurants/{id}/actions` com `{ action, reason, payload }`, validando a
+  ação contra o conjunto permitido.
+- `GET /admin/support/restaurants/{id}/audit`.
+- Permissão nova `support.act` (leitura com `support.view`) no catálogo do E01.
+
+**UI.**
+- Rota `app/painel/suporte/page.tsx` (busca) e `app/painel/suporte/[id]/page.tsx` (ficha), no
+  `menuFor.admin` com chave `nav.panel.support`; textos em pt/en/es.
+- Diálogo de intervenção com campo de motivo obrigatório; reutiliza `app/ui.tsx`.
+
+**Regras e casos de borda.**
+- Toda escrita de suporte sem motivo responde 400; motivo vai para a auditoria e, quando for
+  pedido, também para `order_events.reason`.
+- A loja vê as intervenções feitas nela (transparência), com ator e motivo.
+- Não expõe extrato, margem nem dados que o modelo de negócio reserva à loja.
+
+**Aceite.** Admin encontra uma loja, entende o estado dela sem editar nada, executa uma
+intervenção permitida com motivo e a vê na trilha; a loja vê a mesma intervenção; rotas de escrita
+fora do conjunto de suporte respondem 403 ao admin. `VERIFY_INTEGRATION=1 pnpm verify` passa.
+
+**Decisões em aberto (antes de implementar).**
+- O admin mantém **alguma** edição de cardápio/preço como suporte auditado, ou perde por completo?
+  (`REVISAO_ESCOPO_2026-09-27.md`, conflito "Média").
+- O que fazer com `PATCH /admin/restaurants/{id}/discount` e descontos já configurados
+  (conflito "Alta" na mesma revisão).
+- Lista final de intervenções permitidas.
+
+**Fora de escopo.** Acesso ao extrato individual da loja (tratado na fronteira do financeiro);
+impersonação ("entrar como a loja"); chat de suporte (E38).
+
+---
+
 ## Sequência recomendada de execução
 
 1. **E01 → E02 → E03** (fundação: tranca acesso, dá configuração, libera arquivos).
@@ -592,6 +672,7 @@ Estender `SocialAuthService`. **P3.** Depende de E02.
 4. **E08 → E09 → E17 → E19 → E27 → E28 → E29 → E36** (operação e comerciais).
 5. Demais ondas conforme decisão de negócio (principalmente E20/E21 assinaturas, que dependem de
    definição comercial).
+6. **E48** (Onda 5) — próximo épico eleito em 01/10/2026, depois das ondas 0–4 entregues.
 
 ## Definition of Done (todos os épicos)
 

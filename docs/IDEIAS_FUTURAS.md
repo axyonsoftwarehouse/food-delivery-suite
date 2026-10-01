@@ -12,10 +12,9 @@ se perderem. Quando uma ideia amadurecer, vira épico em
 - **Ideia morreu?** Marque como `❌ Descartada` com data e motivo. Não apague —
   o histórico evita que a mesma ideia seja discutida três vezes.
 
-> **Nota sobre numeração.** O `PLANO_EPICOS_STACKFOOD.md` vai até **E47**. Os
-> números seguintes (E48 em diante) **ainda não existem no plano** — precisam ser
-> registrados lá antes de serem tratados como épico. O "modo suporte" do admin,
-> hoje eleito próximo passo em `ESTADO_ATUAL.md`, é o primeiro candidato a E48.
+> **Nota sobre numeração.** O `PLANO_EPICOS_STACKFOOD.md` vai até **E48** (o
+> "modo suporte" do admin, registrado em 01/10/2026). Números seguintes (E49 em
+> diante) precisam ser registrados lá antes de serem tratados como épico.
 
 ---
 

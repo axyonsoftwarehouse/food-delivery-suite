@@ -1,6 +1,6 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 29/09/2026.
+Documento vivo. Última atualização: 01/10/2026.
 Base: `PLANO_EPICOS_STACKFOOD.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -15,10 +15,11 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `e226cb2` — deploy versionado, runbook e identificação do scaffold |
-| **Código na VPS** | **`e226cb2`** — publicado pelo `release.ps1` em 30/09/2026 03:46 UTC |
+| `main` local | `2e31862` — `e226cb2` + quatro commits só de documentação |
+| `origin/main` | `2e31862` — **sincronizado** com o local (conferido em 01/10 com `git fetch`) |
+| **Código na VPS** | **`e226cb2`** — publicado pelo `release.ps1` em 30/09/2026 03:46 UTC (último código; o que veio depois é só `docs/` e `.hermes.md`) |
 | Schema (`/ready`) | `053` (`V053__retire_restaurant_wallet.sql`), na VPS e no `HEAD` |
-| Distância | **VPS e `main` alinhados** |
+| Distância | **VPS e `main` alinhados** em código |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
 | Testes Java | **225** anotações `@Test` em 67 arquivos (contagem direta no `HEAD`) |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
@@ -180,29 +181,30 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**Construir o "modo suporte" do admin.**
+**Construir o E48 — "modo suporte" do admin.**
 
-Hoje o admin compartilha 4 abas operacionais com o restaurante (`pedidos`,
-`catalogo`, `horarios`, `operacao`). No modelo descentralizado, o admin **não
+O admin compartilhava 4 abas operacionais com o restaurante (`pedidos`,
+`catalogo`, `horarios`, `operacao`); elas saíram do menu, mas a API ainda
+aceita escrita do admin nesses dados. No modelo descentralizado, o admin **não
 opera** a loja — ele **observa e apoia**. O modo suporte redesenha essas 4 áreas
 como um painel unificado: busca por restaurante, leitura de estado, intervenção
 com justificativa e trilha de auditoria.
 
 **Atenção a dois pontos:**
 
-1. **O número `E48` ainda não existe.** O `PLANO_EPICOS_STACKFOOD.md` termina em
-   E47 e `E48` não aparece em nenhum documento. Antes de tratar isso como épico,
-   registre o cartão no plano (o `IDEIAS_FUTURAS.md` define essa passagem:
-   ideia amadurecida vira épico `E##` no plano).
+1. **Registrado como `E48` em 01/10/2026** — cartão completo em
+   `PLANO_EPICOS_STACKFOOD.md` (Onda 5 — Governança, P1). Antes de implementar,
+   fechar as três decisões em aberto do cartão (edição de cardápio pelo admin,
+   rota de desconto, lista de intervenções permitidas).
 2. **A correção do menu já está no ar** (`bc02740`, publicado em `e226cb2`):
    as 4 abas saíram do perfil admin e as rotas continuam existindo em
-   `app/painel/` para o restaurante. Falta o push para o `origin`.
+   `app/painel/` para o restaurante. O push também já foi feito.
 
 **Na fila de infraestrutura (situação em 30/09):**
 
 1. ~~Publicar o `aafb220`~~ — **feito**: `e226cb2` está no ar, conferido por
    hash de blobs (`RUNBOOK_VPS.md` §0).
-2. ~~Push dos commits~~ — **feito**: `origin/main` está em `669f875`.
+2. ~~Push dos commits~~ — **feito**: `origin/main` está em `2e31862`, igual ao local.
 3. ~~Higiene de disco~~ — **feito**: 79% → **43%** (13 GB recuperados).
 4. ~~Decidir o scaffold `/opt/production`~~ — **removido** em 30/09, depois de
    comprovado vazio (0 tabelas, 0 chaves). Config preservado em
@@ -213,26 +215,23 @@ com justificativa e trilha de auditoria.
    servidor foi endurecido (usuário `deploy`, SSH, `ufw`, fail2ban) e vive só na
    VPS. Sugestão: revisar e guardar em `platform/deploy/vps/`.
 
-## 6. Estado da árvore de trabalho (30/09)
+## 6. Estado da árvore de trabalho (01/10)
 
-Limpa, com três commits novos publicados e no ar:
+Limpa e **sincronizada com o `origin`** (`2e31862`). Commits de 30/09:
 
 | Commit | O que é |
 | --- | --- |
 | `bc02740` | `fix(web)`: remoção das 4 abas operacionais do menu do admin |
 | `1219758` | `feat(deploy)`: `release.ps1` + `deploy.sh` com backup, verificação e rollback |
 | `67d9ef2` | `docs`: runbook da VPS, estado atual e ideias futuras |
-| `e226cb2` | `fix(deploy)`: forçar LF no pacote, recusar CRLF e identificar o scaffold |
+| `e226cb2` | `fix(deploy)`: forçar LF no pacote, recusar CRLF e identificar o scaffold — **no ar** |
+| `669f875`, `12bce72`, `2e31862` | `docs`: deploy do `e226cb2`, limpeza de disco, scaffold removido |
 
 Não versionado: apenas `docs/Novo(a) Documento de Texto.txt` (vazio, resíduo —
 pode apagar).
 
 Ignorados pelo `.gitignore`: `backups/`, `platform/deploy/backups/` e os
-pacotes `platform-release-*.tar`.
-
-**Não foi feito push.** O `origin/main` continua em `aafb220`; os quatro
-commits acima existem só localmente até você mandar. O deploy não depende
-disso (o pacote é gerado do commit local).
+pacotes `platform-release-*.tar` (três na raiz, ~15 MB, podem ser apagados).
 
 Lembrete do `.hermes.md`: **nunca commitar nem dar push sem pedido explícito do
 Werner.**
@@ -284,8 +283,8 @@ Ver `docs/RUNBOOK_VPS.md`. Dois pontos que já custaram tempo:
 - O código implantado é o **conteúdo de `platform/`**, então o deploy fica em
   `/home/deploy/foodie-platform/deploy` — **não** em `.../platform/deploy`.
 - A VPS **não é um clone** (sem `.git`): não há `git rev-parse` para descobrir
-  o commit no ar. Hoje ela roda `bf8a6a3`, com `aafb220` preparado e não
-  aplicado.
+  o commit no ar. Consulte `/home/deploy/foodie-platform/.deployed` (hoje:
+  `e226cb2`, schema `053`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
 
 ## 8. Referências
 
