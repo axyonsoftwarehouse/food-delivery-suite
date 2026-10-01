@@ -16,7 +16,7 @@ Mantenha curto. Se crescer, corte.
 | Item | Valor |
 | --- | --- |
 | `main` local | `957ad9a` — `e226cb2` + commits só de documentação (estado, E48, spec e plano) |
-| Branch `feat/e48-modo-suporte` | E48 implementado e verificado; **não mesclado, não publicado** |
+| E48 | mesclado na `main` em 01/10 (`5564966`), verificação integrada verde; **não publicado** |
 | `origin/main` | `2e31862` — local está 3 commits de docs à frente (sem push) |
 | **Código na VPS** | **`e226cb2`** — publicado pelo `release.ps1` em 30/09/2026 03:46 UTC (último código; o que veio depois é só `docs/` e `.hermes.md`) |
 | Schema (`/ready`) | `053` na VPS e na `main`; a branch do E48 traz `V054__admin_support_mode.sql` |
