@@ -591,8 +591,7 @@ Estender `SocialAuthService`. **P3.** Depende de E02.
 
 - **Bloco/Onda/Prioridade:** Governança / 5 / **P1**
 - **Depende de:** E01 (RBAC e `admin_audit_log`), E08 (restaurantes), `TenantHealthController`
-- **Status:** ✅ **Implementado em 01/10/2026** na branch `feat/e48-modo-suporte` (ainda não
-  publicado). Especificação em `docs/superpowers/specs/2026-10-01-e48-modo-suporte-design.md` e plano
+- **Status:** ✅ **Entregue e publicado em 01/10/2026** (`4760fd3`, schema `054`). Especificação em `docs/superpowers/specs/2026-10-01-e48-modo-suporte-design.md` e plano
   em `docs/superpowers/plans/2026-10-01-e48-modo-suporte.md` (prevalecem sobre este cartão).
   `VERIFY_INTEGRATION=1 pnpm verify` verde (281 execuções de teste Java, migration V054, smokes).
   Desvios conscientes: atributos/nutrição sem espelho no suporte; `/restaurant/support-log` exige

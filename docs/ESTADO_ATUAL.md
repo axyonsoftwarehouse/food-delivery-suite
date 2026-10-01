@@ -15,11 +15,11 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `957ad9a` — `e226cb2` + commits só de documentação (estado, E48, spec e plano) |
-| E48 | mesclado na `main` em 01/10 (`5564966`), verificação integrada verde; **não publicado** |
+| `main` local | `4760fd3` + este registro — E48 mesclado e publicado |
+| E48 | mesclado em 01/10 (`5564966`) e **publicado** no staging (`4760fd3`); teste manual local OK |
 | `origin/main` | sincronizado com a `main` local (push em 01/10, inclui o E48) |
-| **Código na VPS** | **`e226cb2`** — publicado pelo `release.ps1` em 30/09/2026 03:46 UTC (último código; o que veio depois é só `docs/` e `.hermes.md`) |
-| Schema (`/ready`) | `053` na VPS e na `main`; a branch do E48 traz `V054__admin_support_mode.sql` |
+| **Código na VPS** | **`4760fd3`** — publicado pelo `release.ps1` em 01/10/2026 18:56 UTC |
+| Schema (`/ready`) | `054` (`V054__admin_support_mode.sql`), na VPS e no `HEAD` |
 | Distância | **VPS e `main` alinhados** em código |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
 | Testes Java | `main`: **225** `@Test`; branch E48: **281** execuções (260 `@Test` + 21 casos parametrizados) |
@@ -182,10 +182,12 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**Mesclar e publicar o E48 — "modo suporte" do admin** (implementado na branch
-`feat/e48-modo-suporte`, verificação integrada verde; falta a decisão sobre i18n das telas novas,
-o merge, o `release.ps1` e a homologação no staging — conceder `support.view`/`support.act` aos
-papéis restritos de admin que fizerem suporte).
+**E48 — "modo suporte" do admin: entregue e publicado em 01/10** (`4760fd3`, schema `054`).
+Conferido antes do deploy: `admin_audit_log` vazia na VPS e nenhum papel de admin restrito (todos os
+admins recebem `support.*`). Teste manual local: busca, ficha, pausa, diálogo de motivo, cardápio,
+trilha e visão da loja. Follow-ups em `.superpowers/sdd/progress.md` (polimento do diálogo, i18n das
+telas do admin; abrir `/painel/suporte` direto pela URL volta para `/painel` — pelo menu funciona).
+Próximo passo: escolher entre a fila de infraestrutura abaixo e as pendências comerciais.
 
 O admin compartilhava 4 abas operacionais com o restaurante (`pedidos`,
 `catalogo`, `horarios`, `operacao`); elas saíram do menu, mas a API ainda
