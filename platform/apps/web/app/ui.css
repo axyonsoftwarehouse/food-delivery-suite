@@ -348,3 +348,8 @@ html[data-theme='dark'] .customer-totals .grand-total { color: var(--text); }
 .pos-product:hover { border-color: var(--brand-600, #2563eb); }
 .pos-ticket { display: grid; gap: 10px; align-content: start; }
 @media (max-width: 900px) { .pos-grid { grid-template-columns: 1fr; } }
+
+.support-dialog { position: fixed; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / 0.45); z-index: 50; padding: 16px; }
+.support-dialog__box { width: min(520px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: grid; gap: 12px; }
+.support-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.support-banner { position: sticky; top: 0; z-index: 5; }

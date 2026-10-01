@@ -1,13 +1,17 @@
 'use client';
 
+import Link from 'next/link';
 import CatalogManager from '../../CatalogManager';
 import { useApp } from '../../app-context';
 
 export default function CatalogoPage() {
-  const { user, catalog, setMessage, refresh } = useApp();
+  const { user, setMessage, refresh } = useApp();
   if (!user) return null;
-  if (user.role !== 'admin' && user.role !== 'restaurant') {
-    return <section className="panel"><div className="empty-state">Catálogo disponível para administração e restaurante.</div></section>;
+  if (user.role === 'admin') {
+    return <section className="panel"><div className="empty-state">O cardápio das lojas é editado pelo <Link href="/painel/suporte">Suporte</Link>.</div></section>;
   }
-  return <CatalogManager role={user.role} restaurants={user.role === 'admin' ? catalog.restaurants : undefined} onMessage={setMessage} onChanged={() => { void refresh(); }} />;
+  if (user.role !== 'restaurant') {
+    return <section className="panel"><div className="empty-state">Catálogo disponível para o restaurante.</div></section>;
+  }
+  return <CatalogManager mode="restaurant" onMessage={setMessage} onChanged={() => { void refresh(); }} />;
 }

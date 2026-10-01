@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { uploadFile } from './files';
+import { createRequest, SupportCancelled } from './support-request';
+import { useSupportReason } from './SupportReasonDialog';
 
-type Restaurant = { id: number; name: string };
 type Category = { id: number; restaurant_id: number; name: string };
 type Product = { id: number; restaurant_id: number; category_id: number; name: string; description: string; price_cents: number; available: boolean; is_combo?: boolean; stock?: number | null; available_from?: string | null; available_until?: string | null };
 type Catalog = { categories: Category[]; products: Product[] };
@@ -17,8 +18,8 @@ type AddonGroup = { id: number; restaurant_id: number; name: string; min_select:
 type Tag = { id: number; name: string; product_count: number };
 
 type Props = {
-  role: 'admin' | 'restaurant';
-  restaurants?: Restaurant[];
+  mode: 'restaurant' | 'support';
+  restaurantId?: number;
   onMessage: (message: string) => void;
   onChanged?: () => void;
 };
@@ -39,20 +40,10 @@ function messageOf(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`/backend${path}`, {
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? 'Não foi possível concluir a operação');
-  return result as T;
-}
-
-export default function CatalogManager({ role, restaurants = [], onMessage, onChanged }: Props) {
-  const isAdmin = role === 'admin';
-  const [restaurantId, setRestaurantId] = useState<number | null>(restaurants[0]?.id ?? null);
+export default function CatalogManager({ mode, restaurantId, onMessage, onChanged }: Props) {
+  const isSupport = mode === 'support';
+  const { askReason, dialog } = useSupportReason();
+  const request = useMemo(() => createRequest(isSupport ? askReason : null), [isSupport, askReason]);
   const [catalog, setCatalog] = useState<Catalog>({ categories: [], products: [] });
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -79,30 +70,25 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
   const [comboItems, setComboItems] = useState<ComboItem[]>([]);
   const [comboDraft, setComboDraft] = useState({ productId: 0, quantity: '1' });
 
-  const menuBase = isAdmin ? `/admin/restaurants/${restaurantId}` : '/restaurant';
-  const productBase = isAdmin ? '/admin/products' : '/restaurant/products';
-  const groupBase = isAdmin ? '/admin/addon-groups' : '/restaurant/addon-groups';
-  const tagBase = isAdmin ? '/admin/tags' : '/restaurant/tags';
-
-  useEffect(() => {
-    if (isAdmin && restaurantId === null && restaurants.length) setRestaurantId(restaurants[0].id);
-  }, [isAdmin, restaurantId, restaurants]);
+  const root = isSupport ? `/admin/support/restaurants/${restaurantId}` : '/restaurant';
+  const menuBase = root;
+  const productBase = `${root}/products`;
+  const groupBase = `${root}/addon-groups`;
+  const tagBase = `${root}/tags`;
 
   const load = useCallback(async (silent = false): Promise<boolean> => {
-    if (isAdmin && !restaurantId) { setCatalog({ categories: [], products: [] }); setGroups([]); setTags([]); return true; }
+    if (isSupport && !restaurantId) { setCatalog({ categories: [], products: [] }); setGroups([]); setTags([]); return true; }
     setLoading(true);
     try {
       const data = await request<Catalog>(`${menuBase}/catalog`);
       setCatalog(data);
       setNewProduct((current) => ({ ...current, categoryId: data.categories.some((item) => item.id === current.categoryId) ? current.categoryId : (data.categories[0]?.id ?? 0) }));
-      if (!isAdmin || restaurantId) setGroups(await request<AddonGroup[]>(isAdmin ? `/admin/addon-groups?restaurantId=${restaurantId}` : '/restaurant/addon-groups'));
-      else setGroups([]);
-      if (!isAdmin || restaurantId) setTags(await request<Tag[]>(isAdmin ? `/admin/tags?restaurantId=${restaurantId}` : '/restaurant/tags'));
-      else setTags([]);
+      setGroups(await request<AddonGroup[]>(groupBase));
+      setTags(await request<Tag[]>(tagBase));
       return true;
     } catch (error) { if (!silent) onMessage(messageOf(error, 'Não foi possível carregar o catálogo.')); return false; }
     finally { setLoading(false); }
-  }, [isAdmin, menuBase, onMessage, restaurantId]);
+  }, [groupBase, isSupport, menuBase, onMessage, request, restaurantId, tagBase]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -113,7 +99,7 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
       const ok = await load(true);
       onChanged?.();
       onMessage(ok ? success : `${success} Não foi possível recarregar os dados; use "Atualizar".`);
-    } catch (error) { onMessage(messageOf(error, 'Não foi possível concluir a operação')); }
+    } catch (error) { if (!(error instanceof SupportCancelled)) onMessage(messageOf(error, 'Não foi possível concluir a operação')); }
     finally { setBusy(false); }
   }
 
@@ -144,7 +130,7 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
   async function runDetail(id: number, action: () => Promise<unknown>, success: string) {
     setBusy(true);
     try { await action(); await loadDetail(id); onChanged?.(); onMessage(success); }
-    catch (error) { onMessage(messageOf(error, 'Não foi possível concluir a operação')); }
+    catch (error) { if (!(error instanceof SupportCancelled)) onMessage(messageOf(error, 'Não foi possível concluir a operação')); }
     finally { setBusy(false); }
   }
 
@@ -160,20 +146,20 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
 
   function addCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isAdmin && !restaurantId) return;
+    if (isSupport && !restaurantId) return;
     const name = newCategory;
-    const path = isAdmin ? '/admin/categories' : '/restaurant/categories';
-    const body = isAdmin ? { restaurantId, name } : { name };
+    const path = `${root}/categories`;
+    const body = { name };
     void run(() => request(path, { method: 'POST', body: JSON.stringify(body) }), 'Categoria cadastrada.');
     setNewCategory('');
   }
 
   function addProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isAdmin && !restaurantId) return;
+    if (isSupport && !restaurantId) return;
     const payload = { categoryId: newProduct.categoryId, name: newProduct.name, description: newProduct.description, priceCents: toCents(newProduct.price) };
-    const path = isAdmin ? '/admin/products' : '/restaurant/products';
-    const body = isAdmin ? { restaurantId, ...payload } : payload;
+    const path = productBase;
+    const body = payload;
     void run(() => request(path, { method: 'POST', body: JSON.stringify(body) }), 'Produto cadastrado.');
     setNewProduct({ categoryId: newProduct.categoryId, name: '', price: '', description: '', isCombo: false, stock: '', from: '', until: '' });
   }
@@ -208,13 +194,13 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
   function renameCategory(category: Category) {
     const name = window.prompt('Novo nome da categoria:', category.name) ?? '';
     if (name.trim().length < 2) { onMessage('Informe um nome com pelo menos 2 caracteres.'); return; }
-    const path = `${isAdmin ? '/admin/categories' : '/restaurant/categories'}/${category.id}`;
+    const path = `${root}/categories/${category.id}`;
     void run(() => request(path, { method: 'PATCH', body: JSON.stringify({ name: name.trim() }) }), 'Categoria atualizada.');
   }
 
   function removeCategory(category: Category) {
     if (!window.confirm(`Excluir a categoria "${category.name}"? Só é possível se estiver vazia.`)) return;
-    const path = `${isAdmin ? '/admin/categories' : '/restaurant/categories'}/${category.id}`;
+    const path = `${root}/categories/${category.id}`;
     void run(() => request(path, { method: 'DELETE' }), 'Categoria excluída.');
   }
 
@@ -266,7 +252,7 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
     if (!newProduct.name.trim()) { onMessage('Informe o nome do prato.'); return; }
     setAiBusy(true);
     try {
-      const result = await request<{ suggestion: string }>(`${isAdmin ? '/admin' : '/restaurant'}/ai/describe`, { method: 'POST', body: JSON.stringify({ name: newProduct.name }) });
+      const result = await createRequest(null)<{ suggestion: string }>(`${isSupport ? '/admin' : '/restaurant'}/ai/describe`, { method: 'POST', body: JSON.stringify({ name: newProduct.name }) });
       setNewProduct((current) => ({ ...current, description: result.suggestion }));
       onMessage('Descrição sugerida pela IA.');
     } catch (error) { onMessage(messageOf(error, 'Não foi possível gerar a descrição.')); }
@@ -285,10 +271,8 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
 
   function createGroup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isAdmin && !restaurantId) return;
-    const payload = isAdmin
-      ? { restaurantId, name: groupDraft.name, minSelect: Number(groupDraft.min || '0'), maxSelect: Number(groupDraft.max || '1'), required: groupDraft.required }
-      : { name: groupDraft.name, minSelect: Number(groupDraft.min || '0'), maxSelect: Number(groupDraft.max || '1'), required: groupDraft.required };
+    if (isSupport && !restaurantId) return;
+    const payload = { name: groupDraft.name, minSelect: Number(groupDraft.min || '0'), maxSelect: Number(groupDraft.max || '1'), required: groupDraft.required };
     void run(() => request(groupBase, { method: 'POST', body: JSON.stringify(payload) }), 'Grupo de adicionais criado.');
     setGroupDraft({ name: '', min: '0', max: '1', required: false });
   }
@@ -325,8 +309,8 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
 
   function createTag(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isAdmin && !restaurantId) return;
-    const payload = isAdmin ? { restaurantId, name: tagDraft } : { name: tagDraft };
+    if (isSupport && !restaurantId) return;
+    const payload = { name: tagDraft };
     void run(() => request(tagBase, { method: 'POST', body: JSON.stringify(payload) }), 'Tag criada.');
     setTagDraft('');
   }
@@ -430,10 +414,9 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
   }
 
   return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">CARDÁPIO</span><h2>{isAdmin ? 'Catálogo do restaurante' : 'Seu cardápio'}</h2></div><p>Edite nome, preço, descrição e disponibilidade. Cada prato pode ter imagens e variações de tamanho/porção.</p></div>
-    {isAdmin && <label>Restaurante<select value={restaurantId ?? ''} onChange={(event) => { setRestaurantId(Number(event.target.value)); setEditingId(null); setExpandedId(null); setDetail(null); }}>{restaurants.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}</select></label>}
+    <div className="panel-heading"><div><span className="eyebrow">CARDÁPIO</span><h2>{isSupport ? 'Cardápio da loja' : 'Seu cardápio'}</h2></div><p>Edite nome, preço, descrição e disponibilidade. Cada prato pode ter imagens e variações de tamanho/porção.</p></div>
     <div className="form-grid">
-      <form onSubmit={addCategory}><h3>Nova categoria</h3><label>Nome<input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} minLength={2} maxLength={120} placeholder="Ex.: Bebidas" required /></label><button className="secondary-button" disabled={busy || (isAdmin && !restaurantId)}>Adicionar categoria</button></form>
+      <form onSubmit={addCategory}><h3>Nova categoria</h3><label>Nome<input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} minLength={2} maxLength={120} placeholder="Ex.: Bebidas" required /></label><button className="secondary-button" disabled={busy || (isSupport && !restaurantId)}>Adicionar categoria</button></form>
       <form onSubmit={addProduct}><h3>Novo produto</h3><label>Categoria<select value={newProduct.categoryId} onChange={(event) => setNewProduct({ ...newProduct, categoryId: Number(event.target.value) })}>{catalog.categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Nome<input value={newProduct.name} onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })} minLength={2} maxLength={160} placeholder="Ex.: Bowl da casa" required /></label><label>Preço em R$<input inputMode="decimal" value={newProduct.price} onChange={(event) => setNewProduct({ ...newProduct, price: event.target.value })} placeholder="29,90" required /></label><label>Descrição<input value={newProduct.description} onChange={(event) => setNewProduct({ ...newProduct, description: event.target.value })} maxLength={500} placeholder="Ingredientes, porção..." /></label><button className="secondary-button" type="button" disabled={busy || aiBusy} onClick={() => void generateDescription()}>{aiBusy ? 'Gerando...' : '✦ Gerar descrição com IA'}</button><button className="secondary-button" disabled={busy || !newProduct.categoryId}>Adicionar produto</button></form>
     </div>
     <div className="courier-list" style={{ marginTop: 16 }}><h3>Categorias</h3>{loading ? <p className="form-help">Carregando...</p> : catalog.categories.length ? catalog.categories.map((category) => <div className="courier-row" key={category.id}><div><strong>{category.name}</strong><span>{catalog.products.filter((product) => product.category_id === category.id).length} produto(s)</span></div><div className="courier-actions"><button className="secondary-button" disabled={busy} onClick={() => renameCategory(category)}>Renomear</button><button className="availability-button" disabled={busy} onClick={() => removeCategory(category)}>Excluir</button></div></div>) : <p className="form-help">Nenhuma categoria cadastrada.</p>}</div>
@@ -451,13 +434,13 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
         <input inputMode="numeric" value={groupDraft.min} onChange={(event) => setGroupDraft({ ...groupDraft, min: event.target.value })} aria-label="Mínimo" />
         <input inputMode="numeric" value={groupDraft.max} onChange={(event) => setGroupDraft({ ...groupDraft, max: event.target.value })} aria-label="Máximo" />
         <label className="catalog-cover"><input type="checkbox" checked={groupDraft.required} onChange={(event) => setGroupDraft({ ...groupDraft, required: event.target.checked })} /> obrigatório</label>
-        <button className="secondary-button" disabled={busy || (isAdmin && !restaurantId)}>Criar grupo</button>
+        <button className="secondary-button" disabled={busy || (isSupport && !restaurantId)}>Criar grupo</button>
       </form>
     </div>
     <div className="courier-list" style={{ marginTop: 16 }}><h3>Tags de descoberta</h3>{tags.length ? tags.map((tag) => <div className="courier-row" key={tag.id}><div><strong>{tag.name}</strong><span>{tag.product_count} produto(s)</span></div><div className="courier-actions"><button className="availability-button" disabled={busy} onClick={() => removeTag(tag)}>Excluir</button></div></div>) : <p className="form-help">Nenhuma tag. Use tags para destacar pratos na busca.</p>}
       <form className="addon-group-form" onSubmit={createTag}>
         <input value={tagDraft} onChange={(event) => setTagDraft(event.target.value)} placeholder="Nova tag (ex.: Vegano)" maxLength={60} required aria-label="Nome da tag" />
-        <button className="secondary-button" disabled={busy || (isAdmin && !restaurantId)}>Criar tag</button>
+        <button className="secondary-button" disabled={busy || (isSupport && !restaurantId)}>Criar tag</button>
       </form>
     </div>
     <div className="restaurant-product-list" style={{ marginTop: 16 }}><h3 style={{ padding: '0 0 8px' }}>Produtos</h3>{catalog.products.length ? catalog.products.map((product) => editingId === product.id
@@ -465,5 +448,6 @@ export default function CatalogManager({ role, restaurants = [], onMessage, onCh
       : <div className="restaurant-product-entry" key={product.id}><div className="restaurant-product-row"><div><strong>{product.name}</strong><span>{money(product.price_cents)} · {catalog.categories.find((item) => item.id === product.category_id)?.name ?? 'Sem categoria'} · {product.available ? 'Disponível' : 'Pausado'}</span></div><div className="courier-actions"><button className="secondary-button" disabled={busy} onClick={() => void toggleDetail(product)}>{expandedId === product.id ? 'Ocultar' : 'Variações e imagens'}</button><button className="secondary-button" disabled={busy} onClick={() => startEdit(product)}>Editar</button><button className={product.available ? 'availability-button' : 'availability-button paused'} disabled={busy} onClick={() => toggleAvailability(product)}>{product.available ? 'Pausar' : 'Reativar'}</button><button className="availability-button" disabled={busy} onClick={() => removeProduct(product)}>Excluir</button></div></div>
         {expandedId === product.id && detailPanel(product)}</div>
     ) : <div className="empty-state">Nenhum produto cadastrado.</div>}</div>
+    {dialog}
   </section>;
 }

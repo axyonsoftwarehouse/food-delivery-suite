@@ -118,6 +118,11 @@ const pt: Dict = {
   'admin.audit.when': 'Quando',
   'admin.audit.loadMore': 'Carregar mais',
   'admin.audit.none': 'Nenhum registro no período.',
+  'support.reason.title': 'Motivo da intervenção',
+  'support.reason.notice': 'Esta alteração será feita em nome da loja, registrada na trilha e avisada à loja.',
+  'support.reason.label': 'Motivo (10 a 500 caracteres)',
+  'support.reason.cancel': 'Cancelar',
+  'support.reason.confirm': 'Confirmar intervenção',
 };
 
 const en: Dict = {
@@ -230,6 +235,11 @@ const en: Dict = {
   'admin.audit.when': 'When',
   'admin.audit.loadMore': 'Load more',
   'admin.audit.none': 'No records in the period.',
+  'support.reason.title': 'Reason for the intervention',
+  'support.reason.notice': 'This change is made on behalf of the store, recorded in the trail and notified to the store.',
+  'support.reason.label': 'Reason (10 to 500 characters)',
+  'support.reason.cancel': 'Cancel',
+  'support.reason.confirm': 'Confirm intervention',
 };
 
 const es: Dict = {
@@ -342,6 +352,11 @@ const es: Dict = {
   'admin.audit.when': 'Cuándo',
   'admin.audit.loadMore': 'Cargar más',
   'admin.audit.none': 'Ningún registro en el período.',
+  'support.reason.title': 'Motivo de la intervención',
+  'support.reason.notice': 'Este cambio se hace en nombre de la tienda, queda registrado y se avisa a la tienda.',
+  'support.reason.label': 'Motivo (10 a 500 caracteres)',
+  'support.reason.cancel': 'Cancelar',
+  'support.reason.confirm': 'Confirmar intervención',
 };
 
 export const dictionaries: Record<Locale, Dict> = { pt, en, es };
