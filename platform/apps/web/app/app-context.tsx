@@ -201,7 +201,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { userRef.current = user; }, [user]);
 
   useEffect(() => {
-    refresh().catch((error) => setMessage(error.message)).finally(() => setInitializing(false));
+    // Só a execução ainda montada encerra o initializing: no StrictMode o efeito roda duas vezes e a primeira
+    // chamada é descartada pelo refreshVersion sem setUser; liberar o initializing nela fazia o painel ver
+    // user=null e mandar para /entrar (que devolve para /painel).
+    let active = true;
+    refresh()
+      .catch((error) => { if (active) setMessage(error.message); })
+      .finally(() => { if (active) setInitializing(false); });
+    return () => { active = false; };
   }, [refresh]);
 
   useEffect(() => {
