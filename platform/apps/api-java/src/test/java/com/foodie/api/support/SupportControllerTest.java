@@ -1,10 +1,15 @@
 package com.foodie.api.support;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -20,6 +25,7 @@ import com.foodie.api.permissions.Permissions;
 import jakarta.servlet.http.Cookie;
 import java.util.List;
 import java.util.Map;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -76,7 +82,8 @@ class SupportControllerTest {
         mvc.perform(get("/restaurant/support-log").cookie(SESSION))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.entries[0].actorName").value("Suporte Foodie"))
-            .andExpect(jsonPath("$.entries[0].reason").value("Item com recall do fornecedor"));
+            .andExpect(jsonPath("$.entries[0].reason").value("Item com recall do fornecedor"))
+            .andExpect(content().string(Matchers.not(Matchers.containsString("Ana Suporte"))));
     }
 
     @Test
@@ -85,5 +92,41 @@ class SupportControllerTest {
         when(auth.requireUser("s", "restaurant")).thenReturn(cook);
         doThrow(new ApiException(403, "Acesso não autorizado")).when(storePermissions).require(eq(cook), eq(Permissions.STAFF_MANAGE));
         mvc.perform(get("/restaurant/support-log").cookie(SESSION)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void profileReturnsTheStoreSheet() throws Exception {
+        when(auth.requireUser("s", "admin")).thenReturn(admin);
+        when(query.profile(7L)).thenReturn(Map.of("id", 7L, "name", "Cozinha Demo"));
+        mvc.perform(get("/admin/support/restaurants/7").cookie(SESSION))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value("Cozinha Demo"));
+        verify(adminPermissions).require(admin, AdminPermissions.SUPPORT_VIEW);
+    }
+
+    @Test
+    void unknownStoreProfileIs404() throws Exception {
+        when(auth.requireUser("s", "admin")).thenReturn(admin);
+        when(query.profile(99L)).thenThrow(new ApiException(404, "Restaurante não encontrado"));
+        mvc.perform(get("/admin/support/restaurants/99").cookie(SESSION))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void restaurantUserWithoutStoreIsForbidden() throws Exception {
+        User userWithoutStore = new User(8, "Sem loja", "x@demo.local", "restaurant", null);
+        when(auth.requireUser("s", "restaurant")).thenReturn(userWithoutStore);
+        mvc.perform(get("/restaurant/support-log").cookie(SESSION))
+            .andExpect(status().isForbidden());
+        verify(audit, never()).listForRestaurant(anyLong(), any(), anyInt());
+    }
+
+    @Test
+    void auditTrailPassesPaginationThrough() throws Exception {
+        when(auth.requireUser("s", "admin")).thenReturn(admin);
+        when(audit.listForRestaurant(7L, 40L, 200)).thenReturn(List.of());
+        mvc.perform(get("/admin/support/restaurants/7/audit").param("before", "40").param("limit", "500").cookie(SESSION))
+            .andExpect(status().isOk());
+        verify(audit).listForRestaurant(7L, 40L, 200);
     }
 }
