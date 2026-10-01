@@ -1,6 +1,6 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 01/10/2026.
+Documento vivo. Última atualização: 01/10/2026 (fim do dia).
 Base: `PLANO_EPICOS_STACKFOOD.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -15,13 +15,14 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `2e31862` — `e226cb2` + quatro commits só de documentação |
-| `origin/main` | `2e31862` — **sincronizado** com o local (conferido em 01/10 com `git fetch`) |
+| `main` local | `957ad9a` — `e226cb2` + commits só de documentação (estado, E48, spec e plano) |
+| Branch `feat/e48-modo-suporte` | E48 implementado e verificado; **não mesclado, não publicado** |
+| `origin/main` | `2e31862` — local está 3 commits de docs à frente (sem push) |
 | **Código na VPS** | **`e226cb2`** — publicado pelo `release.ps1` em 30/09/2026 03:46 UTC (último código; o que veio depois é só `docs/` e `.hermes.md`) |
-| Schema (`/ready`) | `053` (`V053__retire_restaurant_wallet.sql`), na VPS e no `HEAD` |
+| Schema (`/ready`) | `053` na VPS e na `main`; a branch do E48 traz `V054__admin_support_mode.sql` |
 | Distância | **VPS e `main` alinhados** em código |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | **225** anotações `@Test` em 67 arquivos (contagem direta no `HEAD`) |
+| Testes Java | `main`: **225** `@Test`; branch E48: **281** execuções (260 `@Test` + 21 casos parametrizados) |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Árvore de trabalho | limpa — só o resíduo vazio `docs/Novo(a) Documento de Texto.txt` |
 
@@ -181,7 +182,10 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**Construir o E48 — "modo suporte" do admin.**
+**Mesclar e publicar o E48 — "modo suporte" do admin** (implementado na branch
+`feat/e48-modo-suporte`, verificação integrada verde; falta a decisão sobre i18n das telas novas,
+o merge, o `release.ps1` e a homologação no staging — conceder `support.view`/`support.act` aos
+papéis restritos de admin que fizerem suporte).
 
 O admin compartilhava 4 abas operacionais com o restaurante (`pedidos`,
 `catalogo`, `horarios`, `operacao`); elas saíram do menu, mas a API ainda
@@ -195,8 +199,8 @@ com justificativa e trilha de auditoria.
 1. **Registrado como `E48` em 01/10/2026** — cartão completo em
    `PLANO_EPICOS_STACKFOOD.md` (Onda 5 — Governança, P1). Decisões fechadas e
    especificação aprovada em
-   `docs/superpowers/specs/2026-10-01-e48-modo-suporte-design.md`. Próximo:
-   plano de implementação.
+   `docs/superpowers/specs/2026-10-01-e48-modo-suporte-design.md`; plano em
+   `docs/superpowers/plans/2026-10-01-e48-modo-suporte.md`; implementado na branch.
 2. **A correção do menu já está no ar** (`bc02740`, publicado em `e226cb2`):
    as 4 abas saíram do perfil admin e as rotas continuam existindo em
    `app/painel/` para o restaurante. O push também já foi feito.
