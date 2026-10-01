@@ -27,13 +27,13 @@ public class SupportQueryService {
 
     public List<Map<String, Object>> search(String q, int limit) {
         String term = q == null || q.isBlank() ? null : q.strip();
-        String like = term == null ? null : "%" + term + "%";
+        String like = term == null ? null : likePattern(term);
         List<Map<String, Object>> rows = jdbc.queryForList(
             "SELECT r.id, r.name, r.approval, r.active, r.timezone, " + OWNER_EMAIL + " AS owner_email, "
                 + "(SELECT COUNT(*) FROM orders o WHERE o.restaurant_id = r.id AND o.status IN " + ACTIVE + ") AS active_orders "
                 + "FROM restaurants r "
-                + "WHERE (? IS NULL OR r.name LIKE ? OR CAST(r.id AS CHAR) = ? "
-                + "OR EXISTS (SELECT 1 FROM users u WHERE u.restaurant_id = r.id AND u.email LIKE ?)) "
+                + "WHERE (? IS NULL OR r.name LIKE ? ESCAPE '!' OR CAST(r.id AS CHAR) = ? "
+                + "OR EXISTS (SELECT 1 FROM users u WHERE u.restaurant_id = r.id AND u.email LIKE ? ESCAPE '!')) "
                 + "ORDER BY r.name LIMIT ?",
             term, like, term, like, limit);
         List<Map<String, Object>> result = new ArrayList<>();
@@ -84,6 +84,11 @@ public class SupportQueryService {
         profile.put("open", hours.isOpen(id, (String) row.get("timezone")));
         profile.put("pause", hours.pauseInfo(id));
         return profile;
+    }
+
+    /** Busca por "contém" tratando %, _ e o próprio escape como texto (o SQL usa ESCAPE '!'). */
+    static String likePattern(String term) {
+        return "%" + term.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
     }
 
     private static String alert(Object approval, Map<String, Object> pause) {
