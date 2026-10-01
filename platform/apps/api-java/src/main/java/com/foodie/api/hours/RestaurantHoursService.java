@@ -4,12 +4,16 @@ import com.foodie.api.ApiException;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Time;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Service;
@@ -18,11 +22,42 @@ import org.springframework.stereotype.Service;
 public class RestaurantHoursService {
     private final JdbcTemplate jdbc;
 
+    private static final String PAUSE_SQL =
+        "SELECT DATE_FORMAT(support_paused_until, '%Y-%m-%dT%H:%i:%sZ') FROM restaurants "
+            + "WHERE id = ? AND support_paused_until > UTC_TIMESTAMP()";
+
     public RestaurantHoursService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
+    public Optional<Instant> pausedUntil(long restaurantId) {
+        List<String> rows = jdbc.query(PAUSE_SQL, (rs, row) -> rs.getString(1), restaurantId);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(Instant.parse(rows.get(0)));
+    }
+
+    public Map<String, Object> pauseInfo(long restaurantId) {
+        Optional<Instant> until = pausedUntil(restaurantId);
+        if (until.isEmpty()) return null;
+        String reason = jdbc.queryForObject("SELECT support_pause_reason FROM restaurants WHERE id = ?", String.class, restaurantId);
+        Map<String, Object> info = new LinkedHashMap<>();
+        info.put("until", until.get().toString());
+        info.put("reason", reason);
+        return info;
+    }
+
+    public Map<String, Object> pause(long restaurantId, int minutes, String reason) {
+        jdbc.update("UPDATE restaurants SET support_paused_until = DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? MINUTE), support_pause_reason = ? WHERE id = ?",
+            minutes, reason, restaurantId);
+        return pauseInfo(restaurantId);
+    }
+
+    public void resume(long restaurantId) {
+        if (pausedUntil(restaurantId).isEmpty()) throw new ApiException(409, "A loja não está pausada");
+        jdbc.update("UPDATE restaurants SET support_paused_until = NULL, support_pause_reason = NULL WHERE id = ?", restaurantId);
+    }
+
     public boolean isOpen(long restaurantId, String timezone) {
+        if (pausedUntil(restaurantId).isPresent()) return false;
         if (timezone == null || timezone.isBlank()) return true;
         LocalDateTime now;
         try { now = LocalDateTime.now(ZoneId.of(timezone)); }
@@ -32,6 +67,14 @@ public class RestaurantHoursService {
 
     /** Verifica se o restaurante está aberto em um horário local específico (para pedidos agendados). */
     public void requireOpenAt(long restaurantId, String timezone, LocalDateTime local) {
+        Optional<Instant> paused = pausedUntil(restaurantId);
+        if (paused.isPresent()) {
+            ZoneId zone = timezone == null || timezone.isBlank() ? ZoneOffset.UTC : ZoneId.of(timezone);
+            if (local.atZone(zone).toInstant().isBefore(paused.get())) {
+                String end = DateTimeFormatter.ofPattern("dd/MM HH:mm").format(paused.get().atZone(zone));
+                throw new ApiException(409, "A loja está pausada pelo suporte até " + end);
+            }
+        }
         if (timezone == null || timezone.isBlank()) return;
         if (!RestaurantSchedule.isOpen(intervals(restaurantId), RestaurantSchedule.dayOfWeek(local), local.toLocalTime())) {
             throw new ApiException(409, "O restaurante não abre nesse horário");
