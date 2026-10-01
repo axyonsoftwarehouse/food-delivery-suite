@@ -280,15 +280,23 @@ bash backup.sh
 
 Para gravar em outro diretório: `BACKUP_DIR=/caminho bash backup.sh`.
 
-**Estado atual dos backups:**
+**Estado atual dos backups (01/10/2026):** os seis dumps da VPS têm cópia no
+PC, em `platform/deploy/backups/` do checkout principal (ignorado pelo git), com
+md5 idêntico ao da VPS:
 
-| Arquivo | Onde |
+| Arquivo | md5 |
 | --- | --- |
-| `foodie_platform-20260927-224841.sql` | só na VPS |
-| `foodie_platform-20260928-181435.sql` | VPS **e** no PC (`platform/deploy/backups/`), md5 `2af1ae45...` idêntico |
+| `foodie_platform-20260927-224841.sql` | `40bcca68...` |
+| `foodie_platform-20260928-181435.sql` | `2af1ae45...` |
+| `foodie_platform-20260930-025817.sql` | `207ea697...` |
+| `foodie_platform-20260930-034122.sql` | `2eaf2343...` |
+| `foodie_platform-20260930-034312.sql` | `a1560786...` |
+| `foodie_platform-20261001-185611.sql` | `998ee962...` (deploy do E48) |
 
-**Regra de ouro:** copie o backup para **fora da VPS**. Um dos dois já está
-fora; o de 27/09 ainda não.
+**Regra de ouro:** copie o backup para **fora da VPS** depois de cada deploy
+(o `deploy.sh` gera um novo a cada publicação). O PC é a única cópia externa:
+backup externo de verdade (outro local/nuvem) e ensaio de restauração seguem na
+lista de prontidão de publicação.
 
 ```powershell
 # No seu PC, na raiz do repositório
@@ -456,7 +464,7 @@ cache de build — seção 6).
 **Se precisar recriar algum dia**, tudo está preservado:
 
 - o script de provisionamento: `/root/bootstrap-production.sh` — contém a seção
-  que recria o stack;
+  que recria o stack; cópia idêntica versionada em `platform/deploy/vps/` (01/10);
 - o config usado: `/home/deploy/production-scaffold-20260930.tar.gz` (697 bytes,
   inclui o `.env` — **trate como segredo**).
 
