@@ -1,8 +1,7 @@
 /*
  * Design tokens da plataforma Foodie.
- * Base visual inspirada no Foodie UI Kit (docs/REFERENCIA_UI_FOODIE.md), com a paleta atual do
- * produto como marca. Para adotar a paleta "Foodie" basta trocar --brand-500/--brand-600 e
- * --brand-700 pelos verdes #18AC4B/#158f3e/#0f6b2e.
+ * A marca do produto vive aqui: --brand-500/--brand-600/--brand-700 definem o
+ * verde principal usado nas telas.
  */
 :root {
   /* Marca */

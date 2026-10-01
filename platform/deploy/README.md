@@ -120,7 +120,9 @@ Esta é uma base de homologação, não autorização para exposição comercial
 
 ## Legado StackFood: já removido
 
-Executada em **25/09/2026**: o projeto legado `deploy` foi derrubado com `down -v` (contêineres, volumes e rede) e removidos os diretórios `/opt/food-delivery-suite` e a recriação antiga `/opt/foodie`, junto das imagens não usadas e do cache de build. O código do legado também saiu do repositório na mesma data (commit `04e5686`), preservado na tag `legacy-stackfood-v9` e nos apps Flutter em `reference/`.
+Executada em **25/09/2026**: o projeto legado `deploy` foi derrubado com `down -v` (contêineres, volumes e rede) e removidos os diretórios `/opt/food-delivery-suite` e a recriação antiga `/opt/foodie`, junto das imagens não usadas e do cache de build. O código do legado também saiu do repositório na mesma data (commit `04e5686`).
+
+Em **01/10/2026** a limpeza foi completada: a pasta `reference/` e a tag `legacy-stackfood-v9` foram removidas (a tag também do remoto). O pacote comercial, que não tem licença, não está mais no repositório nem acessível por atalho; o código permanece apenas no **histórico** do Git. Registro em `docs/AUDITORIA_LEGADO_2026-10-01.md`.
 
 **Não há legado sobrando na VPS para limpar.** Em 30/09/2026 também foi removido o scaffold `production` (Postgres/pgbouncer/Redis criados pelo provisionamento em 15/09, com banco vazio — ver `docs/RUNBOOK_VPS.md` §8). O que ainda existe além do Foodie é:
 

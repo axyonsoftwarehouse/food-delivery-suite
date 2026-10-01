@@ -15,12 +15,12 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `9a63a28` + este registro — E48 publicado; correção do reload e follow-ups mesclados (PRs #1 e #2) |
-| E48 | mesclado em 01/10 (`5564966`) e **publicado** no staging (`4760fd3`); teste manual local OK |
-| `origin/main` | sincronizado com a `main` local (PRs #1 e #2 mescladas pelo GitHub em 01/10) |
-| **Código na VPS** | **`4760fd3`** — publicado pelo `release.ps1` em 01/10/2026 18:56 UTC |
+| `main` local | `f5b5f0a` — PRs #1, #2 e #3 mescladas em 01/10 |
+| E48 | mesclado em 01/10 (`5564966`) e **publicado** no staging; teste manual local OK |
+| `origin/main` | sincronizado com a `main` local |
+| **Código na VPS** | **`f5b5f0a`** — o `main` inteiro (PRs #1–#3 incluídas), conferido em 01/10 pelo `/home/deploy/foodie-platform/.deployed` |
 | Schema (`/ready`) | `054` (`V054__admin_support_mode.sql`), na VPS e no `HEAD` |
-| Distância | `main` **2 PRs à frente** da VPS (`6642f0e`, `0aed20e`) — sem migration nova; publicar com `release.ps1` |
+| Distância | **nenhuma**: VPS e `main` no mesmo commit |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
 | Testes Java | `main`: **283** execuções (`mvn test` em 01/10, após os follow-ups do E48) |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
@@ -43,16 +43,15 @@ Plataforma de delivery com **modelo descentralizado**: o **lojista** opera a
 própria loja (catálogo, horário, pedidos, mesas, PDV) e é **dono da venda**.
 A **Foodie** cobra **assinatura** da loja, não comissão sobre a venda.
 
-**Legado StackFood v9 — removido, não apenas desativado.** Saiu do repositório
-em 25/09/2026 (`04e5686 chore: remove legacy StackFood code from the
+**Legado StackFood v9 — removido por completo.** Saiu do repositório em
+25/09/2026 (`04e5686 chore: remove legacy StackFood code from the
 repository`) e da VPS na mesma data. Não existe mais `admin-panel`, `web`,
-`app-*` nem `payment-gateway` na árvore. O que sobrou:
-
-- **tag `legacy-stackfood-v9`** — snapshot completo, consultável com
-  `git show legacy-stackfood-v9:caminho/do/arquivo`;
-- **`reference/flutter-apps/`** — só os apps Flutter (`app-user`,
-  `app-restaurant`, `app-delivery`), material de consulta, **fora do build**
-  (`reference/README.md`).
+`app-*` nem `payment-gateway` na árvore. Em **01/10/2026** a limpeza foi
+completada a pedido: a pasta `reference/flutter-apps/` (os três apps do pacote)
+e a tag `legacy-stackfood-v9` foram removidas — a tag também do remoto. Não há
+licença do pacote comercial, então ele não fica no repositório nem como atalho.
+O código permanece apenas no **histórico** do Git; o registro da auditoria está
+em `docs/AUDITORIA_LEGADO_2026-10-01.md`.
 
 **Plataforma própria** (`platform/`): Java 21 + Spring Boot (API), Next.js
 (web), MariaDB isolado, deploy próprio. **É aqui que o projeto vive.**
@@ -238,9 +237,9 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. Próximo passo: publicar as PRs #1 e #2 com
-`release.ps1` (sem migration nova) e escolher entre o desconto da loja sem efeito
-e as pendências comerciais.
+A fila de infraestrutura está zerada e as PRs #1–#3 estão publicadas (`f5b5f0a`).
+Próximo passo: escolher entre o **desconto da loja sem efeito** (especificação e plano
+prontos em `docs/superpowers/`) e as **pendências comerciais**.
 
 ## 6. Estado da árvore de trabalho (01/10)
 
@@ -262,8 +261,7 @@ Commits de 30/09:
 | `e226cb2` | `fix(deploy)`: forçar LF no pacote, recusar CRLF e identificar o scaffold — **no ar** |
 | `669f875`, `12bce72`, `2e31862` | `docs`: deploy do `e226cb2`, limpeza de disco, scaffold removido |
 
-Não versionado: apenas `docs/Novo(a) Documento de Texto.txt` (vazio, resíduo —
-pode apagar).
+Não versionado: nada. O resíduo `docs/Novo(a) Documento de Texto.txt` foi apagado em 01/10.
 
 Ignorados pelo `.gitignore`: `backups/`, `platform/deploy/backups/` e os
 pacotes `platform-release-*.tar` (três na raiz, ~15 MB, podem ser apagados).
@@ -332,6 +330,6 @@ Ver `docs/RUNBOOK_VPS.md`. Dois pontos que já custaram tempo:
 - **Operação da VPS:** `docs/RUNBOOK_VPS.md`
 - **Ideias futuras:** `docs/IDEIAS_FUTURAS.md`
 - **Contexto e regras do projeto:** `.hermes.md`
-- **Legado (histórico):** `docs/INVENTARIO_LEGADO_STACKFOOD.md`,
-  `docs/JAVA_MIGRATION_PLAN.md` — descrevem código que **não existe mais** no
-  repositório; consulte pela tag `legacy-stackfood-v9`
+- **Legado:** removido do repositório, da VPS e do remoto (ver §1 e
+  `docs/AUDITORIA_LEGADO_2026-10-01.md`). Não há material de consulta do pacote
+  comercial; ele existe apenas no histórico do Git.

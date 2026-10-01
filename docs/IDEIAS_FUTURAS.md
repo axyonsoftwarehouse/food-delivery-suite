@@ -53,38 +53,32 @@ da assinatura.
 
 ## Destino do material de referência do legado
 
-**Status:** decisão pendente. **O trabalho pesado já foi feito.**
+**Status: resolvido em 01/10/2026.**
 
-**O que é:** decidir o que fazer com o que restou do StackFood v9.
+**O que era:** decidir o que fazer com o que restou do StackFood v9.
 
-**O que já está resolvido** (não refazer):
+**Decisão: remover tudo.** Não há licença do pacote comercial — a chave não foi
+encontrada e não será mais procurada — e a plataforma própria não depende dele.
 
-- O código do legado **foi removido** do repositório em 25/09/2026
-  (`04e5686`), não apenas desativado. Não existem mais `admin-panel`, `web`,
-  `app-*` nem `payment-gateway` na árvore.
-- O snapshot completo está preservado na **tag `legacy-stackfood-v9`**
-  (`git show legacy-stackfood-v9:caminho/do/arquivo`).
-- Os apps Flutter ficaram em `reference/flutter-apps/` como material de
-  consulta, fora do build (`reference/README.md`).
-- Foi removido da VPS na mesma data (`.hermes.md`).
+**O que foi feito em 01/10/2026:**
 
-**O que ainda está em aberto:**
+- a pasta `reference/flutter-apps/` (≈2.350 arquivos, os três apps do pacote)
+  saiu da árvore;
+- a tag `legacy-stackfood-v9` foi apagada, **local e no remoto** — era ela o
+  atalho para recuperar o pacote inteiro (`admin-panel` 115 MB, `web`, `app-*`,
+  `payment-gateway`);
+- os documentos que descreviam o código do pacote saíram:
+  `INVENTARIO_LEGADO_STACKFOOD.md`, `INVENTARIO_LACUNAS_LEGADO.md`,
+  `JAVA_MIGRATION_PLAN.md`, `REFERENCIA_FUNCIONAL.md`, `AUDITORIA_IMPEDIMENTOS.md`,
+  `REFERENCIA_INSPIRACOES.md`, `PLANO_EVOLUCAO_INSPIRACOES.md`,
+  `REFERENCIA_UI_FOODIE.md`;
+- o comentário do `tokens.css` que citava o kit visual de terceiros saiu (a
+  paleta do produto continua igual).
 
-- `reference/flutter-apps/` (≈2.300 arquivos) continua no repositório. Vale a
-  pena manter? A tag já guarda tudo isso.
-- Documentos que descrevem código inexistente: `INVENTARIO_LEGADO_STACKFOOD.md`
-  e `JAVA_MIGRATION_PLAN.md`. Arquivar, atualizar ou marcar como histórico?
-- A licença do pacote comercial StackFood continua **a confirmar**
-  (`reference/README.md`) — isso é uma pendência jurídica, não técnica.
-
-**Por quê:** um repositório que descreve o que não existe mais confunde quem
-chega depois — inclusive você daqui a seis meses.
-
-**Quando:** quando incomodar. Não é urgente e não bloqueia nada.
-
-**Como:** decidir entre (a) manter `reference/` e marcar os docs como
-históricos, (b) mover tudo para um repositório `foodie-legacy`, ou (c) apagar
-`reference/` confiando só na tag.
+O código do legado **continua no histórico do Git** (commits anteriores a
+`04e5686`). Remover de verdade exigiria reescrever a história ou começar um
+repositório novo — decisão separada, não tomada. A auditoria completa, com os
+números, está em `docs/AUDITORIA_LEGADO_2026-10-01.md`.
 
 ---
 
