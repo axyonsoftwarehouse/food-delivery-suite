@@ -23,9 +23,9 @@ export default function RestaurantSupportPanel() {
   const entries = all ? log.entries : log.entries.slice(0, 10);
   return <>
     {log.pause && <Alert tone="warning">{t('support.pause.until', { time: new Date(log.pause.until).toLocaleString(), reason: log.pause.reason })}</Alert>}
-    <Card title={t('support.log.title')} actions={log.entries.length > 10 ? <button className="refresh-button" onClick={() => setAll(!all)}>{all ? 'Ver menos' : 'Ver todas'}</button> : undefined}>
+    <Card title={t('support.log.title')} actions={log.entries.length > 10 ? <button className="refresh-button" onClick={() => setAll(!all)}>{all ? t('support.log.showLess') : t('support.log.showAll')}</button> : undefined}>
       {entries.length === 0 ? <EmptyState title={t('support.log.empty')} /> : <div className="courier-list">
-        {entries.map((entry) => <div className="courier-row" key={entry.id}><div><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString()} · {entry.actorName}</span>{entry.reason && <span>Motivo: {entry.reason}</span>}</div></div>)}
+        {entries.map((entry) => <div className="courier-row" key={entry.id}><div><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString()} · {entry.actorName}</span>{entry.reason && <span>{t('support.log.reason', { reason: entry.reason })}</span>}</div></div>)}
       </div>}
     </Card>
   </>;
