@@ -17,7 +17,7 @@ Mantenha curto. Se crescer, corte.
 | --- | --- |
 | `main` local | `957ad9a` — `e226cb2` + commits só de documentação (estado, E48, spec e plano) |
 | E48 | mesclado na `main` em 01/10 (`5564966`), verificação integrada verde; **não publicado** |
-| `origin/main` | `2e31862` — local está 3 commits de docs à frente (sem push) |
+| `origin/main` | sincronizado com a `main` local (push em 01/10, inclui o E48) |
 | **Código na VPS** | **`e226cb2`** — publicado pelo `release.ps1` em 30/09/2026 03:46 UTC (último código; o que veio depois é só `docs/` e `.hermes.md`) |
 | Schema (`/ready`) | `053` na VPS e na `main`; a branch do E48 traz `V054__admin_support_mode.sql` |
 | Distância | **VPS e `main` alinhados** em código |
