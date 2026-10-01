@@ -39,208 +39,6 @@ public class MenuController {
         this.permissions = permissions;
     }
 
-    @GetMapping("/admin/restaurants/{id}/catalog")
-    public Map<String, Object> adminCatalog(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        return menu.catalog(id);
-    }
-
-    @PostMapping("/admin/categories")
-    public ResponseEntity<Map<String, Object>> adminCategory(@CookieValue(value = "foodie_session", required = false) String token,
-                                                             @Valid @RequestBody AdminCategoryRequest body) {
-        auth.requireUser(token, "admin");
-        return created(menu.createCategory(body.restaurantId(), body.name()));
-    }
-
-    @PatchMapping("/admin/categories/{id}")
-    public Map<String, Object> adminRenameCategory(@CookieValue(value = "foodie_session", required = false) String token,
-                                                   @PathVariable @Positive long id, @Valid @RequestBody CategoryRequest body) {
-        auth.requireUser(token, "admin");
-        return menu.renameCategory(null, id, body.name());
-    }
-
-    @DeleteMapping("/admin/categories/{id}")
-    public Map<String, Boolean> adminDeleteCategory(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        menu.deleteCategory(null, id);
-        return Map.of("ok", true);
-    }
-
-    @PostMapping("/admin/products")
-    public ResponseEntity<Map<String, Object>> adminProduct(@CookieValue(value = "foodie_session", required = false) String token,
-                                                            @Valid @RequestBody AdminProductRequest body) {
-        auth.requireUser(token, "admin");
-        return created(menu.createProduct(body.restaurantId(), body.categoryId(), body.name(), body.description(), body.priceCents()));
-    }
-
-    @PatchMapping("/admin/products/{id}")
-    public Map<String, Object> adminUpdateProduct(@CookieValue(value = "foodie_session", required = false) String token,
-                                                  @PathVariable @Positive long id, @Valid @RequestBody ProductUpdateRequest body) {
-        auth.requireUser(token, "admin");
-        return menu.updateProduct(null, id, body.toUpdate());
-    }
-
-    @DeleteMapping("/admin/products/{id}")
-    public Map<String, Boolean> adminDeleteProduct(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        menu.deleteProduct(null, id);
-        return Map.of("ok", true);
-    }
-
-    @GetMapping("/admin/products/{id}/variations")
-    public List<Map<String, Object>> adminVariations(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        return menu.variations(null, id);
-    }
-
-    @PostMapping("/admin/products/{id}/variations")
-    public ResponseEntity<Map<String, Object>> adminCreateVariation(@CookieValue(value = "foodie_session", required = false) String token,
-                                                                    @PathVariable @Positive long id, @Valid @RequestBody VariationRequest body) {
-        auth.requireUser(token, "admin");
-        return created(menu.createVariation(null, id, body.name(), body.priceDeltaCents(), body.sort()));
-    }
-
-    @PatchMapping("/admin/products/{id}/variations/{variationId}")
-    public Map<String, Object> adminUpdateVariation(@CookieValue(value = "foodie_session", required = false) String token,
-                                                    @PathVariable @Positive long id, @PathVariable @Positive long variationId,
-                                                    @Valid @RequestBody VariationUpdateRequest body) {
-        auth.requireUser(token, "admin");
-        return menu.updateVariation(null, id, variationId, body.name(), body.priceDeltaCents(), body.available(), body.sort());
-    }
-
-    @DeleteMapping("/admin/products/{id}/variations/{variationId}")
-    public Map<String, Boolean> adminDeleteVariation(@CookieValue(value = "foodie_session", required = false) String token,
-                                                     @PathVariable @Positive long id, @PathVariable @Positive long variationId) {
-        auth.requireUser(token, "admin");
-        menu.deleteVariation(null, id, variationId);
-        return Map.of("ok", true);
-    }
-
-    @GetMapping("/admin/products/{id}/images")
-    public List<Map<String, Object>> adminImages(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        return menu.images(null, id);
-    }
-
-    @PutMapping("/admin/products/{id}/images")
-    public List<Map<String, Object>> adminReplaceImages(@CookieValue(value = "foodie_session", required = false) String token,
-                                                        @PathVariable @Positive long id, @Valid @RequestBody ImagesRequest body) {
-        auth.requireUser(token, "admin");
-        return menu.replaceImages(null, id, body.toImages());
-    }
-
-    @GetMapping("/admin/addon-groups")
-    public List<Map<String, Object>> adminAddonGroups(@CookieValue(value = "foodie_session", required = false) String token,
-                                                      @RequestParam @Positive long restaurantId) {
-        auth.requireUser(token, "admin");
-        return menu.addonGroups(restaurantId);
-    }
-
-    @PostMapping("/admin/addon-groups")
-    public ResponseEntity<Map<String, Object>> adminCreateAddonGroup(@CookieValue(value = "foodie_session", required = false) String token,
-                                                                     @Valid @RequestBody AddonGroupCreateRequest body) {
-        auth.requireUser(token, "admin");
-        return created(menu.createAddonGroup(body.restaurantId(), body.name(), body.minSelect(), body.maxSelect(), body.required()));
-    }
-
-    @PatchMapping("/admin/addon-groups/{id}")
-    public Map<String, Object> adminUpdateAddonGroup(@CookieValue(value = "foodie_session", required = false) String token,
-                                                     @PathVariable @Positive long id, @Valid @RequestBody AddonGroupUpdateRequest body) {
-        auth.requireUser(token, "admin");
-        return menu.updateAddonGroup(null, id, body.name(), body.minSelect(), body.maxSelect(), body.required());
-    }
-
-    @DeleteMapping("/admin/addon-groups/{id}")
-    public Map<String, Boolean> adminDeleteAddonGroup(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        menu.deleteAddonGroup(null, id);
-        return Map.of("ok", true);
-    }
-
-    @PostMapping("/admin/addon-groups/{id}/addons")
-    public ResponseEntity<Map<String, Object>> adminCreateAddon(@CookieValue(value = "foodie_session", required = false) String token,
-                                                                @PathVariable @Positive long id, @Valid @RequestBody AddonRequest body) {
-        auth.requireUser(token, "admin");
-        return created(menu.createAddon(null, id, body.name(), body.priceCents()));
-    }
-
-    @PatchMapping("/admin/addon-groups/{id}/addons/{addonId}")
-    public Map<String, Object> adminUpdateAddon(@CookieValue(value = "foodie_session", required = false) String token,
-                                                @PathVariable @Positive long id, @PathVariable @Positive long addonId, @Valid @RequestBody AddonUpdateRequest body) {
-        auth.requireUser(token, "admin");
-        return menu.updateAddon(null, id, addonId, body.name(), body.priceCents(), body.available());
-    }
-
-    @DeleteMapping("/admin/addon-groups/{id}/addons/{addonId}")
-    public Map<String, Boolean> adminDeleteAddon(@CookieValue(value = "foodie_session", required = false) String token,
-                                                 @PathVariable @Positive long id, @PathVariable @Positive long addonId) {
-        auth.requireUser(token, "admin");
-        menu.deleteAddon(null, id, addonId);
-        return Map.of("ok", true);
-    }
-
-    @GetMapping("/admin/products/{id}/addon-groups")
-    public List<Map<String, Object>> adminProductAddonGroups(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id,
-                                                             @RequestParam(defaultValue = "0") long variationId) {
-        auth.requireUser(token, "admin");
-        return menu.productAddonGroups(null, id, variationId);
-    }
-
-    @PutMapping("/admin/products/{id}/addon-groups")
-    public List<Map<String, Object>> adminSetProductAddonGroups(@CookieValue(value = "foodie_session", required = false) String token,
-                                                                @PathVariable @Positive long id, @RequestParam(defaultValue = "0") long variationId,
-                                                                @Valid @RequestBody GroupIdsRequest body) {
-        auth.requireUser(token, "admin");
-        return menu.setProductAddonGroups(null, id, variationId, body.groupIds());
-    }
-
-    @GetMapping("/admin/tags")
-    public List<Map<String, Object>> adminTags(@CookieValue(value = "foodie_session", required = false) String token,
-                                               @RequestParam @Positive long restaurantId) {
-        auth.requireUser(token, "admin");
-        return menu.tags(restaurantId);
-    }
-
-    @PostMapping("/admin/tags")
-    public ResponseEntity<Map<String, Object>> adminCreateTag(@CookieValue(value = "foodie_session", required = false) String token,
-                                                              @Valid @RequestBody TagCreateRequest body) {
-        auth.requireUser(token, "admin");
-        return created(menu.createTag(body.restaurantId(), body.name()));
-    }
-
-    @DeleteMapping("/admin/tags/{id}")
-    public Map<String, Boolean> adminDeleteTag(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        menu.deleteTag(null, id);
-        return Map.of("ok", true);
-    }
-
-    @GetMapping("/admin/products/{id}/tags")
-    public List<Map<String, Object>> adminProductTags(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        return menu.productTags(null, id);
-    }
-
-    @PutMapping("/admin/products/{id}/tags")
-    public List<Map<String, Object>> adminSetProductTags(@CookieValue(value = "foodie_session", required = false) String token,
-                                                         @PathVariable @Positive long id, @Valid @RequestBody TagIdsRequest body) {
-        auth.requireUser(token, "admin");
-        return menu.setProductTags(null, id, body.tagIds());
-    }
-
-    @GetMapping("/admin/products/{id}/combo-items")
-    public List<Map<String, Object>> adminComboItems(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        return menu.comboItems(null, id);
-    }
-
-    @PutMapping("/admin/products/{id}/combo-items")
-    public List<Map<String, Object>> adminSetComboItems(@CookieValue(value = "foodie_session", required = false) String token,
-                                                        @PathVariable @Positive long id, @Valid @RequestBody ComboItemsRequest body) {
-        auth.requireUser(token, "admin");
-        return menu.setComboItems(null, id, body.toItems());
-    }
-
     @GetMapping("/restaurant/catalog")
     public Map<String, Object> ownCatalog(@CookieValue(value = "foodie_session", required = false) String token) {
         return menu.catalog(requireRestaurant(token).restaurantId());
@@ -434,12 +232,7 @@ public class MenuController {
         return ResponseEntity.status(201).body(body);
     }
 
-    public record AdminCategoryRequest(@Positive long restaurantId, @NotBlank @Size(min = 2, max = 120) String name) {}
     public record CategoryRequest(@NotBlank @Size(min = 2, max = 120) String name) {}
-    public record AdminProductRequest(@Positive long restaurantId, @Positive long categoryId,
-                                      @NotBlank @Size(min = 2, max = 160) String name,
-                                      @Size(max = 500) String description,
-                                      @Min(1) @Max(10_000_000) int priceCents) {}
     public record ProductRequest(@Positive long categoryId,
                                  @NotBlank @Size(min = 2, max = 160) String name,
                                  @Size(max = 500) String description,
@@ -476,12 +269,6 @@ public class MenuController {
 
     public record ImageItem(@NotBlank @Size(max = 512) String url, Boolean cover) {}
 
-    public record AddonGroupCreateRequest(@Positive long restaurantId,
-                                          @NotBlank @Size(min = 1, max = 80) String name,
-                                          @Min(0) @Max(20) int minSelect,
-                                          @Min(1) @Max(20) int maxSelect,
-                                          boolean required) {}
-
     public record AddonGroupRequest(@NotBlank @Size(min = 1, max = 80) String name,
                                     @Min(0) @Max(20) int minSelect,
                                     @Min(1) @Max(20) int maxSelect,
@@ -500,8 +287,6 @@ public class MenuController {
                                      Boolean available) {}
 
     public record GroupIdsRequest(@NotNull @Size(max = 20) List<@Positive Long> groupIds) {}
-
-    public record TagCreateRequest(@Positive long restaurantId, @NotBlank @Size(min = 1, max = 60) String name) {}
 
     public record TagRequest(@NotBlank @Size(min = 1, max = 60) String name) {}
 

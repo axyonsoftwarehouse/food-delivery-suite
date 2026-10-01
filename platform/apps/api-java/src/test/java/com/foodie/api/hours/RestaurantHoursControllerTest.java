@@ -67,25 +67,11 @@ class RestaurantHoursControllerTest {
     }
 
     @Test
-    void adminRegistersOvernightInterval() throws Exception {
-        when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
-        when(hours.add(7L, 5, LocalTime.of(18, 0), LocalTime.of(2, 0))).thenReturn(4L);
-
-        mvc.perform(post("/admin/restaurants/7/hours")
-                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"dayOfWeek\":5,\"opensAt\":\"18:00\",\"closesAt\":\"02:00\"}"))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.id").value(4))
-            .andExpect(jsonPath("$.overnight").value(true));
-    }
-
-    @Test
     void rejectsEqualOpeningAndClosing() throws Exception {
-        when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
+        when(auth.requireUser("session", "restaurant")).thenReturn(new User(5, "Cozinha", "cozinha@demo.local", "restaurant", 7L));
         when(hours.add(7L, 5, LocalTime.of(18, 0), LocalTime.of(18, 0))).thenThrow(new ApiException(400, "A abertura e o fechamento não podem ser iguais"));
 
-        mvc.perform(post("/admin/restaurants/7/hours")
+        mvc.perform(post("/restaurant/hours")
                 .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"dayOfWeek\":5,\"opensAt\":\"18:00\",\"closesAt\":\"18:00\"}"))

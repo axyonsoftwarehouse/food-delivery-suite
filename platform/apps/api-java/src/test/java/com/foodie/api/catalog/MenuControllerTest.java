@@ -6,7 +6,6 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -76,29 +75,12 @@ class MenuControllerTest {
     }
 
     @Test
-    void adminRenamesCategory() throws Exception {
-        when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
-        Map<String, Object> category = new LinkedHashMap<>();
-        category.put("id", 3L);
-        category.put("restaurant_id", 7L);
-        category.put("name", "Bebidas");
-        when(menu.renameCategory(null, 3L, "Bebidas")).thenReturn(category);
-
-        mvc.perform(patch("/admin/categories/3")
-                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Bebidas\"}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.name").value("Bebidas"));
-    }
-
-    @Test
     void deletingProductUsedInOrdersIsBlocked() throws Exception {
-        when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
+        when(auth.requireUser("session", "restaurant")).thenReturn(new User(5, "Cozinha", "cozinha@demo.local", "restaurant", 7L));
         org.mockito.Mockito.doThrow(new ApiException(409, "Este produto já foi usado em pedidos; pause em vez de excluir"))
-            .when(menu).deleteProduct(null, 5L);
+            .when(menu).deleteProduct(7L, 5L);
 
-        mvc.perform(delete("/admin/products/5").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")))
+        mvc.perform(delete("/restaurant/products/5").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")))
             .andExpect(status().isConflict());
     }
 
@@ -152,25 +134,6 @@ class MenuControllerTest {
     }
 
     @Test
-    void adminReplacesProductImagesKeepingCover() throws Exception {
-        when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
-        Map<String, Object> image = new LinkedHashMap<>();
-        image.put("id", 4L);
-        image.put("product_id", 11L);
-        image.put("url", "https://cdn.foodie.local/bowl.png");
-        image.put("is_cover", true);
-        image.put("sort", 0);
-        when(menu.replaceImages(any(), eq(11L), any())).thenReturn(List.of(image));
-
-        mvc.perform(put("/admin/products/11/images")
-                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"images\":[{\"url\":\"https://cdn.foodie.local/bowl.png\",\"cover\":true}]}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].is_cover").value(true));
-    }
-
-    @Test
     void restaurantCreatesAddonGroup() throws Exception {
         when(auth.requireUser("session", "restaurant")).thenReturn(new User(5, "Cozinha", "cozinha@demo.local", "restaurant", 7L));
         Map<String, Object> group = new LinkedHashMap<>();
@@ -188,19 +151,6 @@ class MenuControllerTest {
                 .content("{\"name\":\"Adicionais\",\"minSelect\":0,\"maxSelect\":3,\"required\":false}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.max_select").value(3));
-    }
-
-    @Test
-    void adminSetsProductAddonGroups() throws Exception {
-        when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
-        when(menu.setProductAddonGroups(any(), eq(11L), eq(0L), any())).thenReturn(List.of(Map.of("id", 31L, "name", "Adicionais")));
-
-        mvc.perform(put("/admin/products/11/addon-groups")
-                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"groupIds\":[31]}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].id").value(31));
     }
 
     @Test

@@ -1,9 +1,7 @@
 package com.foodie.api.catalog;
 
 import com.foodie.api.ApiException;
-import com.foodie.api.admin.AdminAuditService;
 import com.foodie.api.admin.AdminPermissionService;
-import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.Permissions;
@@ -23,7 +21,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Atributos genéricos de produto (E23). */
@@ -31,61 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AttributeController {
     private final AuthService auth;
     private final AdminPermissionService permissions;
-    private final AdminAuditService audit;
     private final JdbcTemplate jdbc;
 
-    public AttributeController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc) {
+    public AttributeController(AuthService auth, AdminPermissionService permissions, JdbcTemplate jdbc) {
         this.auth = auth;
         this.permissions = permissions;
-        this.audit = audit;
         this.jdbc = jdbc;
-    }
-
-    @GetMapping("/admin/attributes")
-    public List<Map<String, Object>> list(@CookieValue(value = "foodie_session", required = false) String token,
-                                          @RequestParam @Positive long restaurantId) {
-        admin(token);
-        return jdbc.queryForList("SELECT id, name FROM attributes WHERE restaurant_id = ? ORDER BY name", restaurantId);
-    }
-
-    @PostMapping("/admin/attributes")
-    public ResponseEntity<Map<String, Object>> create(@CookieValue(value = "foodie_session", required = false) String token,
-                                                      @RequestParam @Positive long restaurantId,
-                                                      @Valid @RequestBody NameRequest body) {
-        User actor = admin(token);
-        Integer restaurant = jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, restaurantId);
-        if (restaurant == null) throw new ApiException(400, "Restaurante não encontrado");
-        var key = new org.springframework.jdbc.support.GeneratedKeyHolder();
-        jdbc.update(connection -> {
-            var statement = connection.prepareStatement("INSERT INTO attributes (restaurant_id, name) VALUES (?, ?)", java.sql.Statement.RETURN_GENERATED_KEYS);
-            statement.setLong(1, restaurantId);
-            statement.setString(2, body.name().strip());
-            return statement;
-        }, key);
-        long id = key.getKey().longValue();
-        audit.record(actor, "create", "attribute", id, body.name().strip());
-        return ResponseEntity.status(201).body(Map.of("id", id));
-    }
-
-    @DeleteMapping("/admin/attributes/{id}")
-    public Map<String, Boolean> delete(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        admin(token);
-        jdbc.update("DELETE FROM attributes WHERE id = ?", id);
-        return Map.of("ok", true);
-    }
-
-    @GetMapping("/admin/products/{id}/attributes")
-    public List<Long> linked(@CookieValue(value = "foodie_session", required = false) String token, @PathVariable @Positive long id) {
-        admin(token);
-        return jdbc.queryForList("SELECT attribute_id FROM product_attributes WHERE product_id = ?", Long.class, id);
-    }
-
-    @PutMapping("/admin/products/{id}/attributes")
-    public Map<String, Boolean> link(@CookieValue(value = "foodie_session", required = false) String token,
-                                     @PathVariable @Positive long id, @Valid @RequestBody LinkRequest body) {
-        admin(token);
-        replace(id, body.attributeIds());
-        return Map.of("ok", true);
     }
 
     @GetMapping("/restaurant/attributes")
@@ -134,12 +82,6 @@ public class AttributeController {
     private void requireOwn(long productId, Long restaurantId) {
         Integer found = jdbc.query("SELECT 1 FROM products WHERE id = ? AND restaurant_id = ?", rs -> rs.next() ? 1 : null, productId, restaurantId);
         if (found == null) throw new ApiException(404, "Produto não encontrado");
-    }
-
-    private User admin(String token) {
-        User user = auth.requireUser(token, "admin");
-        permissions.require(user, AdminPermissions.CATALOG_MANAGE);
-        return user;
     }
 
     private User restaurant(String token) {

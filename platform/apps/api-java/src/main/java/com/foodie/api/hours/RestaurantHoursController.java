@@ -18,7 +18,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,39 +33,6 @@ public class RestaurantHoursController {
         this.auth = auth;
         this.hours = hours;
         this.permissions = permissions;
-    }
-
-    @GetMapping("/admin/restaurants/{id}/hours")
-    public Map<String, Object> adminHours(@CookieValue(value = "foodie_session", required = false) String token,
-                                          @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        return schedule(id);
-    }
-
-    @PostMapping("/admin/restaurants/{id}/hours")
-    public ResponseEntity<Map<String, Object>> adminAdd(@CookieValue(value = "foodie_session", required = false) String token,
-                                                        @PathVariable @Positive long id,
-                                                        @Valid @RequestBody HoursRequest body) {
-        auth.requireUser(token, "admin");
-        return created(add(id, body));
-    }
-
-    @DeleteMapping("/admin/restaurants/{restaurantId}/hours/{id}")
-    public Map<String, Boolean> adminRemove(@CookieValue(value = "foodie_session", required = false) String token,
-                                            @PathVariable @Positive long restaurantId,
-                                            @PathVariable @Positive long id) {
-        auth.requireUser(token, "admin");
-        hours.remove(restaurantId, id);
-        return Map.of("ok", true);
-    }
-
-    @PatchMapping("/admin/restaurants/{id}/timezone")
-    public Map<String, Object> adminTimezone(@CookieValue(value = "foodie_session", required = false) String token,
-                                             @PathVariable @Positive long id,
-                                             @Valid @RequestBody TimezoneRequest body) {
-        auth.requireUser(token, "admin");
-        hours.updateTimezone(id, body.timezone());
-        return Map.of("id", id, "timezone", body.timezone());
     }
 
     @GetMapping("/restaurant/hours")

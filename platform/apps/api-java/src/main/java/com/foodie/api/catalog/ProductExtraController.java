@@ -1,9 +1,7 @@
 package com.foodie.api.catalog;
 
 import com.foodie.api.ApiException;
-import com.foodie.api.admin.AdminAuditService;
 import com.foodie.api.admin.AdminPermissionService;
-import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.Permissions;
@@ -25,24 +23,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProductExtraController {
     private final AuthService auth;
     private final AdminPermissionService permissions;
-    private final AdminAuditService audit;
     private final JdbcTemplate jdbc;
 
-    public ProductExtraController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc) {
+    public ProductExtraController(AuthService auth, AdminPermissionService permissions, JdbcTemplate jdbc) {
         this.auth = auth;
         this.permissions = permissions;
-        this.audit = audit;
         this.jdbc = jdbc;
-    }
-
-    @PatchMapping("/admin/products/{id}/extra")
-    public Map<String, Object> adminUpdate(@CookieValue(value = "foodie_session", required = false) String token,
-                                           @PathVariable @Positive long id, @Valid @RequestBody ExtraRequest body) {
-        User actor = auth.requireUser(token, "admin");
-        permissions.require(actor, AdminPermissions.CATALOG_MANAGE);
-        if (update(id, body) == 0) throw new ApiException(404, "Produto não encontrado");
-        audit.record(actor, "update", "product", id, "Nutrição atualizada");
-        return Map.of("id", id);
     }
 
     @PatchMapping("/restaurant/products/{id}/extra")

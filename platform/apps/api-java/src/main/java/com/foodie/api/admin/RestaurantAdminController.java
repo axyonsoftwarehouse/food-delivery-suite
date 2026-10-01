@@ -4,14 +4,11 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -55,18 +52,6 @@ public class RestaurantAdminController {
         }
         audit.record(actor, "update", "restaurant", id, "Aprovação: " + body.approval());
         return Map.of("id", id, "approval", body.approval());
-    }
-
-    @PatchMapping("/{id}/discount")
-    public Map<String, Object> discount(@CookieValue(value = "foodie_session", required = false) String token,
-                                        @PathVariable @Positive long id,
-                                        @Valid @RequestBody DiscountRequest body) {
-        User actor = admin(token);
-        if (jdbc.update("UPDATE restaurants SET discount_percent = ? WHERE id = ?", body.percent(), id) == 0) {
-            throw new ApiException(404, "Restaurante não encontrado");
-        }
-        audit.record(actor, "update", "restaurant", id, "Desconto " + body.percent() + "%");
-        return Map.of("id", id, "discountPercent", body.percent());
     }
 
     @GetMapping("/{id}/tags")
@@ -127,6 +112,5 @@ public class RestaurantAdminController {
     }
 
     public record ApprovalRequest(@NotNull @Pattern(regexp = "approved|pending|denied") String approval) {}
-    public record DiscountRequest(@NotNull @DecimalMin("0") @DecimalMax("90") BigDecimal percent) {}
     public record TagRequest(@NotBlank @Size(min = 2, max = 60) String name) {}
 }
