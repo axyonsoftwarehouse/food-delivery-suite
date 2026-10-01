@@ -78,7 +78,7 @@ public class SupportStoreController {
                                             @PathVariable @Positive long id, @PathVariable @Positive long hourId,
                                             @RequestBody ReasonRequest body) {
         User actor = actor(token);
-        return support.act(actor, id, "hours.remove", "restaurant", hourId, "Horário #" + hourId + " removido", body.reason(), () -> {
+        return support.act(actor, id, "hours.remove", "restaurant_hour", hourId, "Horário #" + hourId + " removido", body.reason(), () -> {
             hours.remove(id, hourId);
             return Map.of("ok", true);
         });
