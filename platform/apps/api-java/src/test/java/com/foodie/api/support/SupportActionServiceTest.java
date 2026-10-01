@@ -93,16 +93,33 @@ class SupportActionServiceTest {
     }
 
     @Test
+    void longTitleIsTruncatedTo160Chars() {
+        restaurantExists(true);
+        service.act(admin, 7L, "product.create", "product", 11L, "Produto criado: " + "x".repeat(160), "Preço digitado errado pela loja", () -> 1);
+        org.mockito.ArgumentCaptor<String> title = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(notifications).notifyRestaurant(eq(7L), eq("support_action"), title.capture(), any(), isNull());
+        assertThat(title.getValue()).hasSize(160).startsWith("Suporte Foodie: ");
+    }
+
+    @Test
+    void transientDatabaseFailureOnNotificationPropagates() {
+        restaurantExists(true);
+        doThrow(new org.springframework.dao.CannotAcquireLockException("deadlock")).when(notifications).notifyRestaurant(anyLong(), any(), any(), any(), any());
+        assertThatThrownBy(() -> service.act(admin, 7L, "product.update", "product", 11L, "Preço", "Preço digitado errado pela loja", () -> 1))
+            .isInstanceOf(org.springframework.dao.CannotAcquireLockException.class);
+    }
+
+    @Test
     void ordersAreRecordedWithTheirOwnReason() {
         service.recordOrderAction(admin, 7L, 99L, "cancel", "Loja fechou");
-        verify(audit).insertSupport(1L, "Ana Suporte", 7L, "order.cancel", "order", 99L, "Pedido #99: cancel", "Loja fechou");
-        verify(notifications).notifyRestaurant(eq(7L), eq("support_action"), eq("Suporte Foodie: Pedido #99: cancel"), eq("Loja fechou"), eq(99L));
+        verify(audit).insertSupport(1L, "Ana Suporte", 7L, "order.cancel", "order", 99L, "Pedido #99 cancelado", "Loja fechou");
+        verify(notifications).notifyRestaurant(eq(7L), eq("support_action"), eq("Suporte Foodie: Pedido #99 cancelado"), eq("Loja fechou"), eq(99L));
     }
 
     @Test
     void orderActionWithoutReasonStoresNull() {
         service.recordOrderAction(admin, 7L, 99L, "assign", null);
-        verify(audit).insertSupport(eq(1L), eq("Ana Suporte"), eq(7L), eq("order.assign"), eq("order"), eq(99L), eq("Pedido #99: assign"), isNull());
+        verify(audit).insertSupport(eq(1L), eq("Ana Suporte"), eq(7L), eq("order.assign"), eq("order"), eq(99L), eq("Pedido #99 entregador atribuído"), isNull());
     }
 
     @Test

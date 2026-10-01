@@ -84,7 +84,7 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
     </Card>}
 
     {tab === 'orders' && <OrdersPanel restaurantId={restaurantId} />}
-    {tab === 'catalog' && (canAct || permissions.includes('support.view')) && <CatalogManager mode="support" restaurantId={restaurantId} onMessage={setMessage} onChanged={() => { void refresh(); void load(); }} />}
+    {tab === 'catalog' && <CatalogManager mode="support" restaurantId={restaurantId} onMessage={setMessage} onChanged={() => { void refresh(); void load(); }} />}
     {tab === 'hours' && <RestaurantHours mode="support" restaurantId={restaurantId} onMessage={setMessage} />}
 
     {tab === 'discount' && <Card>
