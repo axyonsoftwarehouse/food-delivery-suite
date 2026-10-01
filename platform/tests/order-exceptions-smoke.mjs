@@ -89,5 +89,9 @@ assert.equal(failed.history.at(-1).reason, 'Cliente ausente');
 const cancelledByAdmin = await place();
 await call(`/orders/${cancelledByAdmin.id}/status`, { cookie: admin, method: 'PATCH', body: { action: 'cancel', reason: 'Loja fechou' } });
 assert.equal((await call(`/orders/${cancelledByAdmin.id}`, { cookie: admin })).status, 'cancelled');
+const cancelledDetail = await call(`/orders/${cancelledByAdmin.id}`, { cookie: admin });
+const trail = await call(`/admin/support/restaurants/${cancelledDetail.restaurant_id}/audit`, { cookie: admin });
+assert.ok(trail.some((entry) => entry.action === 'order.cancel' && entry.entityId === cancelledByAdmin.id && entry.reason === 'Loja fechou'),
+  'cancelamento do admin deveria aparecer na trilha de suporte da loja');
 
 console.log(`Exceções validadas: recusa #${rejected.id}, cancelamento do cliente #${cancelledByCustomer.id}, falha/reatribuição #${accepted.id}, cancelamento do admin #${cancelledByAdmin.id}.`);

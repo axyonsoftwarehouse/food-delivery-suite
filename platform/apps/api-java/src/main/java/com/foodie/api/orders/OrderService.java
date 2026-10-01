@@ -9,6 +9,7 @@ import com.foodie.api.hours.RestaurantHoursService;
 import com.foodie.api.notifications.NotificationService;
 import com.foodie.api.rewards.RewardsService;
 import com.foodie.api.routing.DeliveryService;
+import com.foodie.api.support.SupportActionService;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.time.LocalDateTime;
@@ -40,8 +41,9 @@ public class OrderService {
     private final CampaignService campaignService;
     private final LedgerService ledger;
     private final RewardsService rewards;
+    private final SupportActionService support;
 
-    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards) {
+    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards, SupportActionService support) {
         this.jdbc = jdbc;
         this.namedJdbc = namedJdbc;
         this.postalCoverage = postalCoverage;
@@ -54,6 +56,7 @@ public class OrderService {
         this.campaignService = campaignService;
         this.ledger = ledger;
         this.rewards = rewards;
+        this.support = support;
     }
 
     @Transactional
@@ -417,6 +420,9 @@ public class OrderService {
         }
         if (Set.of("rejected", "cancelled", "expired", "failed").contains(next)) payments.cancelPending(orderId);
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, ?, ?, ?, ?)", orderId, user.id(), current, next, trimmed);
+        if ("admin".equals(user.role()) && Set.of("cancel", "assign", "unassign").contains(action)) {
+            support.recordOrderAction(user, number(order, "restaurant_id"), orderId, action, trimmed);
+        }
         notifyTransition(order, orderId, next, courierId);
         ledger.postOrder(orderId);
         rewards.onOrderCompleted(orderId);
