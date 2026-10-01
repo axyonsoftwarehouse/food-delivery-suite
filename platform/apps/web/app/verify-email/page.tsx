@@ -1,12 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function VerifyEmailPage() {
   const [message, setMessage] = useState('Confirmando seu email...');
   const [ok, setOk] = useState(false);
+  // O token de confirmação é de uso único. Em modo de desenvolvimento o React
+  // executa o efeito duas vezes: a segunda chamada encontraria o token já usado e
+  // mostraria um erro falso. A trava garante uma única tentativa por montagem.
+  const jaTentou = useRef(false);
 
   useEffect(() => {
+    if (jaTentou.current) return;
+    jaTentou.current = true;
+
     const token = new URLSearchParams(window.location.search).get('token') ?? '';
     if (!token) { setMessage('Link sem token. Solicite um novo email de confirmação.'); return; }
     fetch('/backend/auth/verify-email', {
