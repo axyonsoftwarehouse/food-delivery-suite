@@ -76,6 +76,7 @@ if (integration) {
       run('Smoke: carrinho', 'pnpm', ['smoke:cart'], { env: smokeEnv });
       run('Smoke: exceções', 'pnpm', ['smoke:exceptions'], { env: smokeEnv });
       run('Smoke: contas', 'pnpm', ['smoke:auth'], { env: smokeEnv });
+      run('Smoke: cobertura por CEP', 'pnpm', ['smoke:coverage'], { env: smokeEnv });
     }
   } finally {
     run('Derrubando banco de teste efêmero', 'docker', ['compose', '-f', 'docker-compose.test.yml', 'down', '-v'], { env: composeEnv });
