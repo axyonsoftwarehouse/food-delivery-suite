@@ -10,12 +10,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Ponto único das intervenções do modo suporte (E48): valida o motivo, confere a loja, executa a
- * alteração, grava a auditoria na mesma transação e avisa a loja depois do commit.
+ * alteração, grava a auditoria e avisa a loja, tudo na mesma transação; falha no aviso só é
+ * registrada em log.
  */
 @Service
 public class SupportActionService {
@@ -40,7 +39,7 @@ public class SupportActionService {
         requireRestaurant(restaurantId);
         T result = change.get();
         audit.insertSupport(actor.id(), actor.name(), restaurantId, action, entity, entityId, summary, normalized);
-        afterCommit(() -> notifications.notifyRestaurant(restaurantId, "support_action", "Suporte Foodie: " + summary, normalized, null));
+        notifySafely(restaurantId, "Suporte Foodie: " + summary, normalized, null);
         return result;
     }
 
@@ -48,8 +47,7 @@ public class SupportActionService {
     public void recordOrderAction(User actor, long restaurantId, long orderId, String action, String reason) {
         String summary = "Pedido #" + orderId + ": " + action;
         audit.insertSupport(actor.id(), actor.name(), restaurantId, "order." + action, "order", orderId, summary, reason);
-        afterCommit(() -> notifications.notifyRestaurant(restaurantId, "support_action", "Suporte Foodie: " + summary,
-            reason == null ? "" : reason, orderId));
+        notifySafely(restaurantId, "Suporte Foodie: " + summary, reason == null ? "" : reason, orderId);
     }
 
     public static String normalizeReason(String reason) {
@@ -65,23 +63,11 @@ public class SupportActionService {
         if (exists == null) throw new ApiException(404, "Restaurante não encontrado");
     }
 
-    private void afterCommit(Runnable task) {
-        Runnable safe = () -> {
-            try {
-                task.run();
-            } catch (Exception error) {
-                log.warn("Não foi possível avisar a loja sobre a intervenção de suporte: {}", error.getMessage());
-            }
-        };
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    safe.run();
-                }
-            });
-        } else {
-            safe.run();
+    private void notifySafely(long restaurantId, String title, String body, Long orderId) {
+        try {
+            notifications.notifyRestaurant(restaurantId, "support_action", title, body, orderId);
+        } catch (Exception error) {
+            log.warn("Não foi possível avisar a loja sobre a intervenção de suporte: {}", error.getMessage());
         }
     }
 }

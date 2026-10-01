@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -17,6 +18,8 @@ import com.foodie.api.ApiException;
 import com.foodie.api.admin.AdminAuditRepository;
 import com.foodie.api.auth.User;
 import com.foodie.api.notifications.NotificationService;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -100,5 +103,57 @@ class SupportActionServiceTest {
     void orderActionWithoutReasonStoresNull() {
         service.recordOrderAction(admin, 7L, 99L, "assign", null);
         verify(audit).insertSupport(eq(1L), eq("Ana Suporte"), eq(7L), eq("order.assign"), eq("order"), eq(99L), eq("Pedido #99: assign"), isNull());
+    }
+
+    @Test
+    void notifiesOnlyAfterTheChangeAndTheAudit() {
+        restaurantExists(true);
+        List<String> calls = new ArrayList<>();
+
+        doAnswer(inv -> {
+            calls.add("audit");
+            return null;
+        }).when(audit).insertSupport(anyLong(), any(), anyLong(), any(), any(), any(), any(), any());
+
+        doAnswer(inv -> {
+            calls.add("notify");
+            return null;
+        }).when(notifications).notifyRestaurant(anyLong(), any(), any(), any(), any());
+
+        service.act(admin, 7L, "product.update", "product", 11L, "Preço", "Preço digitado errado pela loja", () -> {
+            calls.add("change");
+            return 42;
+        });
+
+        assertThat(calls).isEqualTo(List.of("change", "audit", "notify"));
+    }
+
+    @Test
+    void accepts500CharacterReason() {
+        String reason500 = "a".repeat(500);
+        String normalized = SupportActionService.normalizeReason(reason500);
+        assertThat(normalized).isEqualTo(reason500);
+    }
+
+    @Test
+    void rejects501CharacterReason() {
+        String reason501 = "a".repeat(501);
+        assertThatThrownBy(() -> SupportActionService.normalizeReason(reason501))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("status", 400);
+    }
+
+    @Test
+    void rejectsNullReason() {
+        assertThatThrownBy(() -> SupportActionService.normalizeReason(null))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("status", 400);
+    }
+
+    @Test
+    void rejectsBlankReason() {
+        assertThatThrownBy(() -> SupportActionService.normalizeReason("            "))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("status", 400);
     }
 }
