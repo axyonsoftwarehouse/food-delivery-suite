@@ -14,6 +14,7 @@
     "load": "node scripts/load-test.mjs",
     "smoke:cart": "node tests/cart-smoke.mjs",
     "smoke:exceptions": "node tests/order-exceptions-smoke.mjs",
-    "smoke:auth": "node tests/auth-smoke.mjs"
+    "smoke:auth": "node tests/auth-smoke.mjs",
+    "smoke:coverage": "node tests/coverage-smoke.mjs"
   }
 }
