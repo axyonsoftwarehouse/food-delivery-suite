@@ -8,7 +8,7 @@ import { LanguageSwitcher, useI18n } from '../i18n';
 import NotificationsBell from '../NotificationsBell';
 import ThemeToggle from '../ThemeToggle';
 
-type Item = { href: string; key: string; icon: string; module?: string };
+type Item = { href: string; key: string; icon: string; module?: string; permission?: string };
 
 const menuFor: Record<string, Item[]> = {
   admin: [
@@ -17,6 +17,7 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/relatorios', key: 'nav.panel.reports', icon: '📊' },
     { href: '/painel/clientes', key: 'nav.panel.customers', icon: '👥' },
     { href: '/painel/lojas', key: 'nav.panel.tenants', icon: '🏬' },
+    { href: '/painel/suporte', key: 'nav.panel.support', icon: '🛟', permission: 'support.view' },
     { href: '/painel/promocoes', key: 'nav.panel.promotions', icon: '🎯' },
     { href: '/painel/conteudo', key: 'nav.panel.content', icon: '📄' },
     { href: '/painel/financeiro', key: 'nav.panel.finance', icon: '$' },
@@ -61,7 +62,9 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
     return <main className="app-loading" role="status"><span className="app-loading-brand">✦ foodie<span>.</span></span><p>{t('panel.loading')}</p></main>;
   }
 
-  const menu = [...(menuFor[user.role] ?? [])].filter((item) => !item.module || user.role !== 'restaurant' || modules.includes(item.module));
+  const menu = [...(menuFor[user.role] ?? [])]
+    .filter((item) => !item.module || user.role !== 'restaurant' || modules.includes(item.module))
+    .filter((item) => !item.permission || permissions.includes(item.permission));
   if ((user.role === 'restaurant' || user.role === 'admin') && permissions.includes('staff.manage') && !menu.some((item) => item.href === '/painel/equipe')) {
     menu.splice(Math.max(menu.length - 1, 0), 0, { href: '/painel/equipe', key: 'nav.panel.team', icon: '☰' });
   }
