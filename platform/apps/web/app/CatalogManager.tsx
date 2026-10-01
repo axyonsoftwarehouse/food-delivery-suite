@@ -44,6 +44,8 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
   const isSupport = mode === 'support';
   const { askReason, dialog } = useSupportReason();
   const request = useMemo(() => createRequest(isSupport ? askReason : null), [isSupport, askReason]);
+  // No modo suporte o diálogo de motivo já confirma a exclusão (mostrando a ação); não pergunta duas vezes.
+  const confirmDelete = (action: string) => isSupport || window.confirm(action);
   const [catalog, setCatalog] = useState<Catalog>({ categories: [], products: [] });
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -186,9 +188,10 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
   }
 
   function removeProduct(product: Product) {
-    if (!window.confirm(`Excluir "${product.name}"? Se já foi usado em pedidos, prefira pausar.`)) return;
+    const action = `Excluir "${product.name}"? Se já foi usado em pedidos, prefira pausar.`;
+    if (!confirmDelete(action)) return;
     if (expandedId === product.id) { setExpandedId(null); setDetail(null); }
-    void run(() => request(`${productBase}/${product.id}`, { method: 'DELETE' }), 'Produto excluído.');
+    void run(() => request(`${productBase}/${product.id}`, { method: 'DELETE', action }), 'Produto excluído.');
   }
 
   function renameCategory(category: Category) {
@@ -199,9 +202,10 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
   }
 
   function removeCategory(category: Category) {
-    if (!window.confirm(`Excluir a categoria "${category.name}"? Só é possível se estiver vazia.`)) return;
+    const action = `Excluir a categoria "${category.name}"? Só é possível se estiver vazia.`;
+    if (!confirmDelete(action)) return;
     const path = `${root}/categories/${category.id}`;
-    void run(() => request(path, { method: 'DELETE' }), 'Categoria excluída.');
+    void run(() => request(path, { method: 'DELETE', action }), 'Categoria excluída.');
   }
 
   function updateVariationField(variationId: number, field: 'name' | 'price', value: string) {
@@ -236,9 +240,10 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
 
   function removeVariation(variation: Variation) {
     if (expandedId === null) return;
-    if (!window.confirm(`Excluir a variação "${variation.name}"?`)) return;
+    const action = `Excluir a variação "${variation.name}"?`;
+    if (!confirmDelete(action)) return;
     const id = expandedId;
-    void runDetail(id, () => request(`${productBase}/${id}/variations/${variation.id}`, { method: 'DELETE' }), 'Variação excluída.');
+    void runDetail(id, () => request(`${productBase}/${id}/variations/${variation.id}`, { method: 'DELETE', action }), 'Variação excluída.');
   }
 
   function saveImages() {
@@ -278,8 +283,9 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
   }
 
   function removeGroup(group: AddonGroup) {
-    if (!window.confirm(`Excluir o grupo "${group.name}" e seus adicionais?`)) return;
-    void run(() => request(`${groupBase}/${group.id}`, { method: 'DELETE' }), 'Grupo excluído.');
+    const action = `Excluir o grupo "${group.name}" e seus adicionais?`;
+    if (!confirmDelete(action)) return;
+    void run(() => request(`${groupBase}/${group.id}`, { method: 'DELETE', action }), 'Grupo excluído.');
   }
 
   function addAddon(event: React.FormEvent<HTMLFormElement>, groupId: number) {
@@ -294,7 +300,7 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
   }
 
   function removeAddon(addon: Addon) {
-    void run(() => request(`${groupBase}/${addon.addon_group_id}/addons/${addon.id}`, { method: 'DELETE' }), 'Adicional excluído.');
+    void run(() => request(`${groupBase}/${addon.addon_group_id}/addons/${addon.id}`, { method: 'DELETE', action: `Excluir o adicional "${addon.name}"?` }), 'Adicional excluído.');
   }
 
   function toggleLinked(groupId: number) {
@@ -316,8 +322,9 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
   }
 
   function removeTag(tag: Tag) {
-    if (!window.confirm(`Excluir a tag "${tag.name}"?`)) return;
-    void run(() => request(`${tagBase}/${tag.id}`, { method: 'DELETE' }), 'Tag excluída.');
+    const action = `Excluir a tag "${tag.name}"?`;
+    if (!confirmDelete(action)) return;
+    void run(() => request(`${tagBase}/${tag.id}`, { method: 'DELETE', action }), 'Tag excluída.');
   }
 
   function toggleTagLink(tagId: number) {
