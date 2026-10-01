@@ -591,7 +591,9 @@ Estender `SocialAuthService`. **P3.** Depende de E02.
 
 - **Bloco/Onda/Prioridade:** Governança / 5 / **P1**
 - **Depende de:** E01 (RBAC e `admin_audit_log`), E08 (restaurantes), `TenantHealthController`
-- **Status:** 📝 **Registrado em 01/10/2026** — não iniciado. Origem: `ESTADO_ATUAL.md` §5 e
+- **Status:** 📐 **Desenhado em 01/10/2026** — especificação aprovada em
+  `docs/superpowers/specs/2026-10-01-e48-modo-suporte-design.md` (prevalece sobre este cartão
+  onde divergirem); implementação não iniciada. Origem: `ESTADO_ATUAL.md` §5 e
   `IDEIAS_FUTURAS.md`; conflitos de fronteira levantados em `REVISAO_ESCOPO_2026-09-27.md`.
 
 **Objetivo.** No modelo descentralizado (`PLANO_MODELO_NEGOCIO.md`), o super-admin **observa e
@@ -630,12 +632,10 @@ busca por restaurante, leitura de estado, intervenção com justificativa e tril
   para a trilha por loja.
 - Eventual estado `temporarily_closed` da loja, se não houver equivalente (verificar antes).
 
-**API.**
-- `GET /admin/support/restaurants?q=` e `GET /admin/support/restaurants/{id}` (ficha agregada).
-- `POST /admin/support/restaurants/{id}/actions` com `{ action, reason, payload }`, validando a
-  ação contra o conjunto permitido.
-- `GET /admin/support/restaurants/{id}/audit`.
-- Permissão nova `support.act` (leitura com `support.view`) no catálogo do E01.
+**API.** Fachada tipada por loja em `/admin/support/restaurants/{id}/...` (leitura com
+`support.view`, escrita com `support.act` e `reason`), toda escrita passando por um único
+`SupportActionService` (motivo + auditoria na mesma transação + aviso à loja). As rotas antigas de
+escrita do admin em catálogo, horários, fuso e desconto são removidas. Detalhes na especificação.
 
 **UI.**
 - Rota `app/painel/suporte/page.tsx` (busca) e `app/painel/suporte/[id]/page.tsx` (ficha), no
@@ -652,12 +652,10 @@ busca por restaurante, leitura de estado, intervenção com justificativa e tril
 intervenção permitida com motivo e a vê na trilha; a loja vê a mesma intervenção; rotas de escrita
 fora do conjunto de suporte respondem 403 ao admin. `VERIFY_INTEGRATION=1 pnpm verify` passa.
 
-**Decisões em aberto (antes de implementar).**
-- O admin mantém **alguma** edição de cardápio/preço como suporte auditado, ou perde por completo?
-  (`REVISAO_ESCOPO_2026-09-27.md`, conflito "Média").
-- O que fazer com `PATCH /admin/restaurants/{id}/discount` e descontos já configurados
-  (conflito "Alta" na mesma revisão).
-- Lista final de intervenções permitidas.
+**Decisões (fechadas em 01/10/2026).** Admin mantém edição de cardápio/preço só no modo
+suporte; o desconto vira intervenção de suporte (valores atuais ficam da loja); intervenções
+permitidas: pedido (cancelar/entregador), produto, cardápio e preço, horários e fuso, desconto e
+pausa temporária da loja (15 min–72 h, a loja não encerra sozinha).
 
 **Fora de escopo.** Acesso ao extrato individual da loja (tratado na fronteira do financeiro);
 impersonação ("entrar como a loja"); chat de suporte (E38).

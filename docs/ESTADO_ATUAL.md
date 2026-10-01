@@ -193,9 +193,10 @@ com justificativa e trilha de auditoria.
 **Atenção a dois pontos:**
 
 1. **Registrado como `E48` em 01/10/2026** — cartão completo em
-   `PLANO_EPICOS_STACKFOOD.md` (Onda 5 — Governança, P1). Antes de implementar,
-   fechar as três decisões em aberto do cartão (edição de cardápio pelo admin,
-   rota de desconto, lista de intervenções permitidas).
+   `PLANO_EPICOS_STACKFOOD.md` (Onda 5 — Governança, P1). Decisões fechadas e
+   especificação aprovada em
+   `docs/superpowers/specs/2026-10-01-e48-modo-suporte-design.md`. Próximo:
+   plano de implementação.
 2. **A correção do menu já está no ar** (`bc02740`, publicado em `e226cb2`):
    as 4 abas saíram do perfil admin e as rotas continuam existindo em
    `app/painel/` para o restaurante. O push também já foi feito.
