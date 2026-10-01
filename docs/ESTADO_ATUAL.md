@@ -15,14 +15,14 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `4760fd3` + este registro — E48 mesclado e publicado |
+| `main` local | `9a63a28` + este registro — E48 publicado; correção do reload e follow-ups mesclados (PRs #1 e #2) |
 | E48 | mesclado em 01/10 (`5564966`) e **publicado** no staging (`4760fd3`); teste manual local OK |
-| `origin/main` | sincronizado com a `main` local (push em 01/10, inclui o E48) |
+| `origin/main` | sincronizado com a `main` local (PRs #1 e #2 mescladas pelo GitHub em 01/10) |
 | **Código na VPS** | **`4760fd3`** — publicado pelo `release.ps1` em 01/10/2026 18:56 UTC |
 | Schema (`/ready`) | `054` (`V054__admin_support_mode.sql`), na VPS e no `HEAD` |
-| Distância | **VPS e `main` alinhados** em código |
+| Distância | `main` **2 PRs à frente** da VPS (`6642f0e`, `0aed20e`) — sem migration nova; publicar com `release.ps1` |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `main`: **225** `@Test`; branch E48: **281** execuções (260 `@Test` + 21 casos parametrizados) |
+| Testes Java | `main`: **283** execuções (`mvn test` em 01/10, após os follow-ups do E48) |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Árvore de trabalho | limpa — só o resíduo vazio `docs/Novo(a) Documento de Texto.txt` |
 
@@ -185,9 +185,23 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 **E48 — "modo suporte" do admin: entregue e publicado em 01/10** (`4760fd3`, schema `054`).
 Conferido antes do deploy: `admin_audit_log` vazia na VPS e nenhum papel de admin restrito (todos os
 admins recebem `support.*`). Teste manual local: busca, ficha, pausa, diálogo de motivo, cardápio,
-trilha e visão da loja. Follow-ups em `.superpowers/sdd/progress.md` (polimento do diálogo, i18n das
-telas do admin; abrir `/painel/suporte` direto pela URL volta para `/painel` — pelo menu funciona).
-Próximo passo: escolher entre a fila de infraestrutura abaixo e as pendências comerciais.
+trilha e visão da loja.
+
+**Follow-ups do E48 — resolvidos em 01/10 (ainda não publicados):**
+- **Reload de `/painel/suporte` caía em `/painel`** (PR #1, `6642f0e`). Causa: no StrictMode o
+  efeito de montagem do `AppProvider` roda duas vezes; a chamada de `refresh()` descartada liberava
+  o `initializing` com `user=null`, o painel mandava para `/entrar` e este devolvia para `/painel`.
+  Só afetava o modo dev; não tinha relação com `permissions`.
+- **Polimento** (PR #2, `0aed20e`): diálogo de motivo mostra a ação, guarda rascunho, fecha com Esc,
+  prende e devolve o foco; exclusões do cardápio em modo suporte sem `confirm` duplo; lista, detalhe
+  e ficha traduzidos (pt/en/es) com `approval` legível; busca escapa `%`/`_` no `LIKE`.
+- Fica de fora: o restante do `CatalogManager` (compartilhado com a loja) segue só em português.
+
+**Ambiente local:** a imagem Docker da API não se atualiza sozinha — em 01/10 ela estava em 27/09 e o
+banco local na migration 049 (o container do banco também estava parado). Depois de cada merge:
+`docker compose --profile java up -d --build api-java` no `platform/` do checkout principal.
+
+Próximo passo: **fila de infraestrutura abaixo** (escolhida em 01/10); depois, pendências comerciais.
 
 O admin compartilhava 4 abas operacionais com o restaurante (`pedidos`,
 `catalogo`, `horarios`, `operacao`); elas saíram do menu, mas a API ainda
@@ -216,15 +230,29 @@ com justificativa e trilha de auditoria.
 4. ~~Decidir o scaffold `/opt/production`~~ — **removido** em 30/09, depois de
    comprovado vazio (0 tabelas, 0 chaves). Config preservado em
    `/home/deploy/production-scaffold-20260930.tar.gz` (`RUNBOOK_VPS.md` §8).
-5. **Copiar os backups de banco para fora da VPS** — há cinco em
-   `deploy/backups/` (27, 28 e três de 30/09); só o de 28/09 tem cópia local.
-6. **Versionar `/root/bootstrap-production.sh`** — é o único registro de como o
-   servidor foi endurecido (usuário `deploy`, SSH, `ufw`, fail2ban) e vive só na
-   VPS. Sugestão: revisar e guardar em `platform/deploy/vps/`.
+5. ~~Copiar os backups de banco para fora da VPS~~ — **feito em 01/10**: os seis
+   dumps (27, 28, três de 30/09 e o do deploy do E48) estão no PC com md5
+   conferido (`RUNBOOK_VPS.md` §5). Repetir após cada deploy; backup externo de
+   verdade (fora do PC) segue na prontidão de publicação.
+6. ~~Versionar `/root/bootstrap-production.sh`~~ — **feito em 01/10**: cópia
+   idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
+   (sem segredos; a última seção recria o scaffold removido — não rodar como está).
+
+A fila de infraestrutura está zerada. Próximo passo: publicar as PRs #1 e #2 com
+`release.ps1` (sem migration nova) e escolher entre o desconto da loja sem efeito
+e as pendências comerciais.
 
 ## 6. Estado da árvore de trabalho (01/10)
 
-Limpa e **sincronizada com o `origin`** (`2e31862`). Commits de 30/09:
+Limpa e **sincronizada com o `origin`** (`9a63a28`). A partir de 01/10 as mudanças entram por PR
+(branch → PR → merge no GitHub):
+
+| Commit | O que é |
+| --- | --- |
+| `6642f0e` / `c90d2fa` | `fix(web)`: reload de `/painel/suporte` não volta mais para `/painel` — PR #1 |
+| `0aed20e` / `9a63a28` | `fix(support)`: polimento do modo suporte (follow-ups do E48) — PR #2 |
+
+Commits de 30/09:
 
 | Commit | O que é |
 | --- | --- |
