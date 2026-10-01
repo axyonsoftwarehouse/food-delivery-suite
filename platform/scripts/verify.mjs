@@ -29,12 +29,15 @@ function envFile(path) {
   return values;
 }
 
-async function waitForReady(url, attempts = 60) {
-  for (let attempt = 0; attempt < attempts; attempt++) {
+async function waitForReady(url, attempts = 60, timeoutMs = 5000) {
+  // Sem prazo por tentativa, o fetch pendura para sempre quando a porta está
+  // publicada mas o app ainda não responde (o caso do Docker durante a subida).
+  // Cada tentativa agora tem prazo próprio, e a espera tem limite de tentativas.
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
       if (response.ok) return true;
-    } catch { /* ainda subindo */ }
+    } catch { /* ainda subindo, sem resposta, ou estourou o prazo da tentativa */ }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
   return false;
@@ -62,11 +65,27 @@ if (integration) {
   }
   const composeEnv = { ...process.env, DB_PASSWORD: dbPassword, DB_ROOT_PASSWORD: dbRootPassword };
   const base = 'http://127.0.0.1:4101';
+
+  // Uma execução anterior morreu dentro da espera e deixou os contêineres de teste
+  // de pé, sem limpeza. O handler de saída é síncrono (spawnSync) e roda em
+  // qualquer saída, inclusive a anormal.
+  let testeNoAr = false;
+  const derrubarTeste = () => spawnSync('docker', ['compose', '-f', 'docker-compose.test.yml', 'down', '-v'],
+    { cwd: root, stdio: 'ignore', shell: true, env: composeEnv });
+  process.on('exit', (codigo) => {
+    if (!testeNoAr) return;
+    process.stderr.write(`\n(verificação saiu com ${codigo} — derrubando os contêineres de teste)\n`);
+    derrubarTeste();
+  });
+
   try {
     run('Subindo banco/API de teste efêmeros', 'docker', ['compose', '-f', 'docker-compose.test.yml', 'up', '-d', '--build'], { env: composeEnv });
+    testeNoAr = true;
     if (!(await waitForReady(`${base}/ready`))) {
       failures += 1;
-      console.error('\n✖ API de teste não ficou pronta');
+      console.error('\n✖ API de teste não ficou pronta — últimas linhas do contêiner:');
+      spawnSync('docker', ['logs', '--tail', '30', 'foodie-test-test-api-1'],
+        { cwd: root, stdio: 'inherit', shell: true, env: composeEnv });
     } else {
       run('Seed demonstrativo no banco de teste', 'pnpm', ['--filter', '@foodie/api', 'seed'], {
         env: { DB_HOST: '127.0.0.1', DB_PORT: '3308', DB_USER: 'foodie', DB_PASSWORD: dbPassword, DB_NAME: 'foodie_platform', DEMO_PASSWORD: demoPassword },
@@ -80,6 +99,7 @@ if (integration) {
     }
   } finally {
     run('Derrubando banco de teste efêmero', 'docker', ['compose', '-f', 'docker-compose.test.yml', 'down', '-v'], { env: composeEnv });
+    testeNoAr = false;
   }
 }
 
