@@ -25,7 +25,12 @@ public interface PaymentGateway {
         return Optional.empty();
     }
 
-    record WebhookRequest(Map<String, String> headers, Map<String, Object> body) {}
+    record WebhookRequest(Map<String, String> headers, Map<String, Object> body, Map<String, String> query) {
+        /** Notificação sem os parâmetros de query (usado nos testes e em quem não os tem). */
+        WebhookRequest(Map<String, String> headers, Map<String, Object> body) {
+            this(headers, body, Map.of());
+        }
+    }
 
     record ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey, String notificationUrl,
                          String cardToken, Integer installments, String docType, String docNumber, String paymentMethodId, String payerFirstName) {

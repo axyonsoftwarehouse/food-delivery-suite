@@ -208,6 +208,9 @@ public class MercadoPagoGateway implements PaymentGateway {
     @Override
     public boolean verifyWebhook(WebhookRequest request) {
         String dataId = webhookChargeId(request).orElse(null);
+        // O manifesto é assinado sobre o `data.id` da **query string** (`?data.id=...`) — a documentação
+        // do provedor é explícita, e o corpo pode trazer um id diferente (o pedido) do que vem na query.
+        String idDoManifesto = request.query().getOrDefault("data.id", dataId);
         String requestId = header(request.headers(), "x-request-id");
         String ts = null;
         String v1 = null;
@@ -220,15 +223,15 @@ public class MercadoPagoGateway implements PaymentGateway {
                 else if ("v1".equals(pair[0].trim())) v1 = pair[1].trim();
             }
         }
-        boolean valida = WebhookVerifier.verify(webhookSecret, dataId, requestId, ts, v1);
+        boolean valida = WebhookVerifier.verify(webhookSecret, idDoManifesto, requestId, ts, v1);
         if (!valida) {
             // Notificação recusada é evento de operação: sem isto só se vê "401" e não se sabe se o
             // provedor mudou o formato, se a chave está trocada ou se faltou um header. O manifesto tem
             // apenas ids e horário — o segredo nunca entra no log.
-            logger.warn("Webhook do Mercado Pago recusado (401): assinatura={} request-id={} ts={} manifesto={}",
+            logger.warn("Webhook do Mercado Pago recusado (401): assinatura={} request-id={} ts={} id-query={} id-corpo={} manifesto={}",
                 v1 == null ? "ausente" : v1.substring(0, Math.min(8, v1.length())) + "…",
                 requestId == null ? "AUSENTE" : "presente",
-                ts, WebhookVerifier.manifest(dataId, requestId, ts));
+                ts, idDoManifesto, dataId, WebhookVerifier.manifest(idDoManifesto, requestId, ts));
         }
         return valida;
     }
