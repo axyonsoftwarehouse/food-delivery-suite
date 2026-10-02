@@ -61,6 +61,8 @@ public class PaymentController {
         result.put("provider", gateways.defaultProvider());
         result.put("publicKey", mercadopagoPublicKey == null ? "" : mercadopagoPublicKey);
         result.put("cardTransparent", mercadopagoPublicKey != null && !mercadopagoPublicKey.isBlank());
+        // Sem isto o site ofereceria "pagar agora" numa instalação que recusa a cobrança online (409).
+        result.put("onlineCharges", online.directChargesAllowed());
         return result;
     }
 

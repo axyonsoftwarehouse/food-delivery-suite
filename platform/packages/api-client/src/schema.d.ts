@@ -3092,6 +3092,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payments/public-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["publicConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payments/providers": {
         parameters: {
             query?: never;
@@ -4560,6 +4576,12 @@ export interface components {
         OnlineRequest: {
             method: string;
             provider?: string;
+            cardToken?: string;
+            /** Format: int32 */
+            installments?: number;
+            docType?: string;
+            docNumber?: string;
+            paymentMethodId?: string;
         };
         ProofRequest: {
             /** Format: int64 */
@@ -12994,6 +13016,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["Descriptor"][];
+                };
+            };
+        };
+    };
+    publicConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

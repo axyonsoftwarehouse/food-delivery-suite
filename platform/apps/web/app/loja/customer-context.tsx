@@ -110,6 +110,13 @@ type CustomerValue = {
   modality: 'on_delivery' | 'online';
   setModality: (value: 'on_delivery' | 'online') => void;
   onlineCode: { text?: string; base64?: string; url?: string } | null;
+  /** Configuração do provedor: só oferecemos "pagar agora" quando o servidor aceita a cobrança online. */
+  onlineCharges: boolean;
+  cardTransparent: boolean;
+  publicKey: string;
+  /** Pedido criado esperando o cartão: o formulário do Mercado Pago preenche e a cobrança sai daqui. */
+  cardOrder: { id: number; totalCents: number } | null;
+  chargeCardOrder: (data: CardChargeData) => Promise<{ status: string; message: string }>;
   placing: boolean;
   placeOrder: () => Promise<void>;
   expandedOrderId: number | null;
@@ -117,6 +124,15 @@ type CustomerValue = {
   showAllOrders: boolean;
   setShowAllOrders: (value: boolean) => void;
   cancelOrder: (orderId: number) => Promise<void>;
+};
+
+/** O que o formulário de cartão manda para a nossa API: só o token, nunca os dados do cartão. */
+export type CardChargeData = {
+  token: string;
+  paymentMethodId?: string;
+  installments?: number;
+  docType?: string;
+  docNumber?: string;
 };
 
 const CustomerContext = createContext<CustomerValue | null>(null);
@@ -175,6 +191,10 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [changeFor, setChangeFor] = useState('');
   const [modality, setModality] = useState<'on_delivery' | 'online'>('on_delivery');
   const [onlineCode, setOnlineCode] = useState<{ text?: string; base64?: string; url?: string } | null>(null);
+  const [onlineCharges, setOnlineCharges] = useState(false);
+  const [cardTransparent, setCardTransparent] = useState(false);
+  const [publicKey, setPublicKey] = useState('');
+  const [cardOrder, setCardOrder] = useState<{ id: number; totalCents: number } | null>(null);
   const [placing, setPlacing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
   const [productLoading, setProductLoading] = useState(false);
@@ -417,13 +437,43 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     if (ok) { setShowAddressForm(false); setAddressForm({ postalCode: '', label: 'Casa', street: '', number: '', neighborhood: '' }); }
   }
 
+  /**
+   * Cobra o cartão do pedido que está esperando pagamento. Chamado pelo formulário do Mercado Pago com
+   * o **token** que ele gerou no navegador — os dados do cartão não passam por aqui.
+   */
+  async function chargeCardOrder(data: CardChargeData): Promise<{ status: string; message: string }> {
+    if (!cardOrder) throw new Error('Nenhum pedido aguardando pagamento com cartão.');
+    const payment = await request<{ status?: string; raw_status?: string }>(`/orders/${cardOrder.id}/payment/online`, {
+      method: 'POST',
+      body: JSON.stringify({
+        method: 'card',
+        cardToken: data.token,
+        paymentMethodId: data.paymentMethodId,
+        installments: data.installments,
+        docType: data.docType,
+        docNumber: data.docNumber,
+      }),
+    });
+    const status = payment.status ?? 'pending';
+    const detalhe = payment.raw_status ? ` (${payment.raw_status})` : '';
+    const message = status === 'paid'
+      ? 'Pagamento aprovado. O restaurante já pode aceitar o pedido.'
+      : status === 'rejected'
+        ? `O cartão foi recusado pelo Mercado Pago${detalhe}. Tente outro cartão.`
+        : `O Mercado Pago está analisando o pagamento${detalhe}. Acompanhe pelo pedido.`;
+    if (status !== 'rejected') setCardOrder(null);
+    setLocalMessage(message);
+    await app.refresh().catch(() => {});
+    return { status, message };
+  }
+
   async function placeOrder() {
     if (!cartRestaurantId || !cartEntries.length || (cartRestaurantClosed && !scheduledFor) || cartBusy || placing) return;
     if (orderType === 'delivery' && (!selectedAddress?.postal_code || !cartCovered || !meetsMinimum)) return;
     if (orderType === 'dine_in' && tableId === null) { setLocalMessage('Escolha a mesa para o consumo no local.'); return; }
     if (manual && manualMethodId === null) { setLocalMessage('Escolha um método de pagamento manual.'); return; }
     const changeForCents = !manual && orderType === 'delivery' && modality === 'on_delivery' && paymentMethod === 'cash' && changeFor.trim() ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
-    setPlacing(true); setLocalMessage(''); setOnlineCode(null);
+    setPlacing(true); setLocalMessage(''); setOnlineCode(null); setCardOrder(null);
     try {
       const currentCampaign = await request<{ campaignId?: number; name?: string; discountCents: number }>('/cart/campaign');
       const currentDiscount = Math.min(subtotal, (appliedCoupon?.discountCents ?? 0) + currentCampaign.discountCents);
@@ -454,11 +504,18 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
         setProofUrl(''); setProofNote(''); setManualMethodId(null); setManual(false);
         setLocalMessage('Pedido criado. Aguardando a confirmação do pagamento.');
       } else if (modality === 'online') {
-        try {
-          const payment = await request<{ image?: { qr_code?: string; qr_code_base64?: string; ticket_url?: string } }>(`/orders/${order.id}/payment/online`, { method: 'POST', body: JSON.stringify({ method: paymentMethod === 'card' ? 'card' : 'pix' }) });
-          setOnlineCode({ text: payment.image?.qr_code ?? undefined, base64: payment.image?.qr_code_base64 ?? undefined, url: payment.image?.ticket_url ?? undefined });
-          setLocalMessage('Pedido criado. Finalize o pagamento online.');
-        } catch (error) { setLocalMessage(error instanceof Error ? error.message : 'Não foi possível gerar a cobrança online.'); }
+        if (paymentMethod === 'card') {
+          // Cartão no checkout transparente: a cobrança só pode sair depois que o navegador gera o
+          // token — quem faz isso é o formulário do Mercado Pago, que aparece abaixo do pedido.
+          setCardOrder({ id: order.id, totalCents: Number(body.expectedTotalCents) });
+          setLocalMessage('Pedido criado. Informe os dados do cartão para pagar.');
+        } else {
+          try {
+            const payment = await request<{ image?: { qr_code?: string; qr_code_base64?: string; ticket_url?: string } }>(`/orders/${order.id}/payment/online`, { method: 'POST', body: JSON.stringify({ method: 'pix' }) });
+            setOnlineCode({ text: payment.image?.qr_code ?? undefined, base64: payment.image?.qr_code_base64 ?? undefined, url: payment.image?.ticket_url ?? undefined });
+            setLocalMessage('Pedido criado. Finalize o pagamento online.');
+          } catch (error) { setLocalMessage(error instanceof Error ? error.message : 'Não foi possível gerar a cobrança online.'); }
+        }
       } else {
         setLocalMessage('Pedido criado. Acompanhe o preparo abaixo.');
       }
@@ -496,6 +553,17 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (tableId !== null && !tables.some((table) => table.id === tableId)) setTableId(null); }, [tables, tableId]);
 
   useEffect(() => {
+    fetch('/backend/payments/public-config', { credentials: 'same-origin' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { onlineCharges?: boolean; cardTransparent?: boolean; publicKey?: string } | null) => {
+        setOnlineCharges(Boolean(data?.onlineCharges));
+        setCardTransparent(Boolean(data?.cardTransparent));
+        setPublicKey(data?.publicKey ?? '');
+      })
+      .catch(() => { setOnlineCharges(false); setCardTransparent(false); setPublicKey(''); });
+  }, []);
+
+  useEffect(() => {
     fetch('/backend/offline-payment-methods', { credentials: 'same-origin' })
       .then((response) => (response.ok ? response.json() : []))
       .then((data) => setOfflineMethods(Array.isArray(data) ? data : []))
@@ -514,7 +582,8 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     orderType, setOrderType, tip, setTip, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
     manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, submitReview, loadHistory,
     localMessage, showAddressForm, setShowAddressForm, addressForm, setAddressForm,
-    postalZone, postalMessage, postalLoading, saveAddress, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode, placing,
+    postalZone, postalMessage, postalLoading, saveAddress, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode,
+    onlineCharges, cardTransparent, publicKey, cardOrder, chargeCardOrder, placing,
     placeOrder, expandedOrderId, setExpandedOrderId, showAllOrders, setShowAllOrders, cancelOrder,
   };
   return <CustomerContext.Provider value={value}>{children}</CustomerContext.Provider>;

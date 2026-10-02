@@ -48,6 +48,11 @@ public class OnlinePaymentService {
         }
     }
 
+    /** A cobrança online direta está ligada nesta instalação? É o que o checkout precisa saber para oferecer. */
+    public boolean directChargesAllowed() {
+        return allowDirectOnlineCharges;
+    }
+
     @Transactional
     public Map<String, Object> startIntent(User actor, long orderId, String method, String provider) {
         return startIntent(actor, orderId, Intent.of(method, provider));
