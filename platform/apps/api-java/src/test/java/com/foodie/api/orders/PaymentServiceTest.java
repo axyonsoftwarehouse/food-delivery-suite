@@ -1,5 +1,6 @@
 package com.foodie.api.orders;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -20,7 +21,8 @@ class PaymentServiceTest {
     private final JdbcTemplate jdbc = Mockito.mock(JdbcTemplate.class);
     private final com.foodie.api.finance.LedgerService ledger = Mockito.mock(com.foodie.api.finance.LedgerService.class);
     private final com.foodie.api.rewards.RewardsService rewards = Mockito.mock(com.foodie.api.rewards.RewardsService.class);
-    private final PaymentService service = new PaymentService(jdbc, ledger, rewards);
+    private final PaymentService service = new PaymentService(jdbc, ledger, rewards, false);
+    private final PaymentService withOnline = new PaymentService(jdbc, ledger, rewards, true);
     private final User admin = new User(1, "Admin", "admin@demo.local", "admin", null);
     private final User courier = new User(5, "Entregador", "entregador@demo.local", "courier", null);
 
@@ -47,6 +49,21 @@ class PaymentServiceTest {
     void rejectsNewOnlineCharges() {
         assertEquals(409, assertThrows(ApiException.class, () -> service.create(1, "pix", "online", 1000, null)).status());
         assertEquals(409, assertThrows(ApiException.class, () -> service.create(1, "card", "online", 1000, null)).status());
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void createsOnlineChargeOnlyWhenAllowed() {
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        assertDoesNotThrow(() -> withOnline.create(1, "pix", "online", 1000, null));
+        assertDoesNotThrow(() -> withOnline.create(1, "card", "online", 1000, null));
+        verify(jdbc, Mockito.times(2)).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void onlineStillRejectsCash() {
+        assertEquals(400, assertThrows(ApiException.class, () -> withOnline.create(1, "cash", "online", 1000, null)).status());
         verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
     }
 

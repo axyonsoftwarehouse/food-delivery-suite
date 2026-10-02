@@ -7,6 +7,9 @@ app:
   migrate-only: ${MIGRATE_ONLY:false}
   payments:
     default-provider: ${PAYMENTS_DEFAULT_PROVIDER:mercadopago}
+    # Caminho de teste/homologação: permite criar cobrança online nova (hoje o produto exige
+    # recebimento direto pelo restaurante). Em produção fica desligado.
+    allow-direct-online-charges: ${PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES:false}
   auth:
     require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
     google:

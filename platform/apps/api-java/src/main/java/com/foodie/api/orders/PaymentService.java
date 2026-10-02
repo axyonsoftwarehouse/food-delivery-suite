@@ -7,6 +7,7 @@ import com.foodie.api.rewards.RewardsService;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,23 +15,31 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PaymentService {
     public static final Set<String> METHODS = Set.of("cash", "card", "pix");
+    /** Formas de pagamento que a cobrança online aceita; dinheiro só existe na entrega. */
+    public static final Set<String> ONLINE_METHODS = Set.of("card", "pix");
 
     private final JdbcTemplate jdbc;
     private final LedgerService ledger;
     private final RewardsService rewards;
+    private final boolean allowDirectOnlineCharges;
 
-    public PaymentService(JdbcTemplate jdbc, LedgerService ledger, RewardsService rewards) {
+    public PaymentService(JdbcTemplate jdbc, LedgerService ledger, RewardsService rewards,
+                          @Value("${app.payments.allow-direct-online-charges:false}") boolean allowDirectOnlineCharges) {
         this.jdbc = jdbc;
         this.ledger = ledger;
         this.rewards = rewards;
+        this.allowDirectOnlineCharges = allowDirectOnlineCharges;
     }
 
     @Transactional
     public void create(long orderId, String method, String modality, long amountDueCents, Integer changeForCents) {
         String mode = (modality == null || modality.isBlank()) ? "on_delivery" : modality;
-        if ("online".equals(mode)) throw new ApiException(409, "Pagamento online indisponível até a integração de recebimento direto do restaurante");
-        if (!"on_delivery".equals(mode)) throw new ApiException(400, "Modalidade de pagamento inválida");
+        if ("online".equals(mode) && !allowDirectOnlineCharges) {
+            throw new ApiException(409, "Pagamento online indisponível até a integração de recebimento direto do restaurante");
+        }
+        if (!"on_delivery".equals(mode) && !"online".equals(mode)) throw new ApiException(400, "Modalidade de pagamento inválida");
         if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento inválida");
+        if ("online".equals(mode) && !ONLINE_METHODS.contains(method)) throw new ApiException(400, "Pagamento online aceita Pix ou cartão");
         if (changeForCents != null) {
             if (!"cash".equals(method)) throw new ApiException(400, "Troco só se aplica a pagamento em dinheiro");
             if (changeForCents < amountDueCents) throw new ApiException(400, "O troco deve cobrir o total do pedido");

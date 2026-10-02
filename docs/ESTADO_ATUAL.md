@@ -133,8 +133,10 @@ pendente** — não há código Apple no backend).
 *(do `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`)*
 
 - **Cobrança real da assinatura** — hoje cria transação, não cobra provedor
-- **Pix/cartão online direto para a loja** — gateway ainda global; novas
-  cobranças online bloqueadas
+- **Pix/cartão online direto para a loja** — gateway ainda global; novas cobranças
+  online bloqueadas **por configuração** (`PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES=false`). Em 02/10 o
+  trecho que faltava (criar a cobrança no provedor e gravar QR/id externo) foi implementado, para
+  **teste com credencial de teste**; a rodada em staging aguarda o app de testes do Mercado Pago
 - **Acerto do passivo antigo de carteira** — `ledger_entries` e `payout_requests`
 - **Quem financia entrega e gorjeta** — decisão contratual
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
