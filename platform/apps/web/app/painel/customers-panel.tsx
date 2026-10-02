@@ -83,7 +83,7 @@ export default function CustomersPanel() {
     <section className="panel">
       <div className="panel-heading"><div><span className="eyebrow">CLIENTES</span><h2>Base de clientes</h2></div><p>Busque por nome, email ou telefone e abra a ficha do cliente.</p></div>
       <form className="ui-chips" onSubmit={(event) => { event.preventDefault(); void load(query); }}>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, email ou telefone" />
+        <input value={query} aria-label="Buscar por nome, email ou telefone" onChange={(event) => setQuery(event.target.value)} placeholder="Nome, email ou telefone" />
         <button className="secondary-button" disabled={busy}>Buscar</button>
         <a className="secondary-button" href="/backend/admin/customers/export" target="_blank" rel="noreferrer">Exportar CSV</a>
       </form>

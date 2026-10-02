@@ -198,7 +198,7 @@ export default function RestaurantTeamPanel() {
                 <span>
                   <strong>{person.name}</strong> · {person.email} · {ACCESS_LABELS[person.role] ?? person.role}
                 </span>
-                <SelectInput value={person.staffRoleId ?? ''} disabled={busy} onChange={(event) => void assignRole(person.id, event.target.value)}>
+                <SelectInput value={person.staffRoleId ?? ''} aria-label={`Papel de ${person.name}`} disabled={busy} onChange={(event) => void assignRole(person.id, event.target.value)}>
                   <option value="">Padrão do tipo</option>
                   {roles.map((role) => (
                     <option key={role.id} value={role.id}>

@@ -38,8 +38,8 @@ export default function ReportsPanel() {
       {TABS.map((item) => <button key={item.id} type="button" className={`ui-chip${tab === item.id ? ' selected' : ''}`} onClick={() => setTab(item.id)}>{item.label}</button>)}
     </div>
     <div className="ui-chips" style={{ marginBottom: 16 }}>
-      <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-      <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+      <input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} />
+      <input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} />
       {TABS.find((item) => item.id === tab)?.exportable && <a className="secondary-button" href={`/backend/admin/reports/export?report=${tab}&${query}`} target="_blank" rel="noreferrer">Exportar CSV</a>}
     </div>
     {tab === 'orders' && <OrdersReport query={query} onMessage={setMessage} />}

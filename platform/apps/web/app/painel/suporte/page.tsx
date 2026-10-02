@@ -29,7 +29,7 @@ export default function SuportePage() {
   }
 
   return <Card title={'Suporte'}>
-    <TextInput type="search" placeholder={'Nome, ID ou e-mail do responsável'} value={q} onChange={(event) => setQ(event.target.value)} />
+    <TextInput type="search" aria-label={'Buscar loja por nome, ID ou e-mail do responsável'} placeholder={'Nome, ID ou e-mail do responsável'} value={q} onChange={(event) => setQ(event.target.value)} />
     {rows.length === 0 ? <EmptyState title={'Nenhuma loja encontrada'} /> : <div className="courier-list">
       {rows.map((row) => <Link className="courier-row" key={row.id} href={`/painel/suporte/${row.id}`}>
         <div><strong>{row.name}</strong><span>#{row.id} · {row.ownerEmail ?? 'sem responsável'} · {`${row.activeOrders} pedido(s) ativo(s)`}</span></div>

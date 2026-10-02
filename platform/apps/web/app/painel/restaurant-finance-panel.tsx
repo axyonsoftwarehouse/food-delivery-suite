@@ -27,7 +27,7 @@ export default function RestaurantFinancePanel() {
     <div className="ui-chips" style={{ marginBottom: 12 }}>
       {[['summary', 'Resumo'], ['earnings', 'Ganhos'], ['reports', 'Relatórios'], ['expenses', 'Despesas']].map(([id, label]) => <button key={id} type="button" className={`ui-chip${tab === id ? ' selected' : ''}`} onClick={() => setTab(id)}>{label}</button>)}
     </div>
-    <div className="ui-chips" style={{ marginBottom: 16 }}><input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /><input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></div>
+    <div className="ui-chips" style={{ marginBottom: 16 }}><input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} /><input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} /></div>
     {tab === 'summary' && <SummaryTab query={query} onMessage={setMessage} />}
     {tab === 'earnings' && <EarningsTab query={query} onMessage={setMessage} />}
     {tab === 'reports' && <ReportsTab query={query} onMessage={setMessage} />}
@@ -57,7 +57,7 @@ function EarningsTab({ query, onMessage }: { query: string; onMessage: (m: strin
   const [groupBy, setGroupBy] = useState('day');
   const data = useGet<{ buckets: Bucket[] }>('/restaurant/finance/earnings', `groupBy=${groupBy}&${query}`, onMessage);
   return <>
-    <div className="ui-chips" style={{ marginBottom: 12 }}><select value={groupBy} onChange={(event) => setGroupBy(event.target.value)}><option value="day">Por dia</option><option value="week">Por semana</option><option value="month">Por mês</option></select></div>
+    <div className="ui-chips" style={{ marginBottom: 12 }}><select value={groupBy} aria-label="Agrupar ganhos por" onChange={(event) => setGroupBy(event.target.value)}><option value="day">Por dia</option><option value="week">Por semana</option><option value="month">Por mês</option></select></div>
     <div className="postal-range-list">{data?.buckets.length ? data.buckets.map((bucket) => <div key={bucket.period}><span><strong>{bucket.period}</strong></span><span>{bucket.orders} pedidos · {money(bucket.saleCents)} em vendas confirmadas</span></div>) : <p className="form-help">Sem vendas confirmadas no período.</p>}</div>
   </>;
 }

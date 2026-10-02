@@ -26,7 +26,7 @@ export default function TenantHealthPanel() {
 
   return <section className="panel">
     <div className="panel-heading"><div><span className="eyebrow">LOJAS</span><h2>Saúde das lojas</h2></div><p>Observação da operação via Foodie e da assinatura — sem acessar custos, estoque ou clientes da loja.</p></div>
-    <div className="ui-chips" style={{ marginBottom: 16 }}><input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /><input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></div>
+    <div className="ui-chips" style={{ marginBottom: 16 }}><input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} /><input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} /></div>
     <section className="dash-cards" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
       <div className="dash-card"><span>Lojas</span><strong>{data?.totals.restaurants ?? 0}</strong></div>
       <div className="dash-card"><span>Pedidos na plataforma</span><strong>{data?.totals.orders ?? 0}</strong></div>
