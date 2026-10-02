@@ -42,10 +42,10 @@ export default function PedidosClientePage() {
   }
 
   return <section className="customer-card customer-orders">
-    <div className="customer-card-title"><div><span className="customer-kicker">ACOMPANHE POR AQUI</span><h2>Seus pedidos</h2></div><button onClick={() => refresh().catch(() => {})} disabled={busy}>Atualizar ↻</button></div>
+    <div className="customer-card-title"><div><span className="customer-kicker">ACOMPANHE POR AQUI</span><h1>Seus pedidos</h1></div><button onClick={() => refresh().catch(() => {})} disabled={busy}>Atualizar ↻</button></div>
     {orders.length ? <><div className="customer-order-list">{(showAllOrders ? orders : orders.slice(0, 5)).map((order) => <OrderRow key={order.id} order={order} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} cancelOrder={cancelOrder} busy={busy} />)}</div>
       {orders.length > 5 && <button className="order-show-all" onClick={() => setShowAllOrders(!showAllOrders)}>{showAllOrders ? 'Mostrar menos' : `Ver todos os ${orders.length} pedidos`}</button>}</> : <p className="customer-muted">Quando você pedir, o andamento aparecerá aqui.</p>}
-    {extra.length > 0 && <><h3 className="customer-history-title">Histórico</h3><div className="customer-order-list">{extra.map((order) => <OrderRow key={order.id} order={order} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} cancelOrder={cancelOrder} busy={busy} />)}</div></>}
+    {extra.length > 0 && <><h2 className="customer-history-title">Histórico</h2><div className="customer-order-list">{extra.map((order) => <OrderRow key={order.id} order={order} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} cancelOrder={cancelOrder} busy={busy} />)}</div></>}
     {moreAvailable && <button className="order-show-all" onClick={loadMore} disabled={loadingMore}>{loadingMore ? 'Carregando...' : 'Carregar mais histórico'}</button>}
   </section>;
 }
