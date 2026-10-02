@@ -84,7 +84,7 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
     </aside>
 
     <section className="content">
-      <header className="topbar"><div><span className="eyebrow">FOODIE / OPERAÇÃO</span><h1>{`Olá, \${user.name.split(' ')[0]}!`}</h1></div><div className="top-actions"><span className={`live-status ${connection}`} title={syncedAt ? `Sincronizado às \${syncedAt}` : ''}>{connection === 'online' ? `● ao vivo` : `● sem conexão`}</span><ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/painel/pedidos?order=${orderId}`)} /><span className="role-pill">{ROLE_LABELS[user.role] ?? user.role}</span><button className="text-button" onClick={logout} disabled={busy}>{'Sair'}</button></div></header>
+      <header className="topbar"><div><span className="eyebrow">FOODIE / OPERAÇÃO</span><h1>{`Olá, ${user.name.split(' ')[0]}!`}</h1></div><div className="top-actions"><span className={`live-status ${connection}`} title={syncedAt ? `Sincronizado às ${syncedAt}` : ''}>{connection === 'online' ? `● ao vivo` : `● sem conexão`}</span><ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/painel/pedidos?order=${orderId}`)} /><span className="role-pill">{ROLE_LABELS[user.role] ?? user.role}</span><button className="text-button" onClick={logout} disabled={busy}>{'Sair'}</button></div></header>
       {message && <div className="notice" role="status">{message}</div>}
       {newOrderNotice && <div className="notice alert" role="alert">{newOrderNotice}<button className="text-button" onClick={() => setNewOrderNotice('')}>{'Dispensar'}</button></div>}
       {children}
