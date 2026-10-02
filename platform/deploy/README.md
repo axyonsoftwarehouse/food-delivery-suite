@@ -34,6 +34,10 @@ cd C:\Users\werne\WebstormProjects\food-delivery-suite\platform
 .\deploy\release.ps1 -Sha bf8a6a3    # republica um commit anterior
 ```
 
+**Ou sem abrir terminal:** dois cliques em `platform/deploy/publicar.bat` (atalho que chama o `release.ps1` e mantém a janela aberta no fim, mostrando o código de saída). Para o ensaio, `platform/deploy/publicar-ensaio.bat` — gera o pacote e confere os hashes sem tocar na VPS.
+
+> **`release.ps1` não abre com duplo clique** — o Windows não tem associação para `.ps1` e manda o arquivo para o editor de texto. Não é defeito do script: clique em `.bat`, ou chame pelo PowerShell (`.\deploy\release.ps1`).
+
 O `release.ps1`:
 
 1. resolve o commit (e **aborta se houver arquivos versionados modificados não commitados** — o pacote vem do commit, não da pasta de trabalho);

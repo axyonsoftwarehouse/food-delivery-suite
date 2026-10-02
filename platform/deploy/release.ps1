@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Gera, envia e aplica um release do Foodie na VPS.
 
