@@ -16,26 +16,33 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+/**
+ * Mercado Pago — Checkout Transparente pela <b>API de Orders</b> ({@code POST /v1/orders}).
+ *
+ * <p>Esta é a integração da aplicação do Foodie (produto "Checkout Transparente via Orders"). A cobrança
+ * antiga ({@code POST /v1/payments}, a "Payments API") é a integração <i>legacy</i> e não é atendida com
+ * as credenciais desta aplicação: ela responde {@code 401 Unauthorized use of live credentials} tanto no
+ * Pix quanto no cartão — medido em 02/10/2026 com a credencial de teste do painel, enquanto
+ * {@code GET /v1/payment_methods} e {@code POST /checkout/preferences} respondem. Pela mesma razão a
+ * preferência do Checkout Pro saiu daqui: o produto desta aplicação não é o Pro.
+ *
+ * <p>O dinheiro anda por aqui, mas <b>os dados do cartão não</b>: o número e o código de segurança viram
+ * um {@code token} no navegador (MercadoPago.js + public key) e só o token chega a este serviço.
+ */
 @Service
 public class MercadoPagoGateway implements PaymentGateway {
     private final RestClient client;
     private final String accessToken;
     private final String notificationUrl;
     private final String webhookSecret;
-    private final String paymentReturnUrl;
-    private final boolean sandbox;
 
     public MercadoPagoGateway(@Value("${app.mercadopago.access-token:}") String accessToken,
                               @Value("${app.mercadopago.base-url:https://api.mercadopago.com}") String baseUrl,
                               @Value("${app.mercadopago.notification-url:}") String notificationUrl,
-                              @Value("${app.mercadopago.webhook-secret:}") String webhookSecret,
-                              @Value("${app.mobile.payment-return-url:}") String paymentReturnUrl,
-                              @Value("${app.mercadopago.sandbox:false}") boolean sandbox) {
+                              @Value("${app.mercadopago.webhook-secret:}") String webhookSecret) {
         this.accessToken = accessToken;
         this.notificationUrl = notificationUrl;
         this.webhookSecret = webhookSecret;
-        this.paymentReturnUrl = paymentReturnUrl;
-        this.sandbox = sandbox;
         this.client = RestClient.builder().baseUrl(baseUrl).build();
     }
 
@@ -48,45 +55,68 @@ public class MercadoPagoGateway implements PaymentGateway {
     public Charge create(ChargeRequest request) {
         requireConfigured();
         try {
-            if ("pix".equals(request.method())) return createPix(request);
-            // Com o token do cartão (checkout transparente) a cobrança é nossa; sem ele, cai na
-            // preferência (Checkout Pro, redirecionamento) — caminho legado, mantido para quem
-            // tiver a aplicação configurada para o Pro.
-            if (request.cardToken() != null && !request.cardToken().isBlank()) return createCard(request);
-            return createPreference(request);
+            return createOrder(request);
         } catch (RestClientResponseException error) {
             throw new ApiException(502, "Mercado Pago recusou a cobrança: " + providerMessage(error));
         }
     }
 
     /**
-     * Cartão no checkout transparente: o {@code token} é gerado no navegador com a public key, então
-     * o número e o código de segurança do cartão <b>nunca passam por esta API</b>.
+     * Cria a order com a cobrança dentro ({@code transactions.payments}), no formato da documentação.
+     * Pix: {@code payment_method {id: pix, type: bank_transfer}} com o QR na resposta. Cartão:
+     * {@code payment_method {id: <bandeira>, type: credit_card, token, installments}}, com o token que o
+     * navegador gerou.
      */
-    private Charge createCard(ChargeRequest request) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("transaction_amount", request.amountCents() / 100.0);
-        body.put("description", request.description());
-        body.put("token", request.cardToken());
-        if (request.installments() != null) body.put("installments", request.installments());
-        body.put("external_reference", String.valueOf(request.orderId()));
-        Map<String, Object> payer = new LinkedHashMap<>();
-        payer.put("email", request.payerEmail());
-        if (request.docType() != null && request.docNumber() != null) {
-            payer.put("identification", Map.of("type", request.docType(), "number", request.docNumber()));
+    private Charge createOrder(ChargeRequest request) {
+        Map<String, Object> corpo = new LinkedHashMap<>();
+        corpo.put("type", "online");
+        corpo.put("processing_mode", "automatic");
+        corpo.put("total_amount", dinheiro(request.amountCents()));
+        corpo.put("external_reference", String.valueOf(request.orderId()));
+
+        Map<String, Object> pagador = new LinkedHashMap<>();
+        pagador.put("email", request.payerEmail());
+        // O Mercado Pago usa o primeiro nome do pagador no resultado predefinido dos testes (APRO, OTHE…).
+        if (request.payerFirstName() != null && !request.payerFirstName().isBlank()) {
+            pagador.put("first_name", request.payerFirstName());
         }
-        body.put("payer", payer);
-        if (!notificationUrl.isBlank()) body.put("notification_url", notificationUrl);
-        return toCharge(post("/v1/payments", body, request.idempotencyKey()));
+        corpo.put("payer", pagador);
+
+        Map<String, Object> meio = new LinkedHashMap<>();
+        if ("card".equals(request.method())) {
+            if (request.paymentMethodId() != null && !request.paymentMethodId().isBlank()) meio.put("id", request.paymentMethodId());
+            meio.put("type", "credit_card");
+            meio.put("token", request.cardToken());
+            if (request.installments() != null) meio.put("installments", request.installments());
+        } else {
+            meio.put("id", "pix");
+            meio.put("type", "bank_transfer");
+        }
+        Map<String, Object> pagamento = new LinkedHashMap<>();
+        pagamento.put("amount", dinheiro(request.amountCents()));
+        pagamento.put("payment_method", meio);
+        corpo.put("transactions", Map.of("payments", List.of(pagamento)));
+        if (!notificationUrl.isBlank()) corpo.put("notification_url", notificationUrl);
+
+        return fromOrder(post("/v1/orders", corpo, request.idempotencyKey()));
     }
 
+    /**
+     * Consulta a order. Cobranças criadas antes da mudança para a API de Orders guardaram um id de
+     * pagamento — para essas, o caminho antigo continua valendo, senão a conciliação de um pedido
+     * antigo quebraria.
+     */
     @Override
     public Charge fetch(String externalId) {
         requireConfigured();
         try {
-            return toCharge(get("/v1/payments/" + externalId));
-        } catch (RestClientResponseException error) {
-            throw new ApiException(502, "Mercado Pago recusou a consulta: " + providerMessage(error));
+            return fromOrder(get("/v1/orders/" + externalId));
+        } catch (RestClientResponseException naoEhOrder) {
+            try {
+                return fromPayment(get("/v1/payments/" + externalId));
+            } catch (RestClientResponseException error) {
+                throw new ApiException(502, "Mercado Pago recusou a consulta: " + providerMessage(error));
+            }
         }
     }
 
@@ -116,11 +146,16 @@ public class MercadoPagoGateway implements PaymentGateway {
         return accessToken != null && !accessToken.isBlank();
     }
 
+    /**
+     * A notificação do Mercado Pago: no Checkout Transparente via Orders o tópico é {@code order} e o id
+     * que interessa é o da order; o tópico {@code payment} continua aceito (é o que chega quando a
+     * notificação é de um pagamento).
+     */
     @Override
     public java.util.Optional<String> webhookChargeId(WebhookRequest request) {
         Map<String, Object> body = request.body();
         String type = firstString(body, "type", "topic");
-        if (type != null && !"payment".equals(type)) return java.util.Optional.empty();
+        if (type != null && !"order".equals(type) && !"payment".equals(type)) return java.util.Optional.empty();
         Object data = body.get("data");
         if (data instanceof Map<?, ?> map && map.get("id") != null) return java.util.Optional.of(String.valueOf(map.get("id")));
         return java.util.Optional.empty();
@@ -163,75 +198,43 @@ public class MercadoPagoGateway implements PaymentGateway {
         if (!configured()) throw new ApiException(503, "Pagamento online não configurado: defina MERCADOPAGO_ACCESS_TOKEN");
     }
 
-    private Charge createPix(ChargeRequest request) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("transaction_amount", request.amountCents() / 100.0);
-        body.put("description", request.description());
-        body.put("payment_method_id", "pix");
-        body.put("external_reference", String.valueOf(request.orderId()));
-        body.put("payer", Map.of("email", request.payerEmail()));
-        if (!notificationUrl.isBlank()) body.put("notification_url", notificationUrl);
-
-        Map<String, Object> payment = post("/v1/payments", body, request.idempotencyKey());
-        Charge charge = toCharge(payment);
-        Map<String, Object> data = nested(payment, "point_of_interaction", "transaction_data");
-        if (data == null) return charge;
-        return new Charge(charge.externalId(), charge.externalReference(), charge.amountCents(), charge.status(), charge.rawStatus(),
-            str(data.get("qr_code")), str(data.get("qr_code_base64")), str(data.get("ticket_url")), charge.expiresAt());
-    }
-
-    private Charge createPreference(ChargeRequest request) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("items", List.of(Map.of(
-            "title", request.description(),
-            "quantity", 1,
-            "unit_price", request.amountCents() / 100.0,
-            "currency_id", "BRL"
-        )));
-        body.put("external_reference", String.valueOf(request.orderId()));
-        body.put("payer", Map.of("email", request.payerEmail()));
-        if (!notificationUrl.isBlank()) body.put("notification_url", notificationUrl);
-        if (!paymentReturnUrl.isBlank()) {
-            body.put("back_urls", Map.of(
-                "success", paymentReturnUrl,
-                "pending", paymentReturnUrl,
-                "failure", paymentReturnUrl));
-            if (paymentReturnUrl.startsWith("http")) body.put("auto_return", "approved");
-        }
-
-        Map<String, Object> preference = post("/checkout/preferences", body, request.idempotencyKey());
-        return new Charge(str(preference.get("id")), String.valueOf(request.orderId()), request.amountCents(), "pending", "preference_created",
-            null, null, initPoint(preference), null);
-    }
-
     /**
-     * Escolhe o ponto de entrada da preferência. Em ambiente de teste vale o {@code sandbox_init_point}:
-     * o ponto de entrada de produção recusa os cartões de teste. A marcação vem da configuração
-     * ({@code app.mercadopago.sandbox}), decidida na conferência do token — o prefixo do token não
-     * separa conta real de usuário de teste, porque o access token de usuário de teste também começa
-     * com {@code APP_USR-}.
+     * Converte a order na cobrança do Foodie. Quando existe pagamento dentro da order, é o status dele que
+     * vale (o da order é mais grosso); {@code status_detail} fica em {@code raw_status}, que é o que
+     * explica a recusa para quem está na tela. O id guardado é o da <b>order</b>, que é o que a
+     * notificação e a consulta usam.
      */
-    static String chooseInitPoint(Map<String, Object> preference, boolean sandbox) {
-        String sandboxPoint = str(preference.get("sandbox_init_point"));
-        if (sandbox && sandboxPoint != null && !sandboxPoint.isBlank()) return sandboxPoint;
-        return str(preference.get("init_point"));
+    private Charge fromOrder(Map<String, Object> order) {
+        Map<String, Object> pagamento = primeiroPagamento(order);
+        String status = pagamento != null ? str(pagamento.get("status")) : str(order.get("status"));
+        String detalhe = pagamento != null ? str(pagamento.get("status_detail")) : str(order.get("status_detail"));
+        long centavos = pagamento != null && pagamento.get("amount") != null
+            ? amountCents(pagamento.get("amount"))
+            : amountCents(order.get("total_amount"));
+        Map<String, Object> meio = pagamento == null ? null : nested(pagamento, "payment_method");
+        return new Charge(str(order.get("id")), str(order.get("external_reference")), centavos,
+            MercadoPagoStatus.normalize(status), textoOu(detalhe, status),
+            meio == null ? null : str(meio.get("qr_code")), meio == null ? null : str(meio.get("qr_code_base64")),
+            meio == null ? null : str(meio.get("ticket_url")), instant(order.get("date_of_expiration")));
     }
 
-    private String initPoint(Map<String, Object> preference) {
-        return chooseInitPoint(preference, sandbox || isTestTokenPrefix());
-    }
-
-    private boolean isTestTokenPrefix() {
-        return accessToken != null && accessToken.startsWith("TEST-");
-    }
-
-    private Charge toCharge(Map<String, Object> payment) {
-        String raw = str(payment.get("status"));
-        String detalhe = str(payment.get("status_detail"));
-        // raw_status guarda o detalhe quando existe (ex.: cc_rejected_insufficient_amount), que é o
-        // que explica a recusa para quem está na tela.
+    /** Caminho antigo (Payments API), só para consultar cobrança criada antes desta mudança. */
+    private Charge fromPayment(Map<String, Object> payment) {
+        String status = str(payment.get("status"));
         return new Charge(str(payment.get("id")), str(payment.get("external_reference")), amountCents(payment.get("transaction_amount")),
-            MercadoPagoStatus.normalize(raw), detalhe == null || detalhe.isBlank() ? raw : detalhe, null, null, null, instant(payment.get("date_of_expiration")));
+            MercadoPagoStatus.normalize(status), textoOu(str(payment.get("status_detail")), status),
+            null, null, null, instant(payment.get("date_of_expiration")));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> primeiroPagamento(Map<String, Object> order) {
+        Object transacoes = order.get("transactions");
+        if (!(transacoes instanceof Map<?, ?> mapa)) return null;
+        Object pagamentos = mapa.get("payments");
+        if (pagamentos instanceof List<?> lista && !lista.isEmpty() && lista.getFirst() instanceof Map<?, ?> primeiro) {
+            return (Map<String, Object>) primeiro;
+        }
+        return null;
     }
 
     private Map<String, Object> get(String path) {
@@ -256,6 +259,15 @@ public class MercadoPagoGateway implements PaymentGateway {
             current = map.get(key);
         }
         return current instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
+    }
+
+    private static String textoOu(String preferido, String alternativa) {
+        return preferido == null || preferido.isBlank() ? alternativa : preferido;
+    }
+
+    /** O Mercado Pago espera o valor como texto com duas casas ("50.00"). */
+    static String dinheiro(long centavos) {
+        return String.format(java.util.Locale.ROOT, "%.2f", centavos / 100.0);
     }
 
     private static String str(Object value) {

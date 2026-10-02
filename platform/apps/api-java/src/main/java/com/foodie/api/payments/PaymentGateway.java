@@ -28,10 +28,16 @@ public interface PaymentGateway {
     record WebhookRequest(Map<String, String> headers, Map<String, Object> body) {}
 
     record ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey, String notificationUrl,
-                         String cardToken, Integer installments, String docType, String docNumber) {
-        /** Cobrança sem cartão tokenizado (Pix e preferência de checkout). */
+                         String cardToken, Integer installments, String docType, String docNumber, String paymentMethodId, String payerFirstName) {
+        /** Cartão sem a bandeira e sem o nome do pagador (a bandeira vem do formulário quando existe). */
+        ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey, String notificationUrl,
+                      String cardToken, Integer installments, String docType, String docNumber) {
+            this(orderId, amountCents, method, description, payerEmail, idempotencyKey, notificationUrl, cardToken, installments, docType, docNumber, null, null);
+        }
+
+        /** Cobrança sem cartão tokenizado (Pix). */
         ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey, String notificationUrl) {
-            this(orderId, amountCents, method, description, payerEmail, idempotencyKey, notificationUrl, null, null, null, null);
+            this(orderId, amountCents, method, description, payerEmail, idempotencyKey, notificationUrl, null, null, null, null, null, null);
         }
     }
 

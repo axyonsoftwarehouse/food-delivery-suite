@@ -1,42 +1,31 @@
 package com.foodie.api.payments;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestClientResponseException;
 
-/** Ponto de entrada da preferência e a mensagem que o provedor devolve. */
+/**
+ * O formato que a API de Orders cobra e a mensagem que o provedor devolve.
+ *
+ * <p>Os testes de ponto de entrada de preferência (Checkout Pro) saíram junto com o caminho antigo:
+ * o produto desta aplicação é o Checkout Transparente via Orders, e a preferência não é mais chamada.
+ */
 class MercadoPagoGatewayTest {
-    private Map<String, Object> preference(String initPoint, String sandboxInitPoint) {
-        Map<String, Object> preference = new LinkedHashMap<>();
-        if (initPoint != null) preference.put("init_point", initPoint);
-        if (sandboxInitPoint != null) preference.put("sandbox_init_point", sandboxInitPoint);
-        return preference;
-    }
 
     @Test
-    void testCredentialUsesSandboxEntryPoint() {
-        assertEquals("https://sandbox.mercadopago.com.br/x",
-            MercadoPagoGateway.chooseInitPoint(preference("https://www.mercadopago.com.br/x", "https://sandbox.mercadopago.com.br/x"), true));
-    }
-
-    @Test
-    void realCredentialUsesProductionEntryPoint() {
-        assertEquals("https://www.mercadopago.com.br/x",
-            MercadoPagoGateway.chooseInitPoint(preference("https://www.mercadopago.com.br/x", "https://sandbox.mercadopago.com.br/x"), false));
-    }
-
-    @Test
-    void fallsBackWhenTheProviderDoesNotSendTheSandboxPoint() {
-        assertEquals("https://www.mercadopago.com.br/x",
-            MercadoPagoGateway.chooseInitPoint(preference("https://www.mercadopago.com.br/x", null), true));
-        assertNull(MercadoPagoGateway.chooseInitPoint(preference(null, null), true));
+    void amountsGoAsTextWithTwoDecimals() {
+        // A API de Orders espera "50.00" (texto). Mandar 50 e receber recusa por formato seria um 502
+        // que ninguém entenderia olhando a tela.
+        assertEquals("50.00", MercadoPagoGateway.dinheiro(5000));
+        assertEquals("5.00", MercadoPagoGateway.dinheiro(500));
+        assertEquals("0.05", MercadoPagoGateway.dinheiro(5));
+        assertEquals("0.01", MercadoPagoGateway.dinheiro(1));
+        assertEquals("1234.56", MercadoPagoGateway.dinheiro(123456));
+        assertEquals("0.00", MercadoPagoGateway.dinheiro(0));
     }
 
     private RestClientResponseException erro(int status, String corpo) {
@@ -48,7 +37,7 @@ class MercadoPagoGatewayTest {
 
     @Test
     void surfacesWhatTheProviderSaid() {
-        // Os dois casos reais de 02/10: email do pagador recusado e Pix barrado no sandbox.
+        // Os dois casos reais de 02/10: email do pagador recusado e a cobrança na API antiga.
         assertEquals("HTTP 400 - payer.email must be a valid email",
             MercadoPagoGateway.providerMessage(erro(400, "{\"message\":\"payer.email must be a valid email\",\"error\":\"bad_request\",\"status\":400}")));
         assertEquals("HTTP 401 - Unauthorized use of live credentials",
