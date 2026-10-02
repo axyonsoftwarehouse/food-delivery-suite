@@ -17,7 +17,7 @@ export default function PerfilClientePage() {
 
   return <>
     <section className="customer-card">
-      <div className="customer-card-title"><div><span className="customer-kicker">SUA CONTA</span><h2>Perfil</h2></div><button onClick={logout} disabled={busy}>Sair</button></div>
+      <div className="customer-card-title"><div><span className="customer-kicker">SUA CONTA</span><h1>Perfil</h1></div><button onClick={logout} disabled={busy}>Sair</button></div>
       <div className="customer-order-list">
         <div className="customer-cart-row"><div><strong>Nome</strong><small>{user.name}</small></div></div>
         <div className="customer-cart-row"><div><strong>Email</strong><small>{user.email}</small></div><span className={`customer-order-status ${security?.emailVerified ? 'delivered' : ''}`}>{security ? (security.emailVerified ? 'Verificado' : 'Pendente') : '...'}</span></div>
