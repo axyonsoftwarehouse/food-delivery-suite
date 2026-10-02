@@ -132,9 +132,6 @@ async function courierProfile(courierId: number, vehicle: string, plate: string,
 async function courierIncentive(courierId: number, description: string, amount: number) {
   await db.query('INSERT INTO courier_incentives (courier_id, description, amount_cents) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM courier_incentives WHERE courier_id = ? AND description = ?)', [courierId, description, amount, courierId, description]);
 }
-async function translation(locale: string, key: string, value: string) {
-  await db.query('INSERT INTO translations (locale, key_name, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)', [locale, key, value]);
-}
 async function ledger(party: string, partyId: number | null, orderId: number | null, kind: string, amount: number, description: string) {
   await db.query('INSERT INTO ledger_entries (party, party_id, order_id, kind, amount_cents, description) VALUES (?, ?, ?, ?, ?, ?)', [party, partyId, orderId, kind, amount, description]);
 }
@@ -446,12 +443,6 @@ try {
     await db.query("INSERT INTO ledger_entries (party, party_id, order_id, kind, amount_cents, description) SELECT 'customer', ?, ?, 'cashback', ?, ? WHERE NOT EXISTS (SELECT 1 FROM ledger_entries l WHERE l.order_id = ? AND l.kind = 'cashback')", [customerId, Number(o.id), cashback, `Cashback do pedido #${o.id}`, Number(o.id)]);
   }
   await db.query("INSERT INTO ledger_entries (party, party_id, order_id, kind, amount_cents, description) SELECT 'customer', ?, NULL, 'bonus', 500, 'Bônus por indicação' WHERE NOT EXISTS (SELECT 1 FROM ledger_entries WHERE party = 'customer' AND party_id = ? AND kind = 'bonus')", [customerId, customerId]);
-
-  // Traduções administráveis
-  await translation('es', 'loja.cart', 'Carrito');
-  await translation('en', 'loja.cart', 'Cart');
-  await translation('es', 'nav.panel.finance', 'Finanzas');
-  await translation('en', 'nav.panel.finance', 'Finance');
 
   console.log('Dados demonstrativos prontos: 6 restaurantes, cuisines, storefronts, módulos, banners, campanhas, anúncios, cashback, assinaturas, estoque, fidelidade, indicação e financeiro populado.');
 } finally {

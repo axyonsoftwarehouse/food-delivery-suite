@@ -103,12 +103,15 @@ pendente** — não há código Apple no backend).
 - **Apple Sign In** (E47) — pendente (confirmado: sem código Apple)
 - **S3 storage** (E03/E37) — abstração pronta (`StorageProvider`), driver S3 não
   implementado; driver não configurado responde **503**
-- **i18n (E34)** — **só português, decidido e executado em 01/10.** A camada de tradução saiu:
-  os 156 textos que passavam pelo dicionário viraram literais nos componentes, e saíram o
-  `messages.ts` (509 entradas em pt/en/es), o provider, o hook e o seletor de idioma — que
-  oferecia EN/ES e entregava **tela misturada**, porque o percurso do cliente (carrinho, pedidos,
-  perfil, cardápio) nunca traduziu. Segue existindo apenas o painel *Conteúdo → Traduções*, que
-  grava traduções no banco (`/admin/translations`) e é decisão separada.
+- **i18n (E34)** — **encerrado: a plataforma é só em português.** A camada de tradução saiu em
+  01/10 (PR #10): os 156 textos que passavam pelo dicionário viraram literais nos componentes, e
+  saíram o `messages.ts` (509 entradas em pt/en/es), o provider, o hook e o seletor de idioma —
+  que oferecia EN/ES e entregava **tela misturada**, porque o percurso do cliente (carrinho, pedidos,
+  perfil, cardápio) nunca traduziu. Em **02/10** saiu o que restava: a aba *Traduções* do painel
+  Conteúdo (que voltou a ser só *Páginas*), o `TranslationController` (`/admin/translations` e
+  `/public/translations/{locale}`, sem nenhum consumidor), os quatro registros de exemplo do seed
+  e a tabela (`V055` derruba a `translations`; a criação fica em `V046` como histórico). O contrato
+  do `api-client` foi regerado.
 - **Cache offline do catálogo** (E42) — follow-up
 - **PDF próprio de fatura** (E27) — hoje é HTML imprimível
 - **Interface dedicada de chat** (E38) — backend pronto, UI pendente

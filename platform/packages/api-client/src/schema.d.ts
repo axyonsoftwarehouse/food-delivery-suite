@@ -1188,22 +1188,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/translations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list_3"];
-        put?: never;
-        post: operations["upsert"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/support/restaurants/{id}/tags": {
         parameters: {
             query?: never;
@@ -1499,7 +1483,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_4"];
+        get: operations["list_3"];
         put?: never;
         post: operations["create_4"];
         delete?: never;
@@ -1659,7 +1643,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_5"];
+        get: operations["list_4"];
         put?: never;
         post: operations["create_5"];
         delete?: never;
@@ -1739,7 +1723,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_6"];
+        get: operations["list_5"];
         put?: never;
         post: operations["create_6"];
         delete?: never;
@@ -1803,7 +1787,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_6"];
         put?: never;
         post: operations["create_7"];
         delete?: never;
@@ -2964,22 +2948,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/public/translations/{locale}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["publicTranslations"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/public/storefronts": {
         parameters: {
             query?: never;
@@ -3147,7 +3115,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_8"];
+        get: operations["list_7"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3403,7 +3371,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_9"];
+        get: operations["list_8"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3755,7 +3723,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_10"];
+        get: operations["list_9"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4027,7 +3995,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_11"];
+        get: operations["list_10"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4207,22 +4175,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["deleteMethod"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/translations/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["delete_7"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4795,11 +4747,6 @@ export interface components {
         SuspensionRequest: {
             suspended?: boolean;
             reason?: string;
-        };
-        TranslationRequest: {
-            locale: string;
-            key: string;
-            value?: string;
         };
         SupportRequestTagRequest: {
             reason?: string;
@@ -8174,60 +8121,6 @@ export interface operations {
             };
         };
     };
-    list_3: {
-        parameters: {
-            query?: {
-                locale?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    upsert: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TranslationRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     tags: {
         parameters: {
             query?: never;
@@ -9031,7 +8924,7 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    list_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -9484,7 +9377,7 @@ export interface operations {
             };
         };
     };
-    list_5: {
+    list_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -9724,7 +9617,7 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -9908,7 +9801,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -12897,30 +12790,6 @@ export interface operations {
             };
         };
     };
-    publicTranslations: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                locale: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: string;
-                    };
-                };
-            };
-        };
-    };
     directory: {
         parameters: {
             query?: never;
@@ -13153,7 +13022,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -13549,7 +13418,7 @@ export interface operations {
             };
         };
     };
-    list_9: {
+    list_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -14136,7 +14005,7 @@ export interface operations {
             };
         };
     };
-    list_10: {
+    list_9: {
         parameters: {
             query?: {
                 restaurantId?: number;
@@ -14586,7 +14455,7 @@ export interface operations {
             };
         };
     };
-    list_11: {
+    list_10: {
         parameters: {
             query?: {
                 query?: string;
@@ -14872,32 +14741,6 @@ export interface operations {
         };
     };
     deleteMethod: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
-    delete_7: {
         parameters: {
             query?: never;
             header?: never;

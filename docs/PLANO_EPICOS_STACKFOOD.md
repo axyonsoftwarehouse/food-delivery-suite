@@ -539,7 +539,9 @@ Construtor de landing (admin + React): serviços, oportunidades, FAQ, depoimento
 
 ## E34 — i18n administrável
 Gerenciar idiomas e traduções (conteúdo, não só UI), direção RTL. Tabela `translations`.
-**P2.**
+**P2. Desfeito em 02/10/2026:** a plataforma é só em português — saíram a aba *Traduções* do
+painel Conteúdo, o `TranslationController` (`/admin/translations`, `/public/translations/{locale}`),
+os dados do seed e a tabela (`V055`). A camada de UI (pt/en/es) já havia saído em 01/10 (PR #10).
 
 ## E35 — Analytics e social
 Scripts GA/GTM/Pixel/TikTok/Snapchat/LinkedIn/Pinterest/Twitter configuráveis; links de redes
