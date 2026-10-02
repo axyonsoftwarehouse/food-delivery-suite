@@ -6,12 +6,17 @@ REM  Clique duas vezes e cole o token quando o script pedir: o valor nao
 REM  aparece na tela.
 REM
 REM  Com parametros:
+REM      configurar-mercadopago.bat -Diagnosticar
 REM      configurar-mercadopago.bat -Ensaio
+REM      configurar-mercadopago.bat -ComoTeste
 REM      configurar-mercadopago.bat -LigarCobrancaOnline
 REM      configurar-mercadopago.bat -NotificationUrl "https://api.staging.../webhooks/mercadopago"
 REM      configurar-mercadopago.bat -WebhookSecret
 REM      configurar-mercadopago.bat -EnvFile "C:\outro\.env"
 REM      configurar-mercadopago.bat -NaoConferir
+REM
+REM  -Diagnosticar pergunta ao Mercado Pago o que a conta e (email/tags) e nao grava nada.
+REM  Token que comeca com APP_USR- pode ser conta real OU usuario de teste: o prefixo nao decide.
 REM
 REM  Para o ambiente no ar (staging), em vez do .env local:
 REM      configurar-mercadopago.bat -Remoto -LigarCobrancaOnline -NotificationUrl "https://api.staging.2.29.42.104.sslip.io/webhooks/mercadopago"

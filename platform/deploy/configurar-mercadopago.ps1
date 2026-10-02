@@ -77,6 +77,8 @@ param(
     [switch] $PermitirProducao,
     [switch] $NaoConferir,
     [switch] $Ensaio,
+    [switch] $Diagnosticar,
+    [switch] $ComoTeste,
     [switch] $Remoto,
     [string] $SshHost = 'deploy@2.29.42.104',
     [string] $ChaveSsh,
@@ -134,7 +136,7 @@ function Ler-DeArquivo([string]$caminho) {
 
 function Classe-Do-Token([string]$valor) {
     if ($valor.StartsWith('TEST-')) { return 'teste' }
-    if ($valor.StartsWith('APP_USR-')) { return 'producao' }
+    if ($valor.StartsWith('APP_USR-')) { return 'app_usr' }
     return 'desconhecida'
 }
 
@@ -177,34 +179,65 @@ if ([string]::IsNullOrWhiteSpace($token)) { Falhar 'nenhum token informado.' }
 $token = $token.Trim()
 
 $classe = Classe-Do-Token $token
-Info ("token: {0} caracteres, classe {1}" -f $token.Length, $classe)
-switch ($classe) {
-    'teste' { Ok 'credencial de TESTE - o dinheiro dessas cobrancas e ficticio.' }
-    'producao' {
-        if (-not $PermitirProducao) {
-            Falhar 'isto e uma credencial de PRODUCAO (APP_USR-). Este script nao grava producao por padrao: a cobranca cai na conta dona do token e a decisao comercial do Foodie ainda esta aberta. Se for mesmo a intencao, rode de novo com -PermitirProducao.'
-        }
-        Warn 'credencial de PRODUCAO autorizada por parametro - cobranca real na conta dona do token.'
-    }
-    default { Warn 'o token nao comeca com TEST- nem APP_USR-; confira se copiou o access token (e nao a public key).' }
-}
+Info ("token: {0} caracteres, prefixo {1}" -f $token.Length, $classe)
+if ($classe -eq 'teste') { Ok 'credencial de TESTE da aplicacao (TEST-) - o dinheiro dessas cobrancas e ficticio.' }
+elseif ($classe -eq 'app_usr') { Info 'prefixo APP_USR-: pode ser a conta real da aplicacao ou um USUARIO DE TESTE - quem responde e o Mercado Pago, nao o prefixo.' }
+else { Warn 'o token nao comeca com TEST- nem APP_USR-; confira se copiou o access token (e nao a public key).' }
 
 # ------------------------------------------------------- conferir na API
+# O prefixo do token NAO separa conta real de usuario de teste (o access token de usuario de
+# teste tambem comeca com APP_USR-). Quem decide e o que o /users/me devolve.
 Write-Host "`n==> Conferindo o token no Mercado Pago" -ForegroundColor Cyan
+$usuarioDeTeste = $false
+$conferido = $false
 if ($NaoConferir) {
-    Warn 'conferencia com a API pulada (-NaoConferir): o token sera gravado sem validacao.'
+    Warn 'conferencia com a API pulada (-NaoConferir): sem ela nao da para separar conta real de usuario de teste.'
 } else {
     try {
         $resposta = Invoke-WebRequest -Uri 'https://api.mercadopago.com/users/me' -Method Get `
             -Headers @{ Authorization = "Bearer $token" } -UseBasicParsing -TimeoutSec 25
         $conta = $resposta.Content | ConvertFrom-Json
+        $conferido = $true
         Ok ("token aceito: conta '{0}' (id {1}, site {2})" -f $conta.nickname, $conta.id, $conta.site_id)
+        $rotuloTags = if ($conta.tags) { ($conta.tags -join ', ') } else { '(nenhuma)' }
+        $email = if ($conta.email) { [string]$conta.email } else { '(vazio)' }
+        $tipo = if ($conta.user_type) { [string]$conta.user_type } else { '(vazio)' }
+        Info ("email : {0}" -f $email)
+        Info ("tags  : {0}" -f $rotuloTags)
+        Info ("tipo  : {0}" -f $tipo)
+        $usuarioDeTeste = (($conta.tags -contains 'test_user') -or ($email -match '(?i)test_?user|@testuser\.com'))
+        if ($usuarioDeTeste) { Ok 'a conta e de USUARIO DE TESTE - dinheiro ficticio.' }
+        else { Warn 'a conta NAO tem marcador de usuario de teste na resposta do Mercado Pago.' }
     } catch {
         $codigo = $null
         if ($_.Exception.Response) { $codigo = [int]$_.Exception.Response.StatusCode.value__ }
         if ($codigo -eq 401) { Falhar 'o Mercado Pago recusou o token (401). Confira se copiou o access token inteiro e se ele e do app certo.' }
-        Warn ("nao consegui confirmar o token agora ({0}: {1}). O valor sera gravado mesmo assim." -f $codigo, $_.Exception.Message)
+        Warn ("nao consegui confirmar o token agora ({0}: {1})." -f $codigo, $_.Exception.Message)
     }
+}
+
+if ($Diagnosticar) {
+    Write-Host "`n==> Diagnostico (-Diagnosticar): NADA foi gravado" -ForegroundColor Cyan
+    Info ("prefixo do token .........: {0}" -f $classe)
+    Info ("conferido no Mercado Pago : {0}" -f $conferido)
+    Info ("usuario de teste ..........: {0}" -f $usuarioDeTeste)
+    $decisao = if ($classe -eq 'teste' -or $usuarioDeTeste -or $ComoTeste) { 'grava como ambiente de TESTE' }
+        elseif ($PermitirProducao) { 'grava como PRODUCAO (a pedido)' }
+        else { 'recusa (rode com -ComoTeste se e usuario de teste, ou -PermitirProducao se e cobranca real)' }
+    Info ("o script faria ...........: {0}" -f $decisao)
+    Write-Host ''
+    exit 0
+}
+
+# ------------------------------------------------------------- o portao
+$sandbox = $false
+if ($classe -eq 'teste' -or $usuarioDeTeste -or $ComoTeste) {
+    $sandbox = $true
+    if ($ComoTeste) { Warn 'tratando como ambiente de TESTE por -ComoTeste (voce declarou que a conta e de teste).' }
+} elseif ($PermitirProducao) {
+    Warn 'tratando como PRODUCAO por -PermitirProducao - a cobranca cai na conta dona do token.'
+} else {
+    Falhar 'esta credencial nao comeca com TEST- e o Mercado Pago nao a marcou como usuario de teste (veja email/tags acima). Se ela e de teste mesmo (um usuario de teste do painel), rode de novo com -ComoTeste; se a intencao e cobrar de verdade nesta conta, rode com -PermitirProducao - sabendo que o dinheiro cai na conta dona do token e que a decisao comercial do Foodie ainda esta aberta.'
 }
 
 # --------------------------------------------------------- segredo webhook
@@ -220,6 +253,7 @@ if ($WebhookSecret -and -not $WebhookSecretDeArquivo) {
 # ------------------------------------------------------------ gravar
 $plano = [ordered]@{}
 $plano['MERCADOPAGO_ACCESS_TOKEN'] = $token
+$plano['MERCADOPAGO_SANDBOX'] = if ($sandbox) { 'true' } else { 'false' }
 if ($segredo) { $plano['MERCADOPAGO_WEBHOOK_SECRET'] = $segredo }
 if ($NotificationUrl) { $plano['MERCADOPAGO_NOTIFICATION_URL'] = $NotificationUrl }
 if ($LigarCobrancaOnline) {

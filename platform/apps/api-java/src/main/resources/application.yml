@@ -44,6 +44,9 @@ app:
     webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
     base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
     notification-url: ${MERCADOPAGO_NOTIFICATION_URL:}
+    # Ambiente de teste: usa o ponto de entrada de sandbox na preferência (o de produção recusa
+    # cartão de teste). O script de credencial grava isto conforme o que a conta é.
+    sandbox: ${MERCADOPAGO_SANDBOX:false}
   mapbox:
     token: ${MAPBOX_TOKEN:}
     base-url: ${MAPBOX_BASE_URL:https://api.mapbox.com}
