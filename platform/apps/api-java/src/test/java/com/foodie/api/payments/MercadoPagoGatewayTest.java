@@ -36,6 +36,16 @@ class MercadoPagoGatewayTest {
     }
 
     @Test
+    void detectsAReusedIdempotencyKey() {
+        // A chave fica guardada no provedor: depois de uma tentativa que falhou, o mesmo valor é recusado
+        // e a cobrança precisa sair com chave nova (senão o pedido fica sem pagamento possível).
+        assertEquals(true, MercadoPagoGateway.chaveJaUsada(erro(409,
+            "{\"errors\":[{\"code\":\"idempotency_key_already_used\",\"message\":\"X-Idempotency-Key already used. Please retry with a different value.\"}]}")));
+        assertEquals(false, MercadoPagoGateway.chaveJaUsada(erro(409, "{\"errors\":[{\"code\":\"outra_coisa\"}]}")));
+        assertEquals(false, MercadoPagoGateway.chaveJaUsada(erro(400, "{\"message\":\"X-Idempotency-Key already used\"}")));
+    }
+
+    @Test
     void surfacesWhatTheProviderSaid() {
         // Os dois casos reais de 02/10: email do pagador recusado e a cobrança na API antiga.
         assertEquals("HTTP 400 - payer.email must be a valid email",

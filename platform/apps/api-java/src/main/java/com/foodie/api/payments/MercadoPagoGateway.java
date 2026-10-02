@@ -57,10 +57,29 @@ public class MercadoPagoGateway implements PaymentGateway {
     public Charge create(ChargeRequest request) {
         requireConfigured();
         try {
-            return createOrder(request);
+            return createOrder(request, request.idempotencyKey());
         } catch (RestClientResponseException error) {
+            // O provedor guarda a chave de idempotência: se a tentativa anterior falhou (um 4xx), o mesmo
+            // valor passa a ser recusado com "X-Idempotency-Key already used" e o pedido ficaria **sem
+            // cobrança possível** até a chave expirar. Só nesse caso a segunda tentativa usa chave nova —
+            // o que é seguro, porque um 409 de chave usada significa que a tentativa anterior não criou
+            // ordem nenhuma (se tivesse criado, o provedor repetiria a resposta, não recusaria).
+            if (chaveJaUsada(error)) {
+                try {
+                    return createOrder(request, request.idempotencyKey() + "-r2");
+                } catch (RestClientResponseException segunda) {
+                    throw new ApiException(502, "Mercado Pago recusou a cobrança: " + providerMessage(segunda));
+                }
+            }
             throw new ApiException(502, "Mercado Pago recusou a cobrança: " + providerMessage(error));
         }
+    }
+
+    /** O provedor avisou que aquela chave de idempotência já foi usada (e a tentativa anterior falhou). */
+    static boolean chaveJaUsada(RestClientResponseException error) {
+        if (error.getStatusCode().value() != 409) return false;
+        String corpo = error.getResponseBodyAsString();
+        return corpo != null && corpo.toLowerCase(java.util.Locale.ROOT).contains("idempotency");
     }
 
     /**
@@ -69,7 +88,7 @@ public class MercadoPagoGateway implements PaymentGateway {
      * {@code payment_method {id: <bandeira>, type: credit_card, token, installments}}, com o token que o
      * navegador gerou.
      */
-    private Charge createOrder(ChargeRequest request) {
+    private Charge createOrder(ChargeRequest request, String idempotencyKey) {
         Map<String, Object> corpo = new LinkedHashMap<>();
         corpo.put("type", "online");
         corpo.put("processing_mode", "automatic");
@@ -103,7 +122,7 @@ public class MercadoPagoGateway implements PaymentGateway {
         // (`400 unsupported_properties: additionalProperties '$.notification_url' not allowed`).
         // A notificação de orders se configura no painel do Mercado Pago (Webhooks > Configurar
         // notificações > evento "Order (Mercado Pago)"), apontando para o nosso /webhooks/mercadopago.
-        return fromOrder(post("/v1/orders", corpo, request.idempotencyKey()));
+        return fromOrder(post("/v1/orders", corpo, idempotencyKey));
     }
 
     /**
