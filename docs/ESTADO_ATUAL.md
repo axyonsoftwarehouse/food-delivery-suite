@@ -20,7 +20,7 @@ Mantenha curto. Se crescer, corte.
 | `origin/main` | sincronizado com a `main` local |
 | **Código na VPS** | **`dd7e2c8`** — o `main` inteiro (PRs #1–#17 incluídas), conferido em 02/10 pelo `/home/deploy/foodie-platform/.deployed` (`previous=bf7b229`, às 14:10 UTC) |
 | Schema (`/ready`) | `055` (`V055__drop_translations.sql`), na VPS e no `HEAD` |
-| Distância | **nenhuma**: VPS e `main` no mesmo commit |
+| Distância | a VPS roda o **código** de `dd7e2c8`; a `main` está um commit à frente (`e678e90`, docs do PR #18) — o pacote de deploy é a pasta `platform/`, então o que roda é o mesmo |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
 | Testes Java | `main`: **283** execuções (`mvn test` em 02/10, depois da remoção do painel de traduções) |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
