@@ -148,7 +148,22 @@ public class MercadoPagoGateway implements PaymentGateway {
 
         Map<String, Object> preference = post("/checkout/preferences", body, request.idempotencyKey());
         return new Charge(str(preference.get("id")), String.valueOf(request.orderId()), request.amountCents(), "pending", "preference_created",
-            null, null, str(preference.get("init_point")), null);
+            null, null, initPoint(preference), null);
+    }
+
+    /**
+     * Com credencial de teste o Mercado Pago devolve os dois pontos de entrada, e o de produção
+     * recusa os cartões de teste — por isso a preferência do sandbox vem primeiro quando o token
+     * é de teste (prefixo TEST-).
+     */
+    private String initPoint(Map<String, Object> preference) {
+        String sandbox = str(preference.get("sandbox_init_point"));
+        if (isTestToken() && sandbox != null && !sandbox.isBlank()) return sandbox;
+        return str(preference.get("init_point"));
+    }
+
+    private boolean isTestToken() {
+        return accessToken != null && accessToken.startsWith("TEST-");
     }
 
     private Charge toCharge(Map<String, Object> payment) {

@@ -2,10 +2,12 @@ package com.foodie.api.payments;
 
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
+import java.sql.Timestamp;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,14 +15,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class OnlinePaymentService {
     private static final Set<String> METHODS = Set.of("pix", "card");
+    /** Valores aceitos pela coluna status de order_payments. */
+    private static final Set<String> STATUSES = Set.of("pending", "paid", "cancelled", "refunded", "rejected", "expired");
     private static final Set<String> CLOSED_ORDER = Set.of("delivered", "rejected", "cancelled", "expired", "failed");
 
     private final JdbcTemplate jdbc;
     private final PaymentGatewayRegistry gateways;
+    private final boolean allowDirectOnlineCharges;
 
-    public OnlinePaymentService(JdbcTemplate jdbc, PaymentGatewayRegistry gateways) {
+    public OnlinePaymentService(JdbcTemplate jdbc, PaymentGatewayRegistry gateways,
+                                @Value("${app.payments.allow-direct-online-charges:false}") boolean allowDirectOnlineCharges) {
         this.jdbc = jdbc;
         this.gateways = gateways;
+        this.allowDirectOnlineCharges = allowDirectOnlineCharges;
     }
 
     @Transactional
@@ -34,7 +41,7 @@ public class OnlinePaymentService {
         if (CLOSED_ORDER.contains((String) order.get("status"))) throw new ApiException(409, "Este pedido não aceita mais pagamento");
 
         List<Map<String, Object>> payments = jdbc.queryForList(
-            "SELECT status, external_id, qr_code, ticket_url FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+            "SELECT id, status, external_id, qr_code, ticket_url, amount_due_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (payments.isEmpty()) throw new ApiException(409, "Pagamento do pedido não encontrado");
         Map<String, Object> payment = payments.getFirst();
         String paymentStatus = (String) payment.get("status");
@@ -42,7 +49,29 @@ public class OnlinePaymentService {
         if ("pending".equals(paymentStatus) && (payment.get("qr_code") != null || payment.get("ticket_url") != null)) {
             return detail(orderId);
         }
-        throw new ApiException(409, "Novas cobranças online exigem recebimento direto pelo restaurante");
+        if (!allowDirectOnlineCharges) {
+            throw new ApiException(409, "Novas cobranças online exigem recebimento direto pelo restaurante");
+        }
+        // Cobrança já criada e sem QR nem link (provedor não devolveu): devolve o que está guardado,
+        // em vez de cobrar de novo.
+        if (payment.get("external_id") != null) return detail(orderId);
+
+        long due = ((Number) payment.get("amount_due_cents")).longValue();
+        String payerEmail = jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, ((Number) order.get("customer_id")).longValue());
+        if (payerEmail == null || payerEmail.isBlank()) throw new ApiException(400, "O cliente precisa ter email cadastrado para pagar online");
+        String idempotencyKey = "order-" + orderId + "-" + payment.get("id");
+
+        PaymentGateway gateway = gateways.resolve(provider);
+        PaymentGateway.Charge charge = gateway.create(new PaymentGateway.ChargeRequest(
+            orderId, due, method, "Pedido #" + orderId, payerEmail, idempotencyKey, null));
+
+        String status = charge.status() == null || !STATUSES.contains(charge.status()) ? "pending" : charge.status();
+        jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = ?, idempotency_key = ?, status = ?, raw_status = ?,"
+                + " qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ?, note = NULL WHERE order_id = ?",
+            gateway.provider(), method, charge.externalId(), idempotencyKey, status, charge.rawStatus(),
+            charge.qrCode(), charge.qrCodeBase64(), charge.ticketUrl(),
+            charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), orderId);
+        return detail(orderId);
     }
 
     @Transactional
