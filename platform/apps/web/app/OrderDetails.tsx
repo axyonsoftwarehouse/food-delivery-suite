@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from './app-context';
+import PixPayment from './PixPayment';
 
 type Item = { name: string; quantity: number; unit_price_cents: number };
 type Event = { from_status: string | null; to_status: string; reason: string | null; created_at: string };
+type PaymentImage = { qr_code?: string | null; qr_code_base64?: string | null; ticket_url?: string | null };
 type Payment = {
   method: string;
   modality: string | null;
@@ -17,6 +19,8 @@ type Payment = {
   proof_note: string | null;
   submitted_at: string | null;
   rejection_reason: string | null;
+  /** Pix online: o QR que o Mercado Pago devolveu (mesmo formato da cobrança). */
+  image?: PaymentImage | null;
 };
 type Detail = {
   id: number;
@@ -126,6 +130,13 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
       <button className="ui-btn ui-btn--secondary ui-btn--sm" type="button" onClick={() => void track()}>Rastrear entrega</button>
       {user?.role === 'customer' && ['delivered', 'completed', 'served'].includes(status) && <button className="ui-btn ui-btn--danger ui-btn--sm" type="button" onClick={() => void requestRefund()}>Solicitar reembolso</button>}
     </div>
+    {payment && payment.method === 'pix' && payment.modality === 'online' && payment.status === 'pending' && (
+      <PixPayment
+        image={payment.image}
+        title="Pague este pedido com Pix"
+        hint="Escaneie o QR Code no aplicativo do banco ou use o Pix copia e cola. A confirmação chega sozinha: não é preciso avisar o restaurante."
+      />
+    )}
     {payment && payment.modality === 'offline' && (
       <div className="order-proof">
         <span className="customer-kicker">PAGAMENTO MANUAL</span>

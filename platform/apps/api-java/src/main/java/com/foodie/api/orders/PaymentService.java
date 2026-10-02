@@ -4,6 +4,7 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
 import com.foodie.api.finance.LedgerService;
 import com.foodie.api.rewards.RewardsService;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -119,10 +120,23 @@ public class PaymentService {
 
     public Map<String, Object> detail(long orderId) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, order_id, method, modality, status, raw_status, amount_due_cents, change_for_cents, amount_received_cents, change_cents, qr_code, ticket_url, external_id, expires_at, note, confirmed_by, confirmed_at, refunded_by, refunded_at, offline_method_id, proof_url, proof_note, submitted_at, rejection_reason FROM order_payments WHERE order_id = ?",
+            "SELECT id, order_id, method, modality, status, raw_status, amount_due_cents, change_for_cents, amount_received_cents, change_cents, qr_code, qr_code_base64, ticket_url, external_id, expires_at, note, confirmed_by, confirmed_at, refunded_by, refunded_at, offline_method_id, proof_url, proof_note, submitted_at, rejection_reason FROM order_payments WHERE order_id = ?",
             orderId
         );
-        return rows.isEmpty() ? null : rows.getFirst();
+        if (rows.isEmpty()) return null;
+        Map<String, Object> payment = rows.getFirst();
+        // O Pix online volta aqui com o mesmo formato que a cobrança devolveu na hora de criar
+        // (`image`), porque quem mostra o QR usa o mesmo campo nos dois momentos: ao pagar e ao
+        // reabrir o pedido depois.
+        Map<String, Object> image = new LinkedHashMap<>();
+        image.put("id", payment.get("id"));
+        image.put("qr_code", payment.get("qr_code"));
+        image.put("qr_code_base64", payment.get("qr_code_base64"));
+        image.put("ticket_url", payment.get("ticket_url"));
+        payment.remove("qr_code_base64");
+        payment.put("has_qr_image", image.get("qr_code_base64") != null);
+        payment.put("image", image);
+        return payment;
     }
 
     public Map<String, Object> reconciliation(String from, String to) {
