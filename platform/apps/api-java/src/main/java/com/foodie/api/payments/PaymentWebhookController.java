@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -22,9 +23,10 @@ public class PaymentWebhookController {
     @PostMapping("/webhooks/{provider}")
     public Map<String, Object> handle(@PathVariable String provider,
                                       @RequestHeader Map<String, String> headers,
+                                      @RequestParam Map<String, String> query,
                                       @RequestBody(required = false) Map<String, Object> body) {
         PaymentGateway gateway = gateways.resolve(provider);
-        PaymentGateway.WebhookRequest request = new PaymentGateway.WebhookRequest(headers, body == null ? Map.of() : body);
+        PaymentGateway.WebhookRequest request = new PaymentGateway.WebhookRequest(headers, body == null ? Map.of() : body, query);
         Optional<String> chargeId = gateway.webhookChargeId(request);
         if (chargeId.isEmpty()) return Map.of("ok", true, "ignored", true);
         if (!gateway.verifyWebhook(request)) throw new ApiException(401, "Assinatura do webhook inválida");
