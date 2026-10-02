@@ -137,14 +137,16 @@ public class MercadoPagoGateway implements PaymentGateway {
         try {
             return fromOrder(get("/v1/orders/" + externalId));
         } catch (RestClientResponseException naoEhOrder) {
-            // 404 na order pode ser cobrança da época da Payments API — vale tentar lá antes de dizer
-            // que não existe.
-            if (naoEhOrder.getStatusCode().value() == 404) {
+            // 4xx na order pode ser cobrança da época da Payments API **ou** um id que não existe para a
+            // API deles (o teste do painel manda "123456" e o provedor responde 400 "path param order id
+            // is invalid"). Vale tentar o caminho antigo antes de concluir que não é nossa.
+            if (naoEhOrder.getStatusCode().is4xxClientError()) {
                 try {
                     return fromPayment(get("/v1/payments/" + externalId));
                 } catch (RestClientResponseException naoEhPagamento) {
-                    if (naoEhPagamento.getStatusCode().value() == 404) {
-                        throw new ApiException(404, "Cobrança não encontrada no provedor: " + externalId);
+                    if (naoEhPagamento.getStatusCode().is4xxClientError()) {
+                        throw new ApiException(404, "Cobrança não encontrada no provedor: " + externalId
+                            + " (" + providerMessage(naoEhPagamento) + ")");
                     }
                     throw new ApiException(502, "Mercado Pago recusou a consulta: " + providerMessage(naoEhPagamento));
                 }
