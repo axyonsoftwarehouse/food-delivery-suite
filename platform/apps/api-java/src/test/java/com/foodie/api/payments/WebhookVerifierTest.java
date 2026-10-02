@@ -1,5 +1,6 @@
 package com.foodie.api.payments;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,6 +26,22 @@ class WebhookVerifierTest {
         assertFalse(WebhookVerifier.verify(secret, dataId, requestId, ts, "deadbeef"));
         assertFalse(WebhookVerifier.verify(secret, dataId, requestId, null, v1));
         assertFalse(WebhookVerifier.verify("outro-segredo", dataId, requestId, ts, v1));
+    }
+
+    @Test
+    void signsTheOrderIdInLowerCase() {
+        // Os ids da API de Orders são alfanuméricos em caixa alta (ORD01JQ…) e o provedor assina o
+        // manifesto com o id em MINÚSCULAS: assinar com a caixa original fazia a verificação falhar em
+        // toda notificação real. O vetor foi calculado fora do Java, para não validar a conta com ela mesma.
+        String secret = "segredo-de-teste";
+        String dataId = "ORD01JQ4S4KY8HWQ6NA5PXB65B3D3";
+        String requestId = "2066ca19-c6f1-498a-be75-1923005edd06";
+        String ts = "1742505638683";
+        String v1 = "1cb5a89224b9ea9a0239402a8805de2c943322fac8eb49dea63133c0942bd229";
+
+        assertTrue(WebhookVerifier.verify(secret, dataId, requestId, ts, v1));
+        assertEquals("id:ord01jq4s4ky8hwq6na5pxb65b3d3;request-id:2066ca19-c6f1-498a-be75-1923005edd06;ts:1742505638683;",
+            WebhookVerifier.manifest(dataId, requestId, ts));
     }
 
     @Test

@@ -9,9 +9,16 @@ import javax.crypto.spec.SecretKeySpec;
 public final class WebhookVerifier {
     private WebhookVerifier() {}
 
-    /** O manifesto que o provedor assina. Público (ids e horário) — o segredo não entra aqui. */
+    /**
+     * O manifesto que o provedor assina. Público (ids e horário) — o segredo não entra aqui.
+     *
+     * O {@code data.id} entra em <b>minúsculas</b>: os ids da API de Orders são alfanuméricos em caixa
+     * alta (ex.: {@code ORD01JQ4S4KY8HWQ6NA5PXB65B3D3}) e a documentação manda converter para minúsculas
+     * antes de montar o manifesto — o provedor assina o valor convertido. Assinar com a caixa original
+     * faz a verificação falhar em toda notificação.
+     */
     public static String manifest(String dataId, String requestId, String ts) {
-        return "id:" + (dataId == null ? "" : dataId)
+        return "id:" + (dataId == null ? "" : dataId.toLowerCase())
             + ";request-id:" + (requestId == null ? "" : requestId)
             + ";ts:" + (ts == null ? "" : ts) + ";";
     }
