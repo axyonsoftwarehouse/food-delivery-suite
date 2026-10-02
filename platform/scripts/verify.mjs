@@ -50,6 +50,7 @@ run('Build do site (next build)', 'npm', ['run', 'build'], { cwd: join(root, 'ap
 run('Tipos do app da cozinha (tsc)', 'pnpm', ['--filter', '@foodie/kitchen', 'typecheck'], { cwd: root });
 run('Testes do app da cozinha (jest)', 'pnpm', ['--filter', '@foodie/kitchen', 'test'], { cwd: root });
 run('Tipos do cliente de API (tsc)', 'pnpm', ['--filter', '@foodie/api-client', 'typecheck'], { cwd: root });
+run('Dockerfiles (COPY aponta para arquivo existente)', 'node', ['scripts/check-dockerfiles.mjs'], { cwd: root });
 
 // --- Verificação integrada com banco efêmero (opt-in) ---
 if (integration) {
