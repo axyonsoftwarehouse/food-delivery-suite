@@ -121,7 +121,16 @@ public class OnlinePaymentService {
 
     @Transactional
     public Map<String, Object> handleWebhook(String provider, String paymentId) {
-        PaymentGateway.Charge charge = gateways.resolve(provider).fetch(paymentId);
+        PaymentGateway.Charge charge;
+        try {
+            charge = gateways.resolve(provider).fetch(paymentId);
+        } catch (ApiException naoEncontrado) {
+            // Notificação sobre algo que não é nosso — o próprio painel do Mercado Pago testa o webhook
+            // com um pedido fictício ("123456"). Responder erro faria o provedor reenviar para sempre e
+            // marcaria a integração como quebrada na tela dele: aqui a resposta certa é 200, ignorando.
+            if (naoEncontrado.status() == 404) return Map.of("ok", true, "ignored", true);
+            throw naoEncontrado;
+        }
         if (charge.externalReference() == null) return Map.of("ok", true, "ignored", true);
         long orderId;
         try { orderId = Long.parseLong(charge.externalReference()); } catch (NumberFormatException error) { return Map.of("ok", true, "ignored", true); }
