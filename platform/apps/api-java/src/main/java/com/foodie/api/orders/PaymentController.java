@@ -50,7 +50,7 @@ public class PaymentController {
                                            @Valid @RequestBody OnlineRequest body) {
         User actor = auth.requireUser(token, "customer", "admin");
         return online.startIntent(actor, id, new OnlinePaymentService.Intent(
-            body.method(), body.provider(), body.cardToken(), body.installments(), body.docType(), body.docNumber()));
+            body.method(), body.provider(), body.cardToken(), body.installments(), body.docType(), body.docNumber(), body.paymentMethodId()));
     }
 
     /** O que o checkout precisa para montar o formulário: provedor e public key (que não é segredo). */
@@ -108,5 +108,6 @@ public class PaymentController {
     public record RefundRequest(@Size(max = 255) String note) {}
     public record OnlineRequest(@NotBlank @Pattern(regexp = "pix|card") String method, @Size(max = 40) String provider,
                                 @Size(max = 255) String cardToken, @Min(1) @Max(24) Integer installments,
-                                @Pattern(regexp = "CPF|CNPJ") String docType, @Size(max = 20) String docNumber) {}
+                                @Pattern(regexp = "CPF|CNPJ") String docType, @Size(max = 20) String docNumber,
+                                @Size(max = 40) String paymentMethodId) {}
 }

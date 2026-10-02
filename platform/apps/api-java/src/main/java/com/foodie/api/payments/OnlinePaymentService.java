@@ -37,9 +37,14 @@ public class OnlinePaymentService {
      * único dado do cartão que chega até aqui; {@code installments}, {@code docType} e {@code docNumber}
      * só se aplicam a cartão.
      */
-    public record Intent(String method, String provider, String cardToken, Integer installments, String docType, String docNumber) {
+    public record Intent(String method, String provider, String cardToken, Integer installments, String docType, String docNumber, String paymentMethodId) {
+        /** Cartão sem a bandeira (o formulário manda a bandeira quando o Mercado Pago a informa). */
+        public Intent(String method, String provider, String cardToken, Integer installments, String docType, String docNumber) {
+            this(method, provider, cardToken, installments, docType, docNumber, null);
+        }
+
         public static Intent of(String method, String provider) {
-            return new Intent(method, provider, null, null, null, null);
+            return new Intent(method, provider, null, null, null, null, null);
         }
     }
 
@@ -78,6 +83,7 @@ public class OnlinePaymentService {
 
         long due = ((Number) payment.get("amount_due_cents")).longValue();
         String payerEmail = jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, ((Number) order.get("customer_id")).longValue());
+        String payerFirstName = primeiroNome(jdbc.queryForObject("SELECT name FROM users WHERE id = ?", String.class, ((Number) order.get("customer_id")).longValue()));
         if (!emailValido(payerEmail)) {
             throw new ApiException(400, "O Mercado Pago recusa o email do cliente para cobrança online (endereço de demonstração ou inválido): "
                 + (payerEmail == null || payerEmail.isBlank() ? "sem email cadastrado" : payerEmail));
@@ -96,7 +102,8 @@ public class OnlinePaymentService {
         PaymentGateway gateway = gateways.resolve(provider);
         PaymentGateway.Charge charge = gateway.create(new PaymentGateway.ChargeRequest(
             orderId, due, method, "Pedido #" + orderId, payerEmail, idempotencyKey, null,
-            intent.cardToken(), intent.installments(), intent.docType(), intent.docNumber()));
+            intent.cardToken(), intent.installments(), intent.docType(), intent.docNumber(),
+            intent.paymentMethodId(), payerFirstName));
 
         String status = charge.status() == null || !STATUSES.contains(charge.status()) ? "pending" : charge.status();
         jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = ?, idempotency_key = ?, status = ?, raw_status = ?,"
@@ -137,6 +144,15 @@ public class OnlinePaymentService {
      * dado de demonstração: {@code cliente@demo.local} voltou "payer.email must be a valid email".
      * Barrar antes evita um 502 sem explicação na tela do cliente.
      */
+    /** Primeiro nome do pagador — o Mercado Pago usa esse campo nos resultados predefinidos de teste. */
+    static String primeiroNome(String nome) {
+        if (nome == null) return null;
+        String limpo = nome.trim();
+        if (limpo.isEmpty()) return null;
+        int espaco = limpo.indexOf(' ');
+        return espaco > 0 ? limpo.substring(0, espaco) : limpo;
+    }
+
     static boolean emailValido(String email) {
         if (email == null || email.isBlank()) return false;
         String[] partes = email.trim().split("@", -1);
