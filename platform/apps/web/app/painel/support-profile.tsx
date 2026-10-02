@@ -56,11 +56,11 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
   if (!profile) return <Card><EmptyState title={'Carregando loja...'} /></Card>;
   const base = `/admin/support/restaurants/${restaurantId}`;
   const pauseText = profile.pause
-    ? `Pausada pelo suporte até \${new Date(profile.pause.until).toLocaleString(timeLocale)}: \${profile.pause.reason}`
+    ? `Pausada pelo suporte até ${new Date(profile.pause.until).toLocaleString(timeLocale)}: ${profile.pause.reason}`
     : null;
 
   return <>
-    <div className="support-banner"><Alert tone="warning">{`Modo suporte · alterações feitas em nome de \${profile.name} ficam registradas e visíveis para a loja.`}</Alert></div>
+    <div className="support-banner"><Alert tone="warning">{`Modo suporte · alterações feitas em nome de ${profile.name} ficam registradas e visíveis para a loja.`}</Alert></div>
     <Card title={profile.name} subtitle={`#${profile.id} · ${profile.ownerEmail ?? 'sem responsável'}`}>
       <Tabs value={tab} onChange={setTab} tabs={[
         { id: 'summary', label: 'Resumo' },
@@ -76,8 +76,8 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
       <div className="stat-grid">
         <div className="stat-card"><span>{'Cadastro'}</span><strong>{APPROVAL_LABELS[profile.approval] ?? profile.approval}</strong><small>{profile.active ? 'Ativa' : 'Desativada'}</small></div>
         <div className="stat-card"><span>{'Agora'}</span><strong>{profile.pause ? 'Pausada' : profile.open ? 'Aberta' : 'Fechada'}</strong><small>{profile.timezone ?? 'sem fuso'}</small></div>
-        <div className="stat-card accent"><span>{'Pedidos ativos'}</span><strong>{profile.activeOrders}</strong><small>{`\${profile.lateOrders} atrasado(s)`}</small></div>
-        <div className="stat-card"><span>{'Cancelados (7 dias)'}</span><strong>{profile.canceled7d}</strong><small>{`Assinatura: \${profile.subscriptionStatus ?? '—'}`}</small></div>
+        <div className="stat-card accent"><span>{'Pedidos ativos'}</span><strong>{profile.activeOrders}</strong><small>{`${profile.lateOrders} atrasado(s)`}</small></div>
+        <div className="stat-card"><span>{'Cancelados (7 dias)'}</span><strong>{profile.canceled7d}</strong><small>{`Assinatura: ${profile.subscriptionStatus ?? '—'}`}</small></div>
       </div>
       <p>{'Módulos:'} {profile.modules.length ? profile.modules.map((key) => <Badge key={key}>{key}</Badge>) : '—'}</p>
       {pauseText && <Alert tone="warning">{pauseText}</Alert>}
@@ -103,7 +103,7 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
 
     {tab === 'trail' && <Card title={'Trilha'}>
       {trail.length === 0 ? <EmptyState title={'Nenhuma intervenção do suporte.'} /> : <div className="courier-list">
-        {trail.map((entry) => <div className="courier-row" key={entry.id}><div><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString(timeLocale)} · {entry.actorName} · {entry.action}</span>{entry.reason && <span>{`Motivo: \${entry.reason}`}</span>}</div></div>)}
+        {trail.map((entry) => <div className="courier-row" key={entry.id}><div><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString(timeLocale)} · {entry.actorName} · {entry.action}</span>{entry.reason && <span>{`Motivo: ${entry.reason}`}</span>}</div></div>)}
       </div>}
     </Card>}
     {dialog}

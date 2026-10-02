@@ -25,7 +25,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return <main className="customer-app">
     <header className="customer-header">
       <Link className="customer-brand" href="/loja" aria-label="Foodie"><span className="customer-brand-mark">✦</span> foodie<span>.</span></Link>
-      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às \${lastSync.toLocaleTimeString(timeLocale)}` : ''}>{connection === 'online' ? `● ao vivo` : `● sem conexão`}</span>}<ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} /><span>{`Olá, \${user.name.split(' ')[0]}!`}</span><button onClick={logout} disabled={busy}>{'Sair'}</button></div>
+      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString(timeLocale)}` : ''}>{connection === 'online' ? `● ao vivo` : `● sem conexão`}</span>}<ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} /><span>{`Olá, ${user.name.split(' ')[0]}!`}</span><button onClick={logout} disabled={busy}>{'Sair'}</button></div>
     </header>
 
     <nav className="customer-nav" aria-label="Seções">
@@ -37,7 +37,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       {children}
     </div>
 
-    {cartCount > 0 && pathname !== '/loja/carrinho' && <Link className="customer-cart-dock" href="/loja/carrinho"><span>{`\${cartCount} no carrinho`}</span><strong>{money(subtotal + fee)} ↗</strong></Link>}
+    {cartCount > 0 && pathname !== '/loja/carrinho' && <Link className="customer-cart-dock" href="/loja/carrinho"><span>{`${cartCount} no carrinho`}</span><strong>{money(subtotal + fee)} ↗</strong></Link>}
   </main>;
 }
 

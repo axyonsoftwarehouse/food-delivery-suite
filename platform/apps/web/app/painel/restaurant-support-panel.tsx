@@ -20,10 +20,10 @@ export default function RestaurantSupportPanel() {
   if (!log) return null;
   const entries = all ? log.entries : log.entries.slice(0, 10);
   return <>
-    {log.pause && <Alert tone="warning">{`Pausada pelo suporte até \${new Date(log.pause.until).toLocaleString()}: \${log.pause.reason}`}</Alert>}
+    {log.pause && <Alert tone="warning">{`Pausada pelo suporte até ${new Date(log.pause.until).toLocaleString()}: ${log.pause.reason}`}</Alert>}
     <Card title={'Intervenções do suporte'} actions={log.entries.length > 10 ? <button className="refresh-button" onClick={() => setAll(!all)}>{all ? 'Ver menos' : 'Ver todas'}</button> : undefined}>
       {entries.length === 0 ? <EmptyState title={'Nenhuma intervenção do suporte.'} /> : <div className="courier-list">
-        {entries.map((entry) => <div className="courier-row" key={entry.id}><div><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString()} · {entry.actorName}</span>{entry.reason && <span>{`Motivo: \${entry.reason}`}</span>}</div></div>)}
+        {entries.map((entry) => <div className="courier-row" key={entry.id}><div><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString()} · {entry.actorName}</span>{entry.reason && <span>{`Motivo: ${entry.reason}`}</span>}</div></div>)}
       </div>}
     </Card>
   </>;

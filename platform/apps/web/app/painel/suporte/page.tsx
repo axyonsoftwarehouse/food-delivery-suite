@@ -32,7 +32,7 @@ export default function SuportePage() {
     <TextInput type="search" placeholder={'Nome, ID ou e-mail do responsável'} value={q} onChange={(event) => setQ(event.target.value)} />
     {rows.length === 0 ? <EmptyState title={'Nenhuma loja encontrada'} /> : <div className="courier-list">
       {rows.map((row) => <Link className="courier-row" key={row.id} href={`/painel/suporte/${row.id}`}>
-        <div><strong>{row.name}</strong><span>#{row.id} · {row.ownerEmail ?? 'sem responsável'} · {`\${row.activeOrders} pedido(s) ativo(s)`}</span></div>
+        <div><strong>{row.name}</strong><span>#{row.id} · {row.ownerEmail ?? 'sem responsável'} · {`${row.activeOrders} pedido(s) ativo(s)`}</span></div>
         <div>
           {row.pause ? <Badge tone="warning">{'Pausada'}</Badge> : row.open ? <Badge tone="success">{'Aberta'}</Badge> : <Badge>{'Fechada'}</Badge>}
           {approvalNotice(row.approval) && <Badge tone="danger">{approvalNotice(row.approval)}</Badge>}
