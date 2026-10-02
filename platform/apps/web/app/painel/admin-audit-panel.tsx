@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from '../app-context';
-import { useI18n } from '../i18n';
 
 type AuditEntry = { id: number; actorUserId: number | null; actorName: string | null; action: string; entity: string; entityId: number | null; summary: string; createdAt: string };
 type AuditPage = { items: AuditEntry[]; nextCursor: number | null };
@@ -16,7 +15,6 @@ const ENTITY_LABELS: Record<string, string> = {
 
 export default function AdminAuditPanel() {
   const { setMessage } = useApp();
-  const { t } = useI18n();
   const [entity, setEntity] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -59,26 +57,26 @@ export default function AdminAuditPanel() {
 
   return <section className="panel">
     <div className="panel-heading">
-      <div><span className="eyebrow">{t('admin.access.eyebrow')}</span><h2>{t('admin.audit.title')}</h2></div>
-      <p>{t('admin.audit.hint')}</p>
+      <div><span className="eyebrow">{'ADMINISTRAÇÃO'}</span><h2>{'Trilha administrativa'}</h2></div>
+      <p>{'Registro das ações sensíveis da administração.'}</p>
     </div>
     <form onSubmit={(event) => { event.preventDefault(); void load(); }}>
       <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
-        <label>{t('admin.audit.entity')}<select value={entity} onChange={(event) => setEntity(event.target.value)}><option value="">{t('admin.audit.all')}</option>{ENTITIES.map((item) => <option key={item} value={item}>{ENTITY_LABELS[item] ?? item}</option>)}</select></label>
-        <label>{t('admin.audit.from')}<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
-        <label>{t('admin.audit.to')}<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
+        <label>{'Entidade'}<select value={entity} onChange={(event) => setEntity(event.target.value)}><option value="">{'Todas'}</option>{ENTITIES.map((item) => <option key={item} value={item}>{ENTITY_LABELS[item] ?? item}</option>)}</select></label>
+        <label>{'De'}<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
+        <label>{'Até'}<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
       </div>
-      <button className="secondary-button" disabled={busy}>{t('common.refresh')}</button>
+      <button className="secondary-button" disabled={busy}>{'Atualizar'}</button>
     </form>
     <div className="postal-range-list" style={{ marginTop: 16 }}>
-      {busy && !items.length ? <p className="form-help">{t('loja.loading')}</p> : items.length ? items.map((entry) => <div key={entry.id}>
+      {busy && !items.length ? <p className="form-help">{'Carregando...'}</p> : items.length ? items.map((entry) => <div key={entry.id}>
         <span>
           <strong>{ENTITY_LABELS[entry.entity] ?? entry.entity}{entry.entityId ? ` #${entry.entityId}` : ''}</strong>
           {' · '}{entry.action}{entry.summary ? ` · ${entry.summary}` : ''}
         </span>
-        <span>{entry.actorName ? `${t('admin.audit.actor')}: ${entry.actorName} · ` : ''}{new Date(entry.createdAt).toLocaleString('pt-BR')}</span>
-      </div>) : <p className="form-help">{t('admin.audit.none')}</p>}
+        <span>{entry.actorName ? `Autor: ${entry.actorName} · ` : ''}{new Date(entry.createdAt).toLocaleString('pt-BR')}</span>
+      </div>) : <p className="form-help">{'Nenhum registro no período.'}</p>}
     </div>
-    {nextCursor && <button className="secondary-button" style={{ marginTop: 12 }} disabled={busy} onClick={() => void loadMore()}>{t('admin.audit.loadMore')}</button>}
+    {nextCursor && <button className="secondary-button" style={{ marginTop: 12 }} disabled={busy} onClick={() => void loadMore()}>{'Carregar mais'}</button>}
   </section>;
 }
