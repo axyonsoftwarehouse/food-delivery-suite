@@ -7,9 +7,8 @@
   },
   "scripts": {
     "dev": "pnpm --filter @foodie/web dev",
-    "dev:legacy-api": "pnpm --parallel --filter @foodie/api --filter @foodie/web dev",
     "build": "pnpm -r build",
-    "test": "pnpm --filter @foodie/api test",
+    "test": "node scripts/verify.mjs",
     "verify": "node scripts/verify.mjs",
     "load": "node scripts/load-test.mjs",
     "smoke:cart": "node tests/cart-smoke.mjs",

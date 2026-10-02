@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { db } from './db.js';
-import { hashPassword } from './auth.js';
+import { hashPassword } from './password.js';
 
 const password = process.env.DEMO_PASSWORD;
 if (!password || password.length < 12 || password === 'change-this-before-seeding') {
