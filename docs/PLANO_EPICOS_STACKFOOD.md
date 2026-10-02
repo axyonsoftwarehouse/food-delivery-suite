@@ -13,7 +13,9 @@ executáveis**, para absorver todas as funcionalidades do StackFood **mantendo o
 2. **Contratos próprios, em português de domínio.** Nunca copiar controller/tela do legado
    (ver licença/segurança em `REFERENCIA_INSPIRACOES.md`).
 3. **Backend Java/Spring + Flyway.** Cada épico tem uma ou mais migrations a partir de `V034`.
-4. **i18n sempre.** Chaves novas entram em `app/i18n/messages.ts` (pt/en/es).
+4. ~~**i18n sempre.** Chaves novas entram em `app/i18n/messages.ts` (pt/en/es).~~ **Regra superada em
+   01/10/2026:** a plataforma é só em português e a camada de tradução foi removida — texto novo
+   entra direto no componente.
 5. **Menus por papel** entram em `menuFor` (`painel/layout.tsx`), atrás de permissão.
 6. **Entrega vertical.** Cada épico entrega migração + endpoints + painel + testes
    (`pnpm verify` e `VERIFY_INTEGRATION=1 pnpm verify`).

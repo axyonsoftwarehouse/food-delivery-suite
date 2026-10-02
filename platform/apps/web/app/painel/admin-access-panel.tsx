@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from '../app-context';
-import { useI18n } from '../i18n';
 
 type AdminPermission = { key: string; label: string; group: string };
 type AdminRole = { id: number; name: string; description: string; permissions: string[]; active: boolean };
@@ -10,7 +9,6 @@ type AdminEmployee = { id: number; name: string; email: string; adminRoleId: num
 
 export default function AdminAccessPanel() {
   const { setMessage } = useApp();
-  const { t } = useI18n();
   const [catalog, setCatalog] = useState<AdminPermission[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [employees, setEmployees] = useState<AdminEmployee[]>([]);
@@ -108,16 +106,16 @@ export default function AdminAccessPanel() {
 
   return <section className="panel">
     <div className="panel-heading">
-      <div><span className="eyebrow">{t('admin.access.eyebrow')}</span><h2>{t('admin.access.title')}</h2></div>
-      <p>{t('admin.access.hint')}</p>
+      <div><span className="eyebrow">{'ADMINISTRAÇÃO'}</span><h2>{'Papéis e acessos administrativos'}</h2></div>
+      <p>{'Defina papéis com permissões e crie acessos de funcionários da administração.'}</p>
     </div>
     <div className="form-grid">
       <form onSubmit={createRole}>
-        <h3>{t('admin.roles.create')}</h3>
-        <label>{t('admin.roles.name')}<input value={roleName} onChange={(event) => setRoleName(event.target.value)} placeholder="Ex.: Suporte" required minLength={2} maxLength={80} /></label>
-        <label>{t('admin.roles.description')}<input value={roleDescription} onChange={(event) => setRoleDescription(event.target.value)} placeholder="O que este papel faz" maxLength={255} /></label>
+        <h3>{'Criar papel'}</h3>
+        <label>{'Nome do papel'}<input value={roleName} onChange={(event) => setRoleName(event.target.value)} placeholder="Ex.: Suporte" required minLength={2} maxLength={80} /></label>
+        <label>{'Descrição'}<input value={roleDescription} onChange={(event) => setRoleDescription(event.target.value)} placeholder="O que este papel faz" maxLength={255} /></label>
         <fieldset className="permission-groups">
-          <legend>{t('admin.roles.permissions')}</legend>
+          <legend>{'Permissões'}</legend>
           {groups.map((group) => <div key={group} className="permission-group">
             <strong>{group}</strong>
             {catalog.filter((permission) => permission.group === group).map((permission) => (
@@ -128,47 +126,47 @@ export default function AdminAccessPanel() {
             ))}
           </div>)}
         </fieldset>
-        <button className="secondary-button" disabled={busy}>{t('admin.roles.create')}</button>
+        <button className="secondary-button" disabled={busy}>{'Criar papel'}</button>
       </form>
 
       <div className="courier-list">
-        <h3>{t('admin.roles.title')}</h3>
+        <h3>{'Papéis'}</h3>
         {roles.length ? roles.map((role) => <div className="courier-row" key={role.id}>
           <div>
             <strong>{role.name}</strong>
-            <span>{role.permissions.length} {t('admin.roles.permissions').toLowerCase()} · {role.active ? t('admin.roles.active') : t('admin.roles.inactive')}</span>
+            <span>{role.permissions.length} {'Permissões'.toLowerCase()} · {role.active ? 'Ativo' : 'Inativo'}</span>
           </div>
           <div className="courier-actions">
-            <button className={role.active ? 'availability-button' : 'availability-button paused'} disabled={busy} onClick={() => void toggleRole(role)}>{role.active ? t('admin.roles.deactivate') : t('admin.roles.activate')}</button>
-            <button className="availability-button" disabled={busy} onClick={() => void removeRole(role)}>{t('admin.roles.delete')}</button>
+            <button className={role.active ? 'availability-button' : 'availability-button paused'} disabled={busy} onClick={() => void toggleRole(role)}>{role.active ? 'Desativar' : 'Ativar'}</button>
+            <button className="availability-button" disabled={busy} onClick={() => void removeRole(role)}>{'Excluir'}</button>
           </div>
-        </div>) : <p className="form-help">{t('admin.roles.none')}</p>}
+        </div>) : <p className="form-help">{'Nenhum papel cadastrado.'}</p>}
       </div>
     </div>
 
     <div className="form-grid" style={{ marginTop: 24 }}>
       <form onSubmit={createEmployee}>
-        <h3>{t('admin.employees.create')}</h3>
-        <label>{t('admin.employees.name')}<input value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} required minLength={2} maxLength={120} /></label>
-        <label>{t('admin.employees.email')}<input type="email" value={employeeEmail} onChange={(event) => setEmployeeEmail(event.target.value)} required /></label>
-        <label>{t('admin.employees.password')}<input type="password" minLength={12} maxLength={128} value={employeePassword} onChange={(event) => setEmployeePassword(event.target.value)} placeholder="Mínimo de 12 caracteres" required /></label>
-        <label>{t('admin.employees.role')}<select value={employeeRoleId} onChange={(event) => setEmployeeRoleId(event.target.value)}><option value="">{t('admin.employees.full')}</option>{roles.filter((role) => role.active).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>
-        <button className="secondary-button" disabled={busy}>{t('admin.employees.create')}</button>
+        <h3>{'Criar acesso'}</h3>
+        <label>{'Nome'}<input value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} required minLength={2} maxLength={120} /></label>
+        <label>{'Email'}<input type="email" value={employeeEmail} onChange={(event) => setEmployeeEmail(event.target.value)} required /></label>
+        <label>{'Senha inicial'}<input type="password" minLength={12} maxLength={128} value={employeePassword} onChange={(event) => setEmployeePassword(event.target.value)} placeholder="Mínimo de 12 caracteres" required /></label>
+        <label>{'Papel'}<select value={employeeRoleId} onChange={(event) => setEmployeeRoleId(event.target.value)}><option value="">{'Acesso total'}</option>{roles.filter((role) => role.active).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>
+        <button className="secondary-button" disabled={busy}>{'Criar acesso'}</button>
       </form>
 
       <div className="courier-list">
-        <h3>{t('admin.employees.title')}</h3>
+        <h3>{'Funcionários do admin'}</h3>
         {employees.length ? employees.map((employee) => <div className="courier-row" key={employee.id}>
           <div>
             <strong>{employee.name}</strong>
             <span>{employee.email}</span>
-            <small className={employee.suspended ? 'courier-state' : 'courier-state approved'}>{employee.suspended ? t('admin.employees.suspended') : employee.adminRoleId ? roles.find((role) => role.id === employee.adminRoleId)?.name ?? '—' : t('admin.employees.full')}</small>
+            <small className={employee.suspended ? 'courier-state' : 'courier-state approved'}>{employee.suspended ? 'Suspenso' : employee.adminRoleId ? roles.find((role) => role.id === employee.adminRoleId)?.name ?? '—' : 'Acesso total'}</small>
           </div>
           <select value={employee.adminRoleId ?? ''} disabled={busy} onChange={(event) => void changeEmployeeRole(employee, event.target.value)}>
-            <option value="">{t('admin.employees.full')}</option>
+            <option value="">{'Acesso total'}</option>
             {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
           </select>
-        </div>) : <p className="form-help">{t('admin.employees.none')}</p>}
+        </div>) : <p className="form-help">{'Nenhum funcionário cadastrado.'}</p>}
       </div>
     </div>
   </section>;

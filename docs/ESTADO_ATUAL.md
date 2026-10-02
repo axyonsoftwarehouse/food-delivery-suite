@@ -91,8 +91,8 @@ pendente** — não há código Apple no backend).
 
 ### Deploy e verificação
 - **Homologação pública:** `staging.2.29.42.104.sslip.io`
-- **225 testes Java** + TypeScript + build Next (`VERIFY_INTEGRATION=1 pnpm verify`)
-- Smokes: pedido, carrinho, exceções, contas (`pnpm smoke:cart`,
+- **283 testes Java** + tipos TypeScript + build Next (`VERIFY_INTEGRATION=1 pnpm verify`)
+- Smokes: pedido, carrinho, exceções, contas e cobertura por CEP (`pnpm smoke:cart`,
   `smoke:exceptions`, `smoke:auth`)
 - Teste de carga: `pnpm load`
 - Monitoramento: Prometheus + Alertmanager + Blackbox em `platform/monitoring`,
@@ -103,7 +103,12 @@ pendente** — não há código Apple no backend).
 - **Apple Sign In** (E47) — pendente (confirmado: sem código Apple)
 - **S3 storage** (E03/E37) — abstração pronta (`StorageProvider`), driver S3 não
   implementado; driver não configurado responde **503**
-- **i18n admin integrado ao provider do site** (E34) — follow-up
+- **i18n (E34)** — **só português, decidido e executado em 01/10.** A camada de tradução saiu:
+  os 156 textos que passavam pelo dicionário viraram literais nos componentes, e saíram o
+  `messages.ts` (509 entradas em pt/en/es), o provider, o hook e o seletor de idioma — que
+  oferecia EN/ES e entregava **tela misturada**, porque o percurso do cliente (carrinho, pedidos,
+  perfil, cardápio) nunca traduziu. Segue existindo apenas o painel *Conteúdo → Traduções*, que
+  grava traduções no banco (`/admin/translations`) e é decisão separada.
 - **Cache offline do catálogo** (E42) — follow-up
 - **PDF próprio de fatura** (E27) — hoje é HTML imprimível
 - **Interface dedicada de chat** (E38) — backend pronto, UI pendente
@@ -193,8 +198,10 @@ trilha e visão da loja.
   Só afetava o modo dev; não tinha relação com `permissions`.
 - **Polimento** (PR #2, `0aed20e`): diálogo de motivo mostra a ação, guarda rascunho, fecha com Esc,
   prende e devolve o foco; exclusões do cardápio em modo suporte sem `confirm` duplo; lista, detalhe
-  e ficha traduzidos (pt/en/es) com `approval` legível; busca escapa `%`/`_` no `LIKE`.
-- Fica de fora: o restante do `CatalogManager` (compartilhado com a loja) segue só em português.
+  e ficha com `approval` legível; busca escapa `%`/`_` no `LIKE`.
+- ~~Fica de fora: o restante do `CatalogManager` (compartilhado com a loja) segue só em português.~~
+  **Sem efeito desde 01/10/2026:** a camada de tradução toda saiu — a plataforma é só em português,
+  então não existe mais texto "de fora".
 
 **Ambiente local:** a imagem Docker da API não se atualiza sozinha — em 01/10 ela estava em 27/09 e o
 banco local na migration 049 (o container do banco também estava parado). Depois de cada merge:

@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { Alert, Button, Field, TextArea } from './ui';
-import { useI18n } from './i18n';
 import type { AskReason, ReasonAsk } from './support-request';
+
+const REASON_ACTION_LABELS: Record<string, string> = { post: 'Criar registro', put: 'Alterar registro', patch: 'Alterar registro', delete: 'Excluir registro' };
+
 
 const MIN = 10;
 const MAX = 500;
@@ -14,7 +16,6 @@ function keyOf(ask: ReasonAsk) {
 }
 
 export function useSupportReason(): { askReason: AskReason; dialog: ReactElement | null } {
-  const { t } = useI18n();
   const [ask, setAsk] = useState<ReasonAsk | null>(null);
   const [text, setText] = useState('');
   const resolver = useRef<((value: string | null) => void) | null>(null);
@@ -57,19 +58,19 @@ export function useSupportReason(): { askReason: AskReason; dialog: ReactElement
   }
 
   const length = text.trim().length;
-  const actionText = ask ? ask.action ?? t(`support.reason.method.${ask.method.toLowerCase()}`) : '';
+  const actionText = ask ? ask.action ?? REASON_ACTION_LABELS[ask.method.toLowerCase()] ?? 'Alterar registro' : '';
   const dialog = ask === null ? null : (
     <div className="support-dialog" role="dialog" aria-modal="true" aria-labelledby="support-reason-title">
       <form ref={box} className="support-dialog__box" onKeyDown={trapFocus} onSubmit={(event) => { event.preventDefault(); if (length >= MIN && length <= MAX) close(text.trim()); }}>
-        <h3 id="support-reason-title">{t('support.reason.title')}</h3>
-        <p className="support-dialog__action"><span>{t('support.reason.action')}</span> <strong>{actionText}</strong></p>
-        <Alert tone="warning">{t('support.reason.notice')}</Alert>
-        <Field label={t('support.reason.label')} hint={`${length}/${MAX}`}>
+        <h3 id="support-reason-title">{'Motivo da intervenção'}</h3>
+        <p className="support-dialog__action"><span>{'Ação:'}</span> <strong>{actionText}</strong></p>
+        <Alert tone="warning">{'Esta alteração será feita em nome da loja, registrada na trilha e avisada à loja.'}</Alert>
+        <Field label={'Motivo (10 a 500 caracteres)'} hint={`${length}/${MAX}`}>
           <TextArea autoFocus required minLength={MIN} maxLength={MAX} rows={4} value={text} onChange={(event) => setText(event.target.value)} />
         </Field>
         <div className="support-dialog__actions">
-          <Button type="button" variant="ghost" onClick={() => close(null)}>{t('support.reason.cancel')}</Button>
-          <Button type="submit" disabled={length < MIN || length > MAX}>{t('support.reason.confirm')}</Button>
+          <Button type="button" variant="ghost" onClick={() => close(null)}>{'Cancelar'}</Button>
+          <Button type="submit" disabled={length < MIN || length > MAX}>{'Confirmar intervenção'}</Button>
         </div>
       </form>
     </div>

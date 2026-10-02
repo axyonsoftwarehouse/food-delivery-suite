@@ -5,9 +5,11 @@ import CatalogManager from '../CatalogManager';
 import RestaurantHours from '../RestaurantHours';
 import { useSupportReason } from '../SupportReasonDialog';
 import { api, useApp } from '../app-context';
-import { useI18n } from '../i18n';
 import { Alert, Badge, Button, Card, EmptyState, Field, SelectInput, Tabs, TextInput } from '../ui';
 import OrdersPanel from './orders-panel';
+
+const APPROVAL_LABELS: Record<string, string> = { approved: 'Aprovada', pending: 'Cadastro pendente', denied: 'Cadastro recusado' };
+
 
 type Pause = { until: string; reason: string } | null;
 type Profile = { id: number; name: string; slug: string; approval: string; active: boolean; timezone: string | null; discountPercent: number; subscriptionStatus: string | null; modules: string[]; ownerEmail: string | null; activeOrders: number; lateOrders: number; canceled7d: number; open: boolean; pause: Pause };
@@ -17,8 +19,7 @@ const PAUSE_OPTIONS = [15, 30, 60, 120, 240, 720, 1440, 4320];
 
 export default function SupportProfile({ restaurantId }: { restaurantId: number }) {
   const { permissions, setMessage, refresh } = useApp();
-  const { t, locale } = useI18n();
-  const timeLocale = locale === 'pt' ? 'pt-BR' : locale === 'en' ? 'en-US' : 'es-ES';
+  const timeLocale = 'pt-BR';
   const { askReason, dialog } = useSupportReason();
   const canAct = permissions.includes('support.act');
   const [tab, setTab] = useState('summary');
@@ -34,8 +35,8 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
       setProfile(data);
       setDiscount(String(data.discountPercent ?? 0));
       setTrail(await api<Entry[]>(`/admin/support/restaurants/${restaurantId}/audit`));
-    } catch (error) { setMessage(error instanceof Error ? error.message : t('support.loadError')); }
-  }, [restaurantId, setMessage, t]);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível carregar a loja.'); }
+  }, [restaurantId, setMessage]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -48,43 +49,43 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
       await api(path, { method, body: JSON.stringify(body(reason)) });
       setMessage(done);
       await load();
-    } catch (error) { setMessage(error instanceof Error ? error.message : t('support.actionError')); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível concluir a intervenção.'); }
     finally { setActing(false); }
   }
 
-  if (!profile) return <Card><EmptyState title={t('support.loading')} /></Card>;
+  if (!profile) return <Card><EmptyState title={'Carregando loja...'} /></Card>;
   const base = `/admin/support/restaurants/${restaurantId}`;
   const pauseText = profile.pause
-    ? t('support.pause.until', { time: new Date(profile.pause.until).toLocaleString(timeLocale), reason: profile.pause.reason })
+    ? `Pausada pelo suporte até \${new Date(profile.pause.until).toLocaleString(timeLocale)}: \${profile.pause.reason}`
     : null;
 
   return <>
-    <div className="support-banner"><Alert tone="warning">{t('support.banner', { name: profile.name })}</Alert></div>
-    <Card title={profile.name} subtitle={`#${profile.id} · ${profile.ownerEmail ?? t('support.noOwner')}`}>
+    <div className="support-banner"><Alert tone="warning">{`Modo suporte · alterações feitas em nome de \${profile.name} ficam registradas e visíveis para a loja.`}</Alert></div>
+    <Card title={profile.name} subtitle={`#${profile.id} · ${profile.ownerEmail ?? 'sem responsável'}`}>
       <Tabs value={tab} onChange={setTab} tabs={[
-        { id: 'summary', label: t('support.tab.summary') },
-        { id: 'orders', label: t('support.tab.orders') },
-        { id: 'catalog', label: t('support.tab.catalog') },
-        { id: 'hours', label: t('support.tab.hours') },
-        { id: 'discount', label: t('support.tab.discount') },
-        { id: 'trail', label: t('support.tab.trail') },
+        { id: 'summary', label: 'Resumo' },
+        { id: 'orders', label: 'Pedidos' },
+        { id: 'catalog', label: 'Cardápio' },
+        { id: 'hours', label: 'Horários' },
+        { id: 'discount', label: 'Desconto' },
+        { id: 'trail', label: 'Trilha' },
       ]} />
     </Card>
 
     {tab === 'summary' && <Card>
       <div className="stat-grid">
-        <div className="stat-card"><span>{t('support.summary.registration')}</span><strong>{t(`support.approval.${profile.approval}`)}</strong><small>{profile.active ? t('support.summary.active') : t('support.summary.inactive')}</small></div>
-        <div className="stat-card"><span>{t('support.summary.now')}</span><strong>{profile.pause ? t('support.status.paused') : profile.open ? t('support.status.open') : t('support.status.closed')}</strong><small>{profile.timezone ?? t('support.summary.noTimezone')}</small></div>
-        <div className="stat-card accent"><span>{t('support.summary.activeOrders')}</span><strong>{profile.activeOrders}</strong><small>{t('support.summary.late', { count: profile.lateOrders })}</small></div>
-        <div className="stat-card"><span>{t('support.summary.canceled7d')}</span><strong>{profile.canceled7d}</strong><small>{t('support.summary.subscription', { status: profile.subscriptionStatus ?? '—' })}</small></div>
+        <div className="stat-card"><span>{'Cadastro'}</span><strong>{APPROVAL_LABELS[profile.approval] ?? profile.approval}</strong><small>{profile.active ? 'Ativa' : 'Desativada'}</small></div>
+        <div className="stat-card"><span>{'Agora'}</span><strong>{profile.pause ? 'Pausada' : profile.open ? 'Aberta' : 'Fechada'}</strong><small>{profile.timezone ?? 'sem fuso'}</small></div>
+        <div className="stat-card accent"><span>{'Pedidos ativos'}</span><strong>{profile.activeOrders}</strong><small>{`\${profile.lateOrders} atrasado(s)`}</small></div>
+        <div className="stat-card"><span>{'Cancelados (7 dias)'}</span><strong>{profile.canceled7d}</strong><small>{`Assinatura: \${profile.subscriptionStatus ?? '—'}`}</small></div>
       </div>
-      <p>{t('support.summary.modules')} {profile.modules.length ? profile.modules.map((key) => <Badge key={key}>{key}</Badge>) : '—'}</p>
+      <p>{'Módulos:'} {profile.modules.length ? profile.modules.map((key) => <Badge key={key}>{key}</Badge>) : '—'}</p>
       {pauseText && <Alert tone="warning">{pauseText}</Alert>}
       {canAct && (profile.pause
-        ? <Button variant="secondary" onClick={() => intervene(t('support.pause.resume'), `${base}/pause`, 'DELETE', (reason) => ({ reason }), t('support.pause.resumed'))}>{t('support.pause.resume')}</Button>
+        ? <Button variant="secondary" onClick={() => intervene('Encerrar pausa', `${base}/pause`, 'DELETE', (reason) => ({ reason }), 'Pausa encerrada.')}>{'Encerrar pausa'}</Button>
         : <div className="form-grid">
-            <Field label={t('support.pause.duration')}><SelectInput value={minutes} onChange={(event) => setMinutes(Number(event.target.value))}>{PAUSE_OPTIONS.map((value) => <option key={value} value={value}>{value < 60 ? `${value} min` : `${value / 60} h`}</option>)}</SelectInput></Field>
-            <Button variant="danger" onClick={() => intervene(t('support.pause.action'), `${base}/pause`, 'POST', (reason) => ({ minutes, reason }), t('support.pause.done'))}>{t('support.pause.action')}</Button>
+            <Field label={'Duração'}><SelectInput value={minutes} onChange={(event) => setMinutes(Number(event.target.value))}>{PAUSE_OPTIONS.map((value) => <option key={value} value={value}>{value < 60 ? `${value} min` : `${value / 60} h`}</option>)}</SelectInput></Field>
+            <Button variant="danger" onClick={() => intervene('Pausar loja', `${base}/pause`, 'POST', (reason) => ({ minutes, reason }), 'Loja pausada.')}>{'Pausar loja'}</Button>
           </div>)}
     </Card>}
 
@@ -93,16 +94,16 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
     {tab === 'hours' && <RestaurantHours mode="support" restaurantId={restaurantId} onMessage={setMessage} />}
 
     {tab === 'discount' && <Card>
-      <Alert tone="info">{t('support.discount.notice')}</Alert>
-      <form className="form-grid" onSubmit={(event) => { event.preventDefault(); void intervene(t('support.tab.discount'), `${base}/discount`, 'PATCH', (reason) => ({ reason, data: { percent: Number(discount.replace(',', '.')) } }), t('support.discount.done')); }}>
-        <Field label={t('support.discount.label')}><TextInput inputMode="decimal" value={discount} onChange={(event) => setDiscount(event.target.value)} disabled={!canAct} /></Field>
-        {canAct && <Button type="submit">{t('support.discount.save')}</Button>}
+      <Alert tone="info">{'O desconto da loja ainda não é aplicado ao total do pedido (pendência registrada).'}</Alert>
+      <form className="form-grid" onSubmit={(event) => { event.preventDefault(); void intervene('Desconto', `${base}/discount`, 'PATCH', (reason) => ({ reason, data: { percent: Number(discount.replace(',', '.')) } }), 'Desconto atualizado.'); }}>
+        <Field label={'Desconto (%)'}><TextInput inputMode="decimal" value={discount} onChange={(event) => setDiscount(event.target.value)} disabled={!canAct} /></Field>
+        {canAct && <Button type="submit">{'Salvar'}</Button>}
       </form>
     </Card>}
 
-    {tab === 'trail' && <Card title={t('support.tab.trail')}>
-      {trail.length === 0 ? <EmptyState title={t('support.log.empty')} /> : <div className="courier-list">
-        {trail.map((entry) => <div className="courier-row" key={entry.id}><div><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString(timeLocale)} · {entry.actorName} · {entry.action}</span>{entry.reason && <span>{t('support.log.reason', { reason: entry.reason })}</span>}</div></div>)}
+    {tab === 'trail' && <Card title={'Trilha'}>
+      {trail.length === 0 ? <EmptyState title={'Nenhuma intervenção do suporte.'} /> : <div className="courier-list">
+        {trail.map((entry) => <div className="courier-row" key={entry.id}><div><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString(timeLocale)} · {entry.actorName} · {entry.action}</span>{entry.reason && <span>{`Motivo: \${entry.reason}`}</span>}</div></div>)}
       </div>}
     </Card>}
     {dialog}
