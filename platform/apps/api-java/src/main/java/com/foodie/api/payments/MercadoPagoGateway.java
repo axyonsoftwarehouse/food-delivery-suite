@@ -21,16 +21,19 @@ public class MercadoPagoGateway implements PaymentGateway {
     private final String notificationUrl;
     private final String webhookSecret;
     private final String paymentReturnUrl;
+    private final boolean sandbox;
 
     public MercadoPagoGateway(@Value("${app.mercadopago.access-token:}") String accessToken,
                               @Value("${app.mercadopago.base-url:https://api.mercadopago.com}") String baseUrl,
                               @Value("${app.mercadopago.notification-url:}") String notificationUrl,
                               @Value("${app.mercadopago.webhook-secret:}") String webhookSecret,
-                              @Value("${app.mobile.payment-return-url:}") String paymentReturnUrl) {
+                              @Value("${app.mobile.payment-return-url:}") String paymentReturnUrl,
+                              @Value("${app.mercadopago.sandbox:false}") boolean sandbox) {
         this.accessToken = accessToken;
         this.notificationUrl = notificationUrl;
         this.webhookSecret = webhookSecret;
         this.paymentReturnUrl = paymentReturnUrl;
+        this.sandbox = sandbox;
         this.client = RestClient.builder().baseUrl(baseUrl).build();
     }
 
@@ -152,17 +155,23 @@ public class MercadoPagoGateway implements PaymentGateway {
     }
 
     /**
-     * Com credencial de teste o Mercado Pago devolve os dois pontos de entrada, e o de produção
-     * recusa os cartões de teste — por isso a preferência do sandbox vem primeiro quando o token
-     * é de teste (prefixo TEST-).
+     * Escolhe o ponto de entrada da preferência. Em ambiente de teste vale o {@code sandbox_init_point}:
+     * o ponto de entrada de produção recusa os cartões de teste. A marcação vem da configuração
+     * ({@code app.mercadopago.sandbox}), decidida na conferência do token — o prefixo do token não
+     * separa conta real de usuário de teste, porque o access token de usuário de teste também começa
+     * com {@code APP_USR-}.
      */
-    private String initPoint(Map<String, Object> preference) {
-        String sandbox = str(preference.get("sandbox_init_point"));
-        if (isTestToken() && sandbox != null && !sandbox.isBlank()) return sandbox;
+    static String chooseInitPoint(Map<String, Object> preference, boolean sandbox) {
+        String sandboxPoint = str(preference.get("sandbox_init_point"));
+        if (sandbox && sandboxPoint != null && !sandboxPoint.isBlank()) return sandboxPoint;
         return str(preference.get("init_point"));
     }
 
-    private boolean isTestToken() {
+    private String initPoint(Map<String, Object> preference) {
+        return chooseInitPoint(preference, sandbox || isTestTokenPrefix());
+    }
+
+    private boolean isTestTokenPrefix() {
         return accessToken != null && accessToken.startsWith("TEST-");
     }
 
