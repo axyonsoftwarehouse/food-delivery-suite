@@ -36,6 +36,7 @@ import org.springframework.web.client.RestClientResponseException;
  */
 @Service
 public class MercadoPagoGateway implements PaymentGateway {
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(MercadoPagoGateway.class);
     private final RestClient client;
     private final String accessToken;
     private final String webhookSecret;
@@ -209,7 +210,17 @@ public class MercadoPagoGateway implements PaymentGateway {
                 else if ("v1".equals(pair[0].trim())) v1 = pair[1].trim();
             }
         }
-        return WebhookVerifier.verify(webhookSecret, dataId, requestId, ts, v1);
+        boolean valida = WebhookVerifier.verify(webhookSecret, dataId, requestId, ts, v1);
+        if (!valida) {
+            // Notificação recusada é evento de operação: sem isto só se vê "401" e não se sabe se o
+            // provedor mudou o formato, se a chave está trocada ou se faltou um header. O manifesto tem
+            // apenas ids e horário — o segredo nunca entra no log.
+            logger.warn("Webhook do Mercado Pago recusado (401): assinatura={} request-id={} manifesto={}",
+                v1 == null ? "ausente" : "presente",
+                requestId == null ? "AUSENTE" : "presente",
+                WebhookVerifier.manifest(dataId, requestId, ts));
+        }
+        return valida;
     }
 
     private static String firstString(Map<String, Object> body, String... keys) {
