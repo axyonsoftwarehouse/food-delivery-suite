@@ -18,6 +18,8 @@ public class OnlinePaymentService {
     /** Valores aceitos pela coluna status de order_payments. */
     private static final Set<String> STATUSES = Set.of("pending", "paid", "cancelled", "refunded", "rejected", "expired");
     private static final Set<String> CLOSED_ORDER = Set.of("delivered", "rejected", "cancelled", "expired", "failed");
+    /** TLDs reservados (RFC 6761/2606) e de rede interna: o Mercado Pago recusa como email do pagador. */
+    private static final Set<String> TLDS_RESERVADOS = Set.of("local", "localhost", "test", "invalid", "example", "internal", "lan", "home");
 
     private final JdbcTemplate jdbc;
     private final PaymentGatewayRegistry gateways;
@@ -58,7 +60,10 @@ public class OnlinePaymentService {
 
         long due = ((Number) payment.get("amount_due_cents")).longValue();
         String payerEmail = jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, ((Number) order.get("customer_id")).longValue());
-        if (payerEmail == null || payerEmail.isBlank()) throw new ApiException(400, "O cliente precisa ter email cadastrado para pagar online");
+        if (!emailValido(payerEmail)) {
+            throw new ApiException(400, "O Mercado Pago recusa o email do cliente para cobrança online (endereço de demonstração ou inválido): "
+                + (payerEmail == null || payerEmail.isBlank() ? "sem email cadastrado" : payerEmail));
+        }
         String idempotencyKey = "order-" + orderId + "-" + payment.get("id");
 
         PaymentGateway gateway = gateways.resolve(provider);
@@ -97,6 +102,21 @@ public class OnlinePaymentService {
         jdbc.update("UPDATE order_payments SET status = ?, raw_status = ?, external_id = ?, note = ?, confirmed_at = IF(? = 'paid', NOW(), confirmed_at) WHERE order_id = ?",
             next, charge.rawStatus(), charge.externalId(), note, next, orderId);
         return Map.of("ok", true, "orderId", orderId, "status", next);
+    }
+
+    /**
+     * O Mercado Pago recusa o email do pagador quando o domínio não é entregável — o caso concreto do
+     * dado de demonstração: {@code cliente@demo.local} voltou "payer.email must be a valid email".
+     * Barrar antes evita um 502 sem explicação na tela do cliente.
+     */
+    static boolean emailValido(String email) {
+        if (email == null || email.isBlank()) return false;
+        String[] partes = email.trim().split("@", -1);
+        if (partes.length != 2 || partes[0].isBlank() || partes[1].isBlank()) return false;
+        String dominio = partes[1].toLowerCase(java.util.Locale.ROOT);
+        if (!dominio.contains(".") || dominio.startsWith(".") || dominio.endsWith(".")) return false;
+        String tld = dominio.substring(dominio.lastIndexOf('.') + 1);
+        return !TLDS_RESERVADOS.contains(tld);
     }
 
     public Map<String, Object> detail(long orderId) {

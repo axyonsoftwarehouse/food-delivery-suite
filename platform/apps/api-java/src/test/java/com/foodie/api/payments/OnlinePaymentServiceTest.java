@@ -1,7 +1,9 @@
 package com.foodie.api.payments;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -49,7 +51,7 @@ class OnlinePaymentServiceTest {
         payment.put("amount_due_cents", 1000L);
         when(jdbc.queryForList(argThat(sql -> sql != null && sql.contains("FROM orders")), any(Object[].class))).thenReturn(List.of(order));
         when(jdbc.queryForList(argThat(sql -> sql != null && sql.contains("FROM order_payments")), any(Object[].class))).thenReturn(List.of(payment));
-        when(jdbc.queryForObject(anyString(), any(Class.class), any(Object[].class))).thenReturn("cliente@demo.local");
+        when(jdbc.queryForObject(anyString(), any(Class.class), any(Object[].class))).thenReturn("cliente@exemplo.com.br");
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
         when(gateways.resolve(any())).thenReturn(gateway);
         when(gateway.provider()).thenReturn("mercadopago");
@@ -79,7 +81,7 @@ class OnlinePaymentServiceTest {
         verify(gateway).create(request.capture());
         assertEquals(1L, request.getValue().orderId());
         assertEquals(1000L, request.getValue().amountCents());
-        assertEquals("cliente@demo.local", request.getValue().payerEmail());
+        assertEquals("cliente@exemplo.com.br", request.getValue().payerEmail());
         assertEquals("order-1-11", request.getValue().idempotencyKey());
 
         ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
@@ -128,12 +130,27 @@ class OnlinePaymentServiceTest {
     }
 
     @Test
-    void requiresCustomerEmail() {
+    void requiresAValidCustomerEmail() {
         when(jdbc.queryForObject(anyString(), any(Class.class), any(Object[].class))).thenReturn(null);
+        assertEquals(400, assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, "pix", null)).status());
 
-        ApiException error = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, "pix", null));
-
-        assertEquals(400, error.status());
+        // O dado de demonstração (cliente@demo.local) é recusado pelo Mercado Pago: barrar antes
+        // evita um 502 sem explicação na tela.
+        when(jdbc.queryForObject(anyString(), any(Class.class), any(Object[].class))).thenReturn("cliente@demo.local");
+        ApiException demonstracao = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, "pix", null));
+        assertEquals(400, demonstracao.status());
+        assertTrue(demonstracao.getMessage().contains("cliente@demo.local"));
         verify(gateway, never()).create(any());
+    }
+
+    @Test
+    void acceptsOnlyDeliverableDomains() {
+        assertTrue(OnlinePaymentService.emailValido("cliente@exemplo.com.br"));
+        assertFalse(OnlinePaymentService.emailValido("cliente@demo.local"));
+        assertFalse(OnlinePaymentService.emailValido("cliente@servidor.test"));
+        assertFalse(OnlinePaymentService.emailValido("sem-arroba"));
+        assertFalse(OnlinePaymentService.emailValido("cliente@semponto"));
+        assertFalse(OnlinePaymentService.emailValido("@exemplo.com.br"));
+        assertFalse(OnlinePaymentService.emailValido(null));
     }
 }

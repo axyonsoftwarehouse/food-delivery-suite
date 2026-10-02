@@ -1,6 +1,8 @@
 package com.foodie.api.payments;
 
 import com.foodie.api.ApiException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -48,7 +50,7 @@ public class MercadoPagoGateway implements PaymentGateway {
         try {
             return "pix".equals(request.method()) ? createPix(request) : createPreference(request);
         } catch (RestClientResponseException error) {
-            throw new ApiException(502, "Mercado Pago recusou a cobrança (" + error.getStatusCode().value() + ")");
+            throw new ApiException(502, "Mercado Pago recusou a cobrança: " + providerMessage(error));
         }
     }
 
@@ -58,7 +60,29 @@ public class MercadoPagoGateway implements PaymentGateway {
         try {
             return toCharge(get("/v1/payments/" + externalId));
         } catch (RestClientResponseException error) {
-            throw new ApiException(502, "Mercado Pago recusou a consulta (" + error.getStatusCode().value() + ")");
+            throw new ApiException(502, "Mercado Pago recusou a consulta: " + providerMessage(error));
+        }
+    }
+
+    /**
+     * Primeira mensagem útil que o provedor devolveu. Sem isto o atendimento (e quem está na tela) recebe
+     * só "recusou a cobrança (400)" e não descobre que o motivo era, por exemplo, o email do pagador.
+     */
+    static String providerMessage(RestClientResponseException error) {
+        String situacao = "HTTP " + error.getStatusCode().value();
+        String corpo = error.getResponseBodyAsString();
+        if (corpo == null || corpo.isBlank()) return situacao;
+        try {
+            Map<String, Object> resposta = new ObjectMapper().readValue(corpo, new TypeReference<Map<String, Object>>() {});
+            Object mensagem = resposta.get("message");
+            if (mensagem != null && !String.valueOf(mensagem).isBlank()) return situacao + " - " + mensagem;
+            if (resposta.get("cause") instanceof List<?> causas && !causas.isEmpty() && causas.getFirst() instanceof Map<?, ?> primeira) {
+                Object descricao = primeira.get("description");
+                if (descricao != null && !String.valueOf(descricao).isBlank()) return situacao + " - " + descricao;
+            }
+            return situacao;
+        } catch (Exception ignorado) {
+            return situacao;
         }
     }
 
