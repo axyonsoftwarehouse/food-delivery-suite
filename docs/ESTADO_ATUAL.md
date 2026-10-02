@@ -15,10 +15,10 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `f5b5f0a` — PRs #1, #2 e #3 mescladas em 01/10 |
+| `main` local | `0d9bea1` — PRs #1 a #13 mescladas em 01/10 e 02/10 |
 | E48 | mesclado em 01/10 (`5564966`) e **publicado** no staging; teste manual local OK |
 | `origin/main` | sincronizado com a `main` local |
-| **Código na VPS** | **`f5b5f0a`** — o `main` inteiro (PRs #1–#3 incluídas), conferido em 01/10 pelo `/home/deploy/foodie-platform/.deployed` |
+| **Código na VPS** | **`0d9bea1`** — o `main` inteiro (PRs #1–#13 incluídas), conferido em 02/10 pelo `/home/deploy/foodie-platform/.deployed` |
 | Schema (`/ready`) | `054` (`V054__admin_support_mode.sql`), na VPS e no `HEAD` |
 | Distância | **nenhuma**: VPS e `main` no mesmo commit |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
@@ -244,7 +244,7 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada e as PRs #1–#3 estão publicadas (`f5b5f0a`).
+A fila de infraestrutura está zerada e as PRs #1–#13 estão publicadas (`0d9bea1`, 02/10).
 Próximo passo: escolher entre o **desconto da loja sem efeito** (especificação e plano
 prontos em `docs/superpowers/`) e as **pendências comerciais**.
 
