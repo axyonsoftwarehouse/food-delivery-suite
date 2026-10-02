@@ -47,6 +47,9 @@ app:
     # Ambiente de teste: usa o ponto de entrada de sandbox na preferência (o de produção recusa
     # cartão de teste). O script de credencial grava isto conforme o que a conta é.
     sandbox: ${MERCADOPAGO_SANDBOX:false}
+    # Public key da aplicação: vai para o navegador e tokeniza o cartão no checkout transparente
+    # (o número do cartão nunca passa pelo nosso servidor). Não é segredo.
+    public-key: ${MERCADOPAGO_PUBLIC_KEY:}
   mapbox:
     token: ${MAPBOX_TOKEN:}
     base-url: ${MAPBOX_BASE_URL:https://api.mapbox.com}

@@ -32,8 +32,26 @@ public class OnlinePaymentService {
         this.allowDirectOnlineCharges = allowDirectOnlineCharges;
     }
 
+    /**
+     * Intenção de cobrança online. {@code cardToken} vem do navegador (checkout transparente) e é o
+     * único dado do cartão que chega até aqui; {@code installments}, {@code docType} e {@code docNumber}
+     * só se aplicam a cartão.
+     */
+    public record Intent(String method, String provider, String cardToken, Integer installments, String docType, String docNumber) {
+        public static Intent of(String method, String provider) {
+            return new Intent(method, provider, null, null, null, null);
+        }
+    }
+
     @Transactional
     public Map<String, Object> startIntent(User actor, long orderId, String method, String provider) {
+        return startIntent(actor, orderId, Intent.of(method, provider));
+    }
+
+    @Transactional
+    public Map<String, Object> startIntent(User actor, long orderId, Intent intent) {
+        String method = intent.method();
+        String provider = intent.provider();
         if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento online inválida");
         List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, total_cents, status FROM orders WHERE id = ? FOR UPDATE", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
@@ -66,9 +84,19 @@ public class OnlinePaymentService {
         }
         String idempotencyKey = "order-" + orderId + "-" + payment.get("id");
 
+        if ("card".equals(method)) {
+            if (intent.cardToken() == null || intent.cardToken().isBlank()) {
+                throw new ApiException(400, "Pagamento com cartão exige o token do cartão — o formulário do checkout gera esse token no navegador");
+            }
+            if (intent.docType() == null || intent.docNumber() == null || intent.docNumber().isBlank()) {
+                throw new ApiException(400, "Pagamento com cartão exige o CPF (ou CNPJ) do titular");
+            }
+        }
+
         PaymentGateway gateway = gateways.resolve(provider);
         PaymentGateway.Charge charge = gateway.create(new PaymentGateway.ChargeRequest(
-            orderId, due, method, "Pedido #" + orderId, payerEmail, idempotencyKey, null));
+            orderId, due, method, "Pedido #" + orderId, payerEmail, idempotencyKey, null,
+            intent.cardToken(), intent.installments(), intent.docType(), intent.docNumber()));
 
         String status = charge.status() == null || !STATUSES.contains(charge.status()) ? "pending" : charge.status();
         jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = ?, idempotency_key = ?, status = ?, raw_status = ?,"

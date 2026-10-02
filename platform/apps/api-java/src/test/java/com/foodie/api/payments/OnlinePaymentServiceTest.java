@@ -144,6 +144,41 @@ class OnlinePaymentServiceTest {
     }
 
     @Test
+    void cardChargeNeedsTheTokenAndTheDocument() {
+        // O token vem do navegador (checkout transparente); sem ele não há como cobrar cartão.
+        ApiException semToken = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, "card", null));
+        assertEquals(400, semToken.status());
+        assertTrue(semToken.getMessage().contains("token do cartão"));
+
+        ApiException semCpf = assertThrows(ApiException.class, () -> service(true)
+            .startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 1, null, null)));
+        assertEquals(400, semCpf.status());
+        assertTrue(semCpf.getMessage().contains("CPF"));
+        verify(gateway, never()).create(any());
+    }
+
+    @Test
+    void cardChargeForwardsTokenInstallmentsAndDocument() {
+        when(gateway.create(any())).thenReturn(new PaymentGateway.Charge("999", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 3, "CPF", "12345678909"));
+
+        ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+        verify(gateway).create(request.capture());
+        assertEquals("card", request.getValue().method());
+        assertEquals("tok-123", request.getValue().cardToken());
+        assertEquals(3, request.getValue().installments());
+        assertEquals("CPF", request.getValue().docType());
+        assertEquals("12345678909", request.getValue().docNumber());
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        Object[] salvo = values.getValue();
+        assertEquals("paid", salvo[4]);          // status normalizado
+        assertEquals("accredited", salvo[5]);    // raw_status guarda o detalhe do provedor
+    }
+
+    @Test
     void acceptsOnlyDeliverableDomains() {
         assertTrue(OnlinePaymentService.emailValido("cliente@exemplo.com.br"));
         assertFalse(OnlinePaymentService.emailValido("cliente@demo.local"));

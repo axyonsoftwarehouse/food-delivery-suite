@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -32,12 +33,15 @@ public class PaymentController {
     private final PaymentService payments;
     private final OnlinePaymentService online;
     private final PaymentGatewayRegistry gateways;
+    private final String mercadopagoPublicKey;
 
-    public PaymentController(AuthService auth, PaymentService payments, OnlinePaymentService online, PaymentGatewayRegistry gateways) {
+    public PaymentController(AuthService auth, PaymentService payments, OnlinePaymentService online, PaymentGatewayRegistry gateways,
+                             @Value("${app.mercadopago.public-key:}") String mercadopagoPublicKey) {
         this.auth = auth;
         this.payments = payments;
         this.online = online;
         this.gateways = gateways;
+        this.mercadopagoPublicKey = mercadopagoPublicKey;
     }
 
     @PostMapping("/orders/{id}/payment/online")
@@ -45,7 +49,19 @@ public class PaymentController {
                                            @PathVariable @Positive long id,
                                            @Valid @RequestBody OnlineRequest body) {
         User actor = auth.requireUser(token, "customer", "admin");
-        return online.startIntent(actor, id, body.method(), body.provider());
+        return online.startIntent(actor, id, new OnlinePaymentService.Intent(
+            body.method(), body.provider(), body.cardToken(), body.installments(), body.docType(), body.docNumber()));
+    }
+
+    /** O que o checkout precisa para montar o formulário: provedor e public key (que não é segredo). */
+    @GetMapping("/payments/public-config")
+    public Map<String, Object> publicConfig(@CookieValue(value = "foodie_session", required = false) String token) {
+        auth.requireUser(token);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("provider", gateways.defaultProvider());
+        result.put("publicKey", mercadopagoPublicKey == null ? "" : mercadopagoPublicKey);
+        result.put("cardTransparent", mercadopagoPublicKey != null && !mercadopagoPublicKey.isBlank());
+        return result;
     }
 
     @GetMapping("/payments/providers")
@@ -90,5 +106,7 @@ public class PaymentController {
 
     public record ConfirmRequest(@NotNull @Min(0) @Max(100_000_000) Long amountReceivedCents, @Size(max = 255) String note) {}
     public record RefundRequest(@Size(max = 255) String note) {}
-    public record OnlineRequest(@NotBlank @Pattern(regexp = "pix|card") String method, @Size(max = 40) String provider) {}
+    public record OnlineRequest(@NotBlank @Pattern(regexp = "pix|card") String method, @Size(max = 40) String provider,
+                                @Size(max = 255) String cardToken, @Min(1) @Max(24) Integer installments,
+                                @Pattern(regexp = "CPF|CNPJ") String docType, @Size(max = 20) String docNumber) {}
 }
