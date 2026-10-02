@@ -85,3 +85,8 @@ platform-release-*.tar.gz
 
 # ===== Monitoramento (segredos renderizados) =====
 platform/monitoring/alertmanager.rendered.yml
+
+# Copias de seguranca de .env (o atalho de credencial cria .env.bak-<data>)
+.env.bak*
+**/.env.bak*
+**/.env.bak-*
