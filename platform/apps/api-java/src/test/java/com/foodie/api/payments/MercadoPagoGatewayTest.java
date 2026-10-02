@@ -42,6 +42,10 @@ class MercadoPagoGatewayTest {
             MercadoPagoGateway.providerMessage(erro(400, "{\"message\":\"payer.email must be a valid email\",\"error\":\"bad_request\",\"status\":400}")));
         assertEquals("HTTP 401 - Unauthorized use of live credentials",
             MercadoPagoGateway.providerMessage(erro(401, "{\"cause\":[{\"code\":7,\"description\":\"Unauthorized use of live credentials\"}],\"error\":\"unauthorized\"}")));
+        // E o formato da API de Orders (03/10): o motivo vem em `errors[]`, com o detalhe do campo.
+        assertEquals("HTTP 400 - Properties not supported (additionalProperties '$.notification_url' not allowed)",
+            MercadoPagoGateway.providerMessage(erro(400, "{\"errors\":[{\"code\":\"unsupported_properties\",\"message\":\"Properties not supported\","
+                + "\"details\":[\"additionalProperties '$.notification_url' not allowed\"]}]}")));
         assertEquals("HTTP 500", MercadoPagoGateway.providerMessage(erro(500, "")));
         assertEquals("HTTP 500", MercadoPagoGateway.providerMessage(erro(500, "nao e json")));
     }

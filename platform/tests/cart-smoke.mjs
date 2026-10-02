@@ -81,6 +81,19 @@ const order = (await call('/cart/checkout', { cookie: first, method: 'POST', exp
 assert.equal(order.status, 'placed');
 assert.equal(order.subtotalCents, 5 * product.price_cents);
 assert.equal(order.totalCents, order.subtotalCents + zone.delivery_fee_cents);
+
+// Retirada: não existe estimativa de entrega. O checkout desta modalidade já respondeu 500 porque o
+// `feeMode` era lido sem checar o `estimate` nulo — este caso existe para isso não voltar.
+await call('/cart', { cookie: first, method: 'DELETE' });
+await call(itemPath, { cookie: first, method: 'PATCH', body: { delta: 1 } });
+const takeAway = (await call('/cart/checkout', { cookie: first, method: 'POST', expected: 201,
+  body: { expectedTotalCents: product.price_cents, paymentMethod: 'cash', orderType: 'take_away' } })).data;
+assert.equal(takeAway.status, 'placed');
+assert.equal(takeAway.orderType, 'take_away');
+assert.equal(takeAway.deliveryFeeCents, 0, 'Retirada não paga frete');
+assert.equal(takeAway.totalCents, product.price_cents);
+assert.equal(takeAway.feeMode, undefined, 'Retirada não tem modo de taxa de entrega');
+
 assert.deepEqual((await call('/cart', { cookie: secondDevice })).data.items, []);
 console.log(`Carrinho sincronizado, isolado e finalizado no pedido #${order.id}.`);
 
