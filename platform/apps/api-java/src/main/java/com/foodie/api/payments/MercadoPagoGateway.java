@@ -48,10 +48,36 @@ public class MercadoPagoGateway implements PaymentGateway {
     public Charge create(ChargeRequest request) {
         requireConfigured();
         try {
-            return "pix".equals(request.method()) ? createPix(request) : createPreference(request);
+            if ("pix".equals(request.method())) return createPix(request);
+            // Com o token do cartão (checkout transparente) a cobrança é nossa; sem ele, cai na
+            // preferência (Checkout Pro, redirecionamento) — caminho legado, mantido para quem
+            // tiver a aplicação configurada para o Pro.
+            if (request.cardToken() != null && !request.cardToken().isBlank()) return createCard(request);
+            return createPreference(request);
         } catch (RestClientResponseException error) {
             throw new ApiException(502, "Mercado Pago recusou a cobrança: " + providerMessage(error));
         }
+    }
+
+    /**
+     * Cartão no checkout transparente: o {@code token} é gerado no navegador com a public key, então
+     * o número e o código de segurança do cartão <b>nunca passam por esta API</b>.
+     */
+    private Charge createCard(ChargeRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("transaction_amount", request.amountCents() / 100.0);
+        body.put("description", request.description());
+        body.put("token", request.cardToken());
+        if (request.installments() != null) body.put("installments", request.installments());
+        body.put("external_reference", String.valueOf(request.orderId()));
+        Map<String, Object> payer = new LinkedHashMap<>();
+        payer.put("email", request.payerEmail());
+        if (request.docType() != null && request.docNumber() != null) {
+            payer.put("identification", Map.of("type", request.docType(), "number", request.docNumber()));
+        }
+        body.put("payer", payer);
+        if (!notificationUrl.isBlank()) body.put("notification_url", notificationUrl);
+        return toCharge(post("/v1/payments", body, request.idempotencyKey()));
     }
 
     @Override
@@ -201,8 +227,11 @@ public class MercadoPagoGateway implements PaymentGateway {
 
     private Charge toCharge(Map<String, Object> payment) {
         String raw = str(payment.get("status"));
+        String detalhe = str(payment.get("status_detail"));
+        // raw_status guarda o detalhe quando existe (ex.: cc_rejected_insufficient_amount), que é o
+        // que explica a recusa para quem está na tela.
         return new Charge(str(payment.get("id")), str(payment.get("external_reference")), amountCents(payment.get("transaction_amount")),
-            MercadoPagoStatus.normalize(raw), raw, null, null, null, instant(payment.get("date_of_expiration")));
+            MercadoPagoStatus.normalize(raw), detalhe == null || detalhe.isBlank() ? raw : detalhe, null, null, null, instant(payment.get("date_of_expiration")));
     }
 
     private Map<String, Object> get(String path) {
