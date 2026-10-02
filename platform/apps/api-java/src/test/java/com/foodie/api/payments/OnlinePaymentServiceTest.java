@@ -179,6 +179,29 @@ class OnlinePaymentServiceTest {
     }
 
     @Test
+    void unknownChargeIsAcknowledgedInsteadOfFailing() {
+        // O painel do Mercado Pago testa o webhook com um pedido fictício ("123456"): responder erro faria
+        // o provedor reenviar para sempre e marcar a integração como quebrada na tela dele.
+        when(gateways.resolve("mercadopago")).thenReturn(gateway);
+        when(gateway.fetch("123456")).thenThrow(new ApiException(404, "Cobrança não encontrada no provedor: 123456"));
+
+        Map<String, Object> resposta = service(true).handleWebhook("mercadopago", "123456");
+
+        assertEquals(true, resposta.get("ok"));
+        assertEquals(true, resposta.get("ignored"));
+    }
+
+    @Test
+    void providerFailureStillFailsTheWebhook() {
+        // Falha de verdade (provedor fora do ar, consulta recusada) continua erro: aí o provedor deve
+        // reenviar a notificação.
+        when(gateways.resolve("mercadopago")).thenReturn(gateway);
+        when(gateway.fetch("123")).thenThrow(new ApiException(502, "Mercado Pago recusou a consulta"));
+
+        assertThrows(ApiException.class, () -> service(true).handleWebhook("mercadopago", "123"));
+    }
+
+    @Test
     void acceptsOnlyDeliverableDomains() {
         assertTrue(OnlinePaymentService.emailValido("cliente@exemplo.com.br"));
         assertFalse(OnlinePaymentService.emailValido("cliente@demo.local"));
