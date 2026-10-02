@@ -215,10 +215,10 @@ public class MercadoPagoGateway implements PaymentGateway {
             // Notificação recusada é evento de operação: sem isto só se vê "401" e não se sabe se o
             // provedor mudou o formato, se a chave está trocada ou se faltou um header. O manifesto tem
             // apenas ids e horário — o segredo nunca entra no log.
-            logger.warn("Webhook do Mercado Pago recusado (401): assinatura={} request-id={} manifesto={}",
-                v1 == null ? "ausente" : "presente",
+            logger.warn("Webhook do Mercado Pago recusado (401): assinatura={} request-id={} ts={} manifesto={}",
+                v1 == null ? "ausente" : v1.substring(0, Math.min(8, v1.length())) + "…",
                 requestId == null ? "AUSENTE" : "presente",
-                WebhookVerifier.manifest(dataId, requestId, ts));
+                ts, WebhookVerifier.manifest(dataId, requestId, ts));
         }
         return valida;
     }
