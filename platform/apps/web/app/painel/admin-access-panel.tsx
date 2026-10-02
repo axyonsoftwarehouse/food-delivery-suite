@@ -162,7 +162,7 @@ export default function AdminAccessPanel() {
             <span>{employee.email}</span>
             <small className={employee.suspended ? 'courier-state' : 'courier-state approved'}>{employee.suspended ? 'Suspenso' : employee.adminRoleId ? roles.find((role) => role.id === employee.adminRoleId)?.name ?? '—' : 'Acesso total'}</small>
           </div>
-          <select value={employee.adminRoleId ?? ''} disabled={busy} onChange={(event) => void changeEmployeeRole(employee, event.target.value)}>
+          <select value={employee.adminRoleId ?? ''} aria-label={`Nível de acesso de ${employee.name}`} disabled={busy} onChange={(event) => void changeEmployeeRole(employee, event.target.value)}>
             <option value="">{'Acesso total'}</option>
             {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
           </select>

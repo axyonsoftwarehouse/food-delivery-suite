@@ -120,7 +120,7 @@ function ExpensesTab({ onMessage }: { onMessage: (m: string) => void }) {
       <button className="secondary-button" disabled={busy}>Lançar despesa</button>
     </form>
     <div>
-      <div className="ui-chips" style={{ marginBottom: 12 }}><input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /><input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></div>
+      <div className="ui-chips" style={{ marginBottom: 12 }}><input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} /><input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} /></div>
       <div className="courier-list">
         <h3>Total no período: {money(data?.totalCents ?? 0)}</h3>
         {data?.items.length ? data.items.map((item) => <div className="courier-row" key={item.id}><div><strong>{item.category}</strong><span>{item.description} · {new Date(item.incurred_at).toLocaleDateString('pt-BR')}{item.created_by_name ? ` · ${item.created_by_name}` : ''}</span></div><div className="courier-actions"><strong>{money(item.amount_cents)}</strong><button className="availability-button" disabled={busy} onClick={() => void remove(item)}>Excluir</button></div></div>) : <p className="form-help">Sem despesas no período.</p>}
@@ -150,10 +150,10 @@ function LedgerTab({ onMessage }: { onMessage: (m: string) => void }) {
 
   return <>
     <div className="ui-chips" style={{ marginBottom: 12 }}>
-      <select value={party} onChange={(event) => setParty(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurante (histórico)</option><option value="courier">Entregador</option></select>
-      {party !== 'admin' && <input inputMode="numeric" value={partyId} onChange={(event) => setPartyId(event.target.value)} placeholder="ID da parte" />}
-      <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-      <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+      <select value={party} aria-label="Parte do extrato" onChange={(event) => setParty(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurante (histórico)</option><option value="courier">Entregador</option></select>
+      {party !== 'admin' && <input inputMode="numeric" aria-label="ID da parte" value={partyId} onChange={(event) => setPartyId(event.target.value)} placeholder="ID da parte" />}
+      <input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} />
+      <input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} />
       <strong>Saldo: {money(data?.balanceCents ?? 0)}</strong>
     </div>
     <div className="postal-range-list">{data?.items.length ? data.items.map((entry) => <div key={entry.id}><span><strong>{KIND_LABEL[entry.kind] ?? entry.kind}</strong>{entry.order_id ? ` pedido #${entry.order_id}` : ''} · {entry.description || '—'}</span><span>{money(entry.amount_cents)} · {new Date(entry.created_at).toLocaleString('pt-BR')}</span></div>) : <p className="form-help">Sem lançamentos.</p>}</div>
@@ -178,10 +178,10 @@ function EarningsTab({ onMessage }: { onMessage: (m: string) => void }) {
 
   return <>
     <div className="ui-chips" style={{ marginBottom: 12 }}>
-      <select value={scope} onChange={(event) => setScope(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurantes (histórico)</option><option value="courier">Entregadores</option></select>
-      <select value={groupBy} onChange={(event) => setGroupBy(event.target.value)}><option value="day">Por dia</option><option value="week">Por semana</option><option value="month">Por mês</option></select>
-      <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-      <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+      <select value={scope} aria-label="Escopo dos ganhos" onChange={(event) => setScope(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurantes (histórico)</option><option value="courier">Entregadores</option></select>
+      <select value={groupBy} aria-label="Agrupar ganhos por" onChange={(event) => setGroupBy(event.target.value)}><option value="day">Por dia</option><option value="week">Por semana</option><option value="month">Por mês</option></select>
+      <input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} />
+      <input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} />
       <a className="secondary-button" href={`/backend/admin/reports/export?report=earnings&scope=${scope}&from=${from}&to=${to}`} target="_blank" rel="noreferrer">Exportar CSV</a>
     </div>
     <div className="stat-grid" style={{ marginBottom: 16 }}>
