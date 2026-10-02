@@ -6,11 +6,16 @@ REM  Clique duas vezes e cole o token quando o script pedir: o valor nao
 REM  aparece na tela.
 REM
 REM  Com parametros:
+REM      configurar-mercadopago.bat -Ensaio
 REM      configurar-mercadopago.bat -LigarCobrancaOnline
 REM      configurar-mercadopago.bat -NotificationUrl "https://api.staging.../webhooks/mercadopago"
 REM      configurar-mercadopago.bat -WebhookSecret
 REM      configurar-mercadopago.bat -EnvFile "C:\outro\.env"
 REM      configurar-mercadopago.bat -NaoConferir
+REM
+REM  Para o ambiente no ar (staging), em vez do .env local:
+REM      configurar-mercadopago.bat -Remoto -LigarCobrancaOnline -NotificationUrl "https://api.staging.2.29.42.104.sslip.io/webhooks/mercadopago"
+REM  (o -Remoto grava na VPS por SSH e recria a API; -NaoReiniciar so grava)
 REM ---------------------------------------------------------------------
 setlocal
 cd /d "%~dp0"
