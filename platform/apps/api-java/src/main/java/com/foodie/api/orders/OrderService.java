@@ -321,7 +321,9 @@ public class OrderService {
         created.put("paymentMethod", request.paymentMethod());
         created.put("distanceMeters", distanceMeters);
         created.put("durationSeconds", durationSeconds);
-        created.put("feeMode", estimate.feeMode());
+        // Retirada e consumo no local não têm estimativa de entrega (`estimate` é nulo nessas
+        // modalidades): sem esta guarda o checkout dessas duas modalidades respondia 500.
+        if (estimate != null) created.put("feeMode", estimate.feeMode());
         return created;
     }
 

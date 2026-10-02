@@ -28,20 +28,22 @@ import org.springframework.web.client.RestClientResponseException;
  *
  * <p>O dinheiro anda por aqui, mas <b>os dados do cartão não</b>: o número e o código de segurança viram
  * um {@code token} no navegador (MercadoPago.js + public key) e só o token chega a este serviço.
+ *
+ * <p>A notificação de mudança de status <b>não</b> se configura nesta classe: a API de Orders recusa
+ * {@code notification_url} no corpo da requisição. A URL é registrada no painel do Mercado Pago
+ * (Webhooks &gt; Configurar notificações &gt; evento "Order (Mercado Pago)") e chega ao nosso
+ * {@code /webhooks/mercadopago}.
  */
 @Service
 public class MercadoPagoGateway implements PaymentGateway {
     private final RestClient client;
     private final String accessToken;
-    private final String notificationUrl;
     private final String webhookSecret;
 
     public MercadoPagoGateway(@Value("${app.mercadopago.access-token:}") String accessToken,
                               @Value("${app.mercadopago.base-url:https://api.mercadopago.com}") String baseUrl,
-                              @Value("${app.mercadopago.notification-url:}") String notificationUrl,
                               @Value("${app.mercadopago.webhook-secret:}") String webhookSecret) {
         this.accessToken = accessToken;
-        this.notificationUrl = notificationUrl;
         this.webhookSecret = webhookSecret;
         this.client = RestClient.builder().baseUrl(baseUrl).build();
     }
@@ -96,8 +98,11 @@ public class MercadoPagoGateway implements PaymentGateway {
         pagamento.put("amount", dinheiro(request.amountCents()));
         pagamento.put("payment_method", meio);
         corpo.put("transactions", Map.of("payments", List.of(pagamento)));
-        if (!notificationUrl.isBlank()) corpo.put("notification_url", notificationUrl);
 
+        // Sem `notification_url`: a API de Orders recusa campo extra no corpo
+        // (`400 unsupported_properties: additionalProperties '$.notification_url' not allowed`).
+        // A notificação de orders se configura no painel do Mercado Pago (Webhooks > Configurar
+        // notificações > evento "Order (Mercado Pago)"), apontando para o nosso /webhooks/mercadopago.
         return fromOrder(post("/v1/orders", corpo, request.idempotencyKey()));
     }
 
@@ -135,6 +140,15 @@ public class MercadoPagoGateway implements PaymentGateway {
             if (resposta.get("cause") instanceof List<?> causas && !causas.isEmpty() && causas.getFirst() instanceof Map<?, ?> primeira) {
                 Object descricao = primeira.get("description");
                 if (descricao != null && !String.valueOf(descricao).isBlank()) return situacao + " - " + descricao;
+            }
+            // A API de Orders erra em `errors[]` (não em `message`/`cause`). Sem isto, um campo recusado
+            // virava só "HTTP 400" e o motivo — que estava no corpo — ficava invisível.
+            if (resposta.get("errors") instanceof List<?> erros && !erros.isEmpty() && erros.getFirst() instanceof Map<?, ?> erro) {
+                String texto = str(erro.get("message"));
+                String detalhe = erro.get("details") instanceof List<?> detalhes && !detalhes.isEmpty() ? String.valueOf(detalhes.getFirst()) : null;
+                if (texto != null && !texto.isBlank()) {
+                    return situacao + " - " + texto + (detalhe == null || detalhe.isBlank() ? "" : " (" + detalhe + ")");
+                }
             }
             return situacao;
         } catch (Exception ignorado) {
