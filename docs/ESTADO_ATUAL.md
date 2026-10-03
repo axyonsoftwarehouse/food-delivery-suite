@@ -1,6 +1,6 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 01/10/2026 (fim do dia).
+Documento vivo. Última atualização: 03/10/2026 (madrugada).
 Base: `PLANO_EPICOS_STACKFOOD.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -15,23 +15,26 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `dd7e2c8` — PRs #1 a #17 mescladas em 01/10 e 02/10 |
+| `main` local | `df503c0` — PRs #1 a #35 mescladas em 01/10, 02/10 e na madrugada de 03/10 |
 | E48 | mesclado em 01/10 (`5564966`) e **publicado** no staging; teste manual local OK |
-| `origin/main` | sincronizado com a `main` local |
-| **Código na VPS** | **`dd7e2c8`** — o `main` inteiro (PRs #1–#17 incluídas), conferido em 02/10 pelo `/home/deploy/foodie-platform/.deployed` (`previous=bf7b229`, às 14:10 UTC) |
-| Schema (`/ready`) | `055` (`V055__drop_translations.sql`), na VPS e no `HEAD` |
-| Distância | a VPS roda o **código** de `dd7e2c8`; a `main` está um commit à frente (`e678e90`, docs do PR #18) — o pacote de deploy é a pasta `platform/`, então o que roda é o mesmo |
+| `origin/main` | sincronizado com a `main` local (nada pendente de push) |
+| **Código na VPS** | **`df503c0`** — o `main` inteiro (PRs #1–#35 incluídas), conferido pelo `/home/deploy/foodie-platform/.deployed` (`previous=d98219d`, 02/10 às 19:22 UTC) |
+| Schema (`/ready`) | `055` (`V055__drop_translations.sql`), na VPS e no `HEAD` — `/ready` e `/health` públicos em **200** |
+| Distância | **nenhuma**: a VPS roda o mesmo commit que a `main` local |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `main`: **283** execuções (`mvn test` em 02/10, depois da remoção do painel de traduções) |
+| Testes Java | `main`: **297** execuções sem falha (madrugada de 03/10, depois da mudança para a API de Orders) |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
-| Árvore de trabalho | limpa — só o resíduo vazio `docs/Novo(a) Documento de Texto.txt` |
+| Disco da VPS | **21%** (7,3 GB de 38 GB, 29 GB livres) — limpeza de 03/10; era 83% |
+| Árvore de trabalho | limpa |
 
-Como o deploy foi confirmado: não há `.git` na VPS (é cópia, não clone), então
-o commit foi conferido comparando o **hash de blob** dos arquivos implantados
-com os do repositório. `layout.tsx`, `loja/restaurant-menu.tsx` e `deploy.sh`
-batem exatamente com `e226cb2`. O mesmo método havia identificado antes que a
-VPS rodava `bf8a6a3` — o aviso de que ela estaria em `88efbe8`/schema `048`
-estava dois deploys desatualizado.
+Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
+`.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
+se confere comparando o **hash de blob** dos arquivos implantados com os do
+repositório — foi assim que se descobriu, em 01/10, que a VPS rodava `bf8a6a3`
+(o aviso de `88efbe8`/schema `048` estava dois deploys desatualizado). O
+`.deployed` já se mostrou mais novo que a documentação duas vezes: em 02/10 e de
+novo em 03/10, quando a `main` e a ficha diziam `dd7e2c8`/PR #20 e a VPS já
+estava em `df503c0`/PR #35.
 
 Como publicar: `.\platform\deploy\release.ps1` (no PC). O script empacota o
 commit, envia e aplica com backup, verificação e rollback — ver
@@ -91,7 +94,7 @@ pendente** — não há código Apple no backend).
 
 ### Deploy e verificação
 - **Homologação pública:** `staging.2.29.42.104.sslip.io`
-- **283 testes Java** + tipos TypeScript + build Next (`VERIFY_INTEGRATION=1 pnpm verify`)
+- **297 testes Java** + tipos TypeScript + build Next (`VERIFY_INTEGRATION=1 pnpm verify`)
 - Smokes: pedido, carrinho, exceções, contas e cobertura por CEP (`pnpm smoke:cart`,
   `smoke:exceptions`, `smoke:auth`)
 - Teste de carga: `pnpm load`
@@ -120,6 +123,36 @@ pendente** — não há código Apple no backend).
 - **Homologação funcional no staging** de recorrência e campanhas — o código
   está pronto e testado, mas ainda não foi validado em ambiente publicado
 
+### Pagamentos online — o que já está provado e o que falta
+
+**Provado no staging (02/10 e madrugada de 03/10):** o Pix sai do nosso checkout
+com **QR de verdade** (`POST /v1/orders` → `201`, QR `00020126580014br.gov.bcb.pix…`) e o cartão foi
+**pago pelo Card Payment Brick** (`paid`/`accredited`) — as duas telas do checkout transparente
+existem (`PixPayment.tsx` e `CardPaymentForm.tsx`). Um **webhook simulado** marcou o pedido como
+pago. Três defeitos achados no publicado foram corrigidos: retirada respondia **500**, a API de
+Orders **recusa `notification_url` no corpo** (a notificação se configura no painel) e cobrança que
+falhava **travava o pedido para sempre** (chave de idempotência nova na segunda tentativa).
+
+**Falta para fechar:**
+1. **Registrar a URL do webhook no painel do Mercado Pago** (evento **"Order"**):
+   `https://api.staging.2.29.42.104.sslip.io/webhooks/mercadopago`.
+2. **Gravar o segredo de assinatura** (`MERCADOPAGO_WEBHOOK_SECRET`). Confirmado em 03/10: **a VPS
+   não tem essa chave** no `.env` do staging, e o `WebhookVerifier.verify()` **devolve `true` quando o
+   segredo é vazio** — ou seja, hoje qualquer origem pode postar um webhook e ser aceita. Enquanto o
+   segredo não existir, o webhook é um ponto de entrada aberto.
+3. **Rodada de ponta a ponta:** Pix e cartão com o webhook do provedor chegando → pedido `paid` →
+   estorno pelo admin, com prints (é a evidência do cartão `1nguT9bv`, hoje em TESTING).
+4. **Trocar a credencial de teste** exposta em 02/10 (o `.env.bak` que entrou no PR #23; o objeto
+   continua no histórico do GitHub, então considerar vazada).
+5. **Decidir o 3DS** (status `CALL` não é tratado — não há referência no código) e conferir se a
+   conta tem **chave Pix registrada** (exigência do provedor para produção).
+6. ~~**Configuração morta para remover**~~ — **removida em 03/10**: `MERCADOPAGO_NOTIFICATION_URL`,
+   `MERCADOPAGO_SANDBOX` e `MOBILE_PAYMENT_RETURN_URL` saíram do `application.yml`, dos dois
+   `docker-compose.yml`, dos dois `.env.example` e do `configurar-mercadopago.ps1` (o parâmetro
+   `-NotificationUrl` morreu junto, e o campo `notificationUrl` do `ChargeRequest` também — ele era
+   passado como `null` fixo). Nenhum deles tinha leitor no código. **A URL de callback é registrada no
+   painel do Mercado Pago**, não em variável de ambiente.
+
 > **Correção de duas informações antigas.** "Geração automática de pedidos
 > recorrentes: job pendente" e "desconto de campanha no checkout: follow-up"
 > **não valem mais**. Ambos estão implementados: `RecurringOrderRunner`
@@ -133,10 +166,11 @@ pendente** — não há código Apple no backend).
 *(do `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`)*
 
 - **Cobrança real da assinatura** — hoje cria transação, não cobra provedor
-- **Pix/cartão online direto para a loja** — gateway ainda global; novas cobranças
-  online bloqueadas **por configuração** (`PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES=false`). Em 02/10 o
-  trecho que faltava (criar a cobrança no provedor e gravar QR/id externo) foi implementado, para
-  **teste com credencial de teste**; a rodada em staging aguarda o app de testes do Mercado Pago
+- **Pix/cartão online direto para a loja** — **código pronto e comprovado no staging** (ver §2 e §5);
+  o que falta não é implementação: é a **decisão comercial** (de quem é a conta que recebe e quem
+  assume o estorno), a **URL do webhook registrada no painel do Mercado Pago** e o segredo de
+  assinatura gravado. A flag `PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES` está **ligada no staging** e
+  desligada por padrão no código — em produção nada muda sem decisão
 - **Acerto do passivo antigo de carteira** — `ledger_entries` e `payout_requests`
 - **Quem financia entrega e gorjeta** — decisão contratual
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
@@ -171,10 +205,10 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 - **SSH do root está desabilitado** (`PermitRootLogin no`,
   `PasswordAuthentication no`). O root tem senha (alterada em 16/09), usável só
   pelo console da Hetzner: rotacionar é higiene opcional.
-- **Disco em 43%** (16 GB de 38 GB, 21 GB livres). A limpeza de 30/09 levou de
-  79% para 43%: 13 GB recuperados, quase tudo cache de build (`RUNBOOK_VPS.md`
-  §6). Cada deploy novo volta a custar ~2–3 GB — repita a limpeza quando passar
-  de ~70%.
+- **Disco: 21%** (7,3 GB de 38 GB) depois da limpeza de **03/10** — ver §5.1. A limpeza anterior
+  (30/09) tinha levado de 79% para 43%: 13 GB recuperados, quase tudo cache de build
+  (`RUNBOOK_VPS.md` §6). Cada ciclo de deploys volta a encher — 18,84 GB de cache foram recuperados
+  em 03/10 —, então **repita a limpeza quando passar de ~70%**.
 - **Deploy versionado (resolvido em 30/09).** O procedimento era ad hoc: o que
   existia na VPS era `/home/deploy/releases/<sha>/` com backup e pacote, sem
   script. Agora há `platform/deploy/release.ps1` (no PC) e
@@ -237,7 +271,8 @@ com justificativa e trilha de auditoria.
 1. ~~Publicar o `aafb220`~~ — **feito**: `e226cb2` está no ar, conferido por
    hash de blobs (`RUNBOOK_VPS.md` §0).
 2. ~~Push dos commits~~ — **feito**: `origin/main` está em `2e31862`, igual ao local.
-3. ~~Higiene de disco~~ — **feito**: 79% → **43%** (13 GB recuperados).
+3. ~~Higiene de disco~~ — **feito em 30/09** (79% → 43%) e **repetido em 03/10** (83% → 21%): o
+   acúmulo é cache de build do Docker, não dado. Números em §5.1.
 4. ~~Decidir o scaffold `/opt/production`~~ — **removido** em 30/09, depois de
    comprovado vazio (0 tabelas, 0 chaves). Config preservado em
    `/home/deploy/production-scaffold-20260930.tar.gz` (`RUNBOOK_VPS.md` §8).
@@ -249,19 +284,48 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada e as PRs #1–#17 estão publicadas (`dd7e2c8`, 02/10, schema `055`).
-Próximo passo: escolher entre o **desconto da loja sem efeito** (especificação e plano
-prontos em `docs/superpowers/`) e as **pendências comerciais**.
+A fila de infraestrutura está zerada. As PRs #1–#35 estão publicadas (`df503c0`, schema `055`) — o
+staging roda o mesmo commit que a `main`.
 
-## 6. Estado da árvore de trabalho (01/10)
+**O próximo passo é um só: fechar o cartão `1nguT9bv` (pagamento real), que está em TESTING.** Os
+itens 1 a 6 acima ("Pagamentos online — o que já está provado e o que falta") são a lista fechada; o
+que trava é a **chave do webhook** (item 2 — sem ela qualquer origem é aceita) e a **decisão
+comercial**, que não é de código.
 
-Limpa e **sincronizada com o `origin`** (`9a63a28`). A partir de 01/10 as mudanças entram por PR
-(branch → PR → merge no GitHub):
+## 5.1 Higiene da VPS — 03/10/2026
+
+O disco estava em **83%** (30 GB de 38 GB) e o motivo era o Docker, não o produto: **19,4 GB de cache
+de build** e 80 imagens acumuladas (20 releases × 4 serviços, uma por PR de webhook). Feito:
+
+- removidas **64 tags** `foodie-staging-*:pre-*` antigas (mantidas as do último release);
+- `docker image prune -a` (92 MB) e **`docker builder prune` → 18,84 GB**;
+- resultado: **83% → 21%** (7,3 GB usados, 29 GB livres), com API, web, Caddy e banco de pé e
+  `/ready` e `/health` em 200.
+
+**Efeito colateral tratado:** o `prune -a` levou junto as imagens de rollback `pre-df503c0` e
+`pre-d98219d` (o rollback funcional continua sendo o `docker compose up -d --build` sobre o snapshot
+em `/home/deploy/releases/<sha>/`), então as imagens em uso foram **re-tagadas** como
+`pre-df503c0` — rollback instantâneo para o release atual sem custo de build. Os backups de banco
+seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar de ~70%.
+
+## 6. Estado da árvore de trabalho (03/10)
+
+Limpa e **sincronizada com o `origin`**: `main` = `origin/main` = **`df503c0`** (PR #35). A partir de
+01/10 as mudanças entram por PR (branch → PR → merge no GitHub). Os PRs #24–#35 (madrugada de 03/10)
+foram o checkout transparente, o webhook e o endurecimento dele:
 
 | Commit | O que é |
 | --- | --- |
-| `6642f0e` / `c90d2fa` | `fix(web)`: reload de `/painel/suporte` não volta mais para `/painel` — PR #1 |
-| `0aed20e` / `9a63a28` | `fix(support)`: polimento do modo suporte (follow-ups do E48) — PR #2 |
+| `0257ef9` / `06932a3` | `feat`: cartão no checkout transparente e as telas do pagamento — PRs #24 e #26 |
+| `364a01b` | `fix`: cobrar na API de Orders, não na Payments API legacy — PR #25 |
+| `3e8f6cd` | `fix`: retirada sem 500 e Pix sem campo recusado — PR #27 |
+| `64c4dfb` | `fix`: cobrança que falhou não trava o pedido (idempotência) — PR #28 |
+| `a269688` … `1bcbff7` | `fix(webhook)`: log do motivo, 200 para notificação alheia, 4xx sem 502, manifesto pela query e id em minúsculas — PRs #29 a #33, #35 |
+| `d98219d` | `fix(webhook)`: log da recusa com o id do evento — PR #34 |
+| `df503c0` | merge final (16:20 de 02/10) — **é o que está na VPS** |
+
+Commits anteriores (01/10 e 02/10) — PRs #1 a #23 — estão registrados nas entradas do diário e nas
+tabelas das versões anteriores deste documento.
 
 Commits de 30/09:
 
@@ -275,8 +339,9 @@ Commits de 30/09:
 
 Não versionado: nada. O resíduo `docs/Novo(a) Documento de Texto.txt` foi apagado em 01/10.
 
-Ignorados pelo `.gitignore`: `backups/`, `platform/deploy/backups/` e os
-pacotes `platform-release-*.tar` (três na raiz, ~15 MB, podem ser apagados).
+Ignorados pelo `.gitignore`: `backups/`, `platform/deploy/backups/`, `.env.bak*` e os
+**16 pacotes `platform-release-*.tar` da raiz** (~85 MB, um por deploy desde 30/09, podem ser
+apagados) e os três da §6 antiga.
 
 Lembrete do `.hermes.md`: **nunca commitar nem dar push sem pedido explícito do
 Werner.**
@@ -329,7 +394,7 @@ Ver `docs/RUNBOOK_VPS.md`. Dois pontos que já custaram tempo:
   `/home/deploy/foodie-platform/deploy` — **não** em `.../platform/deploy`.
 - A VPS **não é um clone** (sem `.git`): não há `git rev-parse` para descobrir
   o commit no ar. Consulte `/home/deploy/foodie-platform/.deployed` (hoje:
-  `e226cb2`, schema `053`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
+  `df503c0`, schema `055`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
 
 ## 8. Referências
 

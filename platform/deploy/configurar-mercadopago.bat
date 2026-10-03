@@ -10,7 +10,6 @@ REM      configurar-mercadopago.bat -Diagnosticar
 REM      configurar-mercadopago.bat -Ensaio
 REM      configurar-mercadopago.bat -ComoTeste
 REM      configurar-mercadopago.bat -LigarCobrancaOnline
-REM      configurar-mercadopago.bat -NotificationUrl "https://api.staging.../webhooks/mercadopago"
 REM      configurar-mercadopago.bat -WebhookSecret
 REM      configurar-mercadopago.bat -EnvFile "C:\outro\.env"
 REM      configurar-mercadopago.bat -NaoConferir
@@ -19,8 +18,12 @@ REM  -Diagnosticar pergunta ao Mercado Pago o que a conta e (email/tags) e nao g
 REM  Token que comeca com APP_USR- pode ser conta real OU usuario de teste: o prefixo nao decide.
 REM
 REM  Para o ambiente no ar (staging), em vez do .env local:
-REM      configurar-mercadopago.bat -Remoto -LigarCobrancaOnline -NotificationUrl "https://api.staging.2.29.42.104.sslip.io/webhooks/mercadopago"
+REM      configurar-mercadopago.bat -Remoto -LigarCobrancaOnline -WebhookSecret
 REM  (o -Remoto grava na VPS por SSH e recria a API; -NaoReiniciar so grava)
+REM
+REM  A URL de callback do webhook NAO se configura aqui: registre-a no painel do
+REM  Mercado Pago (Webhooks > Configurar notificacoes > evento "Order") e use
+REM  -WebhookSecret para gravar o segredo que o painel gera.
 REM ---------------------------------------------------------------------
 setlocal
 cd /d "%~dp0"

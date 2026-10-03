@@ -106,7 +106,7 @@ public class OnlinePaymentService {
 
         PaymentGateway gateway = gateways.resolve(provider);
         PaymentGateway.Charge charge = gateway.create(new PaymentGateway.ChargeRequest(
-            orderId, due, method, "Pedido #" + orderId, payerEmail, idempotencyKey, null,
+            orderId, due, method, "Pedido #" + orderId, payerEmail, idempotencyKey,
             intent.cardToken(), intent.installments(), intent.docType(), intent.docNumber(),
             intent.paymentMethodId(), payerFirstName));
 

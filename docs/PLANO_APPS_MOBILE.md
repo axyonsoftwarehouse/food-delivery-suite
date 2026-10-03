@@ -93,8 +93,11 @@ Sem 1–4 não publicar app.
   `POST`/`DELETE /notifications/device-tokens`. O envio usa `FirebaseFcmSender` (HTTP v1, JWT RS256
   + OAuth2) com `FcmDispatcher` e a tabela `device_deliveries` (`V017`); token inválido é removido.
   Desativado enquanto `FCM_SERVICE_ACCOUNT_JSON` estiver vazio.
-- **Deep link:** `app.mobile.payment-return-url` (`MOBILE_PAYMENT_RETURN_URL`) injetado como
-  `back_urls` na preferência do Mercado Pago quando definido (Pix não usa `back_urls`).
+- **Deep link (histórico):** o plano previa `app.mobile.payment-return-url`
+  (`MOBILE_PAYMENT_RETURN_URL`) injetado como `back_urls` na preferência do Mercado Pago. **Perdeu
+  efeito:** a cobrança passou para o Checkout Transparente via **Orders** (o cartão é tokenizado no
+  navegador) e a URL de callback do webhook é registrada no painel do provedor — a chave foi removida
+  do `application.yml` em 03/10 por não ter leitor.
 
 Validado localmente: 81 testes Java aprovados, schema `017` em `/ready`, `/v3/api-docs` 200 e fluxo
 signup → `X-Foodie-Token` → `/me` com Bearer funcionando.
