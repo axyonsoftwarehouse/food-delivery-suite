@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Grava as credenciais do Mercado Pago no .env do Foodie sem mostrar o valor.
 
@@ -26,9 +26,6 @@
 .PARAMETER WebhookSecretDeArquivo
     Le o segredo do webhook de um arquivo.
 
-.PARAMETER NotificationUrl
-    URL publica que o Mercado Pago chama de volta (grava MERCADOPAGO_NOTIFICATION_URL).
-
 .PARAMETER LigarCobrancaOnline
     Liga o caminho de teste que permite CRIAR cobranca online nova
     (PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES=true). Sem isso, o produto continua recusando
@@ -55,15 +52,16 @@
     proxima recriacao).
 
 .EXAMPLE
-    .\configurar-mercadopago.ps1 -Remoto -LigarCobrancaOnline -NotificationUrl "https://api.staging.2.29.42.104.sslip.io/webhooks/mercadopago"
-    Configura o ambiente de staging: grava as credenciais na VPS e recria a API.
+    .\configurar-mercadopago.ps1 -Remoto -LigarCobrancaOnline -WebhookSecret
+    Configura o ambiente de staging: grava as credenciais na VPS (token e segredo do webhook) e
+    recria a API. A URL de callback NAO vai no .env: ela e registrada no painel do Mercado Pago.
 
 .EXAMPLE
     .\configurar-mercadopago.ps1
     Pede o token de teste, confere na API e grava em platform/.env.
 
 .EXAMPLE
-    .\configurar-mercadopago.ps1 -LigarCobrancaOnline -NotificationUrl "https://api.staging.2.29.42.104.sslip.io/webhooks/mercadopago"
+    .\configurar-mercadopago.ps1 -LigarCobrancaOnline -WebhookSecret
     Configura e liga a cobranca online (uso no ambiente de teste/staging).
 #>
 [CmdletBinding()]
@@ -71,7 +69,6 @@ param(
     [string] $EnvFile,
     [string] $DeArquivo,
     [string] $WebhookSecretDeArquivo,
-    [string] $NotificationUrl,
     [switch] $WebhookSecret,
     [switch] $LigarCobrancaOnline,
     [switch] $PermitirProducao,
@@ -230,9 +227,7 @@ if ($Diagnosticar) {
 }
 
 # ------------------------------------------------------------- o portao
-$sandbox = $false
 if ($classe -eq 'teste' -or $usuarioDeTeste -or $ComoTeste) {
-    $sandbox = $true
     if ($ComoTeste) { Warn 'tratando como ambiente de TESTE por -ComoTeste (voce declarou que a conta e de teste).' }
 } elseif ($PermitirProducao) {
     Warn 'tratando como PRODUCAO por -PermitirProducao - a cobranca cai na conta dona do token.'
@@ -248,14 +243,13 @@ if ($WebhookSecret -and -not $WebhookSecretDeArquivo) {
     $segredo = Ler-DeArquivo $WebhookSecretDeArquivo
 } else {
     $segredo = $null
+    Warn 'sem segredo de webhook nesta rodada: a validacao de assinatura fica ACEITANDO QUALQUER ORIGEM. Registre a URL no painel do Mercado Pago (Webhooks > evento "Order") e rode de novo com -WebhookSecret.'
 }
 
 # ------------------------------------------------------------ gravar
 $plano = [ordered]@{}
 $plano['MERCADOPAGO_ACCESS_TOKEN'] = $token
-$plano['MERCADOPAGO_SANDBOX'] = if ($sandbox) { 'true' } else { 'false' }
 if ($segredo) { $plano['MERCADOPAGO_WEBHOOK_SECRET'] = $segredo }
-if ($NotificationUrl) { $plano['MERCADOPAGO_NOTIFICATION_URL'] = $NotificationUrl }
 if ($LigarCobrancaOnline) {
     $plano['PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES'] = 'true'
 } else {
@@ -304,7 +298,7 @@ foreach ($chave in $plano.Keys) {
     if ($chave -like '*TOKEN*' -or $chave -like '*SECRET*') { Info ('{0,-38} definido ({1} caracteres)' -f $chave, $valor.Length) }
     else { Info ('{0,-38} {1}' -f $chave, $valor) }
 }
-foreach ($chave in @('MERCADOPAGO_WEBHOOK_SECRET', 'MERCADOPAGO_NOTIFICATION_URL', 'PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES')) {
+foreach ($chave in @('MERCADOPAGO_WEBHOOK_SECRET', 'PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES')) {
     if ($Remoto -or $plano.Contains($chave)) { continue }
     $igual = (Get-Content -Path $EnvFile | Where-Object { $_ -match ('^\s*' + [regex]::Escape($chave) + '\s*=') } | Select-Object -First 1)
     if ($igual) { Info ('{0,-38} mantido como estava' -f $chave) } else { Info ('{0,-38} ausente' -f $chave) }
@@ -312,7 +306,8 @@ foreach ($chave in @('MERCADOPAGO_WEBHOOK_SECRET', 'MERCADOPAGO_NOTIFICATION_URL
 
 Write-Host "`n==> Proximo passo" -ForegroundColor Cyan
 if ($Remoto) {
-    Info 'no staging, o teste e: pedido de cliente com pagamento online -> Pix (QR) ou cartao (Checkout Pro).'
+    Info 'no staging, o teste e: pedido de cliente com pagamento online -> Pix (QR) ou cartao (Brick).'
+    Info 'a URL de callback do webhook e registrada no painel do Mercado Pago (Webhooks > evento "Order").'
     Info 'conferir a API publica: curl -s https://api.staging.2.29.42.104.sslip.io/ready'
 } else {
     Info 'reconstruir a API para ela ler o .env:'
