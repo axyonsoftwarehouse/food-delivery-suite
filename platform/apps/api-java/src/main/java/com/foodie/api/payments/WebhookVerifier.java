@@ -12,13 +12,13 @@ public final class WebhookVerifier {
     /**
      * O manifesto que o provedor assina. Público (ids e horário) — o segredo não entra aqui.
      *
-     * O {@code data.id} entra em <b>minúsculas</b>: os ids da API de Orders são alfanuméricos em caixa
-     * alta (ex.: {@code ORD01JQ4S4KY8HWQ6NA5PXB65B3D3}) e a documentação manda converter para minúsculas
-     * antes de montar o manifesto — o provedor assina o valor convertido. Assinar com a caixa original
-     * faz a verificação falhar em toda notificação.
+     * O {@code data.id} entra <b>como chegou</b>. A documentação manda converter ids alfanuméricos para
+     * minúsculas, mas no staging (04/10/2026) a notificação de order chegou assinada sobre o id na caixa
+     * original ({@code ORDTST01M4250…}): com o segredo certo, só esse manifesto reproduziu o {@code v1}.
+     * A forma em minúsculas continua aceita em {@link #verify}.
      */
     public static String manifest(String dataId, String requestId, String ts) {
-        return "id:" + (dataId == null ? "" : dataId.toLowerCase())
+        return "id:" + (dataId == null ? "" : dataId)
             + ";request-id:" + (requestId == null ? "" : requestId)
             + ";ts:" + (ts == null ? "" : ts) + ";";
     }
@@ -26,12 +26,17 @@ public final class WebhookVerifier {
     public static boolean verify(String secret, String dataId, String requestId, String ts, String v1) {
         if (secret == null || secret.isBlank()) return true;
         if (ts == null || v1 == null || v1.isBlank()) return false;
-        String manifest = manifest(dataId, requestId, ts);
+        String lower = dataId == null ? null : dataId.toLowerCase(java.util.Locale.ROOT);
+        return matches(secret, manifest(dataId, requestId, ts), v1)
+            || matches(secret, manifest(lower, requestId, ts), v1);
+    }
+
+    private static boolean matches(String secret, String manifest, String v1) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] expected = HexFormat.of().formatHex(mac.doFinal(manifest.getBytes(StandardCharsets.UTF_8))).getBytes(StandardCharsets.UTF_8);
-            byte[] provided = v1.trim().toLowerCase().getBytes(StandardCharsets.UTF_8);
+            byte[] provided = v1.trim().toLowerCase(java.util.Locale.ROOT).getBytes(StandardCharsets.UTF_8);
             return MessageDigest.isEqual(expected, provided);
         } catch (Exception error) {
             return false;
