@@ -29,10 +29,25 @@ class WebhookVerifierTest {
     }
 
     @Test
-    void signsTheOrderIdInLowerCase() {
-        // Os ids da API de Orders são alfanuméricos em caixa alta (ORD01JQ…) e o provedor assina o
-        // manifesto com o id em MINÚSCULAS: assinar com a caixa original fazia a verificação falhar em
-        // toda notificação real. O vetor foi calculado fora do Java, para não validar a conta com ela mesma.
+    void acceptsTheOrderIdSignedInItsOriginalCase() {
+        // Medido no staging em 04/10/2026: a notificação de order (ORDTST01M4250…) chegou assinada sobre o
+        // id na caixa ORIGINAL — com o segredo certo, só o manifesto em maiúsculas reproduziu o v1 recebido.
+        // Os vetores foram calculados fora do Java, para não validar a conta com ela mesma.
+        String secret = "segredo-de-teste";
+        String dataId = "ORD01JQ4S4KY8HWQ6NA5PXB65B3D3";
+        String requestId = "2066ca19-c6f1-498a-be75-1923005edd06";
+        String ts = "1742505638683";
+        String v1 = "4f3098d033ca6f5107d146201969b7d2e55a60777de3a4f1d9467be4526068b9";
+
+        assertTrue(WebhookVerifier.verify(secret, dataId, requestId, ts, v1));
+        assertEquals("id:ORD01JQ4S4KY8HWQ6NA5PXB65B3D3;request-id:2066ca19-c6f1-498a-be75-1923005edd06;ts:1742505638683;",
+            WebhookVerifier.manifest(dataId, requestId, ts));
+    }
+
+    @Test
+    void stillAcceptsTheOrderIdSignedInLowerCase() {
+        // A documentação do provedor manda converter o id para minúsculas. Não foi o que o provedor fez
+        // nesta aplicação, mas a forma documentada continua aceita — as duas são HMAC com o mesmo segredo.
         String secret = "segredo-de-teste";
         String dataId = "ORD01JQ4S4KY8HWQ6NA5PXB65B3D3";
         String requestId = "2066ca19-c6f1-498a-be75-1923005edd06";
@@ -40,8 +55,7 @@ class WebhookVerifierTest {
         String v1 = "1cb5a89224b9ea9a0239402a8805de2c943322fac8eb49dea63133c0942bd229";
 
         assertTrue(WebhookVerifier.verify(secret, dataId, requestId, ts, v1));
-        assertEquals("id:ord01jq4s4ky8hwq6na5pxb65b3d3;request-id:2066ca19-c6f1-498a-be75-1923005edd06;ts:1742505638683;",
-            WebhookVerifier.manifest(dataId, requestId, ts));
+        assertFalse(WebhookVerifier.verify("outro-segredo", dataId, requestId, ts, v1));
     }
 
     @Test
