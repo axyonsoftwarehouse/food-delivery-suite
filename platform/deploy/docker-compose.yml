@@ -59,6 +59,7 @@ services:
       STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
       STORAGE_LOCAL_DIR: /data/uploads
       STORAGE_PUBLIC_BASE_URL: https://api.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io}
+      PUBLIC_BASE_URL: https://cliente.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io}
     volumes:
       - foodie_uploads:/data/uploads
     depends_on:
