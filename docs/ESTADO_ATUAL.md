@@ -46,6 +46,12 @@ Plataforma de delivery com **modelo descentralizado**: o **lojista** opera a
 própria loja (catálogo, horário, pedidos, mesas, PDV) e é **dono da venda**.
 A **Foodie** cobra **assinatura** da loja, não comissão sobre a venda.
 
+> **Decisão de 05/10/2026 (dono do produto): a Foodie só trabalha com a assinatura e o suporte.**
+> Todos os valores do pedido são de **responsabilidade exclusiva da loja**: a venda, o frete, a gorjeta,
+> o cashback e o **estorno**. A obrigação de estornar é da loja; a Foodie não recebe, não guarda e não
+> devolve dinheiro de pedido. Consequências no código, ainda pendentes: §4, "Decorrências da decisão de
+> 05/10".
+
 **Legado StackFood v9 — removido por completo.** Saiu do repositório em
 25/09/2026 (`04e5686 chore: remove legacy StackFood code from the
 repository`) e da VPS na mesma data. Não existe mais `admin-panel`, `web`,
@@ -197,7 +203,9 @@ recusa e assim por diante.
 4. **Decidir o 3DS** (o status `CALL` não é tratado) e conferir se a conta tem **chave Pix registrada**
    (o provedor exige para produção).
 5. **Produção ainda não existe.** A URL de produção no painel está vazia e não há credencial de produção
-   na VPS. Depende da decisão comercial (§4).
+   na VPS. A decisão comercial foi tomada em 05/10: o dinheiro é da loja. Agora depende da **conta de
+   recebimento por loja** (§4): cada loja usa as próprias credenciais de produção, e a Foodie não tem uma
+   conta global de produção.
 6. **Risco para produção: bloqueadores do navegador quebram o formulário do cartão.** Em 05/10, no
    Firefox, o Card Payment Brick só abriu depois de desligar **o escudo do Firefox e o uBlock Origin**.
    Os dois bloqueiam `secure-fields.mercadopago.com`, e o SDK quebra sem avisar. Clientes reais com
@@ -219,13 +227,28 @@ recusa e assim por diante.
 *(do `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`)*
 
 - **Cobrança real da assinatura** — hoje cria transação, não cobra provedor
-- **Pix/cartão online direto para a loja** — **código pronto e comprovado no staging** (ver §2 e §5);
-  o Pix online foi provado de ponta a ponta em 05/10 (ver "Pagamentos online"). O que falta não é
-  implementação: é a **decisão comercial** (de quem é a conta que recebe e quem assume o estorno) e
-  a configuração de produção. A flag `PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES` está **ligada no staging** e
-  desligada por padrão no código — em produção nada muda sem decisão
+- **Pix/cartão online direto para a loja**: a cobrança, o webhook e o estorno foram provados no staging
+  em 05/10 (ver "Pagamentos online"), mas **com uma conta só, a da plataforma** (hoje, a do vendedor de
+  teste). Pela decisão de 05/10, o dinheiro tem de cair **na conta da própria loja**. Por isso falta
+  implementar a **conta de recebimento por loja** (credenciais ou vinculação da conta Mercado Pago de cada
+  restaurante, usadas na cobrança, na consulta, no webhook e no estorno). A flag
+  `PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES` está **ligada no staging** e desligada por padrão no código.
+  **Em produção ela não pode ser ligada com a conta global**, porque a Foodie passaria a receber dinheiro
+  de pedido.
 - **Acerto do passivo antigo de carteira** — `ledger_entries` e `payout_requests`
-- **Quem financia entrega e gorjeta** — decisão contratual
+
+#### Decorrências da decisão de 05/10 (valores são da loja)
+- **Estorno pela loja.** Hoje só o admin estorna (botão "Estornar" e aprovação de reembolso). A loja tem
+  de poder estornar os próprios pedidos. O admin fica como **suporte**: age em nome da loja, com motivo e
+  trilha de auditoria, como as outras ações de suporte.
+- **Entrega e gorjeta** (era "quem financia", decisão contratual): **são da loja**. O razão
+  (`LedgerService.postOrder`) ainda credita frete e gorjeta ao entregador como saldo que a plataforma
+  repassa. Esse repasse deixa de ser obrigação da Foodie, então é preciso revisar a carteira de repasse do
+  entregador e o acerto com a loja.
+- **Cashback** (era "quem paga"): **é da loja**. As regras globais do admin
+  (`/admin/rewards/cashback-rules`) precisam ficar restritas a cada loja, que é quem financia.
+- **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
+  único fluxo de dinheiro da plataforma.
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
 - **Prontidão de publicação** — SMTP real, revisão de origem/CSRF, backup
   externo, ensaio de restauração, teste de carga na VPS
@@ -340,10 +363,11 @@ com justificativa e trilha de auditoria.
 A fila de infraestrutura está zerada. As PRs #1–#42 estão publicadas (`38d5492`, schema `056`), e o
 staging roda o mesmo commit que a `main`.
 
-**O próximo passo é um só: fechar o cartão `1nguT9bv` (pagamento real), que está em TESTING.** O Pix
-online foi provado de ponta a ponta em 05/10 (pedido #23). Faltam um cartão novo, com a notificação
-chegando sozinha, e o estorno pelo admin (itens 1 e 2 de "Pagamentos online"). Depois disso, o que trava
-é a **decisão comercial**, que não depende de código.
+**O próximo passo é um só: fechar o cartão `1nguT9bv` (pagamento real), que está em TESTING.** Pix,
+cartão e estorno foram provados de ponta a ponta em 05/10 (pedidos #23 e #26); faltam os prints. A
+decisão comercial foi tomada em 05/10: a Foodie só trabalha com assinatura e suporte, e os valores são da
+loja. O próximo bloco de código é a **conta de recebimento por loja**, junto com as outras decorrências
+dessa decisão (§4).
 
 ## 5.1 Higiene da VPS — 03/10/2026
 
