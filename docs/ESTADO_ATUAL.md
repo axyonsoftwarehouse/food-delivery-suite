@@ -190,7 +190,12 @@ recusa e assim por diante.
    (o provedor exige para produção).
 5. **Produção ainda não existe.** A URL de produção no painel está vazia e não há credencial de produção
    na VPS. Depende da decisão comercial (§4).
-6. Limpeza menor: o `.env` do staging ainda tem `MERCADOPAGO_SANDBOX` e `MERCADOPAGO_NOTIFICATION_URL`,
+6. **Risco para produção: bloqueadores do navegador quebram o formulário do cartão.** Em 05/10, no
+   Firefox, o Card Payment Brick só abriu depois de desligar **o escudo do Firefox e o uBlock Origin**.
+   Os dois bloqueiam `secure-fields.mercadopago.com`, e o SDK quebra sem avisar. Clientes reais com
+   Firefox no modo rígido, Brave ou bloqueadores vão esbarrar nisso. O Pix não é afetado. Desde a PR #44,
+   a tela explica o bloqueio depois de 15 s. Detalhes e opções: `PAGAMENTOS_MODO_TESTE.md` §7.
+7. Limpeza menor: o `.env` do staging ainda tem `MERCADOPAGO_SANDBOX` e `MERCADOPAGO_NOTIFICATION_URL`,
    que nenhum código lê desde 03/10.
 
 > **Correção de duas informações antigas.** "Geração automática de pedidos
