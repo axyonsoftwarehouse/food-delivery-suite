@@ -95,7 +95,7 @@ class OnlinePaymentServiceTest {
         assertEquals("00020126...", saved[6]);
         assertEquals("base64image", saved[7]);
         assertEquals("https://www.mercadopago.com.br/payments/123456/ticket", saved[8]);
-        assertEquals(1L, saved[10]);
+        assertEquals(1L, saved[12]);
     }
 
     @Test
@@ -176,6 +176,36 @@ class OnlinePaymentServiceTest {
         Object[] salvo = values.getValue();
         assertEquals("paid", salvo[4]);          // status normalizado
         assertEquals("accredited", salvo[5]);    // raw_status guarda o detalhe do provedor
+    }
+
+    @Test
+    void cardApprovedOnTheSpotRecordsTheConfirmationTime() {
+        // Pedido #26 do staging (05/10/2026): o cartão foi aprovado na própria cobrança, o pagamento ficou
+        // `paid` sem confirmed_at, e o webhook que veio depois viu "já pago" e não completou o registro.
+        when(gateway.create(any())).thenReturn(new PaymentGateway.Charge("999", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 1, "CPF", "12345678909"));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(sql.capture(), values.capture());
+        assertTrue(sql.getValue().contains("confirmed_at = IF(? = 'paid', NOW(), confirmed_at)"));
+        assertEquals("paid", values.getValue()[11]);
+    }
+
+    @Test
+    void cardApprovedWithADifferentAmountIsNotMarkedPaid() {
+        // A mesma conferência que o webhook faz: valor do provedor diferente do devido não vira pago.
+        when(gateway.create(any())).thenReturn(new PaymentGateway.Charge("999", "1", 900, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 1, "CPF", "12345678909"));
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        Object[] salvo = values.getValue();
+        assertEquals("rejected", salvo[4]);
+        assertEquals("Valor divergente: provedor 900 vs pedido 1000", salvo[10]);
+        assertEquals("rejected", salvo[11]);
     }
 
     @Test

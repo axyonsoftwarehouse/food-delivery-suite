@@ -111,11 +111,19 @@ public class OnlinePaymentService {
             intent.paymentMethodId(), payerFirstName));
 
         String status = charge.status() == null || !STATUSES.contains(charge.status()) ? "pending" : charge.status();
+        // Cartão pode voltar aprovado na própria cobrança. Aí o webhook que chega depois encontra "pago" e
+        // não faz nada — então a conferência de valor e o confirmed_at do webhook têm de acontecer aqui.
+        String note = null;
+        if ("paid".equals(status) && charge.amountCents() != due) {
+            status = "rejected";
+            note = "Valor divergente: provedor " + charge.amountCents() + " vs pedido " + due;
+        }
         jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = ?, idempotency_key = ?, status = ?, raw_status = ?,"
-                + " qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ?, note = NULL WHERE order_id = ?",
+                + " qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ?, note = ?,"
+                + " confirmed_at = IF(? = 'paid', NOW(), confirmed_at) WHERE order_id = ?",
             gateway.provider(), method, charge.externalId(), idempotencyKey, status, charge.rawStatus(),
             charge.qrCode(), charge.qrCodeBase64(), charge.ticketUrl(),
-            charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), orderId);
+            charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), note, status, orderId);
         return detail(orderId);
     }
 
