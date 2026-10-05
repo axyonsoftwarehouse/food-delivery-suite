@@ -30,8 +30,14 @@ public final class WebhookVerifier {
         if (secret == null || secret.isBlank()) return false;
         if (ts == null || v1 == null || v1.isBlank()) return false;
         String lower = dataId == null ? null : dataId.toLowerCase(java.util.Locale.ROOT);
-        return matches(secret, manifest(dataId, requestId, ts), v1)
-            || matches(secret, manifest(lower, requestId, ts), v1);
+        // Mais de um segredo, separados por vírgula: a aplicação principal e a do vendedor de teste
+        // assinam com chaves diferentes, e as duas notificações chegam na mesma URL.
+        for (String candidate : secret.split(",")) {
+            String key = candidate.trim();
+            if (key.isEmpty()) continue;
+            if (matches(key, manifest(dataId, requestId, ts), v1) || matches(key, manifest(lower, requestId, ts), v1)) return true;
+        }
+        return false;
     }
 
     private static boolean matches(String secret, String manifest, String v1) {

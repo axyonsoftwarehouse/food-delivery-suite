@@ -53,13 +53,16 @@ virou **pago** no Foodie. Nenhum dinheiro real se move: as credenciais do stagin
 ## 3. Fazer um Pix de teste
 
 1. Logado como o cliente `APRO…`, escolha um restaurante, ponha um item no carrinho e vá ao checkout.
-2. Escolha **Pix** e confirme. A tela mostra um QR Code e o "copia e cola" — **não precisa pagar nada**.
+2. No carrinho, em pagamento, clique em **"Pagar agora"**, que já vem com **Pix** marcado, e confirme.
+   **Não use "Na entrega"**: essa é a opção que vem marcada, e com ela o Pix é cobrado na porta, sem
+   Mercado Pago e sem QR Code. A tela mostra o QR Code e o "copia e cola", e **você não precisa pagar
+   nada**.
 3. Com o nome `APRO`, o Mercado Pago aprova o Pix sozinho, **em geral entre 2 e 10 minutos**.
 4. Quando o webhook chega, o pedido aparece como **pagamento aprovado** e o restaurante pode aceitá-lo.
 
 ## 4. Fazer um pagamento de teste com cartão
 
-1. Mesmo cliente `APRO…`, mesmo caminho até o checkout; escolha **Cartão**.
+1. Mesmo cliente `APRO…` e mesmo caminho até o checkout. Clique em **"Pagar agora"** e escolha **Cartão**.
 2. Preencha o formulário com um **cartão de teste público do Mercado Pago**:
 
    | Bandeira | Número | CVV | Validade |
@@ -92,6 +95,8 @@ Para testar uma **recusa**, use um cliente cujo primeiro nome seja `OTHE` (ou `F
 
 | Sintoma | Causa provável |
 |---|---|
+| Pedido criado, mas sem QR Code | foi escolhido **"Na entrega"** (o padrão), e não **"Pagar agora"** |
+| Checkout responde `403` | email da conta ainda não confirmado (seção 2, passo 4) |
 | Pix fica "aguardando pagamento" para sempre | o primeiro nome do cliente não é `APRO`, ou o webhook está voltando `401` |
 | Todo webhook volta `401` | segredo do staging diferente do painel (alguém salvou/redefiniu a tela de Webhooks) |
 | Nenhum webhook chega | URL apagada do painel, ou configurada só em "Modo de produção" |
