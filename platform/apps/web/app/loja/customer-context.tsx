@@ -181,6 +181,10 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [cartLoaded, setCartLoaded] = useState(false);
   const [cartBusy, setCartBusy] = useState(false);
   const [localMessage, setLocalMessage] = useState('');
+  // A barra mostra `message || localMessage`: um aviso geral antigo (ex.: "Pedido cancelado.") escondia o
+  // aviso novo do carrinho — em 05/10/2026 escondeu o "Pagamento aprovado" do cartão. O aviso mais novo vence.
+  const setAppMessage = app.setMessage;
+  useEffect(() => { if (localMessage) setAppMessage(''); }, [localMessage, setAppMessage]);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [addressForm, setAddressForm] = useState({ postalCode: '', label: 'Casa', street: '', number: '', neighborhood: '' });
   const [postalZone, setPostalZone] = useState<Zone | null>(null);
