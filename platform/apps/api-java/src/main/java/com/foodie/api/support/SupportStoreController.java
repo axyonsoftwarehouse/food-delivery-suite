@@ -1,13 +1,11 @@
 package com.foodie.api.support;
 
-import com.foodie.api.ApiException;
 import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.hours.RestaurantHoursController;
 import com.foodie.api.hours.RestaurantHoursService;
-import com.foodie.api.restaurant.RestaurantMarketingController;
 import com.foodie.api.support.SupportRequests.PauseRequest;
 import com.foodie.api.support.SupportRequests.ReasonRequest;
 import com.foodie.api.support.SupportRequests.SupportRequest;
@@ -16,7 +14,6 @@ import jakarta.validation.constraints.Positive;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Horários, fuso, desconto e pausa da loja no modo suporte (E48). */
+/** Horários, fuso e pausa da loja no modo suporte (E48). */
 @RestController
 @RequestMapping("/admin/support/restaurants/{id}")
 public class SupportStoreController {
@@ -35,15 +32,13 @@ public class SupportStoreController {
     private final AdminPermissionService permissions;
     private final SupportActionService support;
     private final RestaurantHoursService hours;
-    private final JdbcTemplate jdbc;
 
     public SupportStoreController(AuthService auth, AdminPermissionService permissions, SupportActionService support,
-                                  RestaurantHoursService hours, JdbcTemplate jdbc) {
+                                  RestaurantHoursService hours) {
         this.auth = auth;
         this.permissions = permissions;
         this.support = support;
         this.hours = hours;
-        this.jdbc = jdbc;
     }
 
     @GetMapping("/hours")
@@ -93,20 +88,6 @@ public class SupportStoreController {
         return support.act(actor, id, "hours.timezone", "restaurant", id, "Fuso alterado para " + timezone, body.reason(), () -> {
             hours.updateTimezone(id, timezone);
             return Map.<String, Object>of("id", id, "timezone", timezone);
-        });
-    }
-
-    @PatchMapping("/discount")
-    public Map<String, Object> discount(@CookieValue(value = "foodie_session", required = false) String token,
-                                        @PathVariable @Positive long id,
-                                        @Valid @RequestBody SupportRequest<RestaurantMarketingController.DiscountRequest> body) {
-        User actor = actor(token);
-        var percent = body.data().percent();
-        return support.act(actor, id, "store.discount", "restaurant", id, "Desconto da loja: " + percent + "%", body.reason(), () -> {
-            if (jdbc.update("UPDATE restaurants SET discount_percent = ? WHERE id = ?", percent, id) == 0) {
-                throw new ApiException(404, "Restaurante não encontrado");
-            }
-            return Map.<String, Object>of("id", id, "discountPercent", percent);
         });
     }
 

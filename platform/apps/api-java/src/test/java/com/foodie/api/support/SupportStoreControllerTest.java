@@ -27,7 +27,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -41,7 +40,6 @@ class SupportStoreControllerTest {
     @MockitoBean private AdminPermissionService permissions;
     @MockitoBean private SupportActionService support;
     @MockitoBean private RestaurantHoursService hours;
-    @MockitoBean private JdbcTemplate jdbc;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -92,12 +90,11 @@ class SupportStoreControllerTest {
     }
 
     @Test
-    void updatesDiscount() throws Exception {
-        when(jdbc.update(anyString(), any(), eq(7L))).thenReturn(1);
+    void discountRouteNoLongerExists() throws Exception {
         mvc.perform(patch("/admin/support/restaurants/7/discount").cookie(SESSION)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"reason\":\"Loja pediu para zerar o desconto\",\"data\":{\"percent\":0}}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.discountPercent").value(0));
+            // Nenhum método mapeado nesse caminho: 404 (não 405, que exige outro método no mesmo caminho).
+            .andExpect(status().is4xxClientError());
     }
 }

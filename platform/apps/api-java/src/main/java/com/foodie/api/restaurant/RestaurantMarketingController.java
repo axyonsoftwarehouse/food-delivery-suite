@@ -50,23 +50,6 @@ public class RestaurantMarketingController {
         this.jdbc = jdbc;
     }
 
-    // ----- Desconto da loja -----
-
-    @GetMapping("/discount")
-    public Map<String, Object> discount(@CookieValue(value = "foodie_session", required = false) String token) {
-        long restaurantId = manager(token);
-        BigDecimal percent = jdbc.queryForObject("SELECT discount_percent FROM restaurants WHERE id = ?", BigDecimal.class, restaurantId);
-        return Map.of("discountPercent", percent == null ? BigDecimal.ZERO : percent);
-    }
-
-    @PatchMapping("/discount")
-    public Map<String, Object> setDiscount(@CookieValue(value = "foodie_session", required = false) String token,
-                                           @Valid @RequestBody DiscountRequest body) {
-        long restaurantId = manager(token);
-        jdbc.update("UPDATE restaurants SET discount_percent = ? WHERE id = ?", body.percent(), restaurantId);
-        return Map.of("discountPercent", body.percent());
-    }
-
     // ----- Cupons -----
 
     @GetMapping("/coupons")
@@ -238,7 +221,6 @@ public class RestaurantMarketingController {
         return user.restaurantId();
     }
 
-    public record DiscountRequest(@NotNull @DecimalMin("0") @DecimalMax("90") BigDecimal percent) {}
     public record ToggleRequest(@NotNull Boolean active) {}
     public record CouponRequest(@NotBlank @Size(min = 3, max = 40) String code,
                                 @NotBlank @Pattern(regexp = "percent|fixed") String discountType,

@@ -1716,38 +1716,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/coupons": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list_5"];
-        put?: never;
-        post: operations["create_6"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/commerce/campaigns": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["campaigns_1"];
-        put?: never;
-        post: operations["createCampaign_1"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/commerce/banners": {
         parameters: {
             query?: never;
@@ -1787,9 +1755,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_6"];
+        get: operations["list_5"];
         put?: never;
-        post: operations["create_7"];
+        post: operations["create_6"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1805,7 +1773,7 @@ export interface paths {
         };
         get: operations["addresses"];
         put?: never;
-        post: operations["create_8"];
+        post: operations["create_7"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1954,22 +1922,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["toggleOfflineMethod"];
-        trace?: never;
-    };
-    "/restaurant/marketing/discount": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["discount"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["setDiscount"];
         trace?: never;
     };
     "/restaurant/marketing/coupons/{id}": {
@@ -2210,22 +2162,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["updateVariation"];
-        trace?: never;
-    };
-    "/admin/support/restaurants/{id}/discount": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["discount_1"];
         trace?: never;
     };
     "/admin/support/restaurants/{id}/categories/{categoryId}": {
@@ -2596,38 +2532,6 @@ export interface paths {
         patch: operations["approveCourier"];
         trace?: never;
     };
-    "/admin/coupons/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["delete_4"];
-        options?: never;
-        head?: never;
-        patch: operations["update_4"];
-        trace?: never;
-    };
-    "/admin/commerce/campaigns/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["deleteCampaign_1"];
-        options?: never;
-        head?: never;
-        patch: operations["toggleCampaign_1"];
-        trace?: never;
-    };
     "/admin/commerce/banners/{id}": {
         parameters: {
             query?: never;
@@ -2654,10 +2558,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_5"];
+        delete: operations["delete_4"];
         options?: never;
         head?: never;
-        patch: operations["update_5"];
+        patch: operations["update_4"];
         trace?: never;
     };
     "/zones": {
@@ -3131,7 +3035,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_6"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3387,7 +3291,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_8"];
+        get: operations["list_7"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3422,7 +3326,7 @@ export interface paths {
         get: operations["download"];
         put?: never;
         post?: never;
-        delete: operations["delete_6"];
+        delete: operations["delete_5"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3739,7 +3643,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_9"];
+        get: operations["list_8"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4011,7 +3915,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_10"];
+        get: operations["list_9"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4092,6 +3996,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["export_3"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_10"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/commerce/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["campaigns_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4978,9 +4914,6 @@ export interface components {
         ToggleRequest: {
             active: boolean;
         };
-        DiscountRequest: {
-            percent: number;
-        };
         ItemUpdate: {
             name?: string;
             unit?: string;
@@ -5047,10 +4980,6 @@ export interface components {
         SupportRequestVariationUpdateRequest: {
             reason?: string;
             data: components["schemas"]["VariationUpdateRequest"];
-        };
-        SupportRequestDiscountRequest: {
-            reason?: string;
-            data: components["schemas"]["DiscountRequest"];
         };
         SupportRequestAddonGroupUpdateRequest: {
             reason?: string;
@@ -5879,7 +5808,11 @@ export interface operations {
     };
     handle: {
         parameters: {
-            query?: never;
+            query: {
+                query: {
+                    [key: string]: string;
+                };
+            };
             header?: never;
             path: {
                 provider: string;
@@ -9639,110 +9572,6 @@ export interface operations {
             };
         };
     };
-    list_5: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    create_6: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CouponRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    campaigns_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    createCampaign_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CampaignRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     banners: {
         parameters: {
             query?: never;
@@ -9823,7 +9652,7 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -9847,7 +9676,7 @@ export interface operations {
             };
         };
     };
-    create_7: {
+    create_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -9899,7 +9728,7 @@ export interface operations {
             };
         };
     };
-    create_8: {
+    create_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -10348,58 +10177,6 @@ export interface operations {
                 content: {
                     "*/*": {
                         [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
-    discount: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    setDiscount: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DiscountRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
                     };
                 };
             };
@@ -11087,36 +10864,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SupportRequestVariationUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    discount_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SupportRequestDiscountRequest"];
             };
         };
         responses: {
@@ -12136,118 +11883,6 @@ export interface operations {
             };
         };
     };
-    delete_4: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
-    update_4: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CouponRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    deleteCampaign_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
-    toggleCampaign_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ToggleRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
     deleteBanner: {
         parameters: {
             query?: never;
@@ -12304,7 +11939,7 @@ export interface operations {
             };
         };
     };
-    delete_5: {
+    delete_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -12330,7 +11965,7 @@ export interface operations {
             };
         };
     };
-    update_5: {
+    update_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -13068,7 +12703,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -13464,7 +13099,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -13532,7 +13167,7 @@ export interface operations {
             };
         };
     };
-    delete_6: {
+    delete_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -14051,7 +13686,7 @@ export interface operations {
             };
         };
     };
-    list_9: {
+    list_8: {
         parameters: {
             query?: {
                 restaurantId?: number;
@@ -14501,7 +14136,7 @@ export interface operations {
             };
         };
     };
-    list_10: {
+    list_9: {
         parameters: {
             query?: {
                 query?: string;
@@ -14647,6 +14282,54 @@ export interface operations {
                 };
                 content: {
                     "*/*": string;
+                };
+            };
+        };
+    };
+    list_10: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    campaigns_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };

@@ -57,7 +57,7 @@ public class SupportQueryService {
 
     public Map<String, Object> profile(long id) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT r.id, r.name, r.slug, r.approval, r.active, r.timezone, r.discount_percent, " + OWNER_EMAIL + " AS owner_email, "
+            "SELECT r.id, r.name, r.slug, r.approval, r.active, r.timezone, " + OWNER_EMAIL + " AS owner_email, "
                 + "(SELECT rs.status FROM restaurant_subscriptions rs WHERE rs.restaurant_id = r.id ORDER BY rs.id DESC LIMIT 1) AS subscription_status, "
                 + "(SELECT COUNT(*) FROM orders o WHERE o.restaurant_id = r.id AND o.status IN " + ACTIVE + ") AS active_orders, "
                 + "(SELECT COUNT(*) FROM orders o WHERE o.restaurant_id = r.id AND o.status = 'placed' AND o.created_at < (NOW() - INTERVAL 10 MINUTE)) AS late_orders, "
@@ -73,7 +73,6 @@ public class SupportQueryService {
         profile.put("approval", row.get("approval"));
         profile.put("active", Boolean.TRUE.equals(row.get("active")));
         profile.put("timezone", row.get("timezone"));
-        profile.put("discountPercent", row.get("discount_percent"));
         profile.put("subscriptionStatus", row.get("subscription_status"));
         profile.put("modules", jdbc.queryForList(
             "SELECT module_key FROM restaurant_modules WHERE restaurant_id = ? AND enabled = TRUE ORDER BY module_key", String.class, id));

@@ -110,7 +110,7 @@ async function movement(itemId: number, delta: number, reason: string) {
 async function banner(title: string, url: string, sort: number) {
   await db.query('INSERT INTO banners (title, image_url, sort) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM banners WHERE title = ?)', [title, url, sort, title]);
 }
-async function campaign(name: string, type: string, percent: number, restaurantId: number | null, productId: number | null) {
+async function campaign(name: string, type: string, percent: number, restaurantId: number, productId: number | null) {
   await db.query('INSERT INTO campaigns (name, type, percent, restaurant_id, product_id) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM campaigns WHERE name = ?)', [name, type, percent, restaurantId, productId, name]);
 }
 async function advertisement(restaurantId: number, title: string, media: string) {
@@ -244,8 +244,6 @@ try {
   await linkCombo(cafeComDoce, [[cappuccino, 1], [coxinhaDoce, 1]]);
 
   // ---- Cupons ----
-  await db.query("INSERT INTO coupons (code, discount_type, discount_value, min_order_cents) SELECT 'BEMVINDO', 'percent', 10, 0 WHERE NOT EXISTS (SELECT 1 FROM coupons WHERE code = 'BEMVINDO')");
-  await db.query("INSERT INTO coupons (code, discount_type, discount_value, min_order_cents) SELECT 'FRETE10', 'fixed', 1000, 4000 WHERE NOT EXISTS (SELECT 1 FROM coupons WHERE code = 'FRETE10')");
   await db.query("INSERT INTO coupons (restaurant_id, code, discount_type, discount_value, min_order_cents) SELECT ?, 'CANTINA15', 'percent', 15, 3000 WHERE NOT EXISTS (SELECT 1 FROM coupons WHERE code = 'CANTINA15')", [cantina]);
 
   // ---- Pedidos entregues e avaliações (mocks) ----
@@ -345,10 +343,9 @@ try {
   const allModules = ['finance', 'inventory', 'marketing', 'storefront', 'loyalty'];
   for (const rid of [cozinha, cantina, doceria, sushi, verde, burger]) await enableModules(rid, allModules);
 
-  // Aprovação e desconto
+  // Aprovação
   for (const rid of [cozinha, cantina, doceria, sushi, verde]) await db.query("UPDATE restaurants SET approval = 'approved' WHERE id = ?", [rid]);
   await db.query("UPDATE restaurants SET approval = 'pending' WHERE id = ?", [burger]);
-  await db.query('UPDATE restaurants SET discount_percent = 10 WHERE id = ?', [cantina]);
 
   // Tags de restaurante
   await restaurantTag(cozinha, 'Caseiro');

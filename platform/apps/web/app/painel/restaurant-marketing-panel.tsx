@@ -9,17 +9,16 @@ type Ad = { id: number; title: string; type: string; media_url: string; status: 
 type Cashback = { id: number; percent: number; min_order_cents: number };
 type OfflineMethod = { id: number; name: string; instructions: string | null; requires_proof: boolean; active: boolean };
 
-const TABS: [string, string][] = [['discount', 'Desconto'], ['coupons', 'Cupons'], ['campaigns', 'Campanhas'], ['ads', 'Anúncios'], ['cashback', 'Cashback'], ['offline', 'Pagamentos presenciais']];
+const TABS: [string, string][] = [['coupons', 'Cupons'], ['campaigns', 'Campanhas'], ['ads', 'Anúncios'], ['cashback', 'Cashback'], ['offline', 'Pagamentos presenciais']];
 
 export default function RestaurantMarketingPanel() {
   const { setMessage } = useApp();
-  const [tab, setTab] = useState('discount');
+  const [tab, setTab] = useState('coupons');
   return <section className="panel">
     <div className="panel-heading"><div><span className="eyebrow">MARKETING</span><h2>Suas promoções e pagamentos</h2></div><p>Você tem liberdade total sobre o marketing e as formas de pagamento da sua loja.</p></div>
     <div className="ui-chips" style={{ marginBottom: 16 }}>
       {TABS.map(([id, label]) => <button key={id} type="button" className={`ui-chip${tab === id ? ' selected' : ''}`} onClick={() => setTab(id)}>{label}</button>)}
     </div>
-    {tab === 'discount' && <Discount onMessage={setMessage} />}
     {tab === 'coupons' && <Coupons onMessage={setMessage} />}
     {tab === 'campaigns' && <Campaigns onMessage={setMessage} />}
     {tab === 'ads' && <Ads onMessage={setMessage} />}
@@ -41,18 +40,6 @@ function useList<T>(path: string, onMessage: (m: string) => void) {
   }, [path, onMessage]);
   useEffect(() => { void load(); }, [load]);
   return { rows, reload: load };
-}
-
-function Discount({ onMessage }: { onMessage: (m: string) => void }) {
-  const [percent, setPercent] = useState('0');
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => { api<{ discountPercent: number }>('/restaurant/marketing/discount').then((data) => { setPercent(String(data.discountPercent)); setLoaded(true); }).catch(() => {}); }, []);
-  if (!loaded) return <p className="form-help">Carregando...</p>;
-  return <form onSubmit={(event) => { event.preventDefault(); void act('/restaurant/marketing/discount', 'PATCH', { percent: Number(percent.replace(',', '.')) }, 'Desconto atualizado.', () => {}, onMessage); }}>
-    <h3>Desconto da loja</h3>
-    <label>Desconto (%)<input inputMode="decimal" value={percent} onChange={(event) => setPercent(event.target.value)} /></label>
-    <button className="secondary-button">Salvar desconto</button>
-  </form>;
 }
 
 function Coupons({ onMessage }: { onMessage: (m: string) => void }) {
