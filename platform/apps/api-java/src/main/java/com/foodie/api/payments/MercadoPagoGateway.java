@@ -76,6 +76,24 @@ public class MercadoPagoGateway implements PaymentGateway {
         }
     }
 
+    /**
+     * Estorno total da order ({@code POST /v1/orders/{id}/refund}). Sem corpo a API de Orders devolve o
+     * valor inteiro; a chave de idempotência evita estornar duas vezes se o admin clicar de novo.
+     */
+    @Override
+    public Charge refund(String externalId, String idempotencyKey) {
+        requireConfigured();
+        try {
+            Map<String, Object> order = client.post().uri("/v1/orders/" + externalId + "/refund")
+                .header("Authorization", "Bearer " + accessToken)
+                .header("X-Idempotency-Key", idempotencyKey)
+                .retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {});
+            return fromOrder(order == null ? Map.of() : order);
+        } catch (RestClientResponseException error) {
+            throw new ApiException(502, "Mercado Pago recusou o estorno: " + providerMessage(error));
+        }
+    }
+
     /** O provedor avisou que aquela chave de idempotência já foi usada (e a tentativa anterior falhou). */
     static boolean chaveJaUsada(RestClientResponseException error) {
         if (error.getStatusCode().value() != 409) return false;

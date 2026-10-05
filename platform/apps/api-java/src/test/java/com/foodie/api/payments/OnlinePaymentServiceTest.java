@@ -27,6 +27,7 @@ class OnlinePaymentServiceTest {
     private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
     private final PaymentGatewayRegistry gateways = mock(PaymentGatewayRegistry.class);
     private final PaymentGateway gateway = mock(PaymentGateway.class);
+    private final com.foodie.api.finance.LedgerService ledger = mock(com.foodie.api.finance.LedgerService.class);
     private final User customer = new User(7, "Cliente", "cliente@demo.local", "customer", null);
     private final User stranger = new User(9, "Outro", "outro@demo.local", "customer", null);
 
@@ -34,7 +35,7 @@ class OnlinePaymentServiceTest {
     private final Map<String, Object> payment = new LinkedHashMap<>();
 
     private OnlinePaymentService service(boolean allowDirectOnlineCharges) {
-        return new OnlinePaymentService(jdbc, gateways, allowDirectOnlineCharges);
+        return new OnlinePaymentService(jdbc, gateways, ledger, allowDirectOnlineCharges);
     }
 
     @BeforeEach
@@ -229,6 +230,40 @@ class OnlinePaymentServiceTest {
         when(gateway.fetch("123")).thenThrow(new ApiException(502, "Mercado Pago recusou a consulta"));
 
         assertThrows(ApiException.class, () -> service(true).handleWebhook("mercadopago", "123"));
+    }
+
+    @Test
+    void refundMadeAtTheProviderReachesAPaidOrder() {
+        // Estorno feito no painel do Mercado Pago: antes, o webhook via "já pago" e ignorava, e o Foodie
+        // seguia mostrando o pedido como pago com o dinheiro já devolvido.
+        payment.put("status", "paid");
+        when(gateway.fetch("ORDTST01ABC")).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
+
+        Map<String, Object> resposta = service(true).handleWebhook("mercadopago", "ORDTST01ABC");
+
+        assertEquals("refunded", resposta.get("status"));
+        verify(jdbc).update(argThat(sql -> sql != null && sql.contains("status = 'refunded'") && sql.contains("refunded_at = NOW()")), any(Object[].class));
+        verify(ledger).reverseOrder(1L);
+    }
+
+    @Test
+    void paidOrderIgnoresNotificationsThatAreNotARefund() {
+        payment.put("status", "paid");
+        when(gateway.fetch("ORDTST01ABC")).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        assertEquals("paid", service(true).handleWebhook("mercadopago", "ORDTST01ABC").get("already"));
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+        verify(ledger, never()).reverseOrder(org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void refundedOrderStaysRefunded() {
+        // O estorno feito pelo admin dispara um webhook "refunded" logo depois: não pode reverter de novo.
+        payment.put("status", "refunded");
+        when(gateway.fetch("ORDTST01ABC")).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
+
+        assertEquals("refunded", service(true).handleWebhook("mercadopago", "ORDTST01ABC").get("already"));
+        verify(ledger, never()).reverseOrder(org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
