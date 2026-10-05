@@ -16,6 +16,14 @@ public interface PaymentGateway {
     Charge fetch(String externalId);
 
     /**
+     * Estorno total da cobrança no provedor. O padrão recusa: provedor sem estorno automático (o Pix
+     * estático, por exemplo) é devolvido fora do sistema, e marcar "estornado" sem devolver seria mentir.
+     */
+    default Charge refund(String externalId, String idempotencyKey) {
+        throw new com.foodie.api.ApiException(409, "Este meio de pagamento não tem estorno automático; devolva o valor fora do sistema");
+    }
+
+    /**
      * Verifica a origem/assinatura do webhook. O padrão aceita (provedores sem assinatura); o Mercado
      * Pago recusa quando o segredo não está configurado, para não deixar o endpoint aberto.
      */

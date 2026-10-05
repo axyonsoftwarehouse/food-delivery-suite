@@ -3,6 +3,8 @@ package com.foodie.api.orders;
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
 import com.foodie.api.finance.LedgerService;
+import com.foodie.api.payments.PaymentGateway;
+import com.foodie.api.payments.PaymentGatewayRegistry;
 import com.foodie.api.rewards.RewardsService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,13 +24,15 @@ public class PaymentService {
     private final JdbcTemplate jdbc;
     private final LedgerService ledger;
     private final RewardsService rewards;
+    private final PaymentGatewayRegistry gateways;
     private final boolean allowDirectOnlineCharges;
 
-    public PaymentService(JdbcTemplate jdbc, LedgerService ledger, RewardsService rewards,
+    public PaymentService(JdbcTemplate jdbc, LedgerService ledger, RewardsService rewards, PaymentGatewayRegistry gateways,
                           @Value("${app.payments.allow-direct-online-charges:false}") boolean allowDirectOnlineCharges) {
         this.jdbc = jdbc;
         this.ledger = ledger;
         this.rewards = rewards;
+        this.gateways = gateways;
         this.allowDirectOnlineCharges = allowDirectOnlineCharges;
     }
 
@@ -93,18 +97,30 @@ public class PaymentService {
     @Transactional
     public Map<String, Object> refund(User actor, long orderId, String note) {
         if (!"admin".equals(actor.role())) throw new ApiException(403, "Acesso não autorizado");
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT method, amount_received_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT method, status, modality, provider, external_id, amount_received_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (rows.isEmpty()) throw new ApiException(404, "Pagamento não encontrado");
+        Map<String, Object> row = rows.getFirst();
         String trimmed = note == null ? null : note.strip();
-        int changed = jdbc.update("UPDATE order_payments SET status = 'refunded', note = ?, refunded_by = ?, refunded_at = NOW() WHERE order_id = ? AND status = 'paid'",
-            (trimmed == null || trimmed.isEmpty()) ? null : trimmed, actor.id(), orderId);
+        // Pagamento online: o dinheiro está no provedor, então o estorno tem de passar por ele ANTES de
+        // marcar "estornado" (em 05/10/2026 o pedido #23 ficou `refunded` aqui e pago no Mercado Pago).
+        // Se o provedor recusar, a exceção sobe e nada muda no Foodie.
+        String providerStatus = null;
+        if ("paid".equals(row.get("status")) && "online".equals(row.get("modality")) && row.get("provider") != null && row.get("external_id") != null) {
+            PaymentGateway.Charge estorno = gateways.resolve((String) row.get("provider"))
+                .refund((String) row.get("external_id"), "refund-order-" + orderId);
+            providerStatus = estorno.rawStatus();
+        }
+        int changed = jdbc.update("UPDATE order_payments SET status = 'refunded', note = ?, raw_status = COALESCE(?, raw_status), refunded_by = ?, refunded_at = NOW() WHERE order_id = ? AND status = 'paid'",
+            (trimmed == null || trimmed.isEmpty()) ? null : trimmed, providerStatus, actor.id(), orderId);
         if (changed == 0) throw new ApiException(409, "Só é possível estornar um pagamento confirmado");
         ledger.reverseOrder(orderId);
         java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("orderId", orderId);
-        result.put("method", rows.getFirst().get("method"));
+        result.put("method", row.get("method"));
         result.put("status", "refunded");
-        result.put("amountReceivedCents", rows.getFirst().get("amount_received_cents"));
+        if (providerStatus != null) result.put("providerStatus", providerStatus);
+        result.put("amountReceivedCents", row.get("amount_received_cents"));
         if (trimmed != null && !trimmed.isEmpty()) result.put("note", trimmed);
         return result;
     }

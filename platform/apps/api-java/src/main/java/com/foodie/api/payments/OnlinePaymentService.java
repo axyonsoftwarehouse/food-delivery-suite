@@ -23,12 +23,14 @@ public class OnlinePaymentService {
 
     private final JdbcTemplate jdbc;
     private final PaymentGatewayRegistry gateways;
+    private final com.foodie.api.finance.LedgerService ledger;
     private final boolean allowDirectOnlineCharges;
 
-    public OnlinePaymentService(JdbcTemplate jdbc, PaymentGatewayRegistry gateways,
+    public OnlinePaymentService(JdbcTemplate jdbc, PaymentGatewayRegistry gateways, com.foodie.api.finance.LedgerService ledger,
                                 @Value("${app.payments.allow-direct-online-charges:false}") boolean allowDirectOnlineCharges) {
         this.jdbc = jdbc;
         this.gateways = gateways;
+        this.ledger = ledger;
         this.allowDirectOnlineCharges = allowDirectOnlineCharges;
     }
 
@@ -147,7 +149,16 @@ public class OnlinePaymentService {
         if (rows.isEmpty()) return Map.of("ok", true, "ignored", true);
         Map<String, Object> row = rows.getFirst();
         String current = (String) row.get("status");
-        if ("paid".equals(current) || "refunded".equals(current)) return Map.of("ok", true, "already", current);
+        if ("refunded".equals(current)) return Map.of("ok", true, "already", current);
+        if ("paid".equals(current)) {
+            // Pago só muda por estorno feito no próprio provedor (painel do Mercado Pago). O estorno feito
+            // pelo admin já marca `refunded` antes, então a notificação dele cai no "already" acima.
+            if (!"refunded".equals(charge.status())) return Map.of("ok", true, "already", current);
+            jdbc.update("UPDATE order_payments SET status = 'refunded', raw_status = ?, note = ?, refunded_at = NOW() WHERE order_id = ? AND status = 'paid'",
+                charge.rawStatus(), "Estornado no Mercado Pago", orderId);
+            ledger.reverseOrder(orderId);
+            return Map.of("ok", true, "orderId", orderId, "status", "refunded");
+        }
 
         long due = ((Number) row.get("amount_due_cents")).longValue();
         String next = charge.status();
