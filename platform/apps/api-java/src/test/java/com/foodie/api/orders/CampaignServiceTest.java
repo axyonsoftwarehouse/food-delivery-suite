@@ -1,10 +1,14 @@
 package com.foodie.api.orders;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+
+import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -32,5 +36,14 @@ class CampaignServiceTest {
     @Test
     void returnsNoCampaignForEmptyCart() {
         assertNull(campaigns.best(7, List.of()));
+    }
+
+    @Test
+    void onlyQueriesCampaignsOfTheOrderRestaurant() {
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        when(jdbc.queryForList(sql.capture(), eq(7L))).thenReturn(List.of());
+        campaigns.best(7, List.of(new CampaignService.Line(3, 4000)));
+        assertTrue(sql.getValue().contains("restaurant_id = ?"));
+        assertFalse(sql.getValue().contains("restaurant_id IS NULL"));
     }
 }

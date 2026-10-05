@@ -83,14 +83,13 @@ public class RestaurantAdminController {
     @GetMapping("/export")
     public ResponseEntity<String> export(@CookieValue(value = "foodie_session", required = false) String token) {
         admin(token);
-        StringBuilder csv = new StringBuilder("id,nome,slug,aprovacao,ativo,desconto_percentual\n");
-        for (Map<String, Object> row : jdbc.queryForList("SELECT id, name, slug, approval, active, discount_percent FROM restaurants ORDER BY name")) {
+        StringBuilder csv = new StringBuilder("id,nome,slug,aprovacao,ativo\n");
+        for (Map<String, Object> row : jdbc.queryForList("SELECT id, name, slug, approval, active FROM restaurants ORDER BY name")) {
             csv.append(row.get("id")).append(',')
                 .append(csvText(row.get("name"))).append(',')
                 .append(csvText(row.get("slug"))).append(',')
                 .append(csvText(row.get("approval"))).append(',')
-                .append(Boolean.TRUE.equals(row.get("active")) ? "sim" : "nao").append(',')
-                .append(row.get("discount_percent")).append('\n');
+                .append(Boolean.TRUE.equals(row.get("active")) ? "sim" : "nao").append('\n');
         }
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"restaurantes.csv\"")

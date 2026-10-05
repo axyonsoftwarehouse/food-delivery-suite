@@ -23,8 +23,8 @@ public class CouponService {
     @Transactional
     public Applied validate(String code, long restaurantId, long subtotalCents) {
         Map<String, Object> coupon = fetch(code);
-        String restaurant = coupon.get("restaurant_id") == null ? null : String.valueOf(coupon.get("restaurant_id"));
-        if (restaurant != null && !restaurant.equals(String.valueOf(restaurantId))) {
+        Object owner = coupon.get("restaurant_id");
+        if (owner == null || ((Number) owner).longValue() != restaurantId) {
             throw new ApiException(400, "Este cupom não vale para o restaurante do pedido");
         }
         long minOrder = ((Number) coupon.get("min_order_cents")).longValue();

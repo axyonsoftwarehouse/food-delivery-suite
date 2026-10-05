@@ -5,7 +5,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -20,6 +22,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -67,5 +70,16 @@ class CommerceControllerTest {
         mvc.perform(get("/public/banners"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].title").value("Promo"));
+    }
+
+    @Test
+    void adminCannotCreateOrDeleteCampaigns() throws Exception {
+        when(auth.requireUser("s", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
+        mvc.perform(post("/admin/commerce/campaigns").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Geral\",\"type\":\"basic\",\"percent\":10}"))
+            .andExpect(status().isMethodNotAllowed());
+        mvc.perform(delete("/admin/commerce/campaigns/3").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
+            .andExpect(status().is4xxClientError());
     }
 }

@@ -20,7 +20,7 @@ public class CampaignService {
         if (subtotal <= 0) return null;
         List<Map<String, Object>> campaigns = jdbc.queryForList(
             "SELECT id, name, type, percent, product_id FROM campaigns WHERE active = TRUE "
-                + "AND (restaurant_id IS NULL OR restaurant_id = ?) "
+                + "AND restaurant_id = ? "
                 + "AND (starts_at IS NULL OR starts_at <= CURRENT_DATE()) "
                 + "AND (ends_at IS NULL OR ends_at >= CURRENT_DATE()) ORDER BY id",
             restaurantId);

@@ -1,12 +1,17 @@
 package com.foodie.api.orders;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -41,5 +46,25 @@ class CouponControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.discountCents").value(400))
             .andExpect(jsonPath("$.code").value("BEMVINDO"));
+    }
+
+    @Test
+    void adminListsCouponsWithRestaurantName() throws Exception {
+        when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
+        when(jdbc.queryForList(anyString())).thenReturn(List.of(Map.of("id", 3, "code", "CANTINA15", "restaurant_name", "Cantina do Bairro")));
+        mvc.perform(get("/admin/coupons").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].restaurant_name").value("Cantina do Bairro"));
+    }
+
+    @Test
+    void adminCannotCreateOrDeleteCoupons() throws Exception {
+        when(auth.requireUser("session", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
+        mvc.perform(post("/admin/coupons").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"GERAL10\",\"discountType\":\"percent\",\"discountValue\":10,\"minOrderCents\":0}"))
+            .andExpect(status().isMethodNotAllowed());
+        mvc.perform(delete("/admin/coupons/3").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")))
+            .andExpect(status().is4xxClientError());
     }
 }
