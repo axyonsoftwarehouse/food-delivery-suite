@@ -59,6 +59,24 @@ class WebhookVerifierTest {
     }
 
     @Test
+    void acceptsAnyOfSeveralCommaSeparatedSecrets() throws Exception {
+        // A aplicação principal e a do vendedor de teste assinam com segredos diferentes (04/10/2026: o
+        // "Simular" do painel passou e a notificação automática da mesma order não). O staging guarda os
+        // dois em MERCADOPAGO_WEBHOOK_SECRET, separados por vírgula.
+        String dataId = "123456789";
+        String requestId = "req-1";
+        String ts = "1700000000";
+        String manifest = "id:" + dataId + ";request-id:" + requestId + ";ts:" + ts + ";";
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec("segredo-da-app-de-teste".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        String v1 = HexFormat.of().formatHex(mac.doFinal(manifest.getBytes(StandardCharsets.UTF_8)));
+
+        assertTrue(WebhookVerifier.verify("segredo-da-app-principal, segredo-da-app-de-teste", dataId, requestId, ts, v1));
+        assertFalse(WebhookVerifier.verify("segredo-da-app-principal,outro", dataId, requestId, ts, v1));
+        assertFalse(WebhookVerifier.verify(" , ", dataId, requestId, ts, v1));
+    }
+
+    @Test
     void withoutSecretRejectsVerification() {
         // Falha fechada: sem segredo não há como conferir a assinatura, então recusa. Antes disto a
         // verificação era pulada e qualquer origem era aceita.
