@@ -60,4 +60,22 @@ class OrderControllerTest {
         mvc.perform(get("/orders/history").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")).param("limit", "99"))
             .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void lookupFindsOrderByNumberWithViewerScope() throws Exception {
+        User restaurant = new User(9, "Loja", "loja@demo.local", "restaurant", 3L);
+        when(auth.requireUser("session")).thenReturn(restaurant);
+        when(orders.lookup(restaurant, 26)).thenReturn(Map.of("id", 26, "restaurant_id", 3));
+        when(orders.lookup(restaurant, 27)).thenThrow(new ApiException(404, "Pedido não encontrado"));
+
+        mvc.perform(get("/orders/lookup").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")).param("id", "26"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(26));
+        mvc.perform(get("/orders/lookup").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")).param("id", "27"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("Pedido não encontrado"));
+        mvc.perform(get("/orders/lookup").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")).param("id", "0"))
+            .andExpect(status().isBadRequest());
+        org.mockito.Mockito.verify(permissions, org.mockito.Mockito.atLeastOnce()).require(restaurant, com.foodie.api.permissions.Permissions.ORDERS_VIEW);
+    }
 }
