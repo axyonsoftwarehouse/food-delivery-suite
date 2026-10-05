@@ -75,8 +75,8 @@ Migrações `V040__retention_rewards.sql`, `V041__restaurants_couriers_commerce.
 - **E17 Campanhas** ✅ — `campaigns` CRUD (básica/item) no painel de Promoções. (Aplicação do
   desconto no checkout fica como follow-up.)
 - **E19 Banners** ✅ — `banners` CRUD e vitrine pública em `/public/banners`.
-- **E27 Fatura** ✅ — `GET /orders/{id}/invoice` (HTML imprimível) e botão Fatura nos detalhes do
-  pedido. (PDF próprio fica como evolução.)
+- **E27 Fatura** ✅ — `GET /orders/{id}/invoice` devolve **PDF** (OpenPDF) e o botão Fatura nos
+  detalhes do pedido abre o documento. (O HTML imprimível saiu; o botão no KDS fica como evolução.)
 - **E28 Motivos de cancelamento** ✅ — `order_cancel_reasons` com CRUD/seed e consulta autenticada.
 - **E29 Reembolso** ✅ — `refunds` + `refund_reasons`; solicitação pelo cliente, fila e decisão do
   admin (aprovar dispara estorno + reversão no razão).
