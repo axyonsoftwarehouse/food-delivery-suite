@@ -88,10 +88,12 @@ mínimo/máximo/obrigatório, recalcula o preço e grava os adicionais em `order
 **Tags, cupons e avaliações (Fases 3 e 4)** vêm de `V020__catalog_tags.sql`,
 `V021__coupons.sql` e `V022__reviews.sql`. Tags têm CRUD por
 `/admin|restaurant/tags`, vínculo por `GET`/`PUT .../products/{id}/tags`, filtro em
-`/catalog/search?tagId=` e lista em `GET /catalog/tags?zoneId=`. Cupons têm CRUD em
-`/admin/coupons`, validação em `POST /coupons/validate` e aplicação no checkout (desconto gravado
-no pedido). Avaliações: `POST /orders/{id}/review` (só pedido entregue), `GET /orders/{id}/review`
-e `GET /restaurants/{id}/reviews` (público). O seed cria a tag "Destaque" e o cupom `BEMVINDO` (10%).
+`/catalog/search?tagId=` e lista em `GET /catalog/tags?zoneId=`. Cupons são da loja, com CRUD em
+`/restaurant/marketing/coupons` e leitura do admin em `/admin/coupons`; a validação é
+`POST /coupons/validate` e a aplicação no checkout grava o desconto no pedido. Avaliações:
+`POST /orders/{id}/review` (só pedido entregue), `GET /orders/{id}/review`
+e `GET /restaurants/{id}/reviews` (público). O seed cria a tag "Destaque" e o cupom `CANTINA15` (15%),
+da Cantina do Bairro.
 
 **Combos, estoque e horário (`V024__catalog_combos_stock.sql`).** Um produto pode ser combo
 (`is_combo`) com composição em `combo_items` (`GET`/`PUT .../products/{id}/combo-items`), ter
