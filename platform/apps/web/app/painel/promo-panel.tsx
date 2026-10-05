@@ -62,29 +62,10 @@ async function act(path: string, method: string, body: unknown, ok: string, relo
 }
 
 function Campaigns({ onMessage }: { onMessage: (m: string) => void }) {
-  const { rows, reload } = useJsonArray<{ id: number; name: string; type: string; percent: number; restaurant_name: string | null; active: boolean }>('/admin/commerce/campaigns', onMessage);
-  const [name, setName] = useState('');
-  const [type, setType] = useState('basic');
-  const [percent, setPercent] = useState('10');
-  const [restaurantId, setRestaurantId] = useState('');
-  const [productId, setProductId] = useState('');
-  const [startsAt, setStartsAt] = useState('');
-  const [endsAt, setEndsAt] = useState('');
-  return <div className="form-grid">
-    <form onSubmit={(e) => { e.preventDefault(); void act('/admin/commerce/campaigns', 'POST', { name, type, percent: Number(percent.replace(',', '.')), restaurantId: restaurantId ? Number(restaurantId) : null, productId: type === 'item' ? Number(productId) : null, startsAt: startsAt || null, endsAt: endsAt || null }, 'Campanha criada.', reload, onMessage); setName(''); }}>
-      <h3>Nova campanha</h3>
-      <label>Nome<input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} /></label>
-      <label>Tipo<select value={type} onChange={(e) => setType(e.target.value)}><option value="basic">Básica (restaurante)</option><option value="item">Item</option></select></label>
-      <label>Desconto (%)<input inputMode="decimal" value={percent} onChange={(e) => setPercent(e.target.value)} required /></label>
-      <label>Restaurante (ID, opcional)<input inputMode="numeric" value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)} /></label>
-      {type === 'item' && <label>Produto (ID)<input inputMode="numeric" value={productId} onChange={(e) => setProductId(e.target.value)} required /></label>}
-      <label>Início (opcional)<input type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></label>
-      <label>Fim (opcional)<input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} min={startsAt || undefined} /></label>
-      <button className="secondary-button">Criar campanha</button>
-    </form>
-    <div className="courier-list"><h3>Campanhas</h3>
-      {rows.length ? rows.map((c) => <div className="courier-row" key={c.id}><div><strong>{c.name}</strong><span>{c.type} · {c.percent}%{c.restaurant_name ? ` · ${c.restaurant_name}` : ''}</span></div><div className="courier-actions"><button className={c.active ? 'availability-button' : 'availability-button paused'} onClick={() => void act(`/admin/commerce/campaigns/${c.id}`, 'PATCH', { active: !c.active }, 'Atualizada.', reload, onMessage)}>{c.active ? 'Pausar' : 'Ativar'}</button><button className="availability-button" onClick={() => void act(`/admin/commerce/campaigns/${c.id}`, 'DELETE', undefined, 'Removida.', reload, onMessage)}>Excluir</button></div></div>) : <p className="form-help">Nenhuma campanha.</p>}
-    </div>
+  const { rows } = useJsonArray<{ id: number; name: string; type: string; percent: number; restaurant_name: string; active: boolean; starts_at: string | null; ends_at: string | null }>('/admin/commerce/campaigns', onMessage);
+  return <div className="courier-list">
+    <p className="form-help">Campanhas são criadas pela própria loja, que banca o desconto. Aqui você acompanha as campanhas de todas as lojas.</p>
+    {rows.length ? rows.map((c) => <div className="courier-row" key={c.id}><div><strong>{c.name}</strong><span>{c.restaurant_name} · {c.type === 'basic' ? 'pedido inteiro' : 'item'} · {c.percent}% · {c.active ? 'ativa' : 'pausada'}{c.starts_at || c.ends_at ? ` · ${c.starts_at ?? '…'} a ${c.ends_at ?? '…'}` : ''}</span></div></div>) : <p className="form-help">Nenhuma campanha.</p>}
   </div>;
 }
 

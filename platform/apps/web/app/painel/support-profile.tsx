@@ -5,14 +5,14 @@ import CatalogManager from '../CatalogManager';
 import RestaurantHours from '../RestaurantHours';
 import { useSupportReason } from '../SupportReasonDialog';
 import { api, useApp } from '../app-context';
-import { Alert, Badge, Button, Card, EmptyState, Field, SelectInput, Tabs, TextInput } from '../ui';
+import { Alert, Badge, Button, Card, EmptyState, Field, SelectInput, Tabs } from '../ui';
 import OrdersPanel from './orders-panel';
 
 const APPROVAL_LABELS: Record<string, string> = { approved: 'Aprovada', pending: 'Cadastro pendente', denied: 'Cadastro recusado' };
 
 
 type Pause = { until: string; reason: string } | null;
-type Profile = { id: number; name: string; slug: string; approval: string; active: boolean; timezone: string | null; discountPercent: number; subscriptionStatus: string | null; modules: string[]; ownerEmail: string | null; activeOrders: number; lateOrders: number; canceled7d: number; open: boolean; pause: Pause };
+type Profile = { id: number; name: string; slug: string; approval: string; active: boolean; timezone: string | null; subscriptionStatus: string | null; modules: string[]; ownerEmail: string | null; activeOrders: number; lateOrders: number; canceled7d: number; open: boolean; pause: Pause };
 type Entry = { id: number; actorName: string; action: string; summary: string; reason: string | null; createdAt: string };
 
 const PAUSE_OPTIONS = [15, 30, 60, 120, 240, 720, 1440, 4320];
@@ -26,14 +26,12 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [trail, setTrail] = useState<Entry[]>([]);
   const [minutes, setMinutes] = useState(60);
-  const [discount, setDiscount] = useState('0');
   const [acting, setActing] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const data = await api<Profile>(`/admin/support/restaurants/${restaurantId}`);
       setProfile(data);
-      setDiscount(String(data.discountPercent ?? 0));
       setTrail(await api<Entry[]>(`/admin/support/restaurants/${restaurantId}/audit`));
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível carregar a loja.'); }
   }, [restaurantId, setMessage]);
@@ -67,7 +65,6 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
         { id: 'orders', label: 'Pedidos' },
         { id: 'catalog', label: 'Cardápio' },
         { id: 'hours', label: 'Horários' },
-        { id: 'discount', label: 'Desconto' },
         { id: 'trail', label: 'Trilha' },
       ]} />
     </Card>
@@ -92,14 +89,6 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
     {tab === 'orders' && <OrdersPanel restaurantId={restaurantId} />}
     {tab === 'catalog' && <CatalogManager mode="support" restaurantId={restaurantId} onMessage={setMessage} onChanged={() => { void refresh(); void load(); }} />}
     {tab === 'hours' && <RestaurantHours mode="support" restaurantId={restaurantId} onMessage={setMessage} />}
-
-    {tab === 'discount' && <Card>
-      <Alert tone="info">{'O desconto da loja ainda não é aplicado ao total do pedido (pendência registrada).'}</Alert>
-      <form className="form-grid" onSubmit={(event) => { event.preventDefault(); void intervene('Desconto', `${base}/discount`, 'PATCH', (reason) => ({ reason, data: { percent: Number(discount.replace(',', '.')) } }), 'Desconto atualizado.'); }}>
-        <Field label={'Desconto (%)'}><TextInput inputMode="decimal" value={discount} onChange={(event) => setDiscount(event.target.value)} disabled={!canAct} /></Field>
-        {canAct && <Button type="submit">{'Salvar'}</Button>}
-      </form>
-    </Card>}
 
     {tab === 'trail' && <Card title={'Trilha'}>
       {trail.length === 0 ? <EmptyState title={'Nenhuma intervenção do suporte.'} /> : <div className="courier-list">
