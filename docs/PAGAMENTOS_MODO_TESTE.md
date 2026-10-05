@@ -29,7 +29,13 @@ virou **pago** no Foodie. Nenhum dinheiro real se move: as credenciais do stagin
   *App-Checkout-Transparente-Foodie → Webhooks → Modo de teste*, com o evento **Order (Mercado Pago)**.
   **Não clique em "Salvar configurações" nem em "Redefinir" nessa tela sem necessidade:** cada clique
   gera uma assinatura secreta nova, e aí o segredo gravado no staging deixa de valer (todo webhook
-  passa a voltar `401`). Se trocar, grave o novo com `platform/deploy/gravar-segredo-webhook.bat`.
+  passa a voltar `401`).
+- **São dois segredos, e o staging precisa dos dois.** As notificações **automáticas** vêm assinadas com
+  o segredo da aplicação do vendedor de teste (*TestApp-51fff93c → Webhooks*, na conta do vendedor de
+  teste). O **"Simular"** da aplicação principal usa o segredo dela. O `MERCADOPAGO_WEBHOOK_SECRET` do
+  staging guarda os dois, separados por vírgula (`segredo-principal,segredo-testapp`). O
+  `gravar-segredo-webhook.bat` grava **um valor só**: se for usado, cole os dois juntos, com a vírgula,
+  senão as notificações automáticas voltam a dar `401`.
 
 ## 2. Preparar um cliente de teste (uma vez só)
 
