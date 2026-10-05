@@ -15,10 +15,10 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `0273c0d` — PRs #1 a #46 mescladas (a #46, cartão aprovado na hora, em 05/10) |
+| `main` local | `b7fe4bf` — PRs #1 a #48 mescladas (a #48, estorno pelo Mercado Pago, em 05/10) |
 | E48 | mesclado em 01/10 (`5564966`) e **publicado** no staging; teste manual local OK |
 | `origin/main` | sincronizado com a `main` local (nada pendente de push) |
-| **Código na VPS** | **`0273c0d`** — o `main` inteiro (PRs #1–#46), publicado pelo `release.ps1` em 05/10 (registro em `/home/deploy/foodie-platform/.deployed`) |
+| **Código na VPS** | **`b7fe4bf`** — o `main` inteiro (PRs #1–#48), publicado pelo `release.ps1` em 05/10 (registro em `/home/deploy/foodie-platform/.deployed`) |
 | Schema (`/ready`) | `056` (`V056__store_owned_discounts.sql`), na VPS e no `HEAD` — `/ready` e `/health` públicos em **200** |
 | Distância | **nenhuma**: a VPS roda o mesmo commit que a `main` local |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
@@ -184,8 +184,13 @@ recusa e assim por diante.
    **PR #46** (`0273c0d`): o cartão aprovado na hora ficava sem `confirmed_at` e sem a conferência de
    valor, e um aviso antigo ("Pedido cancelado.") escondia o "Pagamento aprovado". O registro do #26 foi
    gravado antes da correção e continua sem `confirmed_at`.
-2. **Estorno pelo admin** de uma cobrança de teste, com prints (é a evidência do cartão `1nguT9bv`, hoje
-   em TESTING). Não foi testado.
+2. ~~**Estorno pelo admin**~~: **feito em 05/10**. Até a **PR #48** (`b7fe4bf`), o estorno só mudava o
+   registro no Foodie: o pedido #23 ficou `refunded` aqui e continuou pago no Mercado Pago, e segue assim,
+   porque foi estornado antes da correção. Agora o estorno de pagamento online chama
+   `POST /v1/orders/{id}/refund` **antes** de marcar `refunded`, e o webhook registra estorno feito no
+   painel do Mercado Pago. Prova: o pedido **#26** (cartão) foi estornado pelo admin às 22:31:50 UTC.
+   Ficou `refunded` no Foodie e **`refunded` no Mercado Pago** (R$ 57,80), e o webhook seguinte (22:31:52,
+   **200**) não reverteu duas vezes. Ainda faltam os prints para o cartão `1nguT9bv`.
 3. **Trocar a credencial de teste** exposta em 02/10. O `.env.bak` da PR #23 continua no histórico do
    GitHub. Trocar também a senha do vendedor de teste, que foi exibida na sessão de 04/10, e o segredo
    da TestApp, que foi colado na conversa de 05/10.
