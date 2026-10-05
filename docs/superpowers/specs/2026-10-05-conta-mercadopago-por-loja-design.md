@@ -88,8 +88,8 @@ usuário), `disconnected_at`, `disconnected_by`, `disconnect_reason`, `updated_a
 **`payment_oauth_states`**: `state_hash` (SHA-256, PK), `restaurant_id`, `user_id`,
 `code_verifier_enc`, `expires_at` (10 min), `used_at`.
 
-**`order_payments.payment_account_id`** — FK anulável para `restaurant_payment_accounts.id`: a conta
-que criou a cobrança.
+**`order_payments.payment_account_id`** e **`order_payments.provider_user_id`** — FK anulável para `restaurant_payment_accounts.id` e o `user_id` da conta no momento da cobrança: a conta
+que criou a cobrança. Como a linha da conta é atualizada no lugar, o `provider_user_id` detecta a loja que trocou de conta depois da cobrança: o estorno é recusado com "A loja trocou de conta Mercado Pago depois desta cobrança. Estorne pelo painel da conta que recebeu."
 
 ## 7. Componentes
 
@@ -114,11 +114,11 @@ marca usado) → troca o código com o `code_verifier` → lê o apelido → gra
 `connected` → **302** para `PAYMENTS_ACCOUNT_RETURN_URL?mercadopago=conectado` (ou `=erro&motivo=…`:
 `negado` quando vem `error`, `expirado`, `invalido`, `falha`). Auditoria: conexão registrada.
 
-**Status:** `GET /restaurant/payment-account` (dono) e `GET /admin/restaurants/{id}/payment-account`
+**Status:** `GET /restaurant/payment-account` (dono) e `GET /admin/support/restaurants/{id}/payment-account`
 (suporte, `SUPPORT_VIEW`) → `{ status, provider, nickname, providerUserId, connectedAt, tokenExpiresAt }`.
 
 **Desconectar:** `DELETE /restaurant/payment-account` (dono) ou
-`POST /admin/restaurants/{id}/payment-account/disconnect { reason }` (suporte, `SUPPORT_ACT`, pelo
+`POST /admin/support/restaurants/{id}/payment-account/disconnect { reason }` (suporte, `SUPPORT_ACT`, pelo
 `SupportActionService`: motivo, auditoria, aviso à loja) → apaga os tokens, status `disconnected`.
 
 **Cobrar (PR 2):** `startIntent` pega `credentialsFor(loja do pedido)`; sem conta conectada → **409**
