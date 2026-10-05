@@ -15,7 +15,10 @@ public interface PaymentGateway {
 
     Charge fetch(String externalId);
 
-    /** Verifica a origem/assinatura do webhook. Provedores sem segredo configurado aceitam. */
+    /**
+     * Verifica a origem/assinatura do webhook. O padrão aceita (provedores sem assinatura); o Mercado
+     * Pago recusa quando o segredo não está configurado, para não deixar o endpoint aberto.
+     */
     default boolean verifyWebhook(WebhookRequest request) {
         return true;
     }

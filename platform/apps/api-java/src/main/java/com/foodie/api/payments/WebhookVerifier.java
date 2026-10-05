@@ -24,7 +24,10 @@ public final class WebhookVerifier {
     }
 
     public static boolean verify(String secret, String dataId, String requestId, String ts, String v1) {
-        if (secret == null || secret.isBlank()) return true;
+        // Sem segredo não há como conferir a assinatura: recusar é a única resposta segura. Antes disto a
+        // verificação era pulada quando o segredo estava vazio, então um ambiente sem a chave aceitava
+        // notificação de qualquer origem. O staging passou a ter o segredo em 04/10/2026.
+        if (secret == null || secret.isBlank()) return false;
         if (ts == null || v1 == null || v1.isBlank()) return false;
         String lower = dataId == null ? null : dataId.toLowerCase(java.util.Locale.ROOT);
         return matches(secret, manifest(dataId, requestId, ts), v1)

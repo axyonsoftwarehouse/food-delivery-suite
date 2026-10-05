@@ -152,6 +152,11 @@ passo de teste: **`docs/PAGAMENTOS_MODO_TESTE.md`**.
    **caixa original** reproduz o `v1` recebido. A **PR #37** (`8ab5d33`) corrigiu isso: a verificação
    aceita a caixa original e também minúsculas (a forma da documentação).
 
+**Endurecimento (05/10):** o `WebhookVerifier` passou a **falhar fechado** — sem
+`MERCADOPAGO_WEBHOOK_SECRET` a notificação é recusada (**401**), em vez de aceita sem conferência. O
+staging já tem o segredo (04/10), então nada muda por lá; o que muda é que um ambiente sem a chave deixa
+de aceitar notificação de qualquer origem.
+
 **Para não se perder:** as credenciais de teste são do **vendedor de teste**
 `TESTUSER4062510080958592865` (User ID `3588446200`), não da conta principal. É por isso que as orders
 são `ORDTST…`. O resultado do teste depende do **primeiro nome do cliente**: `APRO` aprova, `OTHE`
