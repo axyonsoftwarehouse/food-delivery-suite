@@ -59,8 +59,10 @@ class WebhookVerifierTest {
     }
 
     @Test
-    void withoutSecretSkipsVerification() {
-        assertTrue(WebhookVerifier.verify("", "1", "req", "ts", "qualquer"));
-        assertTrue(WebhookVerifier.verify(null, "1", "req", null, null));
+    void withoutSecretRejectsVerification() {
+        // Falha fechada: sem segredo não há como conferir a assinatura, então recusa. Antes disto a
+        // verificação era pulada e qualquer origem era aceita.
+        assertFalse(WebhookVerifier.verify("", "1", "req", "ts", "qualquer"));
+        assertFalse(WebhookVerifier.verify(null, "1", "req", null, null));
     }
 }

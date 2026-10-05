@@ -1,9 +1,11 @@
 package com.foodie.api.payments;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestClientResponseException;
@@ -33,6 +35,16 @@ class MercadoPagoGatewayTest {
         when(error.getStatusCode()).thenReturn(HttpStatusCode.valueOf(status));
         when(error.getResponseBodyAsString()).thenReturn(corpo);
         return error;
+    }
+
+    @Test
+    void webhookIsRejectedWithoutASecret() {
+        // Falha fechada: sem MERCADOPAGO_WEBHOOK_SECRET o gateway recusa a notificação, mesmo que ela
+        // pareça válida. Com segredo configurado e sem assinatura também recusa (o ts/v1 faltam).
+        PaymentGateway.WebhookRequest notificacao = new PaymentGateway.WebhookRequest(
+            Map.of(), Map.of("type", "order", "data", Map.of("id", "ORD1")), Map.of());
+        assertFalse(new MercadoPagoGateway("token", "https://api.mercadopago.com", "").verifyWebhook(notificacao));
+        assertFalse(new MercadoPagoGateway("token", "https://api.mercadopago.com", "segredo-de-teste").verifyWebhook(notificacao));
     }
 
     @Test

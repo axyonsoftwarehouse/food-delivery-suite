@@ -207,6 +207,14 @@ public class MercadoPagoGateway implements PaymentGateway {
 
     @Override
     public boolean verifyWebhook(WebhookRequest request) {
+        if (webhookSecret == null || webhookSecret.isBlank()) {
+            // Falha fechada: sem o segredo não há como conferir a assinatura. Antes disto a notificação era
+            // aceita sem segredo (endpoint aberto a qualquer origem); agora recusa e diz o que falta, para
+            // não confundir com "segredo trocado".
+            logger.warn("Webhook do Mercado Pago recusado (401): MERCADOPAGO_WEBHOOK_SECRET não configurado. "
+                + "Configure o segredo do webhook (painel do Mercado Pago > Webhooks) para voltar a aceitar notificações.");
+            return false;
+        }
         String dataId = webhookChargeId(request).orElse(null);
         // O manifesto é assinado sobre o `data.id` da **query string** (`?data.id=...`) — a documentação
         // do provedor é explícita, e o corpo pode trazer um id diferente (o pedido) do que vem na query.
