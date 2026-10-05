@@ -1,6 +1,6 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 04/10/2026 (tarde).
+Documento vivo. Última atualização: 05/10/2026 (noite).
 Base: `PLANO_EPICOS_STACKFOOD.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -15,17 +15,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `8ab5d33` — PRs #1 a #37 mescladas (a #37, correção da assinatura do webhook, em 04/10) |
+| `main` local | `38d5492` — PRs #1 a #42 mescladas (a #42, vários segredos de webhook, em 05/10) |
 | E48 | mesclado em 01/10 (`5564966`) e **publicado** no staging; teste manual local OK |
 | `origin/main` | sincronizado com a `main` local (nada pendente de push) |
-| **Código na VPS** | **`8ab5d33`** — o `main` inteiro (PRs #1–#37), publicado pelo `release.ps1` em 04/10 às 17:40 UTC (log `/home/deploy/deploy-8ab5d33-20261004-174057.log`) |
-| Schema (`/ready`) | `055` (`V055__drop_translations.sql`), na VPS e no `HEAD` — `/ready` e `/health` públicos em **200** |
+| **Código na VPS** | **`38d5492`** — o `main` inteiro (PRs #1–#42), publicado pelo `release.ps1` em 05/10 (registro em `/home/deploy/foodie-platform/.deployed`) |
+| Schema (`/ready`) | `056` (`V056__store_owned_discounts.sql`), na VPS e no `HEAD` — `/ready` e `/health` públicos em **200** |
 | Distância | **nenhuma**: a VPS roda o mesmo commit que a `main` local |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `mvn test` completo sem falha em 04/10 (com a correção da PR #37) |
+| Testes Java | `mvn test` completo sem falha em 05/10 (com a PR #42) |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **21%** (7,3 GB de 38 GB, 29 GB livres) — limpeza de 03/10; era 83% |
-| Árvore de trabalho | **não está limpa**: mudanças em andamento de cupons, campanhas e suporte (V056, `CouponService`…), fora do que está publicado |
+| Árvore de trabalho | limpa, exceto `platform/deploy/gravar-segredo-webhook.bat` (não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -133,6 +133,13 @@ pendente** — não há código Apple no backend).
 (`POST /v1/orders` → `201`) e o cartão foi **pago pelo Card Payment Brick** (`paid`/`accredited`) —
 telas `PixPayment.tsx` e `CardPaymentForm.tsx`.
 
+**Provado de ponta a ponta em 05/10, sem intervenção:** o **pedido #23** (Pix com "Pagar agora", cliente
+`APRO Cliente Teste` #18, order `ORDTST01M46YWNX5DQS3…`) foi criado às 21:18:05 UTC. O QR saiu em 2 s, e o
+Mercado Pago **aprovou e notificou sozinho**: duas notificações automáticas, às 21:18:08 e 21:18:12, as
+duas **200**. O pedido virou **`paid`/`accredited`** às 21:18:12, sem reenvio pelo painel. No dia
+anterior, o pedido #22 tinha mostrado a mesma aprovação automática, mas com as notificações em **401**
+(ver o item 3 abaixo).
+
 **Provado no staging em 04/10, com a assinatura do provedor conferida:** os Pix dos pedidos **#19 e
 #20** (cliente `APRO Cliente Teste`, orders `ORDTST01M423…` e `ORDTST01M4250…`) estavam
 `processed/accredited` no Mercado Pago e `pending` no Foodie. A notificação de cada um foi reenviada pelo
@@ -140,7 +147,7 @@ telas `PixPayment.tsx` e `CardPaymentForm.tsx`.
 **consultou a order no provedor**, e os dois viraram **`paid`/`accredited`** às 17:43 UTC. Passo a
 passo de teste: **`docs/PAGAMENTOS_MODO_TESTE.md`**.
 
-**Por que não funcionava (resolvido em 04/10).** Eram duas causas, e uma escondia a outra:
+**Por que não funcionava (resolvido em 04/10 e 05/10).** Eram três causas, e uma escondia a outra:
 1. **Segredo errado e webhook sumido do painel.** O segredo gravado em 03/10 não era o que o provedor
    usava, e depois das 00:51 de 04/10 não havia webhook configurado em nenhuma aplicação. Foi refeito em
    *App-Checkout-Transparente-Foodie → Webhooks → Modo de teste*: URL
@@ -150,6 +157,15 @@ passo de teste: **`docs/PAGAMENTOS_MODO_TESTE.md`**.
 2. **Id em minúsculas no manifesto (PR #35).** Com o segredo certo, só o manifesto com o `data.id` na
    **caixa original** reproduz o `v1` recebido. A **PR #37** (`8ab5d33`) corrigiu isso: a verificação
    aceita a caixa original e também minúsculas (a forma da documentação).
+3. **Dois segredos, um por aplicação.** A order é criada com as credenciais do vendedor de teste, cuja
+   aplicação (**TestApp-51fff93c**, nº `6605070341049080`) assina as notificações automáticas com **o
+   segredo dela**. O "Simular" da aplicação principal usa o outro segredo. O Mercado Pago espelha na
+   TestApp o webhook configurado na principal, mas o segredo da TestApp só aparece depois de salvar a
+   configuração na conta do vendedor de teste (*TestApp-51fff93c → Webhooks → Modo de produção*). A
+   **PR #42** (`38d5492`) faz o `MERCADOPAGO_WEBHOOK_SECRET` aceitar **vários segredos separados por
+   vírgula**. O staging guarda os dois desde 05/10 às 21:15 UTC (o `.env` anterior ficou com backup na
+   VPS como `.env.antes-segredo-testapp-*`). **O `gravar-segredo-webhook.bat` grava um valor só:** se for
+   usado, ele apaga o segundo segredo, e as notificações automáticas voltam a dar 401.
 
 **Endurecimento (05/10):** o `WebhookVerifier` passou a **falhar fechado** — sem
 `MERCADOPAGO_WEBHOOK_SECRET` a notificação é recusada (**401**), em vez de aceita sem conferência. O
@@ -162,14 +178,14 @@ são `ORDTST…`. O resultado do teste depende do **primeiro nome do cliente**: 
 recusa e assim por diante.
 
 **Falta para fechar:**
-1. **Um pagamento novo, do começo ao fim, sem reenvio manual.** Fazer um Pix e um cartão agora e ver a
-   notificação chegar sozinha. Em 04/10 a notificação foi reenviada à mão; a automática, depois da
-   correção, ainda não foi observada `(a confirmar: nos logs do staging, POST /webhooks/mercadopago -> 200
-   sem reenvio)`.
+1. ~~**Pix novo, do começo ao fim, sem reenvio manual**~~: **feito em 05/10** (pedido #23).
+   **O cartão novo ainda não foi feito** depois das correções `(a confirmar: cartão de teste com cliente
+   APRO, POST /webhooks/mercadopago -> 200 sem reenvio)`. O código do webhook é o mesmo para Pix e cartão.
 2. **Estorno pelo admin** de uma cobrança de teste, com prints (é a evidência do cartão `1nguT9bv`, hoje
    em TESTING). Não foi testado.
 3. **Trocar a credencial de teste** exposta em 02/10. O `.env.bak` da PR #23 continua no histórico do
-   GitHub. Trocar também a senha do vendedor de teste, que foi exibida na sessão de 04/10.
+   GitHub. Trocar também a senha do vendedor de teste, que foi exibida na sessão de 04/10, e o segredo
+   da TestApp, que foi colado na conversa de 05/10.
 4. **Decidir o 3DS** (o status `CALL` não é tratado) e conferir se a conta tem **chave Pix registrada**
    (o provedor exige para produção).
 5. **Produção ainda não existe.** A URL de produção no painel está vazia e não há credencial de produção
@@ -191,7 +207,7 @@ recusa e assim por diante.
 
 - **Cobrança real da assinatura** — hoje cria transação, não cobra provedor
 - **Pix/cartão online direto para a loja** — **código pronto e comprovado no staging** (ver §2 e §5);
-  o webhook do provedor foi provado em 04/10 (ver "Pagamentos online"). O que falta não é
+  o Pix online foi provado de ponta a ponta em 05/10 (ver "Pagamentos online"). O que falta não é
   implementação: é a **decisão comercial** (de quem é a conta que recebe e quem assume o estorno) e
   a configuração de produção. A flag `PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES` está **ligada no staging** e
   desligada por padrão no código — em produção nada muda sem decisão
@@ -308,13 +324,13 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. As PRs #1–#37 estão publicadas (`8ab5d33`, schema `055`), e o
+A fila de infraestrutura está zerada. As PRs #1–#42 estão publicadas (`38d5492`, schema `056`), e o
 staging roda o mesmo commit que a `main`.
 
-**O próximo passo é um só: fechar o cartão `1nguT9bv` (pagamento real), que está em TESTING.** O webhook
-foi provado em 04/10. Faltam um Pix e um cartão novos, com a notificação chegando sozinha, e o estorno
-pelo admin (itens 1 e 2 de "Pagamentos online"). Depois disso, o que trava é a **decisão comercial**,
-que não depende de código.
+**O próximo passo é um só: fechar o cartão `1nguT9bv` (pagamento real), que está em TESTING.** O Pix
+online foi provado de ponta a ponta em 05/10 (pedido #23). Faltam um cartão novo, com a notificação
+chegando sozinha, e o estorno pelo admin (itens 1 e 2 de "Pagamentos online"). Depois disso, o que trava
+é a **decisão comercial**, que não depende de código.
 
 ## 5.1 Higiene da VPS — 03/10/2026
 
@@ -332,10 +348,10 @@ em `/home/deploy/releases/<sha>/`), então as imagens em uso foram **re-tagadas*
 `pre-df503c0` — rollback instantâneo para o release atual sem custo de build. Os backups de banco
 seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar de ~70%.
 
-## 6. Estado da árvore de trabalho (04/10)
+## 6. Estado da árvore de trabalho (05/10)
 
-`main` = `origin/main` = **`8ab5d33`** (PR #37), mas a árvore **tem mudanças não commitadas** de cupons,
-campanhas e suporte que ainda não foram publicadas. A partir de
+`main` = `origin/main` = **`38d5492`** (PR #42). A árvore está limpa, exceto o
+`platform/deploy/gravar-segredo-webhook.bat`, que não é versionado. A partir de
 01/10 as mudanças entram por PR (branch → PR → merge no GitHub). Os PRs #24–#35 (madrugada de 03/10)
 foram o checkout transparente, o webhook e o endurecimento dele:
 
@@ -350,7 +366,12 @@ foram o checkout transparente, o webhook e o endurecimento dele:
 | `df503c0` | merge final (16:20 de 02/10) |
 | `7451939` | `chore(pagamentos)`: remover a configuração de pagamento sem leitor — PR #36 |
 | `2d94d43` | `fix(webhook)`: assinatura confere o id da order na caixa original (desfaz o erro da #35) — PR #37 |
-| `8ab5d33` | merge da #37 (04/10) — **é o que está na VPS** |
+| `8ab5d33` | merge da #37 (04/10) |
+| `2118849` | `fix(deploy)`: links de email do staging apontam para o host da loja — PR #38 |
+| `de54b6a` … `9b21cdc` | `feat(descontos)`: promoção só da própria loja (V056) — PR #39 |
+| `4677304` | `fix(pagamentos)`: webhook recusa quando o segredo não está configurado — PR #40 |
+| `75259f0` | `feat(fatura)`: E27 gera a fatura do pedido em PDF — PR #41 |
+| `38d5492` | merge da #42: vários segredos de webhook (05/10) — **é o que está na VPS** |
 
 Commits anteriores (01/10 e 02/10) — PRs #1 a #23 — estão registrados nas entradas do diário e nas
 tabelas das versões anteriores deste documento.
