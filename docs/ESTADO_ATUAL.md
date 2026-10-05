@@ -15,10 +15,10 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `38d5492` — PRs #1 a #42 mescladas (a #42, vários segredos de webhook, em 05/10) |
+| `main` local | `0273c0d` — PRs #1 a #46 mescladas (a #46, cartão aprovado na hora, em 05/10) |
 | E48 | mesclado em 01/10 (`5564966`) e **publicado** no staging; teste manual local OK |
 | `origin/main` | sincronizado com a `main` local (nada pendente de push) |
-| **Código na VPS** | **`38d5492`** — o `main` inteiro (PRs #1–#42), publicado pelo `release.ps1` em 05/10 (registro em `/home/deploy/foodie-platform/.deployed`) |
+| **Código na VPS** | **`0273c0d`** — o `main` inteiro (PRs #1–#46), publicado pelo `release.ps1` em 05/10 (registro em `/home/deploy/foodie-platform/.deployed`) |
 | Schema (`/ready`) | `056` (`V056__store_owned_discounts.sql`), na VPS e no `HEAD` — `/ready` e `/health` públicos em **200** |
 | Distância | **nenhuma**: a VPS roda o mesmo commit que a `main` local |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
@@ -178,9 +178,12 @@ são `ORDTST…`. O resultado do teste depende do **primeiro nome do cliente**: 
 recusa e assim por diante.
 
 **Falta para fechar:**
-1. ~~**Pix novo, do começo ao fim, sem reenvio manual**~~: **feito em 05/10** (pedido #23).
-   **O cartão novo ainda não foi feito** depois das correções `(a confirmar: cartão de teste com cliente
-   APRO, POST /webhooks/mercadopago -> 200 sem reenvio)`. O código do webhook é o mesmo para Pix e cartão.
+1. ~~**Pix e cartão novos, do começo ao fim, sem reenvio manual**~~: **feitos em 05/10**. Pix: pedido #23.
+   Cartão: pedido **#26** (Mastercard de teste, titular APRO), aprovado na própria cobrança às 21:41:53
+   UTC, com a notificação automática em **200** às 21:41:54. Esse teste revelou dois defeitos, corrigidos na
+   **PR #46** (`0273c0d`): o cartão aprovado na hora ficava sem `confirmed_at` e sem a conferência de
+   valor, e um aviso antigo ("Pedido cancelado.") escondia o "Pagamento aprovado". O registro do #26 foi
+   gravado antes da correção e continua sem `confirmed_at`.
 2. **Estorno pelo admin** de uma cobrança de teste, com prints (é a evidência do cartão `1nguT9bv`, hoje
    em TESTING). Não foi testado.
 3. **Trocar a credencial de teste** exposta em 02/10. O `.env.bak` da PR #23 continua no histórico do
