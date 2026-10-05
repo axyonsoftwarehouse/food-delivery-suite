@@ -1,5 +1,7 @@
 package com.foodie.api.orders;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -17,12 +19,14 @@ import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -66,7 +70,7 @@ class OrderExtrasControllerTest {
     }
 
     @Test
-    void invoiceRendersHtml() throws Exception {
+    void invoiceRendersPdf() throws Exception {
         User customer = new User(7, "Cliente", "cliente@demo.local", "customer", null);
         when(auth.requireUser("s")).thenReturn(customer);
         Map<String, Object> detail = new HashMap<>();
@@ -84,8 +88,11 @@ class OrderExtrasControllerTest {
         detail.put("items", List.of(Map.of("name", "Prato", "quantity", 2, "unit_price_cents", 5000L)));
         when(orders.detail(eq(customer), eq(5L))).thenReturn(detail);
 
-        mvc.perform(get("/orders/5/invoice").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
+        byte[] pdf = mvc.perform(get("/orders/5/invoice").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
             .andExpect(status().isOk())
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Fatura #5")));
+            .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+            .andReturn().getResponse().getContentAsByteArray();
+        assertTrue(pdf.length > 0);
+        assertEquals("%PDF", new String(pdf, 0, 4, StandardCharsets.US_ASCII));
     }
 }

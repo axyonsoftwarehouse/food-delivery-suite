@@ -380,7 +380,8 @@ public class OrderService {
 
     public Map<String, Object> detail(User user, long orderId) {
         expireStale();
-        List<Map<String, Object>> orders = jdbc.queryForList("SELECT * FROM orders WHERE id = ?", orderId);
+        List<Map<String, Object>> orders = jdbc.queryForList(
+            "SELECT o.*, r.name AS restaurant_name FROM orders o JOIN restaurants r ON r.id = o.restaurant_id WHERE o.id = ?", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);

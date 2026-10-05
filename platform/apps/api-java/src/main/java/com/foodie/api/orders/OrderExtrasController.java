@@ -16,6 +16,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -52,53 +53,14 @@ public class OrderExtrasController {
     // ----- E27: fatura -----
 
     @GetMapping("/orders/{id}/invoice")
-    public ResponseEntity<String> invoice(@CookieValue(value = "foodie_session", required = false) String token,
+    public ResponseEntity<byte[]> invoice(@CookieValue(value = "foodie_session", required = false) String token,
                                           @PathVariable @Positive long id) {
         User user = auth.requireUser(token);
-        Map<String, Object> detail = orders.detail(user, id);
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType("text/html; charset=UTF-8")).body(invoiceHtml(detail));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static String invoiceHtml(Map<String, Object> order) {
-        StringBuilder html = new StringBuilder();
-        html.append("<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Fatura #")
-            .append(order.get("id")).append("</title></head><body style=\"font-family:Arial,sans-serif;max-width:640px;margin:24px auto\">");
-        html.append("<h1>Foodie · Fatura #").append(order.get("id")).append("</h1>");
-        html.append("<p><strong>Restaurante:</strong> ").append(order.get("restaurant_name")).append("<br>");
-        html.append("<strong>Data:</strong> ").append(order.get("created_at")).append("<br>");
-        html.append("<strong>Status:</strong> ").append(order.get("status")).append("<br>");
-        html.append("<strong>Endereço:</strong> ").append(order.get("delivery_address_text")).append("</p>");
-        html.append("<table style=\"width:100%;border-collapse:collapse\" border=\"1\" cellpadding=\"6\"><thead><tr><th align=\"left\">Item</th><th>Qtd</th><th align=\"right\">Valor</th></tr></thead><tbody>");
-        List<Map<String, Object>> items = (List<Map<String, Object>>) order.get("items");
-        long itemsTotal = 0;
-        for (Map<String, Object> item : items) {
-            long unit = ((Number) item.get("unit_price_cents")).longValue();
-            int qty = ((Number) item.get("quantity")).intValue();
-            itemsTotal += unit * qty;
-            html.append("<tr><td>").append(item.get("name"));
-            if (item.get("variation_name") != null) html.append(" (").append(item.get("variation_name")).append(')');
-            if (item.get("addons") != null) html.append(" · ").append(item.get("addons"));
-            html.append("</td><td align=\"center\">").append(qty).append("</td><td align=\"right\">").append(brl(unit * qty)).append("</td></tr>");
-        }
-        html.append("</tbody></table>");
-        html.append("<p align=\"right\">Subtotal: ").append(brl(number(order, "subtotal_cents"))).append("</p>");
-        html.append("<p align=\"right\">Entrega: ").append(brl(number(order, "delivery_fee_cents"))).append("</p>");
-        if (number(order, "service_fee_cents") > 0) html.append("<p align=\"right\">Serviço: ").append(brl(number(order, "service_fee_cents"))).append("</p>");
-        if (number(order, "tip_cents") > 0) html.append("<p align=\"right\">Gorjeta: ").append(brl(number(order, "tip_cents"))).append("</p>");
-        if (number(order, "discount_cents") > 0) html.append("<p align=\"right\">Desconto: -").append(brl(number(order, "discount_cents"))).append("</p>");
-        html.append("<h2 align=\"right\">Total: ").append(brl(number(order, "total_cents"))).append("</h2>");
-        html.append("<p style=\"color:#777;font-size:12px\">Documento sem valor fiscal.</p></body></html>");
-        return html.toString();
-    }
-
-    private static long number(Map<String, Object> row, String key) {
-        Object value = row.get(key);
-        return value == null ? 0L : ((Number) value).longValue();
-    }
-
-    private static String brl(long cents) {
-        return "R$ " + String.format(java.util.Locale.ROOT, "%.2f", cents / 100.0);
+        byte[] pdf = InvoicePdf.build(orders.detail(user, id));
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_PDF)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"fatura-" + id + ".pdf\"")
+            .body(pdf);
     }
 
     // ----- E28: motivos de cancelamento -----

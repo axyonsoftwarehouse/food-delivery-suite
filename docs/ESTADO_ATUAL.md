@@ -121,7 +121,6 @@ pendente** — não há código Apple no backend).
   e a tabela (`V055` derruba a `translations`; a criação fica em `V046` como histórico). O contrato
   do `api-client` foi regerado.
 - **Cache offline do catálogo** (E42) — follow-up
-- **PDF próprio de fatura** (E27) — hoje é HTML imprimível
 - **Interface dedicada de chat** (E38) — backend pronto, UI pendente
 - **Importação em massa de catálogo** (E23) — follow-up
 - **Imagens de mock dos restaurantes** na home — cosmético
