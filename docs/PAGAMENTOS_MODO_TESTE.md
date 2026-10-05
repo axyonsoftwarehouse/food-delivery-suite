@@ -37,7 +37,18 @@ virou **pago** no Foodie. Nenhum dinheiro real se move: as credenciais do stagin
 2. Crie uma conta de cliente com **nome começando por `APRO`** — por exemplo `APRO Cliente Teste`.
    Já existe uma no staging com esse nome (`cliente.foodie.1791072319151@gmail.com`); use-a se souber a senha.
 3. Use um **email com domínio real** (gmail, outlook…). Domínios como `@demo.local` são recusados pelo
-   Mercado Pago (`payer.email must be a valid email`).
+   Mercado Pago (`payer.email must be a valid email`). A caixa não precisa existir, porque o staging não
+   envia email de verdade.
+4. **Confirme o email da conta.** Sem isso, o checkout responde **403** ("Confirme seu email para
+   continuar"). O staging **não envia** o email; ele só grava o link no log da API. O link já aponta para
+   `https://cliente.staging.2.29.42.104.sslip.io/verify-email?token=...` (vem de `PUBLIC_BASE_URL` no
+   `platform/deploy/docker-compose.yml`). Para pegar o link:
+
+   ```bash
+   ssh -i ~/.ssh/foodie_vps deploy@2.29.42.104 "docker logs --since 1h foodie-staging-api-1 2>&1 | grep 'Confirme seu email'"
+   ```
+
+   Abra o link como está. O link de redefinição de senha (`/reset-password?token=...`) usa o mesmo host.
 
 ## 3. Fazer um Pix de teste
 
