@@ -327,7 +327,7 @@ public class OrderService {
         return created;
     }
 
-    private static final String ORDER_BASE = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, r.name AS restaurant_name, p.method AS payment_method, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN order_payments p ON p.order_id = o.id LEFT JOIN restaurant_tables t ON t.id = o.table_id ";
+    private static final String ORDER_BASE = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN users c ON c.id = o.customer_id LEFT JOIN order_payments p ON p.order_id = o.id LEFT JOIN restaurant_tables t ON t.id = o.table_id ";
     private static final String TERMINAL = "'delivered','rejected','cancelled','expired','failed','completed'";
     private static final int ACTIVE_LIMIT = 200;
     private static final int HISTORY_LIMIT = 100;
@@ -365,6 +365,19 @@ public class OrderService {
         result.put("items", items);
         result.put("nextCursor", hasMore ? ((Number) items.getLast().get("id")).longValue() : null);
         return result;
+    }
+
+    // Busca de um pedido pelo número no painel, para achar o que já saiu da janela do `list`
+    // (ACTIVE_LIMIT/HISTORY_LIMIT). Mesmo formato de linha e mesmo escopo do `list`: fora do
+    // escopo do papel responde 404, sem revelar que o pedido existe.
+    public Map<String, Object> lookup(User user, long orderId) {
+        expireStale();
+        Scope scope = scope(user);
+        List<Object> args = new ArrayList<>(scope.args());
+        args.add(orderId);
+        List<Map<String, Object>> rows = jdbc.queryForList(ORDER_BASE + "WHERE " + scope.where() + " AND o.id = ?", args.toArray());
+        if (rows.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
+        return rows.getFirst();
     }
 
     private record Scope(String where, List<Object> args) {}

@@ -52,6 +52,12 @@ public class OrderController {
         return orders.history(viewer(token), status, after, limit);
     }
 
+    @GetMapping("/orders/lookup")
+    public Map<String, Object> lookup(@CookieValue(value = "foodie_session", required = false) String token,
+                                      @org.springframework.web.bind.annotation.RequestParam @Positive long id) {
+        return orders.lookup(viewer(token), id);
+    }
+
     @GetMapping("/orders/{id}")
     public Map<String, Object> detail(@CookieValue(value = "foodie_session", required = false) String token,
                                       @PathVariable @Positive long id) {
