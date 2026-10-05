@@ -362,6 +362,9 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     const payload: { delta: number; variationId?: number; addonIds?: number[] } = { delta: 1 };
     if (variationId) payload.variationId = variationId;
     if (addonIds.length) payload.addonIds = addonIds;
+    // Começar um carrinho novo tira da tela o QR do pedido anterior: ele ficava em cima dos pratos novos,
+    // como se fosse o pagamento deles. O QR continua no detalhe do pedido, em Pedidos.
+    setOnlineCode(null);
     await mutateCart(`/cart/items/${product.id}`, 'PATCH', payload, `${product.name} adicionado ao carrinho.`);
   }
 

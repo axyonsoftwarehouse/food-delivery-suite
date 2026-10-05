@@ -70,6 +70,16 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
       return;
     }
     let vivo = true;
+    // Quando o navegador bloqueia os domínios do Mercado Pago (proteção contra rastreamento rígida do
+    // Firefox, Brave, bloqueadores), o SDK quebra por dentro sem chamar onError nem rejeitar a promessa,
+    // e a tela ficava para sempre em "Carregando". Medido em 05/10/2026 no Firefox: CORS bloqueado em
+    // secure-fields.mercadopago.com e "t is undefined" dentro do SDK.
+    let respondeu = false;
+    const semResposta = window.setTimeout(() => {
+      if (!vivo || respondeu) return;
+      setEstado('erro');
+      setMensagem('O formulário do cartão não carregou. Se o seu navegador bloqueia rastreadores (Firefox em modo rígido, Brave, extensões de bloqueio), libere este site ou use outro navegador. O pedido já foi criado e continua aguardando o pagamento.');
+    }, 15000);
     carregarSdk()
       .then((MercadoPago) => {
         const mp = new MercadoPago(publicKey, { locale: 'pt-BR' });
@@ -77,9 +87,10 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
           initialization: { amount: amountCents / 100, ...(payerEmail ? { payer: { email: payerEmail } } : {}) },
           customization: { paymentMethods: { minInstallments: 1, maxInstallments: 12 } },
           callbacks: {
-            onReady: () => { if (vivo) setEstado('pronto'); },
+            onReady: () => { respondeu = true; if (vivo) setEstado('pronto'); },
             onError: (erro: BrickError) => {
               if (!vivo) return;
+              respondeu = true;
               // `already_initialized` acontece quando o React monta o componente duas vezes em
               // desenvolvimento: o formulário que já está na tela funciona, então isso não é erro
               // para quem está comprando.
@@ -115,11 +126,13 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
       .then((criado) => { controle.current = criado; })
       .catch((erro: unknown) => {
         if (!vivo) return;
+        respondeu = true;
         setEstado('erro');
         setMensagem(erro instanceof Error ? erro.message : 'Não foi possível carregar o pagamento com cartão.');
       });
     return () => {
       vivo = false;
+      window.clearTimeout(semResposta);
       // Sem desmontar, o Brick ficaria preso no container antigo e a próxima tentativa falharia.
       try { controle.current?.unmount(); } catch { controle.current = null; }
       controle.current = null;
