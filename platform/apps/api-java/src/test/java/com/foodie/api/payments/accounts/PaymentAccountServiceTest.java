@@ -81,7 +81,7 @@ class PaymentAccountServiceTest {
             new PaymentAccountRepository.OAuthState(3, 5, cipher.encrypt("verificador"), NOW.plusSeconds(300), null)));
         when(oauth.exchangeCode("TG-codigo", "verificador")).thenReturn(
             new MercadoPagoOAuthClient.OAuthTokens("APP_USR-loja", "TG-loja", "APP_USR-pk", "3588446200", 15552000));
-        when(oauth.accountInfo("APP_USR-loja")).thenReturn(new MercadoPagoOAuthClient.AccountInfo("TESTUSER4062", false));
+        when(oauth.accountInfo("APP_USR-loja")).thenReturn(new MercadoPagoOAuthClient.AccountInfo("TESTUSER4062", false, true));
         when(repo.userName(5)).thenReturn("Dona da Cantina");
 
         assertEquals("conectado", service.completeConnection("TG-codigo", "st", null));
@@ -105,7 +105,7 @@ class PaymentAccountServiceTest {
             new PaymentAccountRepository.OAuthState(3, 5, cipher.encrypt("verificador"), NOW.plusSeconds(300), null)));
         when(oauth.exchangeCode("TG-codigo", "verificador")).thenReturn(
             new MercadoPagoOAuthClient.OAuthTokens("APP_USR-loja", "TG-loja", "APP_USR-pk", "91587907", 15552000));
-        when(oauth.accountInfo("APP_USR-loja")).thenReturn(new MercadoPagoOAuthClient.AccountInfo("TESTUSER4062", testUser));
+        when(oauth.accountInfo("APP_USR-loja")).thenReturn(new MercadoPagoOAuthClient.AccountInfo("TESTUSER4062", testUser, true));
         when(repo.userName(5)).thenReturn("Dona da Cantina");
     }
 
@@ -115,6 +115,16 @@ class PaymentAccountServiceTest {
         assertEquals("conta_real", strictService().completeConnection("TG-codigo", "st", null));
         verify(repo, never()).upsertConnected(anyLong(), anyString(), anyString(), any(), any(), anyString(), anyString(), any(), anyLong());
         verify(audit, never()).record(any(User.class), eq("payment_account.connect"), anyString(), anyLong(), anyString());
+    }
+
+    @Test
+    void testEnvironmentWithoutAnAnswerFromUsersMeIsAFailureNotARealAccount() {
+        // Sem resposta do /users/me nao se sabe se a conta e de teste: nao grava nada, mas o motivo e
+        // "falha" (tente de novo), nao "conta_real" (que mandaria a loja trocar de conta a toa).
+        stubExchange(false);
+        when(oauth.accountInfo("APP_USR-loja")).thenReturn(new MercadoPagoOAuthClient.AccountInfo(null, false, false));
+        assertEquals("falha", strictService().completeConnection("TG-codigo", "st", null));
+        verify(repo, never()).upsertConnected(anyLong(), anyString(), anyString(), any(), any(), anyString(), anyString(), any(), anyLong());
     }
 
     @Test
@@ -197,7 +207,9 @@ class PaymentAccountServiceTest {
 
     @Test
     void tokenCloseToExpiringIsRenewed() {
-        when(repo.findById(9)).thenReturn(Optional.of(connected(NOW.plusSeconds(86400 * 6))));
+        PaymentAccountRepository.Account account = connected(NOW.plusSeconds(86400 * 6));
+        when(repo.findById(9)).thenReturn(Optional.of(account));
+        when(repo.findByIdForUpdate(9)).thenReturn(Optional.of(account));
         when(oauth.refresh("TG-loja")).thenReturn(Optional.of(
             new MercadoPagoOAuthClient.OAuthTokens("APP_USR-novo", "TG-novo", null, "3588446200", 15552000)));
 
@@ -210,10 +222,107 @@ class PaymentAccountServiceTest {
 
     @Test
     void refusedRenewalMarksNeedsReconnect() {
-        when(repo.findByRestaurant(3)).thenReturn(Optional.of(connected(NOW.plusSeconds(3600))));
+        PaymentAccountRepository.Account account = connected(NOW.plusSeconds(3600));
+        when(repo.findByRestaurant(3)).thenReturn(Optional.of(account));
+        when(repo.findByIdForUpdate(9)).thenReturn(Optional.of(account));
         when(oauth.refresh("TG-loja")).thenReturn(Optional.empty());
         assertTrue(service.credentialsFor(3).isEmpty());
         verify(repo).markNeedsReconnect(9);
+    }
+
+    @Test
+    void renewalAlreadyDoneByAnotherRequestIsReusedWithoutCallingTheProvider() {
+        // Duas requisicoes viram o token perto de vencer. A primeira renovou; a segunda, ao travar a linha,
+        // encontra o refresh token novo e nao pode gastar o antigo (o Mercado Pago o recusaria e a loja
+        // cairia em "precisa reconectar" sem motivo).
+        PaymentAccountRepository.Account stale = connected(NOW.plusSeconds(86400 * 6));
+        PaymentAccountRepository.Account renewed = new PaymentAccountRepository.Account(9, 3, "mercadopago", "3588446200", "TESTUSER4062",
+            "APP_USR-pk", cipher.encrypt("APP_USR-novo"), cipher.encrypt("TG-novo"), NOW.plusSeconds(15552000), "connected", NOW.minusSeconds(3600), null);
+        when(repo.findById(9)).thenReturn(Optional.of(stale));
+        when(repo.findByIdForUpdate(9)).thenReturn(Optional.of(renewed));
+
+        assertEquals("APP_USR-novo", service.credentialsForAccount(9).orElseThrow().accessToken());
+
+        verify(oauth, never()).refresh(anyString());
+        verify(repo, never()).updateTokens(anyLong(), anyString(), anyString(), any(), any());
+        verify(repo, never()).markNeedsReconnect(anyLong());
+    }
+
+    @Test
+    void renewalWithTheSameRefreshTokenButAlreadyFarFromExpiringIsNotRepeated() {
+        PaymentAccountRepository.Account stale = connected(NOW.plusSeconds(86400 * 6));
+        PaymentAccountRepository.Account renewed = new PaymentAccountRepository.Account(9, 3, "mercadopago", "3588446200", "TESTUSER4062",
+            "APP_USR-pk", cipher.encrypt("APP_USR-novo"), stale.refreshTokenEnc(), NOW.plusSeconds(15552000), "connected", NOW.minusSeconds(3600), null);
+        when(repo.findById(9)).thenReturn(Optional.of(stale));
+        when(repo.findByIdForUpdate(9)).thenReturn(Optional.of(renewed));
+
+        assertEquals("APP_USR-novo", service.credentialsForAccount(9).orElseThrow().accessToken());
+        verify(oauth, never()).refresh(anyString());
+    }
+
+    @Test
+    void accountDisconnectedMeanwhileHasNoCredentials() {
+        PaymentAccountRepository.Account stale = connected(NOW.plusSeconds(86400 * 6));
+        PaymentAccountRepository.Account gone = new PaymentAccountRepository.Account(9, 3, "mercadopago", "3588446200", null, "APP_USR-pk",
+            null, null, null, "disconnected", NOW.minusSeconds(3600), NOW);
+        when(repo.findById(9)).thenReturn(Optional.of(stale));
+        when(repo.findByIdForUpdate(9)).thenReturn(Optional.of(gone));
+
+        assertTrue(service.credentialsForAccount(9).isEmpty());
+        verify(oauth, never()).refresh(anyString());
+    }
+
+    /** Gerenciador de transacao de mentira: registra o que o TransactionTemplate pediu. */
+    static final class RecordingTransactions implements org.springframework.transaction.PlatformTransactionManager {
+        final List<Integer> propagations = new java.util.ArrayList<>();
+        int commits;
+        int rollbacks;
+
+        @Override
+        public org.springframework.transaction.TransactionStatus getTransaction(org.springframework.transaction.TransactionDefinition definition) {
+            propagations.add(definition.getPropagationBehavior());
+            return new org.springframework.transaction.support.SimpleTransactionStatus();
+        }
+
+        @Override
+        public void commit(org.springframework.transaction.TransactionStatus status) { commits++; }
+
+        @Override
+        public void rollback(org.springframework.transaction.TransactionStatus status) { rollbacks++; }
+    }
+
+    @Test
+    void renewalRunsInItsOwnCommittedTransaction() {
+        // O refresh token e de uso unico: se a renovacao ficasse na transacao de quem chamou (cobranca,
+        // webhook, estorno) e essa falhasse depois, o rollback apagaria o token novo e o banco ficaria com
+        // o ja gasto. Por isso a renovacao abre uma transacao nova (REQUIRES_NEW) e confirma sozinha.
+        RecordingTransactions transactions = new RecordingTransactions();
+        PaymentAccountService isolated = new PaymentAccountService(repo, oauth, cipher, audit, Clock.fixed(NOW, ZoneOffset.UTC), false,
+            PaymentAccountService.renewalTransaction(transactions));
+        PaymentAccountRepository.Account account = connected(NOW.plusSeconds(86400 * 6));
+        when(repo.findById(9)).thenReturn(Optional.of(account));
+        when(repo.findByIdForUpdate(9)).thenReturn(Optional.of(account));
+        when(oauth.refresh("TG-loja")).thenReturn(Optional.of(
+            new MercadoPagoOAuthClient.OAuthTokens("APP_USR-novo", "TG-novo", null, "3588446200", 15552000)));
+
+        assertEquals("APP_USR-novo", isolated.credentialsForAccount(9).orElseThrow().accessToken());
+
+        assertEquals(List.of(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW), transactions.propagations);
+        assertEquals(1, transactions.commits);
+        verify(repo).findByIdForUpdate(9);
+        verify(repo).updateTokens(eq(9L), anyString(), anyString(), isNull(), eq(NOW.plusSeconds(15552000)));
+    }
+
+    @Test
+    void tokenFarFromExpiringNeedsNoTransactionNorLock() {
+        RecordingTransactions transactions = new RecordingTransactions();
+        PaymentAccountService isolated = new PaymentAccountService(repo, oauth, cipher, audit, Clock.fixed(NOW, ZoneOffset.UTC), false,
+            PaymentAccountService.renewalTransaction(transactions));
+        when(repo.findById(9)).thenReturn(Optional.of(connected(NOW.plusSeconds(86400 * 100))));
+
+        assertEquals("APP_USR-loja", isolated.credentialsForAccount(9).orElseThrow().accessToken());
+        assertTrue(transactions.propagations.isEmpty());
+        verify(repo, never()).findByIdForUpdate(anyLong());
     }
 
     @Test

@@ -36,6 +36,11 @@ public class PaymentAccountRepository {
         return jdbc.query("SELECT " + COLUMNS + " FROM restaurant_payment_accounts WHERE id = ?", this::account, id).stream().findFirst();
     }
 
+    /** Trava a linha da conta até o fim da transação: só uma requisição renova o token por vez. */
+    public Optional<Account> findByIdForUpdate(long id) {
+        return jdbc.query("SELECT " + COLUMNS + " FROM restaurant_payment_accounts WHERE id = ? FOR UPDATE", this::account, id).stream().findFirst();
+    }
+
     public List<Account> findConnectedByProviderUser(String provider, String providerUserId) {
         return jdbc.query("SELECT " + COLUMNS + " FROM restaurant_payment_accounts WHERE provider = ? AND provider_user_id = ? AND status = 'connected'",
             this::account, provider, providerUserId);
