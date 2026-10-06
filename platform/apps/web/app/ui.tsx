@@ -215,3 +215,7 @@ export function EmptyState({ icon, title, children }: { icon?: string; title?: s
 export function Spinner({ label = 'Carregando' }: { label?: string }) {
   return <span className="ui-spinner" role="status" aria-label={label} />;
 }
+
+export function Skeleton({ className }: { className?: string }) {
+  return <span className={cx('ui-skeleton', className)} aria-hidden="true" />;
+}

@@ -48,5 +48,5 @@ export default function FacebookSignInButton({ onToken, disabled }: Props) {
 
   if (!appId) return null;
   if (failed) return <p className="form-help">Não foi possível carregar o login do Facebook.</p>;
-  return <button type="button" className="secondary-button" disabled={disabled || !ready} onClick={login}>Entrar com Facebook</button>;
+  return <button type="button" className="ui-btn ui-btn--secondary ui-btn--block" disabled={disabled || !ready} onClick={login}>Entrar com Facebook</button>;
 }

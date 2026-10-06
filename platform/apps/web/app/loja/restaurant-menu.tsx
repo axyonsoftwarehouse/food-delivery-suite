@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, money, useApp } from '../app-context';
-import { Alert, Button, Card, Chip } from '../ui';
+import { Alert, Button, Card, Chip, Skeleton } from '../ui';
+import { Icon } from '../icons';
 import { useCustomer } from './customer-context';
 import AddressForm from './address-form';
 
@@ -80,9 +81,9 @@ export default function RestaurantMenu() {
 
   return <>
     <section className="customer-location" aria-label="Local de entrega">
-      <div><Link className="customer-link-button" href="/loja">← Restaurantes</Link><h1>{restaurant?.name ?? 'Restaurante'}</h1></div>
+      <div><Link className="customer-link-button" href="/loja"><Icon name="arrow-left" />Restaurantes</Link><h1>{restaurant?.name ?? 'Restaurante'}</h1></div>
       <div className="customer-location-actions">
-        {addresses.length ? <label className="customer-address-select"><span>Seu endereço</span><select value={selectedAddress?.id ?? ''} onChange={(event) => { setSelectedAddressId(Number(event.target.value)); setCategoryId(null); setTagId(null); }}>
+        {addresses.length ? <label className="customer-address-select"><span>Seu endereço</span><Icon name="map-pin" className="customer-address-icon" /><select value={selectedAddress?.id ?? ''} onChange={(event) => { setSelectedAddressId(Number(event.target.value)); setCategoryId(null); setTagId(null); }}>
           {addresses.map((address) => <option key={address.id} value={address.id}>{address.label} · {address.neighborhood}{address.postal_code ? '' : ' · recadastre com CEP'}</option>)}
         </select></label> : <p>Cadastre um endereço para descobrir o cardápio disponível.</p>}
         <button className="customer-link-button" onClick={() => setShowAddressForm(!showAddressForm)}>{showAddressForm ? 'Fechar' : addresses.length ? '+ Outro endereço' : '+ Adicionar endereço'}</button>
@@ -92,15 +93,15 @@ export default function RestaurantMenu() {
     {showAddressForm && <AddressForm />}
 
     <section className="customer-section" id="cardapio">
-      <div className="customer-section-heading"><div><span className="customer-kicker">CARDÁPIO</span><h2>{restaurant?.name ?? 'Restaurante indisponível'}</h2></div><span>{restaurant?.open === false ? 'Fechado no momento' : selectedAddress ? `Entrega em ${selectedAddress.neighborhood}` : 'Escolha um endereço'}</span></div>
-      {!restaurant || !covered ? <div className="customer-empty">{!restaurant ? 'Restaurante não encontrado.' : !selectedAddress ? 'Adicione um endereço para ver o cardápio.' : 'Este restaurante não entrega no endereço escolhido.'} <Link href="/loja">Ver restaurantes disponíveis</Link></div> : <>
-      <label className="customer-search"><span className="sr-only">Buscar pratos neste restaurante</span><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Busque pratos neste restaurante" /><button type="button" className="customer-link-button" onClick={voiceSearch} aria-label="Buscar por voz">🎤</button></label>
+      <div className="customer-section-heading"><div><h2>{restaurant ? 'Cardápio' : 'Restaurante indisponível'}</h2></div><span>{restaurant?.open === false ? 'Fechado no momento' : selectedAddress ? `Entrega em ${selectedAddress.neighborhood}` : 'Escolha um endereço'}</span></div>
+      {!restaurant || !covered ? <div className="customer-empty"><span className="customer-empty-icon"><Icon name="utensils" /></span>{!restaurant ? 'Restaurante não encontrado.' : !selectedAddress ? 'Adicione um endereço para ver o cardápio.' : 'Este restaurante não entrega no endereço escolhido.'} <Link href="/loja">Ver restaurantes disponíveis</Link></div> : <>
+      <label className="customer-search"><span className="sr-only">Buscar pratos neste restaurante</span><Icon name="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Busque pratos neste restaurante" /><button type="button" className="customer-link-button" onClick={voiceSearch} aria-label="Buscar por voz"><Icon name="mic" /></button></label>
       <div className="customer-categories" role="group" aria-label="Filtrar por categoria"><button className={categoryId === null ? 'selected' : ''} onClick={() => setCategoryId(null)}>Todos</button>{availableCategories.map((category) => <button key={category.id} className={categoryId === category.id ? 'selected' : ''} onClick={() => setCategoryId(category.id)}>{category.name}</button>)}</div>
       {tags.length > 0 && <div className="customer-categories" role="group" aria-label="Filtrar por tag"><button className={tagId === null ? 'selected' : ''} onClick={() => setTagId(null)}>Todas as tags</button>{tags.map((tag) => <button key={tag.id} className={tagId === tag.id ? 'selected' : ''} onClick={() => setTagId(tag.id)}>{tag.name}</button>)}</div>}
-      {!selectedAddress ? <div className="customer-empty">Adicione um endereço para ver os restaurantes que entregam na sua região.</div>
-        : searchLoading && !visibleProducts.length ? <div className="customer-empty" role="status">Buscando pratos disponíveis...</div>
+      {!selectedAddress ? <div className="customer-empty"><span className="customer-empty-icon"><Icon name="map-pin" /></span>Adicione um endereço para ver os restaurantes que entregam na sua região.</div>
+        : searchLoading && !visibleProducts.length ? <div className="customer-product-grid" role="status"><span className="sr-only">Buscando pratos disponíveis...</span>{[0, 1, 2, 3].map((item) => <div className="customer-skeleton-card" key={item}><div><Skeleton /><Skeleton /><Skeleton /><Skeleton /></div><Skeleton /></div>)}</div>
         : searchError && !visibleProducts.length ? <div className="customer-empty" role="alert">{searchError}</div>
-        : visibleProducts.length === 0 ? <div className="customer-empty">Nenhum prato encontrado para essa busca ou endereço.</div>
+        : visibleProducts.length === 0 ? <div className="customer-empty"><span className="customer-empty-icon"><Icon name="search" /></span>Nenhum prato encontrado para essa busca ou endereço.</div>
         : <div className="customer-product-grid">{visibleProducts.map((product) => {
             const restaurant = restaurantById.get(product.restaurant_id);
             const closed = restaurant?.open === false;
@@ -108,12 +109,12 @@ export default function RestaurantMenu() {
             const fromPrice = product.from_price_cents ?? product.price_cents;
             return <article className={`customer-product-card${closed ? ' closed' : ''}`} key={product.id}>
               <div className="customer-product-art" aria-hidden="true">
-                {product.image_url ? <img src={product.image_url} alt="" className="customer-product-img" /> : <span>🍽</span>}
+                {product.image_url ? <img src={product.image_url} alt="" className="customer-product-img" /> : <Icon name="utensils" />}
                 {product.is_combo && <span className="ui-badge ui-badge--info customer-product-tag">COMBO</span>}
                 {hasVariations && <span className="ui-badge ui-badge--brand customer-product-tag--right">{product.variation_count} tamanhos</span>}
-                <button className="customer-fav" type="button" aria-label={favorites.has(product.id) ? 'Remover dos favoritos' : 'Favoritar'} onClick={() => void toggleFavorite(product.id)}>{favorites.has(product.id) ? '♥' : '♡'}</button>
+                <button className={`customer-fav${favorites.has(product.id) ? ' is-fav' : ''}`} type="button" aria-label={favorites.has(product.id) ? 'Remover dos favoritos' : 'Favoritar'} onClick={() => void toggleFavorite(product.id)}><Icon name="heart" filled={favorites.has(product.id)} /></button>
               </div>
-              <div className="customer-product-body"><span className="customer-product-restaurant">{restaurant?.name}{closed ? ' · Fechado' : ''}{product.tags ? ` · ${product.tags.split(',').join(' · ')}` : ''}</span><h3>{product.name}</h3><p>{product.description || 'Preparado com cuidado para você.'}</p><div className="customer-product-footer"><strong>{hasVariations ? `a partir de ${money(fromPrice)}` : money(product.price_cents)}</strong><button onClick={() => void openProduct(product)} disabled={busy || cartBusy || productLoading || !cartLoaded || closed} title={closed ? 'Restaurante fora do horário de funcionamento' : undefined} aria-label={`${hasVariations ? 'Escolher opção de' : 'Adicionar'} ${product.name}`}>{closed ? 'Fechado' : hasVariations ? 'Escolher' : '+ Adicionar'}</button></div></div>
+              <div className="customer-product-body">{(closed || product.tags) && <div className="customer-product-meta">{closed && <span className="ui-badge ui-badge--warning">Fechado</span>}{product.tags && product.tags.split(',').map((tag, index) => <span key={index} className="ui-badge ui-badge--brand">{tag.trim()}</span>)}</div>}<h3>{product.name}</h3><p>{product.description || 'Preparado com cuidado para você.'}</p><div className="customer-product-footer"><strong>{hasVariations ? `a partir de ${money(fromPrice)}` : money(product.price_cents)}</strong><button onClick={() => void openProduct(product)} disabled={busy || cartBusy || productLoading || !cartLoaded || closed} title={closed ? 'Restaurante fora do horário de funcionamento' : undefined} aria-label={`${hasVariations ? 'Escolher opção de' : 'Adicionar'} ${product.name}`}>{closed ? 'Fechado' : hasVariations ? 'Escolher' : <><Icon name="plus" />Adicionar</>}</button></div></div>
             </article>;
           })}</div>}
       {searchError && visibleProducts.length > 0 && <p role="alert">{searchError}</p>}
