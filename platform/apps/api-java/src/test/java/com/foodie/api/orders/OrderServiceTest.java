@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -147,9 +148,67 @@ class OrderServiceTest {
         verify(payments).cancelPending(40L);
     }
 
+    private void staleOrders(Long... ids) {
+        org.mockito.Mockito.doReturn(List.of(ids)).when(jdbc).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND created_at"), any(org.springframework.jdbc.core.RowMapper.class));
+    }
+
+    private void lockedReread(String status, Object due) {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("status", status); row.put("created_at", null); row.put("scheduled_at", null); row.put("due", due);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT status, created_at, scheduled_at"), any(Object[].class))).thenReturn(List.of(row));
+    }
+
+    @Test
+    void expiryRereadsTheLockedOrderAndSkipsOneAcceptedMeanwhile() {
+        // A loja aceitou entre a busca dos vencidos e a trava: nem estorna nem expira.
+        staleOrders(41L);
+        lockedReread("accepted", 1L);
+
+        orders.list(ADMIN);
+
+        verify(jdbc).queryForList(org.mockito.ArgumentMatchers.endsWith("FROM orders WHERE id = ? FOR UPDATE"), eq(41L));
+        verify(payments, org.mockito.Mockito.never()).refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString());
+        verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.contains("'expired'"), any(Object[].class));
+    }
+
+    @Test
+    void expirySkipsAnOrderNoLongerDue() {
+        staleOrders(41L);
+        lockedReread("placed", 0L);
+
+        orders.list(ADMIN);
+
+        verify(payments, org.mockito.Mockito.never()).refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString());
+        verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.contains("'expired'"), any(Object[].class));
+    }
+
+    @Test
+    void eachStaleOrderExpiresInItsOwnTransaction() {
+        java.util.concurrent.atomic.AtomicInteger transactions = new java.util.concurrent.atomic.AtomicInteger();
+        org.springframework.transaction.support.TransactionOperations counting = new org.springframework.transaction.support.TransactionOperations() {
+            @Override
+            public <T> T execute(org.springframework.transaction.support.TransactionCallback<T> action) {
+                transactions.incrementAndGet();
+                return org.springframework.transaction.support.TransactionOperations.withoutTransaction().execute(action);
+            }
+        };
+        OrderService transactional = new OrderService(jdbc, mock(NamedParameterJdbcTemplate.class), mock(PostalCoverageService.class),
+            mock(RestaurantHoursService.class), payments, mock(DeliveryService.class), mock(NotificationService.class),
+            mock(AddonService.class), mock(CouponService.class), mock(CampaignService.class), mock(LedgerService.class),
+            mock(RewardsService.class), mock(SupportActionService.class), counting);
+        staleOrders(41L, 42L);
+        lockedReread("placed", true);
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        transactional.list(ADMIN);
+
+        assertThat(transactions.get()).isEqualTo(2);
+    }
+
     @Test
     void expiryRefundsBeforeExpiring() {
-        org.mockito.Mockito.doReturn(List.of(41L)).when(jdbc).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND created_at"), any(org.springframework.jdbc.core.RowMapper.class));
+        staleOrders(41L);
+        lockedReread("placed", 1L);
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
 
         orders.list(ADMIN);
@@ -161,7 +220,8 @@ class OrderServiceTest {
 
     @Test
     void failedExpiryRefundLeavesTheOrderPlaced() {
-        org.mockito.Mockito.doReturn(List.of(41L, 42L)).when(jdbc).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND created_at"), any(org.springframework.jdbc.core.RowMapper.class));
+        staleOrders(41L, 42L);
+        lockedReread("placed", 1L);
         when(payments.refundIfPaidOnline(null, 41L, "Estorno automático: pedido expirado sem aceite"))
             .thenThrow(new ApiException(409, "A loja desconectou o Mercado Pago. Estorne pelo painel do Mercado Pago ou reconecte a conta."));
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);

@@ -22,12 +22,19 @@ import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class OrderService {
@@ -45,8 +52,25 @@ public class OrderService {
     private final LedgerService ledger;
     private final RewardsService rewards;
     private final SupportActionService support;
+    private final TransactionOperations expiryTx;
 
-    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards, SupportActionService support) {
+    @Autowired
+    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards, SupportActionService support,
+                        ObjectProvider<PlatformTransactionManager> transactions) {
+        // Gerenciador resolvido só na hora de expirar (como no PaymentAccountService): o contexto sem banco
+        // do OpenApiDumpTest não tem gerenciador de transação.
+        this(jdbc, namedJdbc, postalCoverage, hours, payments, delivery, notifications, addonService, couponService, campaignService, ledger, rewards, support,
+            lazyExpiryTransaction(transactions));
+    }
+
+    OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards, SupportActionService support) {
+        this(jdbc, namedJdbc, postalCoverage, hours, payments, delivery, notifications, addonService, couponService, campaignService, ledger, rewards, support,
+            TransactionOperations.withoutTransaction());
+    }
+
+    OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards, SupportActionService support,
+                 TransactionOperations expiryTx) {
+        this.expiryTx = expiryTx;
         this.jdbc = jdbc;
         this.namedJdbc = namedJdbc;
         this.postalCoverage = postalCoverage;
@@ -473,6 +497,25 @@ public class OrderService {
         };
     }
 
+    /**
+     * Cada pedido vencido expira na sua PRÓPRIA transação (REQUIRES_NEW): a falha no estorno de um pedido
+     * desfaz só ele, e nada marca como rollback-only uma transação de quem chamou a leitura.
+     */
+    static TransactionTemplate expiryTransaction(PlatformTransactionManager transactions) {
+        TransactionTemplate template = new TransactionTemplate(transactions);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template;
+    }
+
+    private static TransactionOperations lazyExpiryTransaction(ObjectProvider<PlatformTransactionManager> transactions) {
+        return new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> action) {
+                return expiryTransaction(transactions.getObject()).execute(action);
+            }
+        };
+    }
+
     private void notifyTransition(Map<String, Object> order, long orderId, String next, Long courierId) {
         long customerId = number(order, "customer_id");
         switch (next) {
@@ -490,20 +533,38 @@ public class OrderService {
     private void expireStale() {
         List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())", (rs, row) -> rs.getLong(1));
         for (Long id : stale) {
-            // Pago online e sem aceite: estorna antes de expirar. Se o estorno falhar, o pedido não expira
-            // nesta rodada (fica `placed`) e a próxima leitura tenta de novo — a chave `refund-order-<id>`
-            // no provedor torna a repetição segura. Um pedido com problema não trava a expiração dos outros.
             try {
-                payments.refundIfPaidOnline(null, id, "Estorno automático: pedido expirado sem aceite");
+                expiryTx.executeWithoutResult(status -> expireOne(id));
             } catch (RuntimeException error) {
+                // Estorno falhou: a transação deste pedido foi desfeita, ele continua `placed` e a próxima
+                // leitura tenta de novo — a chave `refund-order-<id>` no provedor torna a repetição segura.
+                // Um pedido com problema não trava a expiração dos outros.
                 log.warn("Pedido #{} não expirou: estorno automático falhou ({})", id, error.getMessage());
-                continue;
-            }
-            if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
-                payments.cancelPending(id);
-                jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
             }
         }
+    }
+
+    private void expireOne(long id) {
+        // Trava a linha do pedido e relê: entre a busca dos vencidos e aqui a loja pode ter aceitado. Como
+        // `changeStatus` também trava a linha com FOR UPDATE, aceitar e expirar não se intercalam mais —
+        // nunca fica pedido aceito com o pagamento estornado. O prazo é recalculado pelo relógio do banco,
+        // o mesmo da busca acima.
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT status, created_at, scheduled_at, (created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())) AS due FROM orders WHERE id = ? FOR UPDATE", id);
+        if (rows.isEmpty()) return;
+        Map<String, Object> order = rows.getFirst();
+        if (!"placed".equals(order.get("status")) || !truthy(order.get("due"))) return;
+        // Pago online e sem aceite: estorna antes de expirar, na mesma transação.
+        payments.refundIfPaidOnline(null, id, "Estorno automático: pedido expirado sem aceite");
+        if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
+            payments.cancelPending(id);
+            jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
+        }
+    }
+
+    private static boolean truthy(Object value) {
+        if (value instanceof Boolean flag) return flag;
+        return value instanceof Number number && number.intValue() != 0;
     }
 
     private static void checkAccess(User user, Map<String, Object> order) {
