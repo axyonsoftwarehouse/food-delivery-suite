@@ -3,12 +3,16 @@ package com.foodie.api.orders;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -19,6 +23,7 @@ import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.support.SupportActionService;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +58,12 @@ class OrderExtrasControllerTest {
 
     @MockitoBean
     private PaymentService payments;
+
+    @MockitoBean
+    private RefundRequestService refunds;
+
+    @MockitoBean
+    private SupportActionService support;
 
     @Test
     void cancelReasonsRequireLogin() throws Exception {
@@ -94,5 +105,44 @@ class OrderExtrasControllerTest {
             .andReturn().getResponse().getContentAsByteArray();
         assertTrue(pdf.length > 0);
         assertEquals("%PDF", new String(pdf, 0, 4, StandardCharsets.US_ASCII));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void adminDecidesRefundOnlyAsSupportWithReason() throws Exception {
+        User admin = new User(1, "Ana Suporte", "ana@demo.local", "admin", null);
+        when(auth.requireUser("s", "admin")).thenReturn(admin);
+        when(refunds.restaurantOfRefund(7)).thenReturn(3L);
+        when(support.act(any(), anyLong(), anyString(), anyString(), any(), anyString(), any(), any()))
+            .thenAnswer(invocation -> ((java.util.function.Supplier<Object>) invocation.getArgument(7)).get());
+        when(refunds.decide(admin, 7, "approve", "Loja pediu ao suporte")).thenReturn(Map.of("id", 7L, "status", "approved"));
+
+        mvc.perform(post("/admin/refunds/7/decision").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"decision\":\"approve\",\"note\":\"Loja pediu ao suporte\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("approved"));
+        verify(permissions).require(admin, AdminPermissions.SUPPORT_ACT);
+        verify(support).act(eq(admin), eq(3L), eq("refund.decide"), eq("refund"), eq(7L), eq("Reembolso #7 aprovado"),
+            eq("Loja pediu ao suporte"), any());
+    }
+
+    @Test
+    void adminDecisionWithShortReasonIs400() throws Exception {
+        User admin = new User(1, "Ana Suporte", "ana@demo.local", "admin", null);
+        when(auth.requireUser("s", "admin")).thenReturn(admin);
+        mvc.perform(post("/admin/refunds/7/decision").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"decision\":\"approve\",\"note\":\"curto\"}"))
+            .andExpect(status().isBadRequest());
+        verify(refunds, never()).decide(any(), anyLong(), any(), any());
+    }
+
+    @Test
+    void customerCannotRequestRefundForUnpaidOrder() throws Exception {
+        when(auth.requireUser("s", "customer")).thenReturn(new User(9, "Cliente", "c@demo.local", "customer", null));
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("FROM orders WHERE id = ?"), eq(30L)))
+            .thenReturn(List.of(Map.of("id", 30L, "customer_id", 9L, "status", "delivered")));
+        when(payments.status(30L)).thenReturn("refunded");
+        mvc.perform(post("/orders/30/refund-request").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"quero\"}"))
+            .andExpect(status().isConflict());
     }
 }

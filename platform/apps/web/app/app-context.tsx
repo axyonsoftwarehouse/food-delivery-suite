@@ -274,8 +274,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function refundPayment(order: Order) {
-    const reason = askReason('Motivo do estorno:');
-    if (!reason) return;
+    // Admin estorna só como suporte, em nome da loja: o motivo vai para a trilha da loja (10+ caracteres).
+    const support = user?.role === 'admin';
+    const value = window.prompt(support ? 'Motivo do estorno (suporte, em nome da loja — 10 a 255 caracteres):' : 'Motivo do estorno:') ?? '';
+    const reason = value.trim();
+    if (support ? reason.length < 10 : reason.length < 3) { setMessage(support ? 'Informe o motivo do suporte com pelo menos 10 caracteres.' : 'Informe um motivo com pelo menos 3 caracteres.'); return; }
     await run(() => api(`/orders/${order.id}/payment/refund`, { method: 'POST', body: JSON.stringify({ note: reason }) }), 'Pagamento estornado.');
   }
 

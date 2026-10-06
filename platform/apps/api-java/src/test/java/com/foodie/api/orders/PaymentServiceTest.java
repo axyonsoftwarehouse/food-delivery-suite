@@ -29,6 +29,43 @@ class PaymentServiceTest {
     private final User admin = new User(1, "Admin", "admin@demo.local", "admin", null);
     private final User courier = new User(5, "Entregador", "entregador@demo.local", "courier", null);
 
+    private final User owner = new User(5, "Dona", "dona@cantina.com.br", "restaurant", 3L);
+
+    @Test
+    void storeRefundsItsOwnOrder() {
+        storedPayment("paid", "cash", 1000, 5L);
+        when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(1L))).thenReturn(List.of(3L));
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        assertEquals("refunded", service.refund(owner, 1, "cliente desistiu").get("status"));
+        verify(ledger).reverseOrder(1);
+    }
+
+    @Test
+    void directRefundClosesTheOpenCustomerRequest() {
+        storedPayment("paid", "cash", 1000, 5L);
+        when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(1L))).thenReturn(List.of(3L));
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        service.refund(owner, 1, "cliente desistiu");
+
+        verify(jdbc).update(org.mockito.ArgumentMatchers.contains("UPDATE refunds SET status = 'approved'"), eq(5L), eq("Pagamento estornado diretamente"), eq(1L));
+        verify(jdbc).update(org.mockito.ArgumentMatchers.contains("WHERE order_id = ? AND status = 'requested'"), eq(5L), eq("Pagamento estornado diretamente"), eq(1L));
+    }
+
+    @Test
+    void storeCannotRefundAnotherStoresOrder() {
+        when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(1L))).thenReturn(List.of(4L));
+        assertEquals(404, assertThrows(ApiException.class, () -> service.refund(owner, 1, "x")).status());
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void restaurantOfMissingOrderIs404() {
+        when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(9L))).thenReturn(List.of());
+        assertEquals(404, assertThrows(ApiException.class, () -> service.restaurantOf(9)).status());
+    }
+
     private void storedPayment(String status, String method, long due, Long courierId) {
         java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
         row.put("status", status);

@@ -20,7 +20,7 @@ const TABS: Tab[] = [
 ];
 
 export default function PromoPanel() {
-  const { setMessage } = useApp();
+  const { setMessage, permissions } = useApp();
   const [tab, setTab] = useState('campaigns');
   return <section className="panel">
     <div className="panel-heading"><div><span className="eyebrow">PROMOÇÕES E CONTEÚDO</span><h2>Campanhas, vitrine e mensagens</h2></div><p>Campanhas, banners da home, cashback, motivos, reembolsos, mensagens, fidelidade e indicações.</p></div>
@@ -35,7 +35,7 @@ export default function PromoPanel() {
     {tab === 'reviews' && <Reviews onMessage={setMessage} />}
     {tab === 'cashback' && <Cashback onMessage={setMessage} />}
     {tab === 'reasons' && <Reasons onMessage={setMessage} />}
-    {tab === 'refunds' && <Refunds onMessage={setMessage} />}
+    {tab === 'refunds' && <Refunds onMessage={setMessage} canDecide={permissions.includes('support.act')} />}
     {tab === 'messages' && <Messages onMessage={setMessage} />}
     {tab === 'loyalty' && <Loyalty onMessage={setMessage} />}
     {tab === 'referrals' && <Referrals onMessage={setMessage} />}
@@ -125,11 +125,17 @@ function Reasons({ onMessage }: { onMessage: (m: string) => void }) {
   </div>;
 }
 
-function Refunds({ onMessage }: { onMessage: (m: string) => void }) {
+function Refunds({ onMessage, canDecide }: { onMessage: (m: string) => void; canDecide: boolean }) {
   const { rows, reload } = useJsonArray<{ id: number; order_id: number; customer_name: string; reason: string | null; note: string; status: string; created_at: string }>('/admin/refunds', onMessage);
+  function decide(id: number, decision: 'approve' | 'reject') {
+    const reason = (window.prompt(`Motivo (suporte, em nome da loja — 10 a 255 caracteres) para ${decision === 'approve' ? 'aprovar' : 'recusar'}:`) ?? '').trim();
+    if (reason.length < 10) { onMessage('Informe o motivo do suporte com pelo menos 10 caracteres.'); return; }
+    void act(`/admin/refunds/${id}/decision`, 'POST', { decision, note: reason }, decision === 'approve' ? 'Reembolso aprovado.' : 'Reembolso recusado.', reload, onMessage);
+  }
   return <div className="postal-range-list">
+    <p className="form-help">O reembolso é decisão da loja. Aqui o suporte age em nome dela, com motivo registrado na trilha da loja.</p>
     {rows.length ? rows.map((r) => <div key={r.id}><span><strong>#{r.order_id}</strong> · {r.customer_name} · {r.reason ?? 'sem motivo'}{r.note ? ` · ${r.note}` : ''} · {r.status}</span><span style={{ display: 'flex', gap: 8 }}>
-      {r.status === 'requested' && <><button className="secondary-button" onClick={() => void act(`/admin/refunds/${r.id}/decision`, 'POST', { decision: 'approve' }, 'Reembolso aprovado.', reload, onMessage)}>Aprovar</button><button className="availability-button" onClick={() => void act(`/admin/refunds/${r.id}/decision`, 'POST', { decision: 'reject' }, 'Reembolso recusado.', reload, onMessage)}>Recusar</button></>}
+      {r.status === 'requested' && canDecide && <><button className="secondary-button" onClick={() => decide(r.id, 'approve')}>Aprovar</button><button className="availability-button" onClick={() => decide(r.id, 'reject')}>Recusar</button></>}
     </span></div>) : <p className="form-help">Nenhuma solicitação de reembolso.</p>}
   </div>;
 }
