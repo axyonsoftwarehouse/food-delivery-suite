@@ -55,7 +55,7 @@ public class RestaurantMarketingController {
     @GetMapping("/coupons")
     public List<Map<String, Object>> coupons(@CookieValue(value = "foodie_session", required = false) String token) {
         long restaurantId = manager(token);
-        return jdbc.queryForList("SELECT id, code, discount_type, discount_value, min_order_cents, max_uses, used_count, active, expires_at FROM coupons WHERE restaurant_id = ? ORDER BY id DESC", restaurantId);
+        return jdbc.queryForList("SELECT id, code, discount_type, discount_value, min_order_cents, max_uses, max_uses_per_customer, used_count, active, expires_at FROM coupons WHERE restaurant_id = ? ORDER BY id DESC", restaurantId);
     }
 
     @PostMapping("/coupons")
@@ -65,8 +65,10 @@ public class RestaurantMarketingController {
         String code = body.code().strip().toUpperCase(Locale.ROOT);
         Integer exists = jdbc.query("SELECT 1 FROM coupons WHERE code = ?", rs -> rs.next() ? 1 : null, code);
         if (exists != null) throw new ApiException(409, "Já existe um cupom com este código");
-        jdbc.update("INSERT INTO coupons (restaurant_id, code, discount_type, discount_value, min_order_cents, max_uses, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            restaurantId, code, body.discountType(), body.discountValue(), body.minOrderCents() == null ? 0 : body.minOrderCents(), body.maxUses(), body.expiresAt());
+        // Usos por cliente: omitido = 1 (padrão seguro); 0 = sem limite.
+        Integer perCustomer = body.maxUsesPerCustomer() == null ? Integer.valueOf(1) : body.maxUsesPerCustomer() == 0 ? null : body.maxUsesPerCustomer();
+        jdbc.update("INSERT INTO coupons (restaurant_id, code, discount_type, discount_value, min_order_cents, max_uses, max_uses_per_customer, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            restaurantId, code, body.discountType(), body.discountValue(), body.minOrderCents() == null ? 0 : body.minOrderCents(), body.maxUses(), perCustomer, body.expiresAt());
         return ResponseEntity.status(201).body(Map.of("ok", true));
     }
 
@@ -227,7 +229,8 @@ public class RestaurantMarketingController {
                                 @Min(1) @Max(100_000_000) int discountValue,
                                 @Min(0) @Max(10_000_000) Integer minOrderCents,
                                 @Min(1) @Max(100_000) Integer maxUses,
-                                @Pattern(regexp = "\\d{4}-\\d{2}-\\d{2}") String expiresAt) {}
+                                @Pattern(regexp = "\\d{4}-\\d{2}-\\d{2}") String expiresAt,
+                                @Min(0) @Max(1_000) Integer maxUsesPerCustomer) {}
     public record CampaignRequest(@NotBlank @Size(min = 2, max = 120) String name,
                                   @NotBlank @Pattern(regexp = "basic|item") String type,
                                   @NotNull @DecimalMin("0") @DecimalMax("90") BigDecimal percent,

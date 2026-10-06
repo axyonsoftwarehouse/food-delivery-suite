@@ -32,14 +32,16 @@ public class CatalogRepository {
     }
 
     public List<Map<String, Object>> products() {
+        List<Object> args = new java.util.ArrayList<>();
+        String localTime = hours.localTimeSql("r.timezone", value -> { args.add(value); return "?"; });
         return jdbc.queryForList("SELECT p.id, p.restaurant_id, p.category_id, p.name, p.description, p.price_cents, p.is_combo, "
             + "(SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.is_cover DESC, pi.sort, pi.id LIMIT 1) AS image_url, "
             + "(SELECT COUNT(*) FROM product_variations v WHERE v.product_id = p.id AND v.available = TRUE) AS variation_count, "
             + "(SELECT MIN(p.price_cents + v.price_delta_cents) FROM product_variations v WHERE v.product_id = p.id AND v.available = TRUE) AS from_price_cents, "
             + "(SELECT GROUP_CONCAT(t.name SEPARATOR ',') FROM tags t JOIN product_tags pt ON pt.tag_id = t.id WHERE pt.product_id = p.id) AS tags "
             + "FROM products p JOIN restaurants r ON r.id = p.restaurant_id WHERE r.active = TRUE AND p.available = TRUE "
-            + "AND (p.available_from IS NULL OR p.available_until IS NULL OR CURTIME() BETWEEN p.available_from AND p.available_until) "
-            + "AND (p.stock IS NULL OR p.stock > 0) ORDER BY p.name");
+            + "AND (p.available_from IS NULL OR p.available_until IS NULL OR (" + localTime + ") BETWEEN p.available_from AND p.available_until) "
+            + "AND (p.stock IS NULL OR p.stock > 0) ORDER BY p.name", args.toArray());
     }
 
     public Map<String, Object> productDetail(long productId) {
@@ -86,10 +88,18 @@ public class CatalogRepository {
             JOIN restaurants r ON r.id = rz.restaurant_id AND r.active = TRUE
             JOIN products p ON p.restaurant_id = r.id AND p.available = TRUE
             WHERE rz.zone_id = :zoneId
-              AND (p.available_from IS NULL OR p.available_until IS NULL OR CURTIME() BETWEEN p.available_from AND p.available_until)
+              AND (p.available_from IS NULL OR p.available_until IS NULL OR (%LOCAL_TIME%) BETWEEN p.available_from AND p.available_until)
               AND (p.stock IS NULL OR p.stock > 0)
             """);
         Map<String, Object> params = new HashMap<>();
+        int[] bound = {0};
+        String localTime = hours.localTimeSql("r.timezone", value -> {
+            String name = "localTime" + bound[0]++;
+            params.put(name, value);
+            return ":" + name;
+        });
+        int marker = sql.indexOf("%LOCAL_TIME%");
+        sql.replace(marker, marker + "%LOCAL_TIME%".length(), localTime);
         params.put("zoneId", zoneId);
         if (restaurantId != null) {
             sql.append(" AND r.id = :restaurantId");

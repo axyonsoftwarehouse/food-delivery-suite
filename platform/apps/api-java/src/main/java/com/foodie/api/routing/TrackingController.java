@@ -1,5 +1,7 @@
 package com.foodie.api.routing;
 
+import com.foodie.api.admin.AdminPermissions;
+import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
@@ -22,11 +24,13 @@ import org.springframework.web.bind.annotation.RestController;
 /** Localização do entregador e rastreio do pedido (E40). */
 @RestController
 public class TrackingController {
+    private final AdminPermissionService adminPermissions;
     private final AuthService auth;
     private final OrderService orders;
     private final JdbcTemplate jdbc;
 
-    public TrackingController(AuthService auth, OrderService orders, JdbcTemplate jdbc) {
+    public TrackingController(AuthService auth, OrderService orders, JdbcTemplate jdbc, AdminPermissionService adminPermissions) {
+        this.adminPermissions = adminPermissions;
         this.auth = auth;
         this.orders = orders;
         this.jdbc = jdbc;
@@ -46,6 +50,7 @@ public class TrackingController {
     public Map<String, Object> tracking(@CookieValue(value = "foodie_session", required = false) String token,
                                         @PathVariable long id) {
         User user = auth.requireUser(token);
+        adminPermissions.requireIfAdmin(user, AdminPermissions.ORDERS_MANAGE, AdminPermissions.SUPPORT_VIEW);
         orders.detail(user, id);
         Map<String, Object> order = jdbc.queryForMap(
             "SELECT o.id, o.status, o.courier_id, r.latitude AS restaurant_latitude, r.longitude AS restaurant_longitude, "

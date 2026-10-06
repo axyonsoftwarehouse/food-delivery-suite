@@ -1,5 +1,6 @@
 package com.foodie.api.subscriptions;
 
+import com.foodie.api.hours.RestaurantHoursService;
 import com.foodie.api.ApiException;
 import com.foodie.api.admin.AdminAuditService;
 import com.foodie.api.admin.AdminPermissionService;
@@ -158,8 +159,8 @@ public class SubscriptionController {
                                                                   @Valid @RequestBody SubscriptionRequest body) {
         User customer = auth.requireUser(token, "customer");
         verification.requireVerified(customer);
-        Integer restaurant = jdbc.query("SELECT 1 FROM restaurants WHERE id = ? AND active = TRUE", rs -> rs.next() ? 1 : null, body.restaurantId());
-        if (restaurant == null) throw new ApiException(400, "Restaurante indisponível");
+        List<String> restaurant = jdbc.query("SELECT timezone FROM restaurants WHERE id = ? AND active = TRUE", (rs, row) -> rs.getString(1), body.restaurantId());
+        if (restaurant.isEmpty()) throw new ApiException(400, "Restaurante indisponível");
         Integer address = jdbc.query("SELECT 1 FROM addresses WHERE id = ? AND user_id = ?", rs -> rs.next() ? 1 : null, body.addressId(), customer.id());
         if (address == null) throw new ApiException(400, "Endereço não encontrado");
         Integer coverage = jdbc.query("SELECT 1 FROM addresses a JOIN restaurant_zones rz ON rz.zone_id = a.zone_id WHERE a.id = ? AND rz.restaurant_id = ?", rs -> rs.next() ? 1 : null, body.addressId(), body.restaurantId());
@@ -174,29 +175,32 @@ public class SubscriptionController {
                 if (variation == null) throw new ApiException(400, "Variação indisponível para este produto");
             }
         }
-        java.time.LocalDateTime firstRun;
+        // `firstRunAt` é a hora LOCAL da loja (datetime-local). Vira um instante no fuso dela e é gravado
+        // relativo ao NOW() do banco, o mesmo relógio que o RecurringOrderRunner compara.
+        java.time.Instant now = java.time.Instant.now();
+        java.time.Instant firstRun;
         try {
             firstRun = body.firstRunAt() == null || body.firstRunAt().isBlank()
-                ? java.time.LocalDateTime.now().plusDays(body.frequencyDays())
-                : java.time.LocalDateTime.parse(body.firstRunAt());
+                ? now.plus(java.time.Duration.ofDays(body.frequencyDays()))
+                : java.time.LocalDateTime.parse(body.firstRunAt()).atZone(RestaurantHoursService.zone(restaurant.getFirst())).toInstant();
         } catch (java.time.format.DateTimeParseException error) {
             throw new ApiException(400, "Data do primeiro ciclo inválida");
         }
-        if (firstRun.isBefore(java.time.LocalDateTime.now().plusMinutes(15))
-            || firstRun.isAfter(java.time.LocalDateTime.now().plusDays(90))) {
+        if (firstRun.isBefore(now.plus(java.time.Duration.ofMinutes(15)))
+            || firstRun.isAfter(now.plus(java.time.Duration.ofDays(90)))) {
             throw new ApiException(400, "Escolha o primeiro ciclo entre 15 minutos e 90 dias");
         }
-        final java.time.LocalDateTime nextRun = firstRun;
+        final long nextRunInSeconds = java.time.Duration.between(now, firstRun).getSeconds();
         var key = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbc.update(connection -> {
             var statement = connection.prepareStatement(
-                "INSERT INTO subscriptions (customer_id, restaurant_id, address_id, frequency_days, next_run_at, notes, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO subscriptions (customer_id, restaurant_id, address_id, frequency_days, next_run_at, notes, payment_method) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?)",
                 java.sql.Statement.RETURN_GENERATED_KEYS);
             statement.setLong(1, customer.id());
             statement.setLong(2, body.restaurantId());
             if (body.addressId() == null) statement.setNull(3, java.sql.Types.BIGINT); else statement.setLong(3, body.addressId());
             statement.setInt(4, body.frequencyDays());
-            statement.setObject(5, nextRun);
+            statement.setLong(5, nextRunInSeconds);
             statement.setString(6, body.notes() == null ? "" : body.notes().strip());
             statement.setString(7, body.paymentMethod());
             return statement;
