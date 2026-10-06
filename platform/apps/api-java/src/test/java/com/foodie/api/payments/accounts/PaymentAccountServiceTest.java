@@ -22,6 +22,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -151,5 +152,59 @@ class PaymentAccountServiceTest {
     void disconnectingWithoutAConnectedAccountIs409() {
         when(repo.findByRestaurant(3)).thenReturn(Optional.empty());
         assertEquals(409, assertThrows(ApiException.class, () -> service.disconnect(3, 1, "loja pediu ao suporte")).status());
+    }
+
+    @Test
+    void credentialsComeDecryptedForAConnectedStore() {
+        when(repo.findByRestaurant(3)).thenReturn(Optional.of(connected(NOW.plusSeconds(86400 * 100))));
+        MerchantCredentials creds = service.credentialsFor(3).orElseThrow();
+        assertEquals(9, creds.accountId());
+        assertEquals(3, creds.restaurantId());
+        assertEquals("APP_USR-loja", creds.accessToken());
+        assertEquals("APP_USR-pk", creds.publicKey());
+        assertEquals("3588446200", creds.providerUserId());
+        verify(oauth, never()).refresh(anyString());
+    }
+
+    @Test
+    void tokenCloseToExpiringIsRenewed() {
+        when(repo.findById(9)).thenReturn(Optional.of(connected(NOW.plusSeconds(86400 * 6))));
+        when(oauth.refresh("TG-loja")).thenReturn(Optional.of(
+            new MercadoPagoOAuthClient.OAuthTokens("APP_USR-novo", "TG-novo", null, "3588446200", 15552000)));
+
+        assertEquals("APP_USR-novo", service.credentialsForAccount(9).orElseThrow().accessToken());
+
+        ArgumentCaptor<String> access = ArgumentCaptor.forClass(String.class);
+        verify(repo).updateTokens(eq(9L), access.capture(), anyString(), isNull(), eq(NOW.plusSeconds(15552000)));
+        assertEquals("APP_USR-novo", cipher.decrypt(access.getValue()));
+    }
+
+    @Test
+    void refusedRenewalMarksNeedsReconnect() {
+        when(repo.findByRestaurant(3)).thenReturn(Optional.of(connected(NOW.plusSeconds(3600))));
+        when(oauth.refresh("TG-loja")).thenReturn(Optional.empty());
+        assertTrue(service.credentialsFor(3).isEmpty());
+        verify(repo).markNeedsReconnect(9);
+    }
+
+    @Test
+    void storeNotConnectedHasNoCredentials() {
+        PaymentAccountRepository.Account reconnect = new PaymentAccountRepository.Account(9, 3, "mercadopago", "3588446200", null, "APP_USR-pk",
+            null, null, null, "needs_reconnect", NOW, null);
+        when(repo.findByRestaurant(3)).thenReturn(Optional.of(reconnect));
+        assertTrue(service.credentialsFor(3).isEmpty());
+        assertTrue(service.publicKeyFor(3).isEmpty());
+        when(repo.findByRestaurant(4)).thenReturn(Optional.empty());
+        assertTrue(service.credentialsFor(4).isEmpty());
+    }
+
+    @Test
+    void providerUserMapsToEveryConnectedStore() {
+        when(repo.findConnectedByProviderUser("mercadopago", "3588446200")).thenReturn(List.of(connected(NOW.plusSeconds(86400 * 100))));
+        List<MerchantCredentials> creds = service.credentialsForProviderUser("3588446200");
+        assertEquals(1, creds.size());
+        assertEquals(3, creds.getFirst().restaurantId());
+        when(repo.markNeedsReconnectByProviderUser("mercadopago", "3588446200")).thenReturn(1);
+        assertEquals(1, service.markNeedsReconnect("3588446200"));
     }
 }

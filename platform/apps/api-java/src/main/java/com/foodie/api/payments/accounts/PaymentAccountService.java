@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -31,6 +32,7 @@ public class PaymentAccountService {
     private static final Logger log = LoggerFactory.getLogger(PaymentAccountService.class);
     public static final String PROVIDER = "mercadopago";
     static final Duration STATE_TTL = Duration.ofMinutes(10);
+    static final Duration RENEW_BEFORE = Duration.ofDays(7);
 
     private final PaymentAccountRepository accounts;
     private final MercadoPagoOAuthClient oauth;
@@ -122,6 +124,52 @@ public class PaymentAccountService {
             .filter(found -> !"disconnected".equals(found.status()))
             .orElseThrow(() -> new ApiException(409, "A loja não tem Mercado Pago conectado"));
         accounts.disconnect(account.id(), actorId, reason);
+    }
+
+    public Optional<MerchantCredentials> credentialsFor(long restaurantId) {
+        return accounts.findByRestaurant(restaurantId).filter(this::connected).flatMap(this::fresh);
+    }
+
+    public Optional<MerchantCredentials> credentialsForAccount(long accountId) {
+        return accounts.findById(accountId).filter(this::connected).flatMap(this::fresh);
+    }
+
+    public List<MerchantCredentials> credentialsForProviderUser(String providerUserId) {
+        return accounts.findConnectedByProviderUser(PROVIDER, providerUserId).stream().map(this::fresh).flatMap(Optional::stream).toList();
+    }
+
+    /** A public key não é segredo e não precisa de token renovado: basta a conta estar conectada. */
+    public Optional<String> publicKeyFor(long restaurantId) {
+        return accounts.findByRestaurant(restaurantId).filter(this::connected).map(PaymentAccountRepository.Account::publicKey)
+            .filter(key -> !key.isBlank());
+    }
+
+    /** Evento "Vinculação de aplicações" com desautorização: a loja precisa reconectar. */
+    public int markNeedsReconnect(String providerUserId) {
+        return accounts.markNeedsReconnectByProviderUser(PROVIDER, providerUserId);
+    }
+
+    private boolean connected(PaymentAccountRepository.Account account) {
+        return "connected".equals(account.status()) && account.accessTokenEnc() != null;
+    }
+
+    /** Renova quando faltam menos de 7 dias; renovação recusada deixa a loja em "precisa reconectar". */
+    private Optional<MerchantCredentials> fresh(PaymentAccountRepository.Account account) {
+        String accessToken = cipher.decrypt(account.accessTokenEnc());
+        String publicKey = account.publicKey();
+        if (account.tokenExpiresAt() != null && account.tokenExpiresAt().isBefore(clock.instant().plus(RENEW_BEFORE))) {
+            Optional<MercadoPagoOAuthClient.OAuthTokens> renewed = oauth.refresh(cipher.decrypt(account.refreshTokenEnc()));
+            if (renewed.isEmpty()) {
+                accounts.markNeedsReconnect(account.id());
+                return Optional.empty();
+            }
+            MercadoPagoOAuthClient.OAuthTokens tokens = renewed.get();
+            accounts.updateTokens(account.id(), cipher.encrypt(tokens.accessToken()), cipher.encrypt(tokens.refreshToken()),
+                tokens.publicKey(), clock.instant().plusSeconds(tokens.expiresInSeconds()));
+            accessToken = tokens.accessToken();
+            if (tokens.publicKey() != null) publicKey = tokens.publicKey();
+        }
+        return Optional.of(new MerchantCredentials(account.id(), account.restaurantId(), accessToken, publicKey, account.providerUserId()));
     }
 
     private static long restaurantOf(User owner) {
