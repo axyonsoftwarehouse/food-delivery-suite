@@ -13,6 +13,8 @@ app:
     # Chave AES-256 (32 bytes em base64) que cifra os tokens do Mercado Pago de cada loja.
     # Gerar com: openssl rand -base64 32. Sem ela, a vinculação de contas responde 503.
     token-key: ${PAYMENTS_TOKEN_KEY:}
+    # Página do painel da loja para onde o navegador volta depois da autorização.
+    account-return-url: ${PAYMENTS_ACCOUNT_RETURN_URL:http://127.0.0.1:3001/painel/configuracoes}
   auth:
     require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
     google:
@@ -50,6 +52,12 @@ app:
     # Public key da aplicação: vai para o navegador e tokeniza o cartão no checkout transparente
     # (o número do cartão nunca passa pelo nosso servidor). Não é segredo.
     public-key: ${MERCADOPAGO_PUBLIC_KEY:}
+    # Vinculação de aplicações (OAuth): cada loja conecta a própria conta. client-id/secret são da
+    # aplicação App-Checkout-Transparente-Foodie; o redirect é fixo e cadastrado na aplicação.
+    client-id: ${MERCADOPAGO_CLIENT_ID:}
+    client-secret: ${MERCADOPAGO_CLIENT_SECRET:}
+    oauth-redirect-uri: ${MERCADOPAGO_OAUTH_REDIRECT_URI:}
+    auth-base-url: ${MERCADOPAGO_AUTH_BASE_URL:https://auth.mercadopago.com.br}
   mapbox:
     token: ${MAPBOX_TOKEN:}
     base-url: ${MAPBOX_BASE_URL:https://api.mapbox.com}
