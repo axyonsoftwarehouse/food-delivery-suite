@@ -240,9 +240,12 @@ recusa e assim por diante.
 - **Acerto do passivo antigo de carteira** — `ledger_entries` e `payout_requests`
 
 #### Decorrências da decisão de 05/10 (valores são da loja)
-- **Estorno pela loja.** Hoje só o admin estorna (botão "Estornar" e aprovação de reembolso). A loja tem
-  de poder estornar os próprios pedidos. O admin fica como **suporte**: age em nome da loja, com motivo e
-  trilha de auditoria, como as outras ações de suporte.
+- ~~**Estorno pela loja**~~: **implementado em 06/10** (spec `docs/superpowers/specs/2026-10-06-estorno-pela-loja-design.md`).
+  A loja estorna os próprios pedidos e decide os pedidos de reembolso em **Pedidos**. Para isso precisa da
+  permissão `payments.manage`, e pedido de outra loja dá 404. O admin age **só como suporte**: precisa de
+  `support.act`, informa um motivo de 10 a 255 caracteres, e a ação vai para a trilha da loja, que recebe um
+  aviso. Um estorno direto também fecha o pedido de reembolso que estiver aberto. O cliente só pode pedir
+  reembolso de pedido pago.
 - **Entrega e gorjeta** (era "quem financia", decisão contratual): **são da loja**. O razão
   (`LedgerService.postOrder`) ainda credita frete e gorjeta ao entregador como saldo que a plataforma
   repassa. Esse repasse deixa de ser obrigação da Foodie, então é preciso revisar a carteira de repasse do
