@@ -49,3 +49,22 @@ ações do modo suporte (E48).
 ## Fora do escopo
 
 Estorno parcial; notificar o cliente da decisão; mover os motivos de reembolso para a loja.
+
+## Adendo (06/10/2026): estorno automático no cancelamento — decisão "A"
+
+**Problema encontrado no staging:** cancelar, recusar ou expirar um pedido **pago online** só cancelava
+pagamento *pendente* (`OrderService.changeStatus` → `payments.cancelPending`); o pagamento pago ficava
+pago — pedido cancelado com o dinheiro do cliente retido.
+
+**Regra (decisão do dono do produto):** quando um pedido com pagamento **online** e status **`paid`**
+vai para `cancelled` (cliente ou suporte), `rejected` (loja) ou `expired` (15 min sem aceite), o Foodie
+**estorna automaticamente** pela conta Mercado Pago que cobrou, na mesma ação.
+- O estorno acontece **antes** de mudar o status do pedido. Se falhar (conta desconectada/trocada,
+  cobrança anterior à conta por loja, provedor recusou), a ação falha com a mensagem do estorno e
+  **nada muda** — nunca fica pedido cancelado com o dinheiro retido.
+- Expiração automática: se o estorno falhar, o pedido **não** expira nessa rodada (fica `placed`, com
+  log de aviso) e a próxima tentativa repete.
+- Pagamento na entrega e pagamento ainda pendente: como hoje (`cancelPending`).
+- `failed` (falha na entrega) fica fora: segue para reembolso decidido pela loja.
+- A nota do pagamento registra o motivo (ex.: "Estorno automático: pedido cancelado pelo cliente");
+  `refunded_by` = quem fez a ação (nulo na expiração). Pedido de reembolso aberto é fechado como hoje.
