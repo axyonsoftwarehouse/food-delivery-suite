@@ -560,15 +560,22 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (tableId !== null && !tables.some((table) => table.id === tableId)) setTableId(null); }, [tables, tableId]);
 
   useEffect(() => {
-    fetch('/backend/payments/public-config', { credentials: 'same-origin' })
+    // A disponibilidade e a public key são da loja do carrinho: cada loja recebe na própria conta.
+    if (!cartRestaurantId) { setOnlineCharges(false); setCardTransparent(false); setPublicKey(''); return; }
+    let active = true;
+    fetch(`/backend/payments/public-config?restaurantId=${cartRestaurantId}`, { credentials: 'same-origin' })
       .then((response) => (response.ok ? response.json() : null))
       .then((data: { onlineCharges?: boolean; cardTransparent?: boolean; publicKey?: string } | null) => {
+        if (!active) return;
         setOnlineCharges(Boolean(data?.onlineCharges));
         setCardTransparent(Boolean(data?.cardTransparent));
         setPublicKey(data?.publicKey ?? '');
       })
-      .catch(() => { setOnlineCharges(false); setCardTransparent(false); setPublicKey(''); });
-  }, []);
+      .catch(() => { if (active) { setOnlineCharges(false); setCardTransparent(false); setPublicKey(''); } });
+    return () => { active = false; };
+  }, [cartRestaurantId]);
+
+  useEffect(() => { if (!onlineCharges && modality === 'online') setModality('on_delivery'); }, [onlineCharges, modality]);
 
   useEffect(() => {
     fetch('/backend/offline-payment-methods', { credentials: 'same-origin' })
