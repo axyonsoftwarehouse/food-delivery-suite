@@ -1,14 +1,30 @@
 # Pagamentos em modo de teste (Mercado Pago) — passo a passo
 
 Guia para fazer um Pix ou um pagamento com cartão **de mentira** no staging e confirmar que o pedido
-virou **pago** no Foodie. Nenhum dinheiro real se move: as credenciais do staging são de **teste**.
+virou **pago** no Foodie. Nenhum dinheiro real se move: a conta conectada à loja é de **teste**.
+
+## 0. Conectar a conta da loja (uma vez)
+
+Desde a conta por loja, **quem cobra é a conta Mercado Pago conectada à própria loja**, não mais uma
+conta global do ambiente. Sem a conexão, a loja não oferece "Pagar agora".
+
+1. Abra uma **janela anônima** (assim a sessão de outra conta do Mercado Pago não interfere).
+2. Entre em `https://staging.2.29.42.104.sslip.io/entrar` como o **dono da loja**.
+3. Vá em **Configurações → Recebimento online (Mercado Pago) → Conectar Mercado Pago**.
+4. No Mercado Pago, entre com o **vendedor de teste** `TESTUSER4062510080958592865` (User ID
+   `3588446200`). **Confira a conta mostrada na tela antes de autorizar.**
+5. Autorize. Você volta ao painel com a conta conectada.
+
+O staging **recusa contas reais** (`PAYMENTS_REQUIRE_TEST_ACCOUNTS=true`) e mostra: "Este é um ambiente
+de testes: conecte um usuário de teste do Mercado Pago, não uma conta real. Nada foi conectado. Se você
+autorizou uma conta real, remova o acesso do Foodie em Aplicativos conectados, no Mercado Pago."
 
 ## 1. Como o modo de teste funciona (o mínimo para não se perder)
 
-- **As credenciais de teste pertencem a um usuário de teste, não à sua conta.** No painel do Mercado
-  Pago, em *Suas integrações → App-Checkout-Transparente-Foodie → Credenciais de teste*, o token e a
-  public key são do vendedor de teste `TESTUSER4062510080958592865` (User ID `3588446200`). Por isso
-  as orders criadas no staging têm id `ORDTST…`.
+- **A conta que cobra é a da loja, conectada na seção 0.** No staging ela é o vendedor de teste
+  `TESTUSER4062510080958592865` (User ID `3588446200`), não a sua conta. Por isso as orders criadas no
+  staging têm id `ORDTST…`. O token e a public key vêm da conexão da loja; não existem mais
+  `MERCADOPAGO_ACCESS_TOKEN` nem `MERCADOPAGO_PUBLIC_KEY` no `.env`.
 - **Quem decide o resultado do teste é o PRIMEIRO NOME do cliente.** O Foodie manda o primeiro nome do
   cliente logado como `payer.first_name`, e o Mercado Pago usa esse nome para escolher o resultado
   simulado. Um cliente chamado **"APRO Cliente Teste"** tem todo pagamento **aprovado**.
@@ -30,7 +46,7 @@ virou **pago** no Foodie. Nenhum dinheiro real se move: as credenciais do stagin
   **Não clique em "Salvar configurações" nem em "Redefinir" nessa tela sem necessidade:** cada clique
   gera uma assinatura secreta nova, e aí o segredo gravado no staging deixa de valer (todo webhook
   passa a voltar `401`).
-- **São dois segredos, e o staging precisa dos dois.** As notificações **automáticas** vêm assinadas com
+- **São dois segredos, e o staging precisa dos dois.** *(A confirmar no teste de ponta a ponta com a conta da loja: pode ser que só o segredo da aplicação do Foodie seja usado. Até lá, mantenha os dois.)* As notificações **automáticas** vêm assinadas com
   o segredo da aplicação do vendedor de teste (*TestApp-51fff93c → Webhooks*, na conta do vendedor de
   teste). O **"Simular"** da aplicação principal usa o segredo dela. O `MERCADOPAGO_WEBHOOK_SECRET` do
   staging guarda os dois, separados por vírgula (`segredo-principal,segredo-testapp`). O
@@ -107,6 +123,7 @@ Para testar uma **recusa**, use um cliente cujo primeiro nome seja `OTHE` (ou `F
 |---|---|
 | Formulário do cartão não aparece (fica em "Carregando" ou mostra o aviso de bloqueio depois de 15 s) | o navegador está bloqueando o Mercado Pago. Veja a seção 7 |
 | "Não foi possível obter a informação de pagamento. Tente outro cartão" | número de cartão que não é de teste do Brasil. Use um da tabela da seção 4 |
+| Não aparece "Pagar agora" no checkout | a loja não tem conta Mercado Pago conectada (seção 0) |
 | Pedido criado, mas sem QR Code | foi escolhido **"Na entrega"** (o padrão), e não **"Pagar agora"** |
 | Checkout responde `403` | email da conta ainda não confirmado (seção 2, passo 4) |
 | Pix fica "aguardando pagamento" para sempre | o primeiro nome do cliente não é `APRO`, ou o webhook está voltando `401` |

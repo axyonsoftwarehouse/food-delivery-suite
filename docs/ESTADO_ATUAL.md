@@ -203,9 +203,10 @@ recusa e assim por diante.
 4. **Decidir o 3DS** (o status `CALL` não é tratado) e conferir se a conta tem **chave Pix registrada**
    (o provedor exige para produção).
 5. **Produção ainda não existe.** A URL de produção no painel está vazia e não há credencial de produção
-   na VPS. A decisão comercial foi tomada em 05/10: o dinheiro é da loja. Agora depende da **conta de
-   recebimento por loja** (§4): cada loja usa as próprias credenciais de produção, e a Foodie não tem uma
-   conta global de produção.
+   na VPS. A decisão comercial foi tomada em 05/10: o dinheiro é da loja. A **conta de recebimento por
+   loja** está implementada (§4): cada loja conecta a própria conta, e a Foodie não tem conta global
+   (`MERCADOPAGO_ACCESS_TOKEN` e `MERCADOPAGO_PUBLIC_KEY` foram removidos). Falta o teste de ponta a
+   ponta no staging.
 6. **Risco para produção: bloqueadores do navegador quebram o formulário do cartão.** Em 05/10, no
    Firefox, o Card Payment Brick só abriu depois de desligar **o escudo do Firefox e o uBlock Origin**.
    Os dois bloqueiam `secure-fields.mercadopago.com`, e o SDK quebra sem avisar. Clientes reais com
@@ -228,10 +229,11 @@ recusa e assim por diante.
 
 - **Cobrança real da assinatura** — hoje cria transação, não cobra provedor
 - **Pix/cartão online direto para a loja**: a cobrança, o webhook e o estorno foram provados no staging
-  em 05/10 (ver "Pagamentos online"), mas **com uma conta só, a da plataforma** (hoje, a do vendedor de
-  teste). Pela decisão de 05/10, o dinheiro tem de cair **na conta da própria loja**. Por isso falta
-  implementar a **conta de recebimento por loja** (credenciais ou vinculação da conta Mercado Pago de cada
-  restaurante, usadas na cobrança, na consulta, no webhook e no estorno). A flag
+  em 05/10 (ver "Pagamentos online"), mas com uma conta só, a da plataforma. A **conta de recebimento
+  por loja está implementada** (vinculação OAuth da conta Mercado Pago de cada restaurante, usada na
+  cobrança, na consulta, no webhook, no estorno e no checkout): parte 1 na PR #53, parte 2 (este PR).
+  **Pendente: o teste de ponta a ponta no staging** (Pix, cartão e estorno com a conta da loja
+  conectada, e webhook sem reenvio manual); até lá, não está provado. A flag
   `PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES` está **ligada no staging** e desligada por padrão no código.
   **Em produção ela não pode ser ligada com a conta global**, porque a Foodie passaria a receber dinheiro
   de pedido.
@@ -366,8 +368,8 @@ staging roda o mesmo commit que a `main`.
 **O próximo passo é um só: fechar o cartão `1nguT9bv` (pagamento real), que está em TESTING.** Pix,
 cartão e estorno foram provados de ponta a ponta em 05/10 (pedidos #23 e #26); faltam os prints. A
 decisão comercial foi tomada em 05/10: a Foodie só trabalha com assinatura e suporte, e os valores são da
-loja. O próximo bloco de código é a **conta de recebimento por loja**, junto com as outras decorrências
-dessa decisão (§4).
+loja. A **conta de recebimento por loja** foi implementada (PR #53 e parte 2); falta o teste de ponta a ponta
+no staging. As outras decorrências dessa decisão seguem em §4.
 
 ## 5.1 Higiene da VPS — 03/10/2026
 
