@@ -40,18 +40,21 @@ autorizou uma conta real, remova o acesso do Foodie em Aplicativos conectados, n
   | `EXPI` | recusado — data de validade |
   | `FORM` | recusado — erro no formulário |
 
+- **A aplicação do Foodie no staging é de uma conta de teste Marketplace.** Desde 06/10/2026 o staging
+  usa a aplicação da conta **Marketplace de teste** `3744243778` (Client ID `3241191378464560`), e não a
+  aplicação de produção da conta real. Com a aplicação de produção, o token que o vendedor de teste
+  gerava era tratado como produção, e toda cobrança voltava `422` (`user_allowed_only_in_test`). O
+  porquê e o passo a passo para qualquer projeto estão em `docs/GUIA_MERCADO_PAGO.md`.
 - **O aviso de "pago" chega por webhook.** Quando a order muda de status, o Mercado Pago chama
-  `https://api.staging.2.29.42.104.sslip.io/webhooks/mercadopago`. Essa URL está configurada em
-  *App-Checkout-Transparente-Foodie → Webhooks → Modo de teste*, com o evento **Order (Mercado Pago)**.
-  **Não clique em "Salvar configurações" nem em "Redefinir" nessa tela sem necessidade:** cada clique
-  gera uma assinatura secreta nova, e aí o segredo gravado no staging deixa de valer (todo webhook
-  passa a voltar `401`).
-- **São dois segredos, e o staging precisa dos dois.** *(A confirmar no teste de ponta a ponta com a conta da loja: pode ser que só o segredo da aplicação do Foodie seja usado. Até lá, mantenha os dois.)* As notificações **automáticas** vêm assinadas com
-  o segredo da aplicação do vendedor de teste (*TestApp-51fff93c → Webhooks*, na conta do vendedor de
-  teste). O **"Simular"** da aplicação principal usa o segredo dela. O `MERCADOPAGO_WEBHOOK_SECRET` do
-  staging guarda os dois, separados por vírgula (`segredo-principal,segredo-testapp`). O
-  `gravar-segredo-webhook.bat` grava **um valor só**: se for usado, cole os dois juntos, com a vírgula,
-  senão as notificações automáticas voltam a dar `401`.
+  `https://api.staging.2.29.42.104.sslip.io/webhooks/mercadopago`. Essa URL está configurada na
+  aplicação da conta Marketplace de teste (*Webhooks*), com os eventos **Order (Mercado Pago)** e
+  **Vinculação de aplicações**. **Não clique em "Salvar configurações" nem em "Redefinir" nessa tela sem
+  necessidade:** cada clique gera uma assinatura secreta nova, e todo webhook passa a voltar `401` até
+  o segredo novo ser gravado.
+- **Segredos do webhook.** O `MERCADOPAGO_WEBHOOK_SECRET` do staging aceita vários segredos separados
+  por vírgula. O primeiro é o da aplicação Marketplace; os outros são das aplicações usadas antes e
+  saem quando for confirmado que não assinam mais nada. Em 06/10 o Pix (#28), o cartão (#30) e o estorno
+  do #30 tiveram as notificações aceitas (`200`).
 
 ## 2. Preparar um cliente de teste (uma vez só)
 
