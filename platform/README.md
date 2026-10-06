@@ -2,7 +2,7 @@
 
 > Estado em 28/09/2026: `/` mostra a home pública e `/entrar` recebe os acessos. A monetização prevista é assinatura da loja; a carteira de saque do restaurante e comissões por pedido foram descontinuadas para novos pedidos. Novas cobranças online pela conta global da plataforma estão suspensas até haver recebimento direto por restaurante. As seções históricas abaixo ainda descrevem capacidades anteriores; consulte `docs/PENDENCIAS_IMPLEMENTACAO_2026-09-28.md` para as pendências atuais.
 
-Plataforma própria da Foodie — **a única base de código do produto** desde que o pacote comercial StackFood (legado) foi removido em 2026-09-25. Contém uma API TypeScript **transitória** com banco MariaDB próprio e um site Next.js para os papéis de cliente, restaurante, administração e entregador. O backend definitivo é **Java 21/Spring Boot**; a transição está descrita em `docs/PLANO_RECONSTRUCAO_PROPRIA.md`.
+Plataforma própria da Foodie — **a única base de código do produto**. Contém uma API TypeScript **transitória** com banco MariaDB próprio e um site Next.js para os papéis de cliente, restaurante, administração e entregador. O backend definitivo é **Java 21/Spring Boot**; a transição está descrita em `docs/PLANO_RECONSTRUCAO_PROPRIA.md`.
 
 ## Preparar localmente
 

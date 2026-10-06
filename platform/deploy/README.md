@@ -122,11 +122,11 @@ DEMO_PASSWORD='uma-senha-forte' docker compose --profile tools run --rm seed
 
 Esta é uma base de homologação, não autorização para exposição comercial. Proteção de contas, recuperação, pagamento na entrega, estados excepcionais do pedido, observabilidade e backup/restauração já estão implementados. Antes de expor comercialmente ainda faltam: um provedor de email real (hoje o link de verificação/recuperação sai no log), a revisão de origem/CSRF nos domínios finais, o ensaio de restauração e um teste de carga na própria VPS.
 
-## Legado StackFood: já removido
+## Código legado de terceiros: removido
 
-Executada em **25/09/2026**: o projeto legado `deploy` foi derrubado com `down -v` (contêineres, volumes e rede) e removidos os diretórios `/opt/food-delivery-suite` e a recriação antiga `/opt/foodie`, junto das imagens não usadas e do cache de build. O código do legado também saiu do repositório na mesma data (commit `04e5686`).
+Executada em **25/09/2026**: o projeto legado `deploy` foi derrubado com `down -v` (contêineres, volumes e rede) e removidos os diretórios `/opt/food-delivery-suite` e a recriação antiga `/opt/foodie`, junto das imagens não usadas e do cache de build.
 
-Em **01/10/2026** a limpeza foi completada: a pasta `reference/` e a tag `legacy-stackfood-v9` foram removidas (a tag também do remoto). O pacote comercial, que não tem licença, não está mais no repositório nem acessível por atalho; o código permanece apenas no **histórico** do Git. Registro em `docs/AUDITORIA_LEGADO_2026-10-01.md`.
+Em **06/10/2026** o histórico do Git foi reescrito e o repositório passou para a organização `axyonsoftwarehouse`: o pacote comercial de terceiros (sem licença) não existe mais em nenhum commit. Registro em `docs/AUDITORIA_LEGADO_2026-10-01.md`.
 
 **Não há legado sobrando na VPS para limpar.** Em 30/09/2026 também foi removido o scaffold `production` (Postgres/pgbouncer/Redis criados pelo provisionamento em 15/09, com banco vazio — ver `docs/RUNBOOK_VPS.md` §8). O que ainda existe além do Foodie é:
 
