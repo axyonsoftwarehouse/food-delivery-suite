@@ -200,9 +200,14 @@ public class OnlinePaymentService {
             next, charge.rawStatus(), charge.externalId(), note, next, orderId);
         // Pagamento aprovado depois de o pedido morrer (Pix pago após cancelar, recusar ou expirar): registra
         // como pago e devolve na mesma transação. Se o estorno falhar, a exceção desfaz tudo e o webhook
-        // responde 5xx — o Mercado Pago reenvia e tentamos de novo.
+        // responde erro (não-2xx) — o Mercado Pago reenvia e tentamos de novo.
         if ("paid".equals(next) && row.get("order_status") instanceof String orderStatus && DEAD_ORDER.contains(orderStatus)) {
-            orderPayments.refundIfPaidOnline(null, orderId, "Estorno automático: pagamento aprovado após o cancelamento do pedido");
+            try {
+                orderPayments.refundIfPaidOnline(null, orderId, "Estorno automático: pagamento aprovado após o cancelamento do pedido");
+            } catch (RuntimeException e) {
+                log.error("Pedido #{} foi pago depois de cancelado e o estorno automático falhou ({}) — estornar manualmente pelo painel do Mercado Pago da loja", orderId, e.getMessage());
+                throw e;
+            }
         }
         return Map.of("ok", true, "orderId", orderId, "status", next);
     }

@@ -73,4 +73,6 @@ vai para `cancelled` (cliente ou suporte), `rejected` (loja) ou `expired` (15 mi
 - Pagamento aprovado **depois** de o pedido morrer (ex.: Pix pago após cancelar, recusar ou expirar): o
   webhook registra o pagamento como pago e, na mesma transação, estorna automaticamente ("Estorno
   automático: pagamento aprovado após o cancelamento do pedido"). Se esse estorno falhar, o webhook
-  responde erro e o Mercado Pago reenvia a notificação.
+  responde erro (não-2xx) e o Mercado Pago reenvia a notificação. Um `paid` atrasado com valor divergente
+  é gravado como `rejected` e **não** é estornado automaticamente (igual a pedido ativo) — a loja estorna
+  manualmente.
