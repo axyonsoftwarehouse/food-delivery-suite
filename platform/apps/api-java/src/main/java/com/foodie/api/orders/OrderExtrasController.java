@@ -6,6 +6,7 @@ import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.support.SupportActionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -39,15 +40,18 @@ public class OrderExtrasController {
     private final AdminAuditService audit;
     private final JdbcTemplate jdbc;
     private final OrderService orders;
-    private final PaymentService payments;
+    private final RefundRequestService refunds;
+    private final SupportActionService support;
 
-    public OrderExtrasController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc, OrderService orders, PaymentService payments) {
+    public OrderExtrasController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc, OrderService orders,
+                                RefundRequestService refunds, SupportActionService support) {
         this.auth = auth;
         this.permissions = permissions;
         this.audit = audit;
         this.jdbc = jdbc;
         this.orders = orders;
-        this.payments = payments;
+        this.refunds = refunds;
+        this.support = support;
     }
 
     // ----- E27: fatura -----
@@ -122,12 +126,7 @@ public class OrderExtrasController {
     public List<Map<String, Object>> refunds(@CookieValue(value = "foodie_session", required = false) String token,
                                              @RequestParam(required = false) String status) {
         admin(token);
-        String filter = status == null || status.isBlank() ? null : status.strip();
-        return jdbc.queryForList(
-            "SELECT r.id, r.order_id, r.customer_id, u.name AS customer_name, r.note, r.status, r.decided_note, r.created_at, r.decided_at, "
-                + "(SELECT label FROM refund_reasons WHERE id = r.reason_id) AS reason "
-                + "FROM refunds r JOIN users u ON u.id = r.customer_id WHERE (? IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 200",
-            filter, filter);
+        return refunds.list(null, status);
     }
 
     @PostMapping("/orders/{id}/refund-request")
@@ -157,24 +156,14 @@ public class OrderExtrasController {
     public Map<String, Object> decideRefund(@CookieValue(value = "foodie_session", required = false) String token,
                                             @PathVariable @Positive long id,
                                             @Valid @RequestBody RefundDecision body) {
-        User actor = admin(token);
-        Map<String, Object> refund = jdbc.queryForList("SELECT id, order_id, status FROM refunds WHERE id = ?", id).stream().findFirst()
-            .orElseThrow(() -> new ApiException(404, "Reembolso não encontrado"));
-        if (!"requested".equals(refund.get("status"))) throw new ApiException(409, "Reembolso já decidido");
-        long orderId = ((Number) refund.get("order_id")).longValue();
+        // O reembolso é decisão da loja; o admin decide só como suporte, em nome dela e com motivo.
+        User actor = auth.requireUser(token, "admin");
+        permissions.require(actor, AdminPermissions.SUPPORT_ACT);
+        String reason = SupportActionService.normalizeReason(body.note());
         String decision = body.decision().strip();
-        if ("approve".equals(decision)) {
-            payments.refund(actor, orderId, body.note());
-            jdbc.update("UPDATE refunds SET status = 'approved', decided_by = ?, decided_at = NOW(), decided_note = ? WHERE id = ?",
-                actor.id(), body.note() == null ? "" : body.note().strip(), id);
-        } else if ("reject".equals(decision)) {
-            jdbc.update("UPDATE refunds SET status = 'rejected', decided_by = ?, decided_at = NOW(), decided_note = ? WHERE id = ?",
-                actor.id(), body.note() == null ? "" : body.note().strip(), id);
-        } else {
-            throw new ApiException(400, "Decisão inválida");
-        }
-        audit.record(actor, "update", "refund", id, "Reembolso " + decision);
-        return Map.of("id", id, "status", "approve".equals(decision) ? "approved" : "rejected");
+        String summary = "Reembolso #" + id + ("approve".equals(decision) ? " aprovado" : " recusado");
+        return support.act(actor, refunds.restaurantOfRefund(id), "refund.decide", "refund", id, summary, reason,
+            () -> refunds.decide(actor, id, decision, reason));
     }
 
     private User admin(String token) {
