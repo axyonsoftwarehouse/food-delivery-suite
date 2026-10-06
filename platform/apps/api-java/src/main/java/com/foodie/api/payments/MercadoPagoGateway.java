@@ -250,7 +250,9 @@ public class MercadoPagoGateway implements PaymentGateway {
                 + "Configure o segredo do webhook (painel do Mercado Pago > Webhooks) para voltar a aceitar notificações.");
             return false;
         }
-        String dataId = webhookChargeId(request).orElse(null);
+        // Qualquer tipo de notificação (order, payment, mp-connect…): o id do corpo é o reserva quando a
+        // query não traz `data.id`. Antes só order/payment tinham reserva e a mp-connect assinava "id:".
+        String dataId = request.body().get("data") instanceof Map<?, ?> data && data.get("id") != null ? String.valueOf(data.get("id")) : null;
         // O manifesto é assinado sobre o `data.id` da **query string** (`?data.id=...`) — a documentação
         // do provedor é explícita, e o corpo pode trazer um id diferente (o pedido) do que vem na query.
         String idDoManifesto = request.query().getOrDefault("data.id", dataId);

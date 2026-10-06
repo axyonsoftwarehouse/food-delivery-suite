@@ -292,6 +292,13 @@ class OnlinePaymentServiceTest {
     }
 
     @Test
+    void notificationWithoutAccountIsIgnored() {
+        assertEquals(true, service(true).handleWebhook("mercadopago", "ORDTST01ABC", null).get("ignored"));
+        verify(accounts, never()).credentialsForProviderUser(any());
+        verify(gateway, never()).fetch(any(), anyString());
+    }
+
+    @Test
     void sellerCannotTouchAnotherStoresOrder() {
         payment.put("restaurant_id", 4L); // pedido da loja 4; a conta 3588446200 só atende a loja 3
         when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));

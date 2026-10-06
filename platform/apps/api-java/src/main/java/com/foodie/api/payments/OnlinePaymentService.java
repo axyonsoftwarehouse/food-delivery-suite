@@ -144,7 +144,11 @@ public class OnlinePaymentService {
         // Sem conta conhecida não há token para consultar: a notificação não é de uma loja nossa.
         if (providerUserId == null) return Map.of("ok", true, "ignored", true);
         List<MerchantCredentials> sellers = accounts.credentialsForProviderUser(providerUserId);
-        if (sellers.isEmpty()) return Map.of("ok", true, "ignored", true);
+        if (sellers.isEmpty()) {
+            // Pix pago depois de a loja desconectar: o Foodie não tem mais token para consultar a cobrança.
+            log.warn("Webhook do Mercado Pago ignorado: conta {} sem loja conectada (loja desconectou ou trocou de conta?) — conferir no painel do Mercado Pago", providerUserId);
+            return Map.of("ok", true, "ignored", true);
+        }
         PaymentGateway.Charge charge;
         try {
             charge = gateways.resolve(provider).fetch(sellers.getFirst(), paymentId);

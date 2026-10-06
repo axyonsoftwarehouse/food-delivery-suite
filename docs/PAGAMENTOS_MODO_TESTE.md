@@ -129,6 +129,7 @@ Para testar uma **recusa**, use um cliente cujo primeiro nome seja `OTHE` (ou `F
 | Pix fica "aguardando pagamento" para sempre | o primeiro nome do cliente não é `APRO`, ou o webhook está voltando `401` |
 | Todo webhook volta `401` | segredo do staging diferente do painel (alguém salvou/redefiniu a tela de Webhooks) |
 | Nenhum webhook chega | URL apagada do painel, ou configurada só em "Modo de produção" |
+| Pix pago depois de a loja desconectar fica pendente | o Foodie não consulta mais a conta; conferir o pagamento no painel do Mercado Pago da loja e confirmar manualmente |
 | Checkout responde `409` | `PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES` está `false` no `.env` do staging |
 | Erro "payer.email must be a valid email" | email do cliente com domínio que não existe |
 | "Simular notificação" do painel com id `123456` | volta `200` e é ignorado de propósito: não é um pedido nosso. Para um teste real, use o id `ORDTST…` de uma order existente |

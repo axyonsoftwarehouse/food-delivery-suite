@@ -56,4 +56,14 @@ class PaymentControllerPublicConfigTest {
         mvc.perform(get("/payments/public-config").cookie(SESSION))
             .andExpect(jsonPath("$.onlineCharges").value(false));
     }
+
+    @Test
+    void connectedStoreWithoutDirectChargesKeepsThePublicKeyButNoOnlineCharge() throws Exception {
+        when(online.directChargesAllowed()).thenReturn(false);
+        when(accounts.publicKeyFor(3)).thenReturn(Optional.of("APP_USR-pk-loja"));
+        mvc.perform(get("/payments/public-config").param("restaurantId", "3").cookie(SESSION))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.onlineCharges").value(false))
+            .andExpect(jsonPath("$.publicKey").value("APP_USR-pk-loja"));
+    }
 }
