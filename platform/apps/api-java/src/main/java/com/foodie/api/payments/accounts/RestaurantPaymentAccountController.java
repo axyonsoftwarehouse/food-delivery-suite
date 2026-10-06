@@ -39,6 +39,20 @@ public class RestaurantPaymentAccountController {
         return Map.of("authorizationUrl", accounts.startConnection(ownerOnly(token)));
     }
 
+    /** Segunda etapa da vinculação: o painel confirma, com a sessão, o retorno do Mercado Pago. */
+    @PostMapping("/mercadopago/confirm")
+    public Map<String, Object> confirm(@CookieValue(value = "foodie_session", required = false) String token,
+                                       @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody ConfirmRequest body) {
+        User user = ownerOnly(token);
+        String result = accounts.confirmConnection(user, body.token());
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+        response.put("result", result);
+        response.put("account", accounts.status(restaurantId(user)));
+        return response;
+    }
+
+    public record ConfirmRequest(@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 128) String token) {}
+
     @DeleteMapping
     public Map<String, Object> disconnect(@CookieValue(value = "foodie_session", required = false) String token) {
         return accounts.disconnectByOwner(ownerOnly(token));
