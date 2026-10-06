@@ -100,6 +100,10 @@
 .ui-badge--info { background: var(--info-soft); color: #234f9e; }
 .ui-badge--warning { background: var(--warning-soft); color: #8a5a12; }
 .ui-badge--danger { background: var(--danger-soft); color: #9a3a2c; }
+[data-theme='dark'] .ui-badge--info { color: #9cc0ff; }
+[data-theme='dark'] .ui-badge--warning { color: var(--warning); }
+[data-theme='dark'] .ui-badge--danger { color: var(--danger); }
+[data-theme='dark'] .ui-badge--neutral { background: var(--surface-muted); }
 .ui-chips { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .ui-chip {
   border: 1px solid var(--border-strong);
@@ -169,28 +173,62 @@
 @keyframes ui-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ui-spinner { animation-duration: 2s; } }
 
-/* Modal (seletor de variações do cliente) */
-.ui-modal-backdrop { position: fixed; inset: 0; background: rgba(16, 32, 22, 0.45); display: grid; place-items: center; padding: 20px; z-index: 40; }
-.ui-modal { width: min(440px, 100%); }
-.ui-modal .ui-card { box-shadow: var(--shadow-lg); }
-.ui-modal-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-5); }
+.ui-skeleton {
+  display: block;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--skeleton) 0%, var(--surface-muted) 50%, var(--skeleton) 100%);
+  background-size: 200% 100%;
+  animation: ui-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes ui-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .ui-skeleton { animation: none; } }
 
-/* Card de produto do cliente */
-.customer-product-art { position: relative; }
-.customer-product-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.customer-product-tag { position: absolute; top: 10px; left: 10px; }
-.customer-product-art .ui-badge { font-size: var(--text-xs); filter: none; line-height: 1.2; max-width: calc(100% - 20px); }
-.customer-restaurant-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 17px; }
-.customer-restaurant-card { display: flex; align-items: center; gap: 16px; min-width: 0; min-height: 118px; padding: 21px; border: 1px solid var(--border); border-radius: 21px; background: var(--surface); color: var(--text); text-decoration: none; box-shadow: var(--shadow-sm); }
-.customer-restaurant-card:hover { border-color: var(--brand-500); transform: translateY(-2px); }
-.customer-restaurant-card:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
-.customer-restaurant-mark { flex: 0 0 55px; height: 55px; display: grid; place-items: center; border-radius: 17px; background: var(--brand-050); color: var(--brand-700); font: 800 26px var(--font-display); }
-.customer-restaurant-info { display: grid; gap: 6px; min-width: 0; flex: 1; }
-.customer-restaurant-info strong { overflow: hidden; text-overflow: ellipsis; font-size: 16px; }
-.customer-restaurant-info small { color: var(--text-muted); font-size: 12px; }
-.customer-restaurant-arrow { color: var(--brand-600); font-size: 22px; }
-@media (max-width: 900px) { .customer-restaurant-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .customer-restaurant-grid { grid-template-columns: 1fr; } }
+.ui-icon { flex: 0 0 auto; display: inline-block; vertical-align: middle; }
+.ui-iconbtn .ui-icon { width: 18px; height: 18px; }
+
+/* Modal (seletor de variações do cliente) */
+.ui-modal-backdrop { position: fixed; inset: 0; background: rgba(12, 24, 16, 0.5); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 20px; z-index: 40; animation: ui-fade 0.18s ease-out; }
+.ui-modal { width: min(460px, 100%); animation: ui-rise 0.24s var(--ease); }
+.ui-modal .ui-card { box-shadow: var(--shadow-lg); border-radius: var(--radius-xl); }
+.ui-modal .ui-card__title { font-size: 22px; }
+.ui-modal .ui-card__subtitle { color: var(--brand-600); font-weight: var(--weight-bold); font-size: var(--text-md); }
+.ui-modal-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-5); }
+@keyframes ui-fade { from { opacity: 0; } }
+@keyframes ui-rise { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+@media (max-width: 600px) {
+  .ui-modal-backdrop { place-items: end stretch; padding: 0; }
+  .ui-modal { width: 100%; }
+  .ui-modal .ui-card { border-radius: var(--radius-xl) var(--radius-xl) 0 0; padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom)); }
+  .ui-modal-actions .ui-btn { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .ui-modal, .ui-modal-backdrop { animation: none; } }
+
+.notif { position: relative; }
+.notif-button { position: relative; display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); color: var(--text); }
+.notif-button:hover { border-color: var(--brand-500); color: var(--brand-600); }
+.notif-badge { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; display: grid; place-items: center; padding: 0 5px; border: 2px solid var(--surface); border-radius: var(--radius-pill); background: var(--accent-500); color: #fff; font-size: 10px; font-weight: var(--weight-bold); line-height: 1; }
+.notif-panel { position: absolute; right: 0; top: 48px; z-index: 30; width: min(360px, calc(100vw - 32px)); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: var(--space-3); animation: ui-rise 0.18s var(--ease); }
+.notif-head { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px 10px; }
+.notif-head strong { font-family: var(--font-display); font-size: var(--text-lg); }
+.notif-head button { background: none; border: 0; color: var(--brand-600); font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.notif-list { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow: auto; display: grid; gap: 2px; }
+.notif-list li button { width: 100%; text-align: left; background: transparent; border: 0; border-radius: var(--radius-md); padding: 10px; display: grid; gap: 3px; color: var(--text); cursor: pointer; }
+.notif-list li button:hover { background: var(--surface-muted); }
+.notif-list li.unread button { background: var(--brand-050); }
+.notif-list li strong { font-size: 13px; }
+.notif-list li span { font-size: var(--text-sm); color: var(--text-muted); }
+.notif-list li small { font-size: var(--text-xs); color: var(--text-faint); }
+.notif-hint { font-size: var(--text-sm); color: var(--text-muted); margin: 8px 6px; }
+.notif-enable { margin-top: var(--space-2); width: 100%; border: 1px solid var(--border-strong); background: var(--surface); color: var(--brand-700); border-radius: var(--radius-md); padding: 10px; font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.notif-enable:hover { border-color: var(--brand-500); }
+
+.app-loading { min-height: 100vh; display: grid; place-content: center; justify-items: center; gap: var(--space-3); text-align: center; background: var(--background); color: var(--text); }
+.app-loading-brand { display: inline-flex; align-items: center; font: 800 34px var(--font-display); letter-spacing: -1.6px; color: var(--hero-ink); animation: ui-breathe 1.6s ease-in-out infinite; }
+.app-loading-brand > span:last-child { color: var(--brand-500); }
+.app-loading-mark { display: grid; place-items: center; width: 42px; height: 42px; margin-right: 10px; border-radius: 14px; background: var(--brand-500); color: #fff; }
+.app-loading p { color: var(--text-muted); font-size: 13px; margin: 0; }
+@keyframes ui-breathe { 50% { opacity: 0.55; transform: scale(0.98); } }
+@media (prefers-reduced-motion: reduce) { .app-loading-brand { animation: none; } }
 
 /* Editor de variações e imagens (catálogo operacional) */
 .restaurant-product-entry { border-top: 1px solid var(--border); }
@@ -261,65 +299,19 @@
 .addon-link-items { display: flex; flex-wrap: wrap; gap: var(--space-3); margin: var(--space-2) 0 var(--space-3); }
 .addon-link-item { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--text-muted); }
 
-/* Cupom e avaliação (cliente) */
-.coupon-row { display: flex; gap: var(--space-2); align-items: center; }
-.coupon-row input { flex: 1; }
-.coupon-applied { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); background: var(--success-soft); border-radius: var(--radius-md); padding: 10px 14px; font-size: var(--text-sm); font-weight: var(--weight-bold); color: var(--brand-700); }
+/* Avaliação (cliente) */
 .review-row { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); flex-wrap: wrap; }
 .review-stars { display: inline-flex; gap: 4px; }
 .review-stars button { border: 0; background: none; font-size: 22px; line-height: 1; color: var(--gray-400); padding: 0; }
 .review-stars button.on { color: var(--warning); }
-.customer-history-title { font-family: var(--font-display); font-size: var(--text-lg); margin: var(--space-5) 0 var(--space-3); }
 
-/* Combos e destaques */
-.customer-product-tag--right { position: absolute; top: 10px; right: 10px; }
-.customer-product-art:has(.customer-product-tag) .customer-product-tag--right { top: 42px; }
-
-/* A área do cliente usa superfícies próprias além dos tokens compartilhados. */
 html[data-theme='dark'] {
   --cream: #161a17;
   --ink: #f2f5f0;
   --muted: #a8b2a5;
   --line: #333a33;
 }
-html[data-theme='dark'] .customer-app { background: var(--background); color: var(--text); }
-html[data-theme='dark'] .customer-header,
-html[data-theme='dark'] .customer-nav,
-html[data-theme='dark'] .customer-card,
-html[data-theme='dark'] .customer-product-card,
-html[data-theme='dark'] .customer-categories button,
-html[data-theme='dark'] .customer-search,
-html[data-theme='dark'] .customer-address-form,
 html[data-theme='dark'] .order-details { background: var(--surface); border-color: var(--border); color: var(--text); }
-html[data-theme='dark'] .customer-header-actions { color: var(--text-muted); }
-html[data-theme='dark'] .customer-header-actions button,
-html[data-theme='dark'] .customer-card-title > button,
-html[data-theme='dark'] .customer-product-footer button,
-html[data-theme='dark'] .customer-quantity button,
-html[data-theme='dark'] .customer-address-select select { background: var(--surface-muted); color: #a4e5b7; border-color: var(--border); }
-html[data-theme='dark'] .customer-nav a,
-html[data-theme='dark'] .customer-link-button,
-html[data-theme='dark'] .customer-brand { color: #a4e5b7; }
-html[data-theme='dark'] .customer-nav a.active { background: #17402a; color: #b8efc5; }
-html[data-theme='dark'] .customer-categories button.selected { background: var(--brand-600); border-color: var(--brand-600); color: #fff; }
-html[data-theme='dark'] .customer-hero { background-image: linear-gradient(90deg,rgba(17,43,29,.98) 0%,rgba(17,43,29,.9) 39%,rgba(17,43,29,.08) 69%),url('/foodie-burger-hero.png'); }
-html[data-theme='dark'] .customer-hero h2 { color: #e9f7eb; }
-html[data-theme='dark'] .customer-hero p { color: #c5d9c9; }
-html[data-theme='dark'] .customer-product-art { background: radial-gradient(circle,#3c4933 0%,#263326 100%); }
-html[data-theme='dark'] .customer-product-body p,
-html[data-theme='dark'] .customer-muted,
-html[data-theme='dark'] .customer-cart-row small,
-html[data-theme='dark'] .customer-order-row small,
-html[data-theme='dark'] .customer-section-heading > span { color: var(--text-muted); }
-html[data-theme='dark'] .customer-cart-row,
-html[data-theme='dark'] .customer-order-row { border-color: var(--border); }
-html[data-theme='dark'] .customer-search input { background: transparent; color: var(--text); }
-html[data-theme='dark'] .customer-empty { border-color: var(--border-strong); color: var(--text-muted); }
-html[data-theme='dark'] .customer-totals strong,
-html[data-theme='dark'] .customer-totals .grand-total { color: var(--text); }
-@media (max-width: 600px) {
-  html[data-theme='dark'] .customer-hero { background-image: linear-gradient(180deg,rgba(17,43,29,.99) 0%,rgba(17,43,29,.9) 47%,rgba(17,43,29,0) 71%),url('/foodie-burger-hero.png'); }
-}
 .combo-items { margin-top: var(--space-4); }
 .combo-items ul { margin: var(--space-2) 0 0; padding-left: 18px; color: var(--text-muted); font-size: var(--text-sm); display: grid; gap: 4px; }
 .combo-admin-item { display: inline-flex; align-items: center; gap: 8px; background: var(--gray-100); border-radius: var(--radius-pill); padding: 6px 10px; font-size: var(--text-sm); }
@@ -332,9 +324,6 @@ html[data-theme='dark'] .customer-totals .grand-total { color: var(--text); }
 .team-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .team-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; background: var(--gray-100); border-radius: var(--radius-md); padding: 10px 14px; font-size: var(--text-sm); }
 .team-list select { max-width: 220px; }
-/* Login alternativo (Google e OTP) */
-.alt-login { display: grid; gap: 10px; margin-top: var(--space-4); border-top: 1px solid #e5e7eb; padding-top: var(--space-4); }
-.alt-login .form-help { color: var(--text-muted); }
 /* Mesas do salao (restaurante) */
 .table-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 /* Pagamento manual (comprovante) */

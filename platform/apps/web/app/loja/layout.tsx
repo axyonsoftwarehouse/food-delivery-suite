@@ -7,12 +7,13 @@ import { money, useApp } from '../app-context';
 import { CustomerProvider, useCustomer } from './customer-context';
 import NotificationsBell from '../NotificationsBell';
 import ThemeToggle from '../ThemeToggle';
+import { Icon, type IconName } from '../icons';
 
-const nav = [
-  { href: '/loja', label: 'Início', icon: '🏠' },
-  { href: '/loja/carrinho', label: 'Carrinho', icon: '🛒' },
-  { href: '/loja/pedidos', label: 'Pedidos', icon: '🧾' },
-  { href: '/loja/perfil', label: 'Perfil', icon: '👤' },
+const nav: { href: string; label: string; icon: IconName }[] = [
+  { href: '/loja', label: 'Início', icon: 'home' },
+  { href: '/loja/carrinho', label: 'Carrinho', icon: 'bag' },
+  { href: '/loja/pedidos', label: 'Pedidos', icon: 'receipt' },
+  { href: '/loja/perfil', label: 'Perfil', icon: 'user' },
 ];
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -24,20 +25,19 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   return <main className="customer-app">
     <header className="customer-header">
-      <Link className="customer-brand" href="/loja" aria-label="Foodie"><span className="customer-brand-mark">✦</span> foodie<span>.</span></Link>
-      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString(timeLocale)}` : ''}>{connection === 'online' ? `● ao vivo` : `● sem conexão`}</span>}<ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} /><span>{`Olá, ${user.name.split(' ')[0]}!`}</span><button onClick={logout} disabled={busy}>{'Sair'}</button></div>
+      <Link className="customer-brand" href="/loja" aria-label="Foodie"><span className="customer-brand-mark"><Icon name="sparkle" /></span>foodie<span>.</span></Link>
+      <nav className="customer-nav" aria-label="Seções">
+        {nav.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href || (item.href === '/loja' && pathname.startsWith('/loja/restaurantes/')) ? 'active' : ''}><Icon name={item.icon} />{item.label}{item.href === '/loja/carrinho' && cartCount > 0 ? ` (${cartCount})` : ''}</Link>)}
+      </nav>
+      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString(timeLocale)}` : ''}>{connection === 'online' ? `● ao vivo` : `● sem conexão`}</span>}<ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} /><span className="customer-greeting">{`Olá, ${user.name.split(' ')[0]}!`}</span><button className="customer-logout" onClick={logout} disabled={busy}><Icon name="logout" /><span>{'Sair'}</span></button></div>
     </header>
-
-    <nav className="customer-nav" aria-label="Seções">
-      {nav.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href || (item.href === '/loja' && pathname.startsWith('/loja/restaurantes/')) ? 'active' : ''}><span aria-hidden="true">{item.icon}</span>{item.label}{item.href === '/loja/carrinho' && cartCount > 0 ? ` (${cartCount})` : ''}</Link>)}
-    </nav>
 
     <div className="customer-content">
       {(message || localMessage) && <div className="customer-notice" role="status">{message || localMessage}</div>}
       {children}
     </div>
 
-    {cartCount > 0 && pathname !== '/loja/carrinho' && <Link className="customer-cart-dock" href="/loja/carrinho"><span>{`${cartCount} no carrinho`}</span><strong>{money(subtotal + fee)} ↗</strong></Link>}
+    {cartCount > 0 && pathname !== '/loja/carrinho' && <Link className="customer-cart-dock" href="/loja/carrinho"><span>{`${cartCount} no carrinho`}</span><strong>{money(subtotal + fee)}<Icon name="arrow-right" /></strong></Link>}
   </main>;
 }
 
@@ -52,7 +52,7 @@ export default function LojaLayout({ children }: { children: React.ReactNode }) 
   }, [initializing, user, router]);
 
   if (initializing || !user || user.role !== 'customer') {
-    return <main className="app-loading" role="status"><span className="app-loading-brand">✦ foodie<span>.</span></span><p>{'Carregando...'}</p></main>;
+    return <main className="app-loading" role="status"><span className="app-loading-brand"><span className="app-loading-mark"><Icon name="sparkle" /></span>foodie<span>.</span></span><p>{'Carregando...'}</p></main>;
   }
 
   return <CustomerProvider><Shell>{children}</Shell></CustomerProvider>;

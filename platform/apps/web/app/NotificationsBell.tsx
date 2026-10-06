@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Icon } from './icons';
 
 type Item = { id: number; type: string; title: string; body: string; order_id: number | null; read_at: string | null; created_at: string };
 type Inbox = { unread: number; items: Item[] };
@@ -67,7 +68,7 @@ export default function NotificationsBell({ onOpenOrder }: { onOpenOrder?: (orde
 
   return <div className="notif">
     <button type="button" className="notif-button" onClick={() => { setOpen(!open); void load(); }} aria-label="Notificações">
-      🔔{inbox.unread > 0 && <span className="notif-badge">{inbox.unread > 9 ? '9+' : inbox.unread}</span>}
+      <Icon name="bell" size={18} />{inbox.unread > 0 && <span className="notif-badge">{inbox.unread > 9 ? '9+' : inbox.unread}</span>}
     </button>
     {open && <div className="notif-panel">
       <div className="notif-head"><strong>Notificações</strong><button type="button" onClick={markAll}>Marcar todas</button></div>

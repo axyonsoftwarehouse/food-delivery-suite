@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Icon } from './icons';
 
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false);
@@ -19,5 +20,5 @@ export default function ThemeToggle() {
     try { localStorage.setItem('foodie_theme', next ? 'dark' : 'light'); } catch { /* opcional */ }
   }
 
-  return <button className="text-button" type="button" onClick={toggle} aria-label={dark ? 'Tema claro' : 'Tema escuro'}>{dark ? '☀' : '☾'}</button>;
+  return <button className="ui-iconbtn" type="button" onClick={toggle} aria-label={dark ? 'Tema claro' : 'Tema escuro'}><Icon name={dark ? 'sun' : 'moon'} /></button>;
 }
