@@ -62,6 +62,64 @@ class StorageServiceTest {
     }
 
     @Test
+    void customerCannotUploadPublicCatalogImage() {
+        User customer = new User(5, "Cliente", "c@demo.local", "customer", null);
+        assertThatThrownBy(() -> service("local", 1_000_000, 2_000_000)
+            .upload(customer, "product", "foto.png", "image/png", new byte[]{1}))
+            .isInstanceOf(ApiException.class)
+            .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(403));
+    }
+
+    @Test
+    void catalogUploadMustBeImage() {
+        assertThatThrownBy(() -> service("local", 1_000_000, 2_000_000)
+            .upload(uploader, "product", "menu.pdf", "application/pdf", new byte[]{1}))
+            .isInstanceOf(ApiException.class)
+            .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(400));
+    }
+
+    @Test
+    void rejectsUnknownPurpose() {
+        assertThatThrownBy(() -> service("local", 1_000_000, 2_000_000)
+            .upload(uploader, "avatar", "foto.png", "image/png", new byte[]{1}))
+            .isInstanceOf(ApiException.class)
+            .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(400));
+    }
+
+    @Test
+    void enforcesDailyUploadLimit() {
+        when(repository.countUploadedSince(3L, 24)).thenReturn((long) StorageService.DAILY_UPLOAD_LIMIT);
+        assertThatThrownBy(() -> service("local", 1_000_000, 2_000_000)
+            .upload(uploader, "product", "foto.png", "image/png", new byte[]{1}))
+            .isInstanceOf(ApiException.class)
+            .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(429));
+    }
+
+    @Test
+    void privateFileOnlyForUploaderOrAdmin() {
+        FileRepository.FileRecord record = new FileRepository.FileRecord(10, "local", "x.pdf", "doc.pdf", "application/pdf", 3, "abc", 3L, "other", "2026-09-27T10:00:00Z");
+        when(repository.find(10)).thenReturn(Optional.of(record));
+        StorageService service = service("local", 1_000_000, 2_000_000);
+
+        assertThat(service.readable(uploader, 10)).isEqualTo(record);
+        assertThat(service.readable(new User(1, "Admin", "a@demo.local", "admin", null), 10)).isEqualTo(record);
+        for (User viewer : java.util.Arrays.asList(null, new User(4, "Outro", "outro@demo.local", "restaurant", 1L))) {
+            assertThatThrownBy(() -> service.readable(viewer, 10))
+                .isInstanceOf(ApiException.class)
+                .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(404));
+        }
+    }
+
+    @Test
+    void catalogImageIsPublic() {
+        FileRepository.FileRecord record = new FileRepository.FileRecord(11, "local", "x.png", "x.png", "image/png", 3, "abc", 3L, "product", "2026-09-27T10:00:00Z");
+        when(repository.find(11)).thenReturn(Optional.of(record));
+
+        assertThat(StorageService.isPublic(record)).isTrue();
+        assertThat(service("local", 1_000_000, 2_000_000).readable(null, 11)).isEqualTo(record);
+    }
+
+    @Test
     void onlyOwnerOrAdminCanDelete() {
         FileRepository.FileRecord record = new FileRepository.FileRecord(9, "local", "x.png", "x.png", "image/png", 3, "abc", 3L, "product", "2026-09-27T10:00:00Z");
         when(repository.find(9)).thenReturn(Optional.of(record));

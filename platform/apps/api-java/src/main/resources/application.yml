@@ -25,6 +25,8 @@ app:
       base-url: ${GOOGLE_BASE_URL:https://oauth2.googleapis.com}
     facebook:
       app-id: ${FACEBOOK_APP_ID:}
+      # Necessário para conferir que o token foi emitido para este app (debug_token + appsecret_proof).
+      app-secret: ${FACEBOOK_APP_SECRET:}
       base-url: ${FACEBOOK_BASE_URL:https://graph.facebook.com}
     otp:
       ttl-minutes: ${OTP_TTL_MINUTES:10}

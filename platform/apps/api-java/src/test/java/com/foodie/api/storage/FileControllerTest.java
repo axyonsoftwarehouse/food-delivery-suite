@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -60,6 +61,30 @@ class FileControllerTest {
 
         mvc.perform(get("/files/7"))
             .andExpect(status().isOk())
-            .andExpect(content().contentType("image/png"));
+            .andExpect(content().contentType("image/png"))
+            .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+    }
+
+    @Test
+    void privateFileHiddenFromOthers() throws Exception {
+        when(storage.record(8)).thenReturn(new FileRepository.FileRecord(8, "local", "x.pdf", "doc.pdf", "application/pdf", 2, "abc", 3L, "other", "2026-09-27T10:00:00Z"));
+        when(storage.readable(null, 8)).thenThrow(new ApiException(404, "Arquivo não encontrado"));
+
+        mvc.perform(get("/files/8")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void privateFileServedToUploaderWithoutCache() throws Exception {
+        User owner = new User(3, "Dono", "dono@demo.local", "restaurant", 1L);
+        FileRepository.FileRecord record = new FileRepository.FileRecord(8, "local", "x.pdf", "doc.pdf", "application/pdf", 2, "abc", 3L, "other", "2026-09-27T10:00:00Z");
+        when(auth.currentUser("s")).thenReturn(java.util.Optional.of(owner));
+        when(storage.record(8)).thenReturn(record);
+        when(storage.readable(owner, 8)).thenReturn(record);
+        when(storage.load(8)).thenReturn(new ByteArrayResource(new byte[]{1, 2}));
+
+        mvc.perform(get("/files/8").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Content-Disposition", "attachment"))
+            .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")));
     }
 }

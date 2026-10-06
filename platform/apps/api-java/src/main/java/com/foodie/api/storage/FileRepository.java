@@ -57,6 +57,12 @@ public class FileRepository {
         return rows.stream().findFirst();
     }
 
+    public long countUploadedSince(long uploaderId, int hours) {
+        Long count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM files WHERE uploaded_by = ? AND created_at > (NOW() - INTERVAL ? HOUR)", Long.class, uploaderId, hours);
+        return count == null ? 0 : count;
+    }
+
     public int delete(long id) {
         return jdbc.update("DELETE FROM files WHERE id = ?", id);
     }
