@@ -101,7 +101,8 @@ type AppValue = {
   requestOtp: () => Promise<void>;
   verifyOtp: (event: React.SyntheticEvent) => Promise<void>;
   refresh: (activeUser?: User | null) => Promise<void>;
-  run: (action: () => Promise<unknown>, success: string) => Promise<boolean>;
+  /** `success` pode ser uma função: a mensagem depende do que a ação devolveu (ex.: houve estorno). */
+  run: (action: () => Promise<unknown>, success: string | (() => string)) => Promise<boolean>;
   askReason: (title: string) => string | null;
   login: (event: React.FormEvent) => Promise<void>;
   signup: (event: React.FormEvent) => Promise<void>;
@@ -237,15 +238,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     document.title = pending ? `(${pending}) Foodie • Plataforma independente` : 'Foodie • Plataforma independente';
   }, [orders, user]);
 
-  async function run(action: () => Promise<unknown>, success: string) {
+  async function run(action: () => Promise<unknown>, success: string | (() => string)) {
     setBusy(true); setMessage('');
     try {
       await action();
-      setMessage(success);
+      const text = typeof success === 'function' ? success() : success;
+      setMessage(text);
       try { await refresh(user); }
       catch {
         setConnection('offline');
-        setMessage(`${success} Não foi possível recarregar os dados agora; use "Atualizar".`);
+        setMessage(`${text} Não foi possível recarregar os dados agora; use "Atualizar".`);
       }
       return true;
     } catch (error) {

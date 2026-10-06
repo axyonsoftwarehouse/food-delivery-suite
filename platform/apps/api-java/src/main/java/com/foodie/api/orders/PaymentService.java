@@ -115,6 +115,33 @@ public class PaymentService {
         } else if (!"admin".equals(actor.role())) {
             throw new ApiException(403, "Acesso não autorizado");
         }
+        return refundAsSystem(actor.id(), orderId, note);
+    }
+
+    /**
+     * Pedido pago online que deixa de existir (cancelado, recusado, expirado) devolve o dinheiro na hora,
+     * pela conta que cobrou — decisão de 06/10/2026. Falha no estorno sobe como exceção: quem chamou não
+     * muda o pedido, para nunca ficar cancelado com o dinheiro retido.
+     * @return true quando estornou; false quando não havia o que estornar (na entrega, pendente, já estornado).
+     */
+    @Transactional
+    public boolean refundIfPaidOnline(Long actorId, long orderId, String note) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT modality, status FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+        if (rows.isEmpty()) return false;
+        Map<String, Object> row = rows.getFirst();
+        // Na entrega o dinheiro ainda não foi recebido; pendente é cancelado por `cancelPending`.
+        if (!"online".equals(row.get("modality")) || !"paid".equals(row.get("status"))) return false;
+        refundAsSystem(actorId, orderId, note);
+        return true;
+    }
+
+    /**
+     * Estorno sem checagem de papel: quem chama já decidiu que pode estornar (o `refund` autorizado, ou o
+     * cancelamento/recusa/expiração do pedido). `actorId` nulo = ação do sistema (expiração automática).
+     */
+    @Transactional
+    public Map<String, Object> refundAsSystem(Long actorId, long orderId, String note) {
         List<Map<String, Object>> rows = jdbc.queryForList(
             "SELECT method, status, modality, provider, external_id, payment_account_id, provider_user_id, amount_received_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (rows.isEmpty()) throw new ApiException(404, "Pagamento não encontrado");
@@ -138,12 +165,12 @@ public class PaymentService {
             providerStatus = estorno.rawStatus();
         }
         int changed = jdbc.update("UPDATE order_payments SET status = 'refunded', note = ?, raw_status = COALESCE(?, raw_status), refunded_by = ?, refunded_at = NOW() WHERE order_id = ? AND status = 'paid'",
-            (trimmed == null || trimmed.isEmpty()) ? null : trimmed, providerStatus, actor.id(), orderId);
+            (trimmed == null || trimmed.isEmpty()) ? null : trimmed, providerStatus, actorId, orderId);
         if (changed == 0) throw new ApiException(409, "Só é possível estornar um pagamento confirmado");
         // Se o cliente tinha um pedido de reembolso aberto, ele já recebeu o dinheiro de volta: fechar como
         // aprovado evita deixá-lo "em análise" e obrigar a loja a "recusar" algo que já foi atendido.
         jdbc.update("UPDATE refunds SET status = 'approved', decided_by = ?, decided_at = NOW(), decided_note = ? WHERE order_id = ? AND status = 'requested'",
-            actor.id(), "Pagamento estornado diretamente", orderId);
+            actorId, "Pagamento estornado diretamente", orderId);
         ledger.reverseOrder(orderId);
         java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("orderId", orderId);

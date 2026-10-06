@@ -231,4 +231,88 @@ class PaymentServiceTest {
         });
         assertEquals(409, assertThrows(ApiException.class, () -> service.refund(admin, 1, "pedido de teste")).status());
     }
+
+    @Test
+    void automaticRefundSkipsPaymentOnDelivery() {
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("status", "paid"); row.put("modality", "on_delivery"); row.put("method", "cash");
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
+
+        assertEquals(false, service.refundIfPaidOnline(1L, 1, "Estorno automático: pedido cancelado pelo cliente"));
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
+        verify(gateways, Mockito.never()).resolve(any());
+        verify(ledger, Mockito.never()).reverseOrder(Mockito.anyLong());
+    }
+
+    @Test
+    void automaticRefundSkipsPendingOnlinePayment() {
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("status", "pending"); row.put("modality", "online"); row.put("method", "pix");
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
+
+        assertEquals(false, service.refundIfPaidOnline(1L, 1, "Estorno automático: pedido expirado"));
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
+        verify(gateways, Mockito.never()).resolve(any());
+    }
+
+    @Test
+    void automaticRefundSkipsPaymentAlreadyRefundedAtTheProvider() {
+        // Nova tentativa depois de o provedor já ter estornado (o webhook marcou `refunded`): não chama o
+        // provedor de novo e deixa o cancelamento seguir.
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("status", "refunded"); row.put("modality", "online"); row.put("method", "pix");
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
+
+        assertEquals(false, service.refundIfPaidOnline(8L, 1, "Estorno automático: pedido cancelado pelo cliente"));
+        verify(gateways, Mockito.never()).resolve(any());
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
+        verify(ledger, Mockito.never()).reverseOrder(Mockito.anyLong());
+    }
+
+    @Test
+    void automaticRefundSkipsOrderWithoutPayment() {
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        assertEquals(false, service.refundIfPaidOnline(null, 1, "Estorno automático: pedido expirado sem aceite"));
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void automaticRefundReturnsPaidOnlineMoneyThroughTheProvider() {
+        storedOnlinePayment();
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(new com.foodie.api.payments.accounts.MerchantCredentials(9, 3, "t", "pk", "3588446200")));
+        when(gateways.resolve("mercadopago")).thenReturn(gateway);
+        when(gateway.refund(any(), eq("ORDTST01ABC"), eq("refund-order-1"))).thenReturn(
+            new com.foodie.api.payments.PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        assertEquals(true, service.refundIfPaidOnline(7L, 1, "Estorno automático: pedido cancelado pelo cliente"));
+
+        org.mockito.InOrder ordem = Mockito.inOrder(gateway, jdbc, ledger);
+        ordem.verify(gateway).refund(any(), eq("ORDTST01ABC"), eq("refund-order-1"));
+        ordem.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("status = 'refunded'"), eq("Estorno automático: pedido cancelado pelo cliente"), eq("refunded"), eq(7L), eq(1L));
+        ordem.verify(ledger).reverseOrder(1);
+    }
+
+    @Test
+    void expiryRefundRecordsNoActor() {
+        storedOnlinePayment();
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(new com.foodie.api.payments.accounts.MerchantCredentials(9, 3, "t", "pk", "3588446200")));
+        when(gateways.resolve("mercadopago")).thenReturn(gateway);
+        when(gateway.refund(any(), anyString(), anyString())).thenReturn(
+            new com.foodie.api.payments.PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        assertEquals(true, service.refundIfPaidOnline(null, 1, "Estorno automático: pedido expirado sem aceite"));
+        verify(jdbc).update(org.mockito.ArgumentMatchers.contains("status = 'refunded'"), eq("Estorno automático: pedido expirado sem aceite"), eq("refunded"), org.mockito.ArgumentMatchers.isNull(), eq(1L));
+    }
+
+    @Test
+    void automaticRefundFailureSurfaces() {
+        storedOnlinePayment();
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.empty());
+
+        assertEquals(409, assertThrows(ApiException.class, () -> service.refundIfPaidOnline(7L, 1, "Estorno automático: pedido cancelado pelo cliente")).status());
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
+    }
 }

@@ -534,7 +534,12 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   async function cancelOrder(orderId: number) {
     const value = window.prompt('Motivo do cancelamento:') ?? '';
     if (value.trim().length < 3) { setLocalMessage('Informe um motivo com pelo menos 3 caracteres.'); return; }
-    await app.run(() => request(`/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'cancel', reason: value.trim() }) }), 'Pedido cancelado.');
+    // A API diz se houve estorno automático (pagamento online já pago); só então prometemos o dinheiro de volta.
+    let refunded = false;
+    await app.run(async () => {
+      const result = await request<{ paymentRefunded?: boolean }>(`/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'cancel', reason: value.trim() }) });
+      refunded = result?.paymentRefunded === true;
+    }, () => (refunded ? 'Pedido cancelado. O pagamento foi estornado.' : 'Pedido cancelado.'));
   }
 
   useEffect(() => {

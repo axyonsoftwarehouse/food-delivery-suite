@@ -20,15 +20,25 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class OrderService {
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
     private final PostalCoverageService postalCoverage;
@@ -42,8 +52,25 @@ public class OrderService {
     private final LedgerService ledger;
     private final RewardsService rewards;
     private final SupportActionService support;
+    private final TransactionOperations expiryTx;
 
-    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards, SupportActionService support) {
+    @Autowired
+    public OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards, SupportActionService support,
+                        ObjectProvider<PlatformTransactionManager> transactions) {
+        // Gerenciador resolvido só na hora de expirar (como no PaymentAccountService): o contexto sem banco
+        // do OpenApiDumpTest não tem gerenciador de transação.
+        this(jdbc, namedJdbc, postalCoverage, hours, payments, delivery, notifications, addonService, couponService, campaignService, ledger, rewards, support,
+            lazyExpiryTransaction(transactions));
+    }
+
+    OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards, SupportActionService support) {
+        this(jdbc, namedJdbc, postalCoverage, hours, payments, delivery, notifications, addonService, couponService, campaignService, ledger, rewards, support,
+            TransactionOperations.withoutTransaction());
+    }
+
+    OrderService(JdbcTemplate jdbc, NamedParameterJdbcTemplate namedJdbc, PostalCoverageService postalCoverage, RestaurantHoursService hours, PaymentService payments, DeliveryService delivery, NotificationService notifications, AddonService addonService, CouponService couponService, CampaignService campaignService, LedgerService ledger, RewardsService rewards, SupportActionService support,
+                 TransactionOperations expiryTx) {
+        this.expiryTx = expiryTx;
         this.jdbc = jdbc;
         this.namedJdbc = namedJdbc;
         this.postalCoverage = postalCoverage;
@@ -424,6 +451,20 @@ public class OrderService {
         if ("deliver".equals(action) && !"paid".equals(payments.status(orderId))) {
             throw new ApiException(409, "Confirme o recebimento do pagamento antes de concluir a entrega");
         }
+        // Adendo de 06/10/2026: pedido pago online que é cancelado/recusado devolve o dinheiro ANTES de mudar
+        // o status. Se o estorno falhar, a exceção desfaz a transação e o pedido fica como estava — nunca
+        // cancelado com o dinheiro retido. `failed` fica de fora: segue para o reembolso decidido pela loja.
+        String refundNote = automaticRefundNote(next, user.role());
+        boolean paymentRefunded;
+        try {
+            paymentRefunded = refundNote != null && payments.refundIfPaidOnline(user.id(), orderId, refundNote);
+        } catch (ApiException refundFailure) {
+            // A mensagem original orienta a loja/suporte ("estorne pelo painel do Mercado Pago"); para o
+            // cliente ela não serve. Ele recebe uma mensagem própria e a original vai para o log.
+            if (!"customer".equals(user.role())) throw refundFailure;
+            log.warn("Estorno automático do pedido #{} falhou no cancelamento pelo cliente: {}", orderId, refundFailure.getMessage());
+            throw new ApiException(409, "Não foi possível estornar o pagamento agora. Tente de novo em instantes ou fale com a loja.");
+        }
         if ("assign".equals(action)) {
             if (courierId == null || courierId < 1) throw new ApiException(400, "Selecione um entregador");
             Integer courier = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier' AND suspended_at IS NULL AND courier_approved_at IS NOT NULL", rs -> rs.next() ? 1 : null, courierId);
@@ -446,7 +487,42 @@ public class OrderService {
         result.put("id", orderId);
         result.put("status", next);
         if ("assign".equals(action)) result.put("courierId", courierId);
+        // A tela do cliente avisa que o dinheiro voltou só quando houve estorno de fato.
+        if (paymentRefunded) result.put("paymentRefunded", true);
         return result;
+    }
+
+    private static String automaticRefundNote(String next, String role) {
+        return switch (next) {
+            case "cancelled" -> switch (role) {
+                case "customer" -> "Estorno automático: pedido cancelado pelo cliente";
+                case "admin" -> "Estorno automático: pedido cancelado pelo suporte";
+                case "restaurant", "kitchen" -> "Estorno automático: pedido cancelado pela loja";
+                default -> "Estorno automático: pedido cancelado";
+            };
+            case "rejected" -> "Estorno automático: pedido recusado pela loja";
+            // `expired` não chega aqui: nenhuma ação do OrderWorkflow leva a ele; quem expira é `expireOne`.
+            default -> null;
+        };
+    }
+
+    /**
+     * Cada pedido vencido expira na sua PRÓPRIA transação (REQUIRES_NEW): a falha no estorno de um pedido
+     * desfaz só ele, e nada marca como rollback-only uma transação de quem chamou a leitura.
+     */
+    static TransactionTemplate expiryTransaction(PlatformTransactionManager transactions) {
+        TransactionTemplate template = new TransactionTemplate(transactions);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template;
+    }
+
+    private static TransactionOperations lazyExpiryTransaction(ObjectProvider<PlatformTransactionManager> transactions) {
+        return new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> action) {
+                return expiryTransaction(transactions.getObject()).execute(action);
+            }
+        };
     }
 
     private void notifyTransition(Map<String, Object> order, long orderId, String next, Long courierId) {
@@ -463,13 +539,44 @@ public class OrderService {
         }
     }
 
-    private void expireStale() {        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())", (rs, row) -> rs.getLong(1));
+    private void expireStale() {
+        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())", (rs, row) -> rs.getLong(1));
         for (Long id : stale) {
-            if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
-                payments.cancelPending(id);
-                jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
+            try {
+                expiryTx.executeWithoutResult(status -> expireOne(id));
+            } catch (RuntimeException error) {
+                // Estorno falhou: a transação deste pedido foi desfeita, ele continua `placed` e a próxima
+                // leitura tenta de novo — a chave `refund-order-<id>` no provedor torna a repetição segura.
+                // Um pedido com problema não trava a expiração dos outros.
+                log.warn("Pedido #{} não expirou: estorno automático falhou ({})", id, error.getMessage());
             }
         }
+    }
+
+    private void expireOne(long id) {
+        // Trava a linha do pedido e relê: entre a busca dos vencidos e aqui a loja pode ter aceitado. Como
+        // `changeStatus` também trava a linha com FOR UPDATE, aceitar e expirar não se intercalam mais —
+        // nunca fica pedido aceito com o pagamento estornado. O prazo é recalculado pelo relógio do banco,
+        // o mesmo da busca acima.
+        // SKIP LOCKED: a expiração roda dentro das leituras (lista, histórico, detalhe) e quem segura a linha
+        // pode estar no meio da chamada ao Mercado Pago (cancelamento com estorno). Esperar a trava empilharia
+        // leituras no pool de 8 conexões; linha travada volta vazia e fica para a próxima leitura.
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT status, created_at, scheduled_at, (created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())) AS due FROM orders WHERE id = ? FOR UPDATE SKIP LOCKED", id);
+        if (rows.isEmpty()) return;
+        Map<String, Object> order = rows.getFirst();
+        if (!"placed".equals(order.get("status")) || !truthy(order.get("due"))) return;
+        // Pago online e sem aceite: estorna antes de expirar, na mesma transação.
+        payments.refundIfPaidOnline(null, id, "Estorno automático: pedido expirado sem aceite");
+        if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
+            payments.cancelPending(id);
+            jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
+        }
+    }
+
+    private static boolean truthy(Object value) {
+        if (value instanceof Boolean flag) return flag;
+        return value instanceof Number number && number.intValue() != 0;
     }
 
     private static void checkAccess(User user, Map<String, Object> order) {
