@@ -31,6 +31,7 @@ class OnlinePaymentServiceTest {
     private final com.foodie.api.finance.LedgerService ledger = mock(com.foodie.api.finance.LedgerService.class);
     private final com.foodie.api.payments.accounts.PaymentAccountService accounts = mock(com.foodie.api.payments.accounts.PaymentAccountService.class);
     private final com.foodie.api.payments.accounts.MerchantCredentials loja = new com.foodie.api.payments.accounts.MerchantCredentials(9, 3, "token-da-loja", "pk", "3588446200");
+    private final com.foodie.api.orders.PaymentService orderPayments = mock(com.foodie.api.orders.PaymentService.class);
     private final User customer = new User(7, "Cliente", "cliente@demo.local", "customer", null);
     private final User stranger = new User(9, "Outro", "outro@demo.local", "customer", null);
 
@@ -38,7 +39,7 @@ class OnlinePaymentServiceTest {
     private final Map<String, Object> payment = new LinkedHashMap<>();
 
     private OnlinePaymentService service(boolean allowDirectOnlineCharges) {
-        return new OnlinePaymentService(jdbc, gateways, ledger, accounts, allowDirectOnlineCharges);
+        return new OnlinePaymentService(jdbc, gateways, ledger, accounts, orderPayments, allowDirectOnlineCharges);
     }
 
     @BeforeEach
@@ -282,6 +283,49 @@ class OnlinePaymentServiceTest {
 
         assertEquals("refunded", service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("already"));
         verify(ledger, never()).reverseOrder(org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    private static final String LATE_PAID_NOTE = "Estorno automático: pagamento aprovado após o cancelamento do pedido";
+
+    @Test
+    void latePaidOnACancelledOrderIsRecordedAndRefunded() {
+        // Pix pago depois de o pedido morrer: sem isto o dinheiro ficava retido num pedido cancelado.
+        payment.put("order_status", "cancelled");
+        when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200");
+
+        org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(jdbc, orderPayments);
+        ordem.verify(jdbc).update(argThat(sql -> sql != null && sql.startsWith("UPDATE order_payments SET status = ?")), eq("paid"), any(), any(), any(), any(), any());
+        ordem.verify(orderPayments).refundIfPaidOnline(null, 1L, LATE_PAID_NOTE);
+    }
+
+    @Test
+    void latePaidOnRejectedOrExpiredOrderIsRefunded() {
+        for (String dead : List.of("rejected", "expired")) {
+            payment.put("order_status", dead);
+            when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
+            service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200");
+        }
+        verify(orderPayments, org.mockito.Mockito.times(2)).refundIfPaidOnline(null, 1L, LATE_PAID_NOTE);
+    }
+
+    @Test
+    void paidOnAnActiveOrderIsNotRefunded() {
+        payment.put("order_status", "placed");
+        when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        assertEquals("paid", service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("status"));
+        verify(orderPayments, never()).refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString());
+    }
+
+    @Test
+    void failedLateRefundFailsTheWebhookSoTheProviderRetries() {
+        payment.put("order_status", "cancelled");
+        when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
+        when(orderPayments.refundIfPaidOnline(null, 1L, LATE_PAID_NOTE)).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
+
+        assertThrows(ApiException.class, () -> service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200"));
     }
 
     @Test

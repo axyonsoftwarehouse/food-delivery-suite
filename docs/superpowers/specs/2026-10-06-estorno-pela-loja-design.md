@@ -68,3 +68,9 @@ vai para `cancelled` (cliente ou suporte), `rejected` (loja) ou `expired` (15 mi
 - `failed` (falha na entrega) fica fora: segue para reembolso decidido pela loja.
 - A nota do pagamento registra o motivo (ex.: "Estorno automático: pedido cancelado pelo cliente");
   `refunded_by` = quem fez a ação (nulo na expiração). Pedido de reembolso aberto é fechado como hoje.
+- A cozinha (`kitchen`) também pode recusar um pedido `placed` (`OrderWorkflow`), e essa recusa estorna
+  automaticamente como a da loja — intencional: o pedido não vai ser preparado.
+- Pagamento aprovado **depois** de o pedido morrer (ex.: Pix pago após cancelar, recusar ou expirar): o
+  webhook registra o pagamento como pago e, na mesma transação, estorna automaticamente ("Estorno
+  automático: pagamento aprovado após o cancelamento do pedido"). Se esse estorno falhar, o webhook
+  responde erro e o Mercado Pago reenvia a notificação.

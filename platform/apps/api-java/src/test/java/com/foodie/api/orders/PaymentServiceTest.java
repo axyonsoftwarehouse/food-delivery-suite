@@ -256,6 +256,20 @@ class PaymentServiceTest {
     }
 
     @Test
+    void automaticRefundSkipsPaymentAlreadyRefundedAtTheProvider() {
+        // Nova tentativa depois de o provedor já ter estornado (o webhook marcou `refunded`): não chama o
+        // provedor de novo e deixa o cancelamento seguir.
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("status", "refunded"); row.put("modality", "online"); row.put("method", "pix");
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
+
+        assertEquals(false, service.refundIfPaidOnline(8L, 1, "Estorno automático: pedido cancelado pelo cliente"));
+        verify(gateways, Mockito.never()).resolve(any());
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
+        verify(ledger, Mockito.never()).reverseOrder(Mockito.anyLong());
+    }
+
+    @Test
     void automaticRefundSkipsOrderWithoutPayment() {
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
 

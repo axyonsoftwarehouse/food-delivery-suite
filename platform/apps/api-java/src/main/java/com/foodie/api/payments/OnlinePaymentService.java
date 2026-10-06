@@ -20,6 +20,8 @@ public class OnlinePaymentService {
     private static final Set<String> METHODS = Set.of("pix", "card");
     /** Valores aceitos pela coluna status de order_payments. */
     private static final Set<String> STATUSES = Set.of("pending", "paid", "cancelled", "refunded", "rejected", "expired");
+    /** Pedidos que não vão mais ser preparados: pagamento que chega depois é devolvido na hora. */
+    private static final Set<String> DEAD_ORDER = Set.of("cancelled", "rejected", "expired");
     private static final Set<String> CLOSED_ORDER = Set.of("delivered", "rejected", "cancelled", "expired", "failed");
     /** TLDs reservados (RFC 6761/2606) e de rede interna: o Mercado Pago recusa como email do pagador. */
     private static final Set<String> TLDS_RESERVADOS = Set.of("local", "localhost", "test", "invalid", "example", "internal", "lan", "home");
@@ -28,15 +30,17 @@ public class OnlinePaymentService {
     private final PaymentGatewayRegistry gateways;
     private final com.foodie.api.finance.LedgerService ledger;
     private final PaymentAccountService accounts;
+    private final com.foodie.api.orders.PaymentService orderPayments;
     private final boolean allowDirectOnlineCharges;
 
     public OnlinePaymentService(JdbcTemplate jdbc, PaymentGatewayRegistry gateways, com.foodie.api.finance.LedgerService ledger,
-                                PaymentAccountService accounts,
+                                PaymentAccountService accounts, com.foodie.api.orders.PaymentService orderPayments,
                                 @Value("${app.payments.allow-direct-online-charges:false}") boolean allowDirectOnlineCharges) {
         this.jdbc = jdbc;
         this.gateways = gateways;
         this.ledger = ledger;
         this.accounts = accounts;
+        this.orderPayments = orderPayments;
         this.allowDirectOnlineCharges = allowDirectOnlineCharges;
     }
 
@@ -164,7 +168,7 @@ public class OnlinePaymentService {
         try { orderId = Long.parseLong(charge.externalReference()); } catch (NumberFormatException error) { return Map.of("ok", true, "ignored", true); }
 
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT p.status, p.amount_due_cents, o.restaurant_id FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE", orderId);
+            "SELECT p.status, p.amount_due_cents, o.restaurant_id, o.status AS order_status FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE", orderId);
         if (rows.isEmpty()) return Map.of("ok", true, "ignored", true);
         Map<String, Object> row = rows.getFirst();
         long restaurantId = ((Number) row.get("restaurant_id")).longValue();
@@ -194,6 +198,12 @@ public class OnlinePaymentService {
         }
         jdbc.update("UPDATE order_payments SET status = ?, raw_status = ?, external_id = ?, note = ?, confirmed_at = IF(? = 'paid', NOW(), confirmed_at) WHERE order_id = ?",
             next, charge.rawStatus(), charge.externalId(), note, next, orderId);
+        // Pagamento aprovado depois de o pedido morrer (Pix pago após cancelar, recusar ou expirar): registra
+        // como pago e devolve na mesma transação. Se o estorno falhar, a exceção desfaz tudo e o webhook
+        // responde 5xx — o Mercado Pago reenvia e tentamos de novo.
+        if ("paid".equals(next) && row.get("order_status") instanceof String orderStatus && DEAD_ORDER.contains(orderStatus)) {
+            orderPayments.refundIfPaidOnline(null, orderId, "Estorno automático: pagamento aprovado após o cancelamento do pedido");
+        }
         return Map.of("ok", true, "orderId", orderId, "status", next);
     }
 

@@ -455,7 +455,16 @@ public class OrderService {
         // o status. Se o estorno falhar, a exceção desfaz a transação e o pedido fica como estava — nunca
         // cancelado com o dinheiro retido. `failed` fica de fora: segue para o reembolso decidido pela loja.
         String refundNote = automaticRefundNote(next, user.role());
-        boolean paymentRefunded = refundNote != null && payments.refundIfPaidOnline(user.id(), orderId, refundNote);
+        boolean paymentRefunded;
+        try {
+            paymentRefunded = refundNote != null && payments.refundIfPaidOnline(user.id(), orderId, refundNote);
+        } catch (ApiException refundFailure) {
+            // A mensagem original orienta a loja/suporte ("estorne pelo painel do Mercado Pago"); para o
+            // cliente ela não serve. Ele recebe uma mensagem própria e a original vai para o log.
+            if (!"customer".equals(user.role())) throw refundFailure;
+            log.warn("Estorno automático do pedido #{} falhou no cancelamento pelo cliente: {}", orderId, refundFailure.getMessage());
+            throw new ApiException(409, "Não foi possível estornar o pagamento agora. Tente de novo em instantes ou fale com a loja.");
+        }
         if ("assign".equals(action)) {
             if (courierId == null || courierId < 1) throw new ApiException(400, "Selecione um entregador");
             Integer courier = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier' AND suspended_at IS NULL AND courier_approved_at IS NOT NULL", rs -> rs.next() ? 1 : null, courierId);
@@ -492,7 +501,7 @@ public class OrderService {
                 default -> "Estorno automático: pedido cancelado";
             };
             case "rejected" -> "Estorno automático: pedido recusado pela loja";
-            case "expired" -> "Estorno automático: pedido expirado";
+            // `expired` não chega aqui: nenhuma ação do OrderWorkflow leva a ele; quem expira é `expireOne`.
             default -> null;
         };
     }
@@ -549,8 +558,11 @@ public class OrderService {
         // `changeStatus` também trava a linha com FOR UPDATE, aceitar e expirar não se intercalam mais —
         // nunca fica pedido aceito com o pagamento estornado. O prazo é recalculado pelo relógio do banco,
         // o mesmo da busca acima.
+        // SKIP LOCKED: a expiração roda dentro das leituras (lista, histórico, detalhe) e quem segura a linha
+        // pode estar no meio da chamada ao Mercado Pago (cancelamento com estorno). Esperar a trava empilharia
+        // leituras no pool de 8 conexões; linha travada volta vazia e fica para a próxima leitura.
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT status, created_at, scheduled_at, (created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())) AS due FROM orders WHERE id = ? FOR UPDATE", id);
+            "SELECT status, created_at, scheduled_at, (created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())) AS due FROM orders WHERE id = ? FOR UPDATE SKIP LOCKED", id);
         if (rows.isEmpty()) return;
         Map<String, Object> order = rows.getFirst();
         if (!"placed".equals(order.get("status")) || !truthy(order.get("due"))) return;

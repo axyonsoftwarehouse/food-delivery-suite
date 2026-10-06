@@ -119,11 +119,48 @@ class OrderServiceTest {
             .thenThrow(new ApiException(409, "A loja desconectou o Mercado Pago. Estorne pelo painel do Mercado Pago ou reconecte a conta."));
 
         assertThatThrownBy(() -> orders.changeStatus(CUSTOMER, 40, "cancel", null, "mudei de ideia"))
-            .isInstanceOf(ApiException.class)
-            .hasMessage("A loja desconectou o Mercado Pago. Estorne pelo painel do Mercado Pago ou reconecte a conta.");
+            .isInstanceOf(ApiException.class);
 
         verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.startsWith("UPDATE orders SET status"), any(Object[].class));
         verify(payments, org.mockito.Mockito.never()).cancelPending(org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void customerSeesAFriendlyMessageWhenTheAutomaticRefundFails() {
+        // "Estorne pelo painel do Mercado Pago" é instrução para a loja; o cliente não tem o que fazer com ela.
+        storedOrder(40, "placed");
+        when(payments.refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString()))
+            .thenThrow(new ApiException(409, "A loja desconectou o Mercado Pago. Estorne pelo painel do Mercado Pago ou reconecte a conta."));
+
+        assertThatThrownBy(() -> orders.changeStatus(CUSTOMER, 40, "cancel", null, "mudei de ideia"))
+            .isInstanceOf(ApiException.class)
+            .hasMessage("Não foi possível estornar o pagamento agora. Tente de novo em instantes ou fale com a loja.")
+            .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(409));
+    }
+
+    @Test
+    void storeKeepsTheOriginalMessageWhenTheAutomaticRefundFails() {
+        storedOrder(40, "placed");
+        when(payments.refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString()))
+            .thenThrow(new ApiException(409, "A loja desconectou o Mercado Pago. Estorne pelo painel do Mercado Pago ou reconecte a conta."));
+
+        assertThatThrownBy(() -> orders.changeStatus(RESTAURANT, 40, "reject", null, "sem ingrediente"))
+            .isInstanceOf(ApiException.class)
+            .hasMessage("A loja desconectou o Mercado Pago. Estorne pelo painel do Mercado Pago ou reconecte a conta.");
+    }
+
+    @Test
+    void retryAfterTheProviderAlreadyRefundedCancelsNormally() {
+        // Primeira tentativa estornou no provedor mas falhou depois; o webhook marcou `refunded`. Na nova
+        // tentativa não há o que estornar (`refundIfPaidOnline` devolve false) e o cancelamento segue.
+        storedOrder(40, "placed");
+        when(payments.refundIfPaidOnline(8L, 40L, "Estorno automático: pedido cancelado pelo cliente")).thenReturn(false);
+
+        Map<String, Object> result = orders.changeStatus(CUSTOMER, 40, "cancel", null, "mudei de ideia");
+
+        assertThat(result).containsEntry("status", "cancelled").doesNotContainKey("paymentRefunded");
+        verify(jdbc).update("UPDATE orders SET status = ? WHERE id = ?", "cancelled", 40L);
+        verify(payments).cancelPending(40L);
     }
 
     @Test
@@ -166,9 +203,23 @@ class OrderServiceTest {
 
         orders.list(ADMIN);
 
-        verify(jdbc).queryForList(org.mockito.ArgumentMatchers.endsWith("FROM orders WHERE id = ? FOR UPDATE"), eq(41L));
+        verify(jdbc).queryForList(org.mockito.ArgumentMatchers.endsWith("FROM orders WHERE id = ? FOR UPDATE SKIP LOCKED"), eq(41L));
         verify(payments, org.mockito.Mockito.never()).refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString());
         verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.contains("'expired'"), any(Object[].class));
+    }
+
+    @Test
+    void expirySkipsAnOrderLockedBySomeoneElse() {
+        // SKIP LOCKED: outra transação (aceite, cancelamento com estorno no Mercado Pago) segura a linha e a
+        // releitura volta vazia — fica para a próxima leitura, sem estornar nem expirar.
+        staleOrders(41L);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT status, created_at, scheduled_at"), any(Object[].class))).thenReturn(List.of());
+
+        orders.list(ADMIN);
+
+        verify(payments, org.mockito.Mockito.never()).refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString());
+        verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.contains("'expired'"), any(Object[].class));
+        verify(payments, org.mockito.Mockito.never()).cancelPending(org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
