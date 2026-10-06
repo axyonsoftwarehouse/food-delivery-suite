@@ -1,5 +1,7 @@
 package com.foodie.api.orders;
 
+import com.foodie.api.admin.AdminPermissions;
+import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.PermissionService;
@@ -26,12 +28,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class OrderController {
+    private final AdminPermissionService adminPermissions;
     private final AuthService auth;
     private final OrderService orders;
     private final JdbcTemplate jdbc;
     private final PermissionService permissions;
 
-    public OrderController(AuthService auth, OrderService orders, JdbcTemplate jdbc, PermissionService permissions) {
+    public OrderController(AuthService auth, OrderService orders, JdbcTemplate jdbc, PermissionService permissions, AdminPermissionService adminPermissions) {
+        this.adminPermissions = adminPermissions;
         this.auth = auth;
         this.orders = orders;
         this.jdbc = jdbc;
@@ -69,12 +73,14 @@ public class OrderController {
                                             @PathVariable @Positive long id,
                                             @Valid @RequestBody StatusRequest request) {
         User user = auth.requireUser(token);
+        adminPermissions.requireIfAdmin(user, AdminPermissions.ORDERS_MANAGE);
         requireKitchenAction(user, request.action());
         return orders.changeStatus(user, id, request.action(), request.courierId(), request.reason());
     }
 
     private User viewer(String token) {
         User user = auth.requireUser(token);
+        adminPermissions.requireIfAdmin(user, AdminPermissions.ORDERS_MANAGE, AdminPermissions.SUPPORT_VIEW);
         if ("restaurant".equals(user.role()) || "kitchen".equals(user.role())) {
             permissions.require(user, Permissions.ORDERS_VIEW);
         }
@@ -94,7 +100,7 @@ public class OrderController {
 
     @GetMapping("/admin/couriers")
     public List<Map<String, Object>> couriers(@CookieValue(value = "foodie_session", required = false) String token) {
-        auth.requireUser(token, "admin");
+        adminPermissions.require(auth.requireUser(token, "admin"), AdminPermissions.ORDERS_MANAGE, AdminPermissions.COURIERS_MANAGE);
         return jdbc.queryForList("SELECT id, name, email, suspended_at IS NOT NULL AS suspended, courier_approved_at IS NOT NULL AS approved FROM users WHERE role = 'courier' ORDER BY name");
     }
 

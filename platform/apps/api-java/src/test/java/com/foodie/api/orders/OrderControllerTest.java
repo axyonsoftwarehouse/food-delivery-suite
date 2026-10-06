@@ -2,6 +2,7 @@ package com.foodie.api.orders;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -10,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.admin.AdminPermissionService;
+import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.PermissionService;
@@ -39,6 +42,9 @@ class OrderControllerTest {
 
     @MockitoBean
     private PermissionService permissions;
+
+    @MockitoBean
+    private AdminPermissionService adminPermissions;
 
     @Test
     void unauthenticatedRequestGetsPrototypeError() throws Exception {
@@ -77,5 +83,22 @@ class OrderControllerTest {
         mvc.perform(get("/orders/lookup").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")).param("id", "0"))
             .andExpect(status().isBadRequest());
         org.mockito.Mockito.verify(permissions, org.mockito.Mockito.atLeastOnce()).require(restaurant, com.foodie.api.permissions.Permissions.ORDERS_VIEW);
+    }
+
+    @Test
+    void restrictedAdminCannotViewOrChangeOrders() throws Exception {
+        User admin = new User(1, "Conteúdo", "conteudo@demo.local", "admin", null);
+        when(auth.requireUser("session")).thenReturn(admin);
+        doThrow(new ApiException(403, "Acesso não autorizado")).when(adminPermissions)
+            .requireIfAdmin(admin, AdminPermissions.ORDERS_MANAGE, AdminPermissions.SUPPORT_VIEW);
+        doThrow(new ApiException(403, "Acesso não autorizado")).when(adminPermissions)
+            .requireIfAdmin(admin, AdminPermissions.ORDERS_MANAGE);
+
+        mvc.perform(get("/orders").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")))
+            .andExpect(status().isForbidden());
+        mvc.perform(patch("/orders/12/status").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"action\":\"cancel\",\"reason\":\"teste\"}"))
+            .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(orders);
     }
 }

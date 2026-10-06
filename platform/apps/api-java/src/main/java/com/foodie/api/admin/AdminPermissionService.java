@@ -31,6 +31,14 @@ public class AdminPermissionService {
         return effective(user).contains(permission);
     }
 
+    /**
+     * Para rotas compartilhadas por vários papéis (cliente, loja, entregador e admin): só o admin precisa de
+     * uma das permissões. Sem isto, um admin com papel restrito fazia nessas rotas tudo o que o papel negava.
+     */
+    public void requireIfAdmin(User user, String... permissions) {
+        if ("admin".equals(user.role())) require(user, permissions);
+    }
+
     public void require(User user, String... permissions) {
         Set<String> current = effective(user);
         for (String permission : permissions) {

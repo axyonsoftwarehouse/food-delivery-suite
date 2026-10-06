@@ -1,5 +1,7 @@
 package com.foodie.api.routing;
 
+import com.foodie.api.admin.AdminPermissions;
+import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
@@ -17,12 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 @Validated
 @RestController
 public class DeliveryController {
+    private final AdminPermissionService adminPermissions;
     private final AuthService auth;
     private final JdbcTemplate jdbc;
     private final DeliveryService delivery;
     private final GeocodingService geocoding;
 
-    public DeliveryController(AuthService auth, JdbcTemplate jdbc, DeliveryService delivery, GeocodingService geocoding) {
+    public DeliveryController(AuthService auth, JdbcTemplate jdbc, DeliveryService delivery, GeocodingService geocoding, AdminPermissionService adminPermissions) {
+        this.adminPermissions = adminPermissions;
         this.auth = auth;
         this.jdbc = jdbc;
         this.delivery = delivery;
@@ -34,6 +38,7 @@ public class DeliveryController {
                                         @RequestParam @Positive long addressId,
                                         @RequestParam @Positive long restaurantId) {
         User user = auth.requireUser(token, "customer", "admin");
+        adminPermissions.requireIfAdmin(user, AdminPermissions.ORDERS_MANAGE);
         List<Map<String, Object>> addresses = jdbc.queryForList(
             "SELECT a.id, a.user_id, a.latitude, a.longitude, z.delivery_fee_cents, z.base_fee_cents, z.per_km_cents "
                 + "FROM addresses a JOIN zones z ON z.id = a.zone_id AND z.active = TRUE WHERE a.id = ?", addressId);

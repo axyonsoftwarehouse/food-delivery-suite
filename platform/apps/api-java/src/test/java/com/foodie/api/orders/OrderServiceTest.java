@@ -284,4 +284,24 @@ class OrderServiceTest {
         // Um pedido com estorno falho não trava a expiração dos outros.
         verify(jdbc).update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", 42L);
     }
+
+    // Hora do datetime-local é a da loja (Fortaleza, UTC-3). Às 18:00 locais (21:00 UTC), agendar para 19:00
+    // locais é daqui a 1h — antes o servidor comparava 19:00 com 21:00 UTC e recusava.
+    @Test
+    void scheduleUsesTheRestaurantTimezone() {
+        java.time.Instant now = java.time.Instant.parse("2026-10-06T21:00:00Z");
+        long delay = OrderService.scheduleDelaySeconds(java.time.LocalDateTime.parse("2026-10-06T19:00"),
+            java.time.ZoneId.of("America/Fortaleza"), now);
+        assertThat(delay).isEqualTo(3600L);
+    }
+
+    @Test
+    void scheduleRequiresFifteenMinutesAndAtMostSevenDays() {
+        java.time.Instant now = java.time.Instant.parse("2026-10-06T21:00:00Z");
+        java.time.ZoneId fortaleza = java.time.ZoneId.of("America/Fortaleza");
+        assertThatThrownBy(() -> OrderService.scheduleDelaySeconds(java.time.LocalDateTime.parse("2026-10-06T18:10"), fortaleza, now))
+            .isInstanceOf(ApiException.class).hasMessageContaining("15 minutos");
+        assertThatThrownBy(() -> OrderService.scheduleDelaySeconds(java.time.LocalDateTime.parse("2026-10-13T18:30"), fortaleza, now))
+            .isInstanceOf(ApiException.class).hasMessageContaining("7 dias");
+    }
 }

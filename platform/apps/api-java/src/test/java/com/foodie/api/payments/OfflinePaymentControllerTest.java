@@ -38,6 +38,9 @@ class OfflinePaymentControllerTest {
     @MockitoBean
     private PermissionService permissions;
 
+    @MockitoBean
+    private com.foodie.api.admin.AdminPermissionService adminPermissions;
+
     @Test
     void listRequiresLogin() throws Exception {
         when(auth.requireUser(null)).thenThrow(new ApiException(401, "Faça login para continuar"));

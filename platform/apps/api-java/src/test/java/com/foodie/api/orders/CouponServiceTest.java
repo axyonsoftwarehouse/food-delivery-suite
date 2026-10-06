@@ -54,4 +54,52 @@ class CouponServiceTest {
             .isInstanceOf(ApiException.class)
             .hasMessage("Este cupom não vale para o restaurante do pedido");
     }
+
+    @Test
+    void rejectsCustomerWhoReachedThePerCustomerLimit() {
+        couponWithPerCustomerLimit(1);
+        when(jdbc.queryForObject(org.mockito.ArgumentMatchers.contains("FROM orders WHERE customer_id = ?"), eq(Integer.class), eq(9L), eq("CANTINA15")))
+            .thenReturn(1);
+        assertThatThrownBy(() -> coupons.validate("CANTINA15", 3, 4000, 9L))
+            .isInstanceOf(ApiException.class)
+            .hasMessage("Você já usou este cupom o número máximo de vezes");
+    }
+
+    @Test
+    void acceptsCustomerBelowThePerCustomerLimit() {
+        couponWithPerCustomerLimit(2);
+        when(jdbc.queryForObject(org.mockito.ArgumentMatchers.contains("FROM orders WHERE customer_id = ?"), eq(Integer.class), eq(9L), eq("CANTINA15")))
+            .thenReturn(1);
+        assertThat(coupons.validate("CANTINA15", 3, 4000, 9L).discountCents()).isEqualTo(600L);
+    }
+
+    @Test
+    void consumeFailsWhenTheLastUseWasTakenConcurrently() {
+        when(jdbc.update(org.mockito.ArgumentMatchers.contains("used_count < max_uses"), eq(1L))).thenReturn(0);
+        assertThatThrownBy(() -> coupons.consume(1L))
+            .isInstanceOf(ApiException.class)
+            .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(409));
+    }
+
+    @Test
+    void consumeIncrementsWhileThereIsBalance() {
+        when(jdbc.update(org.mockito.ArgumentMatchers.contains("used_count < max_uses"), eq(1L))).thenReturn(1);
+        coupons.consume(1L);
+    }
+
+    private void couponWithPerCustomerLimit(int limit) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("id", 1L);
+        row.put("restaurant_id", 3L);
+        row.put("code", "CANTINA15");
+        row.put("discount_type", "percent");
+        row.put("discount_value", 15);
+        row.put("min_order_cents", 0);
+        row.put("max_uses", null);
+        row.put("max_uses_per_customer", limit);
+        row.put("used_count", 0);
+        row.put("active", true);
+        row.put("expires_at", null);
+        when(jdbc.queryForList(anyString(), eq("CANTINA15"))).thenReturn(List.of(row));
+    }
 }
