@@ -82,8 +82,8 @@ public class AuthController {
     }
 
     @PostMapping("/auth/otp/request")
-    public Map<String, Boolean> otpRequest(@Valid @RequestBody OtpRequest body) {
-        otp.request(body.phone());
+    public Map<String, Boolean> otpRequest(HttpServletRequest request, @Valid @RequestBody OtpRequest body) {
+        otp.request(body.phone(), clientIp(request));
         return Map.of("ok", true);
     }
 

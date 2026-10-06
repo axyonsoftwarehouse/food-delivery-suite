@@ -44,12 +44,21 @@ public class FileController {
     }
 
     @GetMapping("/files/{id}")
-    public ResponseEntity<Resource> download(@PathVariable long id) {
+    public ResponseEntity<Resource> download(@CookieValue(value = "foodie_session", required = false) String token,
+                                             @PathVariable long id) {
         FileRepository.FileRecord file = storage.record(id);
+        boolean publicFile = StorageService.isPublic(file);
+        if (!publicFile) file = storage.readable(auth.currentUser(token).orElse(null), id);
         Resource resource = storage.load(id);
-        return ResponseEntity.ok()
+        ResponseEntity.BodyBuilder response = ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(file.contentType()))
-            .cacheControl(CacheControl.maxAge(365, java.util.concurrent.TimeUnit.DAYS).cachePublic())
+            .header("X-Content-Type-Options", "nosniff");
+        if (publicFile) {
+            return response.cacheControl(CacheControl.maxAge(365, java.util.concurrent.TimeUnit.DAYS).cachePublic()).body(resource);
+        }
+        // Privado: nada de cache compartilhado, e baixa como anexo em vez de abrir no domínio da API.
+        return response.cacheControl(CacheControl.noStore().cachePrivate())
+            .header("Content-Disposition", "attachment")
             .body(resource);
     }
 

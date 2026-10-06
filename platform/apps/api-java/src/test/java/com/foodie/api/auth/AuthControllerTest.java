@@ -159,7 +159,7 @@ class AuthControllerTest {
                 .content("{\"phone\":\"+5585999999999\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.ok").value(true));
-        verify(otp).request("+5585999999999");
+        verify(otp).request(eq("+5585999999999"), any());
 
         var user = new User(12, "Cliente", "5585999999999@phone.foodie.local", "customer", null);
         when(otp.verify("+5585999999999", "123456", null)).thenReturn(new AuthService.Login(user, "d".repeat(64)));
