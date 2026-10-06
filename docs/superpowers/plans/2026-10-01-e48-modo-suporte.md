@@ -2557,7 +2557,7 @@ git commit -m "feat(web): loja ve as intervencoes do suporte e a pausa em vigor 
 ### Task 12: Verificação integrada, conferência manual e documentação
 
 **Files:**
-- Modify: `docs/ESTADO_ATUAL.md`, `docs/PLANO_EPICOS_STACKFOOD.md` (status do E48)
+- Modify: `docs/ESTADO_ATUAL.md`, `docs/PLANO_EPICOS.md` (status do E48)
 
 - [ ] **Step 1: Full verification**
 
@@ -2577,13 +2577,13 @@ Subir o ambiente local (README §Preparar localmente) e, com `admin@demo.local`:
 
 - [ ] **Step 3: Update docs**
 
-- `PLANO_EPICOS_STACKFOOD.md`, cartão E48: `**Status:** ✅ **Entregue em <data>** — ...` com os desvios conscientes deste plano (atributos/nutrição sem espelho; `support-log` por `staff.manage`; botões visíveis sem `support.act`).
+- `PLANO_EPICOS.md`, cartão E48: `**Status:** ✅ **Entregue em <data>** — ...` com os desvios conscientes deste plano (atributos/nutrição sem espelho; `support-log` por `staff.manage`; botões visíveis sem `support.act`).
 - `ESTADO_ATUAL.md`: retrato (`main`, schema `054`, contagem de testes Java via `grep -r "@Test" platform/apps/api-java/src/test | wc -l`), próximo passo e o lembrete de publicar com `release.ps1` e homologar no staging.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add docs/ESTADO_ATUAL.md docs/PLANO_EPICOS_STACKFOOD.md
+git add docs/ESTADO_ATUAL.md docs/PLANO_EPICOS.md
 git commit -m "docs: E48 entregue (modo suporte do admin)" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 

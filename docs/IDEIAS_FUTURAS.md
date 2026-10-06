@@ -3,7 +3,7 @@
 Documento de memória. Última atualização: 29/09/2026.
 **Não é backlog. Não é compromisso.** É onde ideias ficam guardadas para não
 se perderem. Quando uma ideia amadurecer, vira épico em
-`PLANO_EPICOS_STACKFOOD.md` com número `E##`.
+`PLANO_EPICOS.md` com número `E##`.
 
 ## Como usar
 
@@ -12,7 +12,7 @@ se perderem. Quando uma ideia amadurecer, vira épico em
 - **Ideia morreu?** Marque como `❌ Descartada` com data e motivo. Não apague —
   o histórico evita que a mesma ideia seja discutida três vezes.
 
-> **Nota sobre numeração.** O `PLANO_EPICOS_STACKFOOD.md` vai até **E48** (o
+> **Nota sobre numeração.** O `PLANO_EPICOS.md` vai até **E48** (o
 > "modo suporte" do admin, registrado em 01/10/2026). Números seguintes (E49 em
 > diante) precisam ser registrados lá antes de serem tratados como épico.
 
@@ -55,7 +55,7 @@ da assinatura.
 
 **Status: resolvido em 01/10/2026.**
 
-**O que era:** decidir o que fazer com o que restou do StackFood v9.
+**O que era:** decidir o que fazer com o que restou do pacote legado (v9).
 
 **Decisão: remover tudo.** Não há licença do pacote comercial — a chave não foi
 encontrada e não será mais procurada — e a plataforma própria não depende dele.
@@ -64,11 +64,11 @@ encontrada e não será mais procurada — e a plataforma própria não depende 
 
 - a pasta `reference/flutter-apps/` (≈2.350 arquivos, os três apps do pacote)
   saiu da árvore;
-- a tag `legacy-stackfood-v9` foi apagada, **local e no remoto** — era ela o
+- a tag `legacy-v9` foi apagada, **local e no remoto** — era ela o
   atalho para recuperar o pacote inteiro (`admin-panel` 115 MB, `web`, `app-*`,
   `payment-gateway`);
 - os documentos que descreviam o código do pacote saíram:
-  `INVENTARIO_LEGADO_STACKFOOD.md`, `INVENTARIO_LACUNAS_LEGADO.md`,
+  `INVENTARIO_LEGADO.md`, `INVENTARIO_LACUNAS_LEGADO.md`,
   `JAVA_MIGRATION_PLAN.md`, `REFERENCIA_FUNCIONAL.md`, `AUDITORIA_IMPEDIMENTOS.md`,
   `REFERENCIA_INSPIRACOES.md`, `PLANO_EVOLUCAO_INSPIRACOES.md`,
   o documento de referência do kit visual de terceiros;

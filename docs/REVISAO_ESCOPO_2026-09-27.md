@@ -3,7 +3,7 @@
 > Atualização em 28/09/2026: veja `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md` para o estado após a descontinuação da carteira do restaurante e a nova home pública. As tabelas abaixo são a fotografia da revisão de 27/09.
 
 Data: 27/09/2026. Comparação do código atual com `PLANO_MODELO_NEGOCIO.md`,
-`PLANO_RECONSTRUCAO_PROPRIA.md` e `PLANO_EPICOS_STACKFOOD.md`.
+`PLANO_RECONSTRUCAO_PROPRIA.md` e `PLANO_EPICOS.md`.
 
 ## Critério
 

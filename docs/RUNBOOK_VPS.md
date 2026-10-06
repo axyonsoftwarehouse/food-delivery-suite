@@ -384,7 +384,7 @@ docker ps -a --format '{{.Image}}' | sort -u
 > resíduo de outros projetos. Os volumes existentes são os do `foodie-staging`
 > e do `foodie-monitoring`, e todos contêm dados em uso.
 
-> **Não existe legado na VPS para remover.** O StackFood foi retirado em
+> **Não existe legado na VPS para remover.** O pacote legado foi retirado em
 > 25/09/2026 (`down -v` nos contêineres, volumes e rede, mais os diretórios
 > `/opt/food-delivery-suite` e `/opt/foodie`) — ver `platform/deploy/README.md`.
 > Não há contêiner, volume, rede ou diretório do legado sobrando. Os únicos
@@ -609,7 +609,7 @@ Verificado em 30/09/2026 — a postura está boa:
 ## 12. Onde pedir ajuda
 
 - **Documentação do projeto:** `docs/ESTADO_ATUAL.md`,
-  `docs/PLANO_EPICOS_STACKFOOD.md`
+  `docs/PLANO_EPICOS.md`
 - **Publicar um release:** `platform/deploy/release.ps1` (no PC) e
   `platform/deploy/deploy.sh` (na VPS) — seção 4
 - **Deploy em detalhe:** `platform/deploy/README.md`
