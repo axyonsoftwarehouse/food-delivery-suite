@@ -12,6 +12,7 @@ const RETURN_MESSAGES: Record<string, string> = {
   expirado: 'O link de autorização venceu (10 minutos). Tente conectar de novo.',
   invalido: 'Link de autorização inválido ou já usado. Tente conectar de novo.',
   falha: 'O Mercado Pago não confirmou a conexão. Tente de novo em instantes.',
+  conta_real: 'Este é um ambiente de testes: conecte um usuário de teste do Mercado Pago, não uma conta real. Nada foi conectado.',
 };
 
 /** Conta Mercado Pago da loja: o dinheiro de Pix e cartão online cai direto nela (decisão de 05/10/2026). */

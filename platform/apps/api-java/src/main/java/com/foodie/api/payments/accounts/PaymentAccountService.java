@@ -20,6 +20,7 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,19 +40,22 @@ public class PaymentAccountService {
     private final TokenCipher cipher;
     private final AdminAuditService audit;
     private final Clock clock;
+    private final boolean requireTestAccounts;
     private final SecureRandom random = new SecureRandom();
 
     @Autowired
-    public PaymentAccountService(PaymentAccountRepository accounts, MercadoPagoOAuthClient oauth, TokenCipher cipher, AdminAuditService audit) {
-        this(accounts, oauth, cipher, audit, Clock.systemUTC());
+    public PaymentAccountService(PaymentAccountRepository accounts, MercadoPagoOAuthClient oauth, TokenCipher cipher, AdminAuditService audit,
+                                 @Value("${app.payments.require-test-accounts:false}") boolean requireTestAccounts) {
+        this(accounts, oauth, cipher, audit, Clock.systemUTC(), requireTestAccounts);
     }
 
-    PaymentAccountService(PaymentAccountRepository accounts, MercadoPagoOAuthClient oauth, TokenCipher cipher, AdminAuditService audit, Clock clock) {
+    PaymentAccountService(PaymentAccountRepository accounts, MercadoPagoOAuthClient oauth, TokenCipher cipher, AdminAuditService audit, Clock clock, boolean requireTestAccounts) {
         this.accounts = accounts;
         this.oauth = oauth;
         this.cipher = cipher;
         this.audit = audit;
         this.clock = clock;
+        this.requireTestAccounts = requireTestAccounts;
     }
 
     @Transactional
@@ -77,7 +81,14 @@ public class PaymentAccountService {
         if (error != null && !error.isBlank() || code == null || code.isBlank()) return "negado";
         try {
             MercadoPagoOAuthClient.OAuthTokens tokens = oauth.exchangeCode(code, cipher.decrypt(st.codeVerifierEnc()));
-            String nickname = oauth.nickname(tokens.accessToken());
+            MercadoPagoOAuthClient.AccountInfo info = oauth.accountInfo(tokens.accessToken());
+            // Ambiente de testes só liga usuário de teste do Mercado Pago: no staging uma conta de dinheiro
+            // real chegou a ser ligada a uma loja de teste (06/10/2026). Nada é gravado nesse caso.
+            if (requireTestAccounts && !info.testUser()) {
+                log.warn("Vinculação recusada: conta {} não é usuário de teste (loja {})", tokens.userId(), st.restaurantId());
+                return "conta_real";
+            }
+            String nickname = info.nickname();
             accounts.upsertConnected(st.restaurantId(), PROVIDER, tokens.userId(), nickname, tokens.publicKey(),
                 cipher.encrypt(tokens.accessToken()), cipher.encrypt(tokens.refreshToken()),
                 clock.instant().plusSeconds(tokens.expiresInSeconds()), st.userId());

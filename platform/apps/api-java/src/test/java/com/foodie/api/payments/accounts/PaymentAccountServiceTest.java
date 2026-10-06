@@ -34,7 +34,7 @@ class PaymentAccountServiceTest {
     final MercadoPagoOAuthClient oauth = mock(MercadoPagoOAuthClient.class);
     final AdminAuditService audit = mock(AdminAuditService.class);
     final TokenCipher cipher = new TokenCipher(Base64.getEncoder().encodeToString(new byte[32]));
-    final PaymentAccountService service = new PaymentAccountService(repo, oauth, cipher, audit, Clock.fixed(NOW, ZoneOffset.UTC));
+    final PaymentAccountService service = new PaymentAccountService(repo, oauth, cipher, audit, Clock.fixed(NOW, ZoneOffset.UTC), false);
     final User owner = new User(5, "Dona da Cantina", "dona@cantina.com.br", "restaurant", 3L);
 
     PaymentAccountRepository.Account connected(Instant expiresAt) {
@@ -63,7 +63,7 @@ class PaymentAccountServiceTest {
     void startWithoutConfigurationIs503() {
         when(oauth.configured()).thenReturn(false);
         assertEquals(503, assertThrows(ApiException.class, () -> service.startConnection(owner)).status());
-        PaymentAccountService semChave = new PaymentAccountService(repo, oauth, new TokenCipher(""), audit, Clock.fixed(NOW, ZoneOffset.UTC));
+        PaymentAccountService semChave = new PaymentAccountService(repo, oauth, new TokenCipher(""), audit, Clock.fixed(NOW, ZoneOffset.UTC), false);
         when(oauth.configured()).thenReturn(true);
         assertEquals(503, assertThrows(ApiException.class, () -> semChave.startConnection(owner)).status());
         verify(repo, never()).insertState(anyString(), anyLong(), anyLong(), anyString(), any());
@@ -81,7 +81,7 @@ class PaymentAccountServiceTest {
             new PaymentAccountRepository.OAuthState(3, 5, cipher.encrypt("verificador"), NOW.plusSeconds(300), null)));
         when(oauth.exchangeCode("TG-codigo", "verificador")).thenReturn(
             new MercadoPagoOAuthClient.OAuthTokens("APP_USR-loja", "TG-loja", "APP_USR-pk", "3588446200", 15552000));
-        when(oauth.nickname("APP_USR-loja")).thenReturn("TESTUSER4062");
+        when(oauth.accountInfo("APP_USR-loja")).thenReturn(new MercadoPagoOAuthClient.AccountInfo("TESTUSER4062", false));
         when(repo.userName(5)).thenReturn("Dona da Cantina");
 
         assertEquals("conectado", service.completeConnection("TG-codigo", "st", null));
@@ -94,6 +94,35 @@ class PaymentAccountServiceTest {
         assertEquals("APP_USR-loja", cipher.decrypt(access.getValue()));
         assertEquals("TG-loja", cipher.decrypt(refresh.getValue()));
         verify(audit).record(any(User.class), eq("payment_account.connect"), eq("restaurant"), eq(3L), anyString());
+    }
+
+    private PaymentAccountService strictService() {
+        return new PaymentAccountService(repo, oauth, cipher, audit, Clock.fixed(NOW, ZoneOffset.UTC), true);
+    }
+
+    private void stubExchange(boolean testUser) {
+        when(repo.findStateForUpdate(PaymentAccountService.sha256Hex("st"))).thenReturn(Optional.of(
+            new PaymentAccountRepository.OAuthState(3, 5, cipher.encrypt("verificador"), NOW.plusSeconds(300), null)));
+        when(oauth.exchangeCode("TG-codigo", "verificador")).thenReturn(
+            new MercadoPagoOAuthClient.OAuthTokens("APP_USR-loja", "TG-loja", "APP_USR-pk", "91587907", 15552000));
+        when(oauth.accountInfo("APP_USR-loja")).thenReturn(new MercadoPagoOAuthClient.AccountInfo("TESTUSER4062", testUser));
+        when(repo.userName(5)).thenReturn("Dona da Cantina");
+    }
+
+    @Test
+    void testEnvironmentRefusesARealAccountAndStoresNothing() {
+        stubExchange(false);
+        assertEquals("conta_real", strictService().completeConnection("TG-codigo", "st", null));
+        verify(repo, never()).upsertConnected(anyLong(), anyString(), anyString(), any(), any(), anyString(), anyString(), any(), anyLong());
+        verify(audit, never()).record(any(User.class), eq("payment_account.connect"), anyString(), anyLong(), anyString());
+    }
+
+    @Test
+    void testEnvironmentAcceptsATestUser() {
+        stubExchange(true);
+        assertEquals("conectado", strictService().completeConnection("TG-codigo", "st", null));
+        verify(repo).upsertConnected(eq(3L), eq("mercadopago"), eq("91587907"), eq("TESTUSER4062"), eq("APP_USR-pk"),
+            anyString(), anyString(), eq(NOW.plusSeconds(15552000)), eq(5L));
     }
 
     @Test

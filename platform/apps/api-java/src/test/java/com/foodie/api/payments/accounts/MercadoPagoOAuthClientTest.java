@@ -106,14 +106,30 @@ class MercadoPagoOAuthClientTest {
     @Test
     void nicknameComesFromUsersMe() throws Exception {
         MercadoPagoOAuthClient oauth = client(200, "{\"id\":3588446200,\"nickname\":\"TESTUSER4062\",\"email\":\"x@y\"}");
-        assertEquals("TESTUSER4062", oauth.nickname("APP_USR-loja"));
+        MercadoPagoOAuthClient.AccountInfo info = oauth.accountInfo("APP_USR-loja");
+        assertEquals("TESTUSER4062", info.nickname());
+        assertFalse(info.testUser());
         assertEquals("/users/me", caminho.get());
         assertEquals("Bearer APP_USR-loja", autorizacao.get());
     }
 
     @Test
-    void nicknameFailureIsNull() throws Exception {
-        assertNull(client(500, "{}").nickname("APP_USR-loja"));
+    void testUserTagMarksATestAccount() throws Exception {
+        MercadoPagoOAuthClient oauth = client(200, "{\"nickname\":\"TESTUSER1\",\"tags\":[\"normal\",\"test_user\"]}");
+        assertTrue(oauth.accountInfo("APP_USR-loja").testUser());
+    }
+
+    @Test
+    void bodyWithoutTestUserTagIsNotATestAccount() throws Exception {
+        MercadoPagoOAuthClient oauth = client(200, "{\"nickname\":\"LOJA\",\"tags\":[\"normal\",\"mshops\"]}");
+        assertFalse(oauth.accountInfo("APP_USR-loja").testUser());
+    }
+
+    @Test
+    void nicknameFailureIsNullAndNotATestAccount() throws Exception {
+        MercadoPagoOAuthClient.AccountInfo info = client(500, "{}").accountInfo("APP_USR-loja");
+        assertNull(info.nickname());
+        assertFalse(info.testUser());
     }
 
     @Test

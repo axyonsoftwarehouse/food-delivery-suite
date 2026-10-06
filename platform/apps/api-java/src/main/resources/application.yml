@@ -15,6 +15,9 @@ app:
     token-key: ${PAYMENTS_TOKEN_KEY:}
     # Página do painel da loja para onde o navegador volta depois da autorização.
     account-return-url: ${PAYMENTS_ACCOUNT_RETURN_URL:http://127.0.0.1:3001/painel/configuracoes}
+    # Ambiente de testes: só aceita conectar usuários de teste do Mercado Pago (evita ligar uma conta
+    # de dinheiro real numa loja de teste — aconteceu no staging em 06/10/2026). Produção: false.
+    require-test-accounts: ${PAYMENTS_REQUIRE_TEST_ACCOUNTS:false}
   auth:
     require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
     google:

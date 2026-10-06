@@ -26,6 +26,8 @@ import org.springframework.web.client.RestClientResponseException;
 public class MercadoPagoOAuthClient {
     public record OAuthTokens(String accessToken, String refreshToken, String publicKey, String userId, long expiresInSeconds) {}
 
+    public record AccountInfo(String nickname, boolean testUser) {}
+
     private final String clientId;
     private final String clientSecret;
     private final String redirectUri;
@@ -81,17 +83,26 @@ public class MercadoPagoOAuthClient {
         }
     }
 
-    public String nickname(String accessToken) {
+    /**
+     * Uma leitura de /users/me: apelido da conta e se o Mercado Pago a marca como usuário de teste
+     * (tag "test_user"). Falha fechada: sem resposta, não há confirmação de que é conta de teste.
+     */
+    public AccountInfo accountInfo(String accessToken) {
         try {
             Map<String, Object> me = client.get().uri("/users/me").header("Authorization", "Bearer " + accessToken)
                 .retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {});
-            if (me == null) return null;
-            Object nickname = me.get("nickname");
-            if (nickname != null && !String.valueOf(nickname).isBlank()) return String.valueOf(nickname);
-            Object email = me.get("email");
-            return email == null ? null : String.valueOf(email);
+            if (me == null) return new AccountInfo(null, false);
+            String nickname = null;
+            Object nick = me.get("nickname");
+            if (nick != null && !String.valueOf(nick).isBlank()) {
+                nickname = String.valueOf(nick);
+            } else if (me.get("email") != null) {
+                nickname = String.valueOf(me.get("email"));
+            }
+            boolean testUser = me.get("tags") instanceof java.util.Collection<?> tags && tags.contains("test_user");
+            return new AccountInfo(nickname, testUser);
         } catch (RuntimeException error) {
-            return null;
+            return new AccountInfo(null, false);
         }
     }
 
