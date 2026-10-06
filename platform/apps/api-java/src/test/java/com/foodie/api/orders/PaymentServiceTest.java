@@ -124,14 +124,14 @@ class PaymentServiceTest {
         // `processed/accredited` no Mercado Pago — o dinheiro não voltava para o cliente.
         storedOnlinePayment();
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
-        when(gateway.refund("ORDTST01ABC", "refund-order-1")).thenReturn(
+        when(gateway.refund(any(), eq("ORDTST01ABC"), eq("refund-order-1"))).thenReturn(
             new com.foodie.api.payments.PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
 
         Map<String, Object> result = service.refund(admin, 1, "pedido de teste");
 
         org.mockito.InOrder ordem = Mockito.inOrder(gateway, jdbc, ledger);
-        ordem.verify(gateway).refund("ORDTST01ABC", "refund-order-1");
+        ordem.verify(gateway).refund(any(), eq("ORDTST01ABC"), eq("refund-order-1"));
         ordem.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("status = 'refunded'"), eq("pedido de teste"), eq("refunded"), eq(1L), eq(1L));
         ordem.verify(ledger).reverseOrder(1);
         assertEquals("refunded", result.get("status"));
@@ -142,7 +142,7 @@ class PaymentServiceTest {
     void providerRefusalLeavesThePaymentPaid() {
         storedOnlinePayment();
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
-        when(gateway.refund(anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o estorno: HTTP 400"));
+        when(gateway.refund(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o estorno: HTTP 400"));
 
         assertEquals(502, assertThrows(ApiException.class, () -> service.refund(admin, 1, "pedido de teste")).status());
         verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));

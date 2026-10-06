@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -69,17 +70,17 @@ class OnlinePaymentServiceTest {
 
         assertEquals(409, error.status());
         assertEquals("Novas cobranças online exigem recebimento direto pelo restaurante", error.getMessage());
-        verify(gateway, never()).create(any());
+        verify(gateway, never()).create(any(), any());
     }
 
     @Test
     void withFlagCreatesAndPersistsTheCharge() {
-        when(gateway.create(any())).thenReturn(pixCharge());
+        when(gateway.create(any(), any())).thenReturn(pixCharge());
 
         service(true).startIntent(customer, 1, "pix", null);
 
         ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
-        verify(gateway).create(request.capture());
+        verify(gateway).create(any(), request.capture());
         assertEquals(1L, request.getValue().orderId());
         assertEquals(1000L, request.getValue().amountCents());
         assertEquals("cliente@exemplo.com.br", request.getValue().payerEmail());
@@ -105,7 +106,7 @@ class OnlinePaymentServiceTest {
 
         service(true).startIntent(customer, 1, "pix", null);
 
-        verify(gateway, never()).create(any());
+        verify(gateway, never()).create(any(), any());
         verify(jdbc, never()).update(anyString(), any(Object[].class));
     }
 
@@ -115,7 +116,7 @@ class OnlinePaymentServiceTest {
 
         Map<String, Object> result = service(true).startIntent(customer, 1, "pix", null);
 
-        verify(gateway, never()).create(any());
+        verify(gateway, never()).create(any(), any());
         assertEquals(11L, result.get("id"));
         assertEquals("00020126...", ((Map<?, ?>) result.get("image")).get("qr_code"));
     }
@@ -141,7 +142,7 @@ class OnlinePaymentServiceTest {
         ApiException demonstracao = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, "pix", null));
         assertEquals(400, demonstracao.status());
         assertTrue(demonstracao.getMessage().contains("cliente@demo.local"));
-        verify(gateway, never()).create(any());
+        verify(gateway, never()).create(any(), any());
     }
 
     @Test
@@ -155,17 +156,17 @@ class OnlinePaymentServiceTest {
             .startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 1, null, null)));
         assertEquals(400, semCpf.status());
         assertTrue(semCpf.getMessage().contains("CPF"));
-        verify(gateway, never()).create(any());
+        verify(gateway, never()).create(any(), any());
     }
 
     @Test
     void cardChargeForwardsTokenInstallmentsAndDocument() {
-        when(gateway.create(any())).thenReturn(new PaymentGateway.Charge("999", "1", 1000, "paid", "accredited", null, null, null, null));
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("999", "1", 1000, "paid", "accredited", null, null, null, null));
 
         service(true).startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 3, "CPF", "12345678909"));
 
         ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
-        verify(gateway).create(request.capture());
+        verify(gateway).create(any(), request.capture());
         assertEquals("card", request.getValue().method());
         assertEquals("tok-123", request.getValue().cardToken());
         assertEquals(3, request.getValue().installments());
@@ -183,7 +184,7 @@ class OnlinePaymentServiceTest {
     void cardApprovedOnTheSpotRecordsTheConfirmationTime() {
         // Pedido #26 do staging (05/10/2026): o cartão foi aprovado na própria cobrança, o pagamento ficou
         // `paid` sem confirmed_at, e o webhook que veio depois viu "já pago" e não completou o registro.
-        when(gateway.create(any())).thenReturn(new PaymentGateway.Charge("999", "1", 1000, "paid", "accredited", null, null, null, null));
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("999", "1", 1000, "paid", "accredited", null, null, null, null));
 
         service(true).startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 1, "CPF", "12345678909"));
 
@@ -197,7 +198,7 @@ class OnlinePaymentServiceTest {
     @Test
     void cardApprovedWithADifferentAmountIsNotMarkedPaid() {
         // A mesma conferência que o webhook faz: valor do provedor diferente do devido não vira pago.
-        when(gateway.create(any())).thenReturn(new PaymentGateway.Charge("999", "1", 900, "paid", "accredited", null, null, null, null));
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("999", "1", 900, "paid", "accredited", null, null, null, null));
 
         service(true).startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 1, "CPF", "12345678909"));
 
@@ -214,7 +215,7 @@ class OnlinePaymentServiceTest {
         // O painel do Mercado Pago testa o webhook com um pedido fictício ("123456"): responder erro faria
         // o provedor reenviar para sempre e marcar a integração como quebrada na tela dele.
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
-        when(gateway.fetch("123456")).thenThrow(new ApiException(404, "Cobrança não encontrada no provedor: 123456"));
+        when(gateway.fetch(any(), eq("123456"))).thenThrow(new ApiException(404, "Cobrança não encontrada no provedor: 123456"));
 
         Map<String, Object> resposta = service(true).handleWebhook("mercadopago", "123456");
 
@@ -227,7 +228,7 @@ class OnlinePaymentServiceTest {
         // Falha de verdade (provedor fora do ar, consulta recusada) continua erro: aí o provedor deve
         // reenviar a notificação.
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
-        when(gateway.fetch("123")).thenThrow(new ApiException(502, "Mercado Pago recusou a consulta"));
+        when(gateway.fetch(any(), eq("123"))).thenThrow(new ApiException(502, "Mercado Pago recusou a consulta"));
 
         assertThrows(ApiException.class, () -> service(true).handleWebhook("mercadopago", "123"));
     }
@@ -237,7 +238,7 @@ class OnlinePaymentServiceTest {
         // Estorno feito no painel do Mercado Pago: antes, o webhook via "já pago" e ignorava, e o Foodie
         // seguia mostrando o pedido como pago com o dinheiro já devolvido.
         payment.put("status", "paid");
-        when(gateway.fetch("ORDTST01ABC")).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
+        when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
 
         Map<String, Object> resposta = service(true).handleWebhook("mercadopago", "ORDTST01ABC");
 
@@ -249,7 +250,7 @@ class OnlinePaymentServiceTest {
     @Test
     void paidOrderIgnoresNotificationsThatAreNotARefund() {
         payment.put("status", "paid");
-        when(gateway.fetch("ORDTST01ABC")).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
+        when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
 
         assertEquals("paid", service(true).handleWebhook("mercadopago", "ORDTST01ABC").get("already"));
         verify(jdbc, never()).update(anyString(), any(Object[].class));
@@ -260,7 +261,7 @@ class OnlinePaymentServiceTest {
     void refundedOrderStaysRefunded() {
         // O estorno feito pelo admin dispara um webhook "refunded" logo depois: não pode reverter de novo.
         payment.put("status", "refunded");
-        when(gateway.fetch("ORDTST01ABC")).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
+        when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
 
         assertEquals("refunded", service(true).handleWebhook("mercadopago", "ORDTST01ABC").get("already"));
         verify(ledger, never()).reverseOrder(org.mockito.ArgumentMatchers.anyLong());

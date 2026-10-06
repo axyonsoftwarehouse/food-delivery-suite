@@ -1,6 +1,7 @@
 package com.foodie.api.payments;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.payments.accounts.MerchantCredentials;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -38,15 +39,20 @@ import org.springframework.web.client.RestClientResponseException;
 public class MercadoPagoGateway implements PaymentGateway {
     private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(MercadoPagoGateway.class);
     private final RestClient client;
-    private final String accessToken;
     private final String webhookSecret;
 
-    public MercadoPagoGateway(@Value("${app.mercadopago.access-token:}") String accessToken,
-                              @Value("${app.mercadopago.base-url:https://api.mercadopago.com}") String baseUrl,
+    public MercadoPagoGateway(@Value("${app.mercadopago.base-url:https://api.mercadopago.com}") String baseUrl,
                               @Value("${app.mercadopago.webhook-secret:}") String webhookSecret) {
-        this.accessToken = accessToken;
         this.webhookSecret = webhookSecret;
         this.client = RestClient.builder().baseUrl(baseUrl).build();
+    }
+
+    /** Cada chamada usa o token da loja (decisão de 05/10/2026: o dinheiro é da loja, não há conta global). */
+    private static String token(MerchantCredentials credentials) {
+        if (credentials == null || credentials.accessToken() == null || credentials.accessToken().isBlank()) {
+            throw new ApiException(409, "A loja não recebe pagamento online: conecte o Mercado Pago");
+        }
+        return credentials.accessToken();
     }
 
     @Override
@@ -55,10 +61,10 @@ public class MercadoPagoGateway implements PaymentGateway {
     }
 
     @Override
-    public Charge create(ChargeRequest request) {
-        requireConfigured();
+    public Charge create(MerchantCredentials credentials, ChargeRequest request) {
+        String token = token(credentials);
         try {
-            return createOrder(request, request.idempotencyKey());
+            return createOrder(request, request.idempotencyKey(), token);
         } catch (RestClientResponseException error) {
             // O provedor guarda a chave de idempotência: se a tentativa anterior falhou (um 4xx), o mesmo
             // valor passa a ser recusado com "X-Idempotency-Key already used" e o pedido ficaria **sem
@@ -67,7 +73,7 @@ public class MercadoPagoGateway implements PaymentGateway {
             // ordem nenhuma (se tivesse criado, o provedor repetiria a resposta, não recusaria).
             if (chaveJaUsada(error)) {
                 try {
-                    return createOrder(request, request.idempotencyKey() + "-r2");
+                    return createOrder(request, request.idempotencyKey() + "-r2", token);
                 } catch (RestClientResponseException segunda) {
                     throw new ApiException(502, "Mercado Pago recusou a cobrança: " + providerMessage(segunda));
                 }
@@ -81,11 +87,11 @@ public class MercadoPagoGateway implements PaymentGateway {
      * valor inteiro; a chave de idempotência evita estornar duas vezes se o admin clicar de novo.
      */
     @Override
-    public Charge refund(String externalId, String idempotencyKey) {
-        requireConfigured();
+    public Charge refund(MerchantCredentials credentials, String externalId, String idempotencyKey) {
+        String token = token(credentials);
         try {
             Map<String, Object> order = client.post().uri("/v1/orders/" + externalId + "/refund")
-                .header("Authorization", "Bearer " + accessToken)
+                .header("Authorization", "Bearer " + token)
                 .header("X-Idempotency-Key", idempotencyKey)
                 .retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {});
             return fromOrder(order == null ? Map.of() : order);
@@ -107,7 +113,7 @@ public class MercadoPagoGateway implements PaymentGateway {
      * {@code payment_method {id: <bandeira>, type: credit_card, token, installments}}, com o token que o
      * navegador gerou.
      */
-    private Charge createOrder(ChargeRequest request, String idempotencyKey) {
+    private Charge createOrder(ChargeRequest request, String idempotencyKey, String token) {
         Map<String, Object> corpo = new LinkedHashMap<>();
         corpo.put("type", "online");
         corpo.put("processing_mode", "automatic");
@@ -141,7 +147,7 @@ public class MercadoPagoGateway implements PaymentGateway {
         // (`400 unsupported_properties: additionalProperties '$.notification_url' not allowed`).
         // A notificação de orders se configura no painel do Mercado Pago (Webhooks > Configurar
         // notificações > evento "Order (Mercado Pago)"), apontando para o nosso /webhooks/mercadopago.
-        return fromOrder(post("/v1/orders", corpo, idempotencyKey));
+        return fromOrder(post("/v1/orders", corpo, idempotencyKey, token));
     }
 
     /**
@@ -150,17 +156,17 @@ public class MercadoPagoGateway implements PaymentGateway {
      * antigo quebraria.
      */
     @Override
-    public Charge fetch(String externalId) {
-        requireConfigured();
+    public Charge fetch(MerchantCredentials credentials, String externalId) {
+        String token = token(credentials);
         try {
-            return fromOrder(get("/v1/orders/" + externalId));
+            return fromOrder(get("/v1/orders/" + externalId, token));
         } catch (RestClientResponseException naoEhOrder) {
             // 4xx na order pode ser cobrança da época da Payments API **ou** um id que não existe para a
             // API deles (o teste do painel manda "123456" e o provedor responde 400 "path param order id
             // is invalid"). Vale tentar o caminho antigo antes de concluir que não é nossa.
             if (naoEhOrder.getStatusCode().is4xxClientError()) {
                 try {
-                    return fromPayment(get("/v1/payments/" + externalId));
+                    return fromPayment(get("/v1/payments/" + externalId, token));
                 } catch (RestClientResponseException naoEhPagamento) {
                     if (naoEhPagamento.getStatusCode().is4xxClientError()) {
                         throw new ApiException(404, "Cobrança não encontrada no provedor: " + externalId
@@ -204,8 +210,19 @@ public class MercadoPagoGateway implements PaymentGateway {
         }
     }
 
-    public boolean configured() {
-        return accessToken != null && !accessToken.isBlank();
+    @Override
+    public java.util.Optional<String> webhookAccountId(WebhookRequest request) {
+        Object userId = request.body().get("user_id");
+        return userId == null ? java.util.Optional.empty() : java.util.Optional.of(String.valueOf(userId));
+    }
+
+    @Override
+    public java.util.Optional<String> webhookDeauthorization(WebhookRequest request) {
+        Map<String, Object> body = request.body();
+        if (!"mp-connect".equals(firstString(body, "type", "topic"))) return java.util.Optional.empty();
+        String action = firstString(body, "action");
+        if (action == null || !action.contains("deauthorized")) return java.util.Optional.empty();
+        return webhookAccountId(request);
     }
 
     /**
@@ -278,10 +295,6 @@ public class MercadoPagoGateway implements PaymentGateway {
         return null;
     }
 
-    private void requireConfigured() {
-        if (!configured()) throw new ApiException(503, "Pagamento online não configurado: defina MERCADOPAGO_ACCESS_TOKEN");
-    }
-
     /**
      * Converte a order na cobrança do Foodie. Quando existe pagamento dentro da order, é o status dele que
      * vale (o da order é mais grosso); {@code status_detail} fica em {@code raw_status}, que é o que
@@ -321,14 +334,14 @@ public class MercadoPagoGateway implements PaymentGateway {
         return null;
     }
 
-    private Map<String, Object> get(String path) {
-        return client.get().uri(path).header("Authorization", "Bearer " + accessToken)
+    private Map<String, Object> get(String path, String token) {
+        return client.get().uri(path).header("Authorization", "Bearer " + token)
             .retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {});
     }
 
-    private Map<String, Object> post(String path, Map<String, Object> body, String idempotencyKey) {
+    private Map<String, Object> post(String path, Map<String, Object> body, String idempotencyKey, String token) {
         return client.post().uri(path)
-            .header("Authorization", "Bearer " + accessToken)
+            .header("Authorization", "Bearer " + token)
             .header("X-Idempotency-Key", idempotencyKey == null || idempotencyKey.isBlank() ? UUID.randomUUID().toString() : idempotencyKey)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)

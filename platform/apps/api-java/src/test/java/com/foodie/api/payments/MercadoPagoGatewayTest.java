@@ -43,8 +43,8 @@ class MercadoPagoGatewayTest {
         // pareça válida. Com segredo configurado e sem assinatura também recusa (o ts/v1 faltam).
         PaymentGateway.WebhookRequest notificacao = new PaymentGateway.WebhookRequest(
             Map.of(), Map.of("type", "order", "data", Map.of("id", "ORD1")), Map.of());
-        assertFalse(new MercadoPagoGateway("token", "https://api.mercadopago.com", "").verifyWebhook(notificacao));
-        assertFalse(new MercadoPagoGateway("token", "https://api.mercadopago.com", "segredo-de-teste").verifyWebhook(notificacao));
+        assertFalse(new MercadoPagoGateway("https://api.mercadopago.com", "").verifyWebhook(notificacao));
+        assertFalse(new MercadoPagoGateway("https://api.mercadopago.com", "segredo-de-teste").verifyWebhook(notificacao));
     }
 
     @Test

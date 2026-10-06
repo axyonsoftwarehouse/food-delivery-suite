@@ -108,7 +108,7 @@ public class PaymentService {
         String providerStatus = null;
         if ("paid".equals(row.get("status")) && "online".equals(row.get("modality")) && row.get("provider") != null && row.get("external_id") != null) {
             PaymentGateway.Charge estorno = gateways.resolve((String) row.get("provider"))
-                .refund((String) row.get("external_id"), "refund-order-" + orderId);
+                .refund(null /* TODO(Task 10/11): credenciais da loja */, (String) row.get("external_id"), "refund-order-" + orderId);
             providerStatus = estorno.rawStatus();
         }
         int changed = jdbc.update("UPDATE order_payments SET status = 'refunded', note = ?, raw_status = COALESCE(?, raw_status), refunded_by = ?, refunded_at = NOW() WHERE order_id = ? AND status = 'paid'",

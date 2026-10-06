@@ -107,7 +107,7 @@ public class OnlinePaymentService {
         }
 
         PaymentGateway gateway = gateways.resolve(provider);
-        PaymentGateway.Charge charge = gateway.create(new PaymentGateway.ChargeRequest(
+        PaymentGateway.Charge charge = gateway.create(null /* TODO(Task 10/11): credenciais da loja */, new PaymentGateway.ChargeRequest(
             orderId, due, method, "Pedido #" + orderId, payerEmail, idempotencyKey,
             intent.cardToken(), intent.installments(), intent.docType(), intent.docNumber(),
             intent.paymentMethodId(), payerFirstName));
@@ -133,7 +133,7 @@ public class OnlinePaymentService {
     public Map<String, Object> handleWebhook(String provider, String paymentId) {
         PaymentGateway.Charge charge;
         try {
-            charge = gateways.resolve(provider).fetch(paymentId);
+            charge = gateways.resolve(provider).fetch(null /* TODO(Task 10/11): credenciais da loja */, paymentId);
         } catch (ApiException naoEncontrado) {
             // Notificação sobre algo que não é nosso — o próprio painel do Mercado Pago testa o webhook
             // com um pedido fictício ("123456"). Responder erro faria o provedor reenviar para sempre e
