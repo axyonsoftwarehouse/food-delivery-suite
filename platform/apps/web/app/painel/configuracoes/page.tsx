@@ -2,9 +2,10 @@
 
 import SettingsPanel from '../settings-panel';
 import AdminAuditPanel from '../admin-audit-panel';
+import PaymentAccountCard from '../payment-account-card';
 import { useApp } from '../../app-context';
 
 export default function ConfiguracoesPage() {
   const { user, permissions } = useApp();
-  return <><SettingsPanel />{user?.role === 'admin' && permissions.includes('audit.view') && <AdminAuditPanel />}</>;
+  return <>{user?.role === 'restaurant' && <PaymentAccountCard />}<SettingsPanel />{user?.role === 'admin' && permissions.includes('audit.view') && <AdminAuditPanel />}</>;
 }
