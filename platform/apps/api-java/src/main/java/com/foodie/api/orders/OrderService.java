@@ -20,6 +20,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -29,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OrderService {
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
     private final PostalCoverageService postalCoverage;
@@ -424,6 +427,11 @@ public class OrderService {
         if ("deliver".equals(action) && !"paid".equals(payments.status(orderId))) {
             throw new ApiException(409, "Confirme o recebimento do pagamento antes de concluir a entrega");
         }
+        // Adendo de 06/10/2026: pedido pago online que é cancelado/recusado devolve o dinheiro ANTES de mudar
+        // o status. Se o estorno falhar, a exceção desfaz a transação e o pedido fica como estava — nunca
+        // cancelado com o dinheiro retido. `failed` fica de fora: segue para o reembolso decidido pela loja.
+        String refundNote = automaticRefundNote(next, user.role());
+        boolean paymentRefunded = refundNote != null && payments.refundIfPaidOnline(user.id(), orderId, refundNote);
         if ("assign".equals(action)) {
             if (courierId == null || courierId < 1) throw new ApiException(400, "Selecione um entregador");
             Integer courier = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier' AND suspended_at IS NULL AND courier_approved_at IS NOT NULL", rs -> rs.next() ? 1 : null, courierId);
@@ -446,7 +454,23 @@ public class OrderService {
         result.put("id", orderId);
         result.put("status", next);
         if ("assign".equals(action)) result.put("courierId", courierId);
+        // A tela do cliente avisa que o dinheiro voltou só quando houve estorno de fato.
+        if (paymentRefunded) result.put("paymentRefunded", true);
         return result;
+    }
+
+    private static String automaticRefundNote(String next, String role) {
+        return switch (next) {
+            case "cancelled" -> switch (role) {
+                case "customer" -> "Estorno automático: pedido cancelado pelo cliente";
+                case "admin" -> "Estorno automático: pedido cancelado pelo suporte";
+                case "restaurant", "kitchen" -> "Estorno automático: pedido cancelado pela loja";
+                default -> "Estorno automático: pedido cancelado";
+            };
+            case "rejected" -> "Estorno automático: pedido recusado pela loja";
+            case "expired" -> "Estorno automático: pedido expirado";
+            default -> null;
+        };
     }
 
     private void notifyTransition(Map<String, Object> order, long orderId, String next, Long courierId) {
@@ -463,8 +487,18 @@ public class OrderService {
         }
     }
 
-    private void expireStale() {        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())", (rs, row) -> rs.getLong(1));
+    private void expireStale() {
+        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())", (rs, row) -> rs.getLong(1));
         for (Long id : stale) {
+            // Pago online e sem aceite: estorna antes de expirar. Se o estorno falhar, o pedido não expira
+            // nesta rodada (fica `placed`) e a próxima leitura tenta de novo — a chave `refund-order-<id>`
+            // no provedor torna a repetição segura. Um pedido com problema não trava a expiração dos outros.
+            try {
+                payments.refundIfPaidOnline(null, id, "Estorno automático: pedido expirado sem aceite");
+            } catch (RuntimeException error) {
+                log.warn("Pedido #{} não expirou: estorno automático falhou ({})", id, error.getMessage());
+                continue;
+            }
             if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
                 payments.cancelPending(id);
                 jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
