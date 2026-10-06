@@ -21,6 +21,14 @@ public class PermissionService {
             .orElseGet(() -> Permissions.defaultsFor(user.role()));
     }
 
+    /**
+     * Funcionário da loja tem o papel base "restaurant" como o dono, mas com um papel de funcionário
+     * atribuído; serve para separar as ações que só o dono pode fazer.
+     */
+    public boolean isStaff(User user) {
+        return roles.findForUser(user.id()).isPresent();
+    }
+
     public boolean has(User user, String permission) {
         return effective(user).contains(permission);
     }

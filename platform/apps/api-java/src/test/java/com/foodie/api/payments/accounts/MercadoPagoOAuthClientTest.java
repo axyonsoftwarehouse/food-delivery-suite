@@ -122,4 +122,16 @@ class MercadoPagoOAuthClientTest {
         assertFalse(new MercadoPagoOAuthClient("123", "s", "", "https://api.mercadopago.com", "https://auth.mercadopago.com.br").configured());
         assertTrue(new MercadoPagoOAuthClient("123", "s", "https://x", "https://api.mercadopago.com", "https://auth.mercadopago.com.br").configured());
     }
+
+    @Test
+    void networkFailureIsA502() throws Exception {
+        int porta;
+        try (java.net.ServerSocket fechado = new java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1"))) {
+            porta = fechado.getLocalPort();
+        }
+        MercadoPagoOAuthClient oauth = new MercadoPagoOAuthClient("123", "s", "https://x", "http://127.0.0.1:" + porta, "https://auth.mercadopago.com.br");
+        ApiException erro = assertThrows(ApiException.class, () -> oauth.refresh("TG-velho"));
+        assertEquals(502, erro.status());
+        assertTrue(erro.getMessage().startsWith("Mercado Pago não respondeu: "));
+    }
 }

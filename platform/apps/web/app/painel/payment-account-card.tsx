@@ -7,7 +7,7 @@ import { Alert, Button, Card } from '../ui';
 type Account = { status: 'not_connected' | 'connected' | 'needs_reconnect' | 'disconnected'; nickname?: string | null; providerUserId?: string | null; connectedAt?: string | null };
 
 const RETURN_MESSAGES: Record<string, string> = {
-  conectado: 'Mercado Pago conectado. Pix e cartão online já aparecem no checkout da loja.',
+  conectado: 'Mercado Pago conectado à loja.',
   negado: 'A autorização foi cancelada no Mercado Pago. Nada foi conectado.',
   expirado: 'O link de autorização venceu (10 minutos). Tente conectar de novo.',
   invalido: 'Link de autorização inválido ou já usado. Tente conectar de novo.',
@@ -64,7 +64,7 @@ export default function PaymentAccountCard() {
     {connected
       ? <>
           <p>{`Conta: ${account.nickname ?? '—'} (id ${account.providerUserId ?? '—'})`}{account.connectedAt ? ` · conectada em ${new Date(account.connectedAt).toLocaleString('pt-BR')}` : ''}</p>
-          <p className="form-help">Pix e cartão online ativos no checkout. Para cortar o acesso também do lado do Mercado Pago, remova a autorização nas configurações da sua conta Mercado Pago.</p>
+          <p className="form-help">Conta pronta para receber Pix e cartão online. Para cortar o acesso também do lado do Mercado Pago, remova a autorização nas configurações da sua conta Mercado Pago.</p>
           <Button variant="secondary" disabled={busy} onClick={() => void disconnect()}>Desconectar</Button>
         </>
       : <>

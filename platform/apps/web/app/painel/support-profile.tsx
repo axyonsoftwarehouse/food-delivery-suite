@@ -36,8 +36,8 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
       const data = await api<Profile>(`/admin/support/restaurants/${restaurantId}`);
       setProfile(data);
       setTrail(await api<Entry[]>(`/admin/support/restaurants/${restaurantId}/audit`));
-      setPaymentAccount(await api<PaymentAccount>(`/admin/support/restaurants/${restaurantId}/payment-account`));
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível carregar a loja.'); }
+    try { setPaymentAccount(await api<PaymentAccount>(`/admin/support/restaurants/${restaurantId}/payment-account`)); } catch { setPaymentAccount(null); }
   }, [restaurantId, setMessage]);
 
   useEffect(() => { void load(); }, [load]);
@@ -79,7 +79,7 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
         <div className="stat-card"><span>{'Agora'}</span><strong>{profile.pause ? 'Pausada' : profile.open ? 'Aberta' : 'Fechada'}</strong><small>{profile.timezone ?? 'sem fuso'}</small></div>
         <div className="stat-card accent"><span>{'Pedidos ativos'}</span><strong>{profile.activeOrders}</strong><small>{`${profile.lateOrders} atrasado(s)`}</small></div>
         <div className="stat-card"><span>{'Cancelados (7 dias)'}</span><strong>{profile.canceled7d}</strong><small>{`Assinatura: ${profile.subscriptionStatus ?? '—'}`}</small></div>
-        <div className="stat-card"><span>{'Mercado Pago'}</span><strong>{PAYMENT_ACCOUNT_LABELS[paymentAccount?.status ?? 'not_connected'] ?? paymentAccount?.status}</strong><small>{paymentAccount?.status === 'connected' ? `${paymentAccount.nickname ?? '—'} · desde ${paymentAccount.connectedAt ? new Date(paymentAccount.connectedAt).toLocaleDateString(timeLocale) : '—'}` : '—'}</small></div>
+        <div className="stat-card"><span>{'Mercado Pago'}</span><strong>{paymentAccount ? (PAYMENT_ACCOUNT_LABELS[paymentAccount.status] ?? paymentAccount.status) : '—'}</strong><small>{paymentAccount?.status === 'connected' ? `${paymentAccount.nickname ?? '—'} · desde ${paymentAccount.connectedAt ? new Date(paymentAccount.connectedAt).toLocaleDateString(timeLocale) : '—'}` : '—'}</small></div>
       </div>
       {canAct && paymentAccount?.status === 'connected' && <p><Button variant="secondary" disabled={acting} onClick={() => void intervene('Desconectar Mercado Pago', `${base}/payment-account/disconnect`, 'POST', (reason) => ({ reason }), 'Mercado Pago desconectado.')}>{'Desconectar Mercado Pago'}</Button></p>}
       <p>{'Módulos:'} {profile.modules.length ? profile.modules.map((key) => <Badge key={key}>{key}</Badge>) : '—'}</p>

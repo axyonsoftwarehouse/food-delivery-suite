@@ -7,5 +7,5 @@ import { useApp } from '../../app-context';
 
 export default function ConfiguracoesPage() {
   const { user, permissions } = useApp();
-  return <>{user?.role === 'restaurant' && <PaymentAccountCard />}<SettingsPanel />{user?.role === 'admin' && permissions.includes('audit.view') && <AdminAuditPanel />}</>;
+  return <>{user?.role === 'restaurant' && permissions.includes('payments.manage') && <PaymentAccountCard />}<SettingsPanel />{user?.role === 'admin' && permissions.includes('audit.view') && <AdminAuditPanel />}</>;
 }

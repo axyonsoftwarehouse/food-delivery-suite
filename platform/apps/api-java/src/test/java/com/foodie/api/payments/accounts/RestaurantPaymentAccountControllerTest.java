@@ -1,5 +1,8 @@
 package com.foodie.api.payments.accounts;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -11,6 +14,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
+import com.foodie.api.permissions.Permissions;
 import jakarta.servlet.http.Cookie;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -27,6 +32,7 @@ class RestaurantPaymentAccountControllerTest {
     @Autowired private MockMvc mvc;
     @MockitoBean private AuthService auth;
     @MockitoBean private PaymentAccountService accounts;
+    @MockitoBean private PermissionService permissions;
 
     @Test
     void ownerSeesTheStatusOfTheOwnStore() throws Exception {
@@ -60,5 +66,29 @@ class RestaurantPaymentAccountControllerTest {
     void otherRolesAreRefused() throws Exception {
         when(auth.requireUser("s", "restaurant")).thenThrow(new ApiException(403, "Acesso não autorizado"));
         mvc.perform(get("/restaurant/payment-account").cookie(SESSION)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void staffCannotConnect() throws Exception {
+        when(auth.requireUser("s", "restaurant")).thenReturn(owner);
+        when(permissions.isStaff(owner)).thenReturn(true);
+        mvc.perform(post("/restaurant/payment-account/mercadopago/connect").cookie(SESSION)).andExpect(status().isForbidden());
+        verify(accounts, never()).startConnection(any());
+    }
+
+    @Test
+    void staffCannotDisconnect() throws Exception {
+        when(auth.requireUser("s", "restaurant")).thenReturn(owner);
+        when(permissions.isStaff(owner)).thenReturn(true);
+        mvc.perform(delete("/restaurant/payment-account").cookie(SESSION)).andExpect(status().isForbidden());
+        verify(accounts, never()).disconnectByOwner(any());
+    }
+
+    @Test
+    void statusRequiresPaymentsManage() throws Exception {
+        when(auth.requireUser("s", "restaurant")).thenReturn(owner);
+        doThrow(new ApiException(403, "Acesso não autorizado")).when(permissions).require(owner, Permissions.PAYMENTS_MANAGE);
+        mvc.perform(get("/restaurant/payment-account").cookie(SESSION)).andExpect(status().isForbidden());
+        verify(accounts, never()).status(org.mockito.ArgumentMatchers.anyLong());
     }
 }

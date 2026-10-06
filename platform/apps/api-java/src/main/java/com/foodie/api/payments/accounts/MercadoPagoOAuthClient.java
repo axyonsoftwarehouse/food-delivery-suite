@@ -4,13 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foodie.api.ApiException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -38,7 +41,12 @@ public class MercadoPagoOAuthClient {
         this.clientSecret = clientSecret;
         this.redirectUri = redirectUri;
         this.authBaseUrl = authBaseUrl;
-        this.client = RestClient.builder().baseUrl(apiBaseUrl).build();
+        // Timeouts: uma chamada pendurada ao Mercado Pago seguraria a thread da requisição e o lock de
+        // linha do estado OAuth no banco.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(10));
+        this.client = RestClient.builder().baseUrl(apiBaseUrl).requestFactory(factory).build();
     }
 
     public boolean configured() {
@@ -56,6 +64,8 @@ public class MercadoPagoOAuthClient {
             return tokens(token(Map.of("grant_type", "authorization_code", "code", code, "redirect_uri", redirectUri, "code_verifier", codeVerifier)));
         } catch (RestClientResponseException error) {
             throw new ApiException(502, "Mercado Pago recusou a vinculação: " + message(error));
+        } catch (ResourceAccessException error) {
+            throw new ApiException(502, "Mercado Pago não respondeu: " + error.getMessage());
         }
     }
 
@@ -66,6 +76,8 @@ public class MercadoPagoOAuthClient {
         } catch (RestClientResponseException error) {
             if (error.getStatusCode().is4xxClientError()) return Optional.empty();
             throw new ApiException(502, "Mercado Pago recusou a renovação: " + message(error));
+        } catch (ResourceAccessException error) {
+            throw new ApiException(502, "Mercado Pago não respondeu: " + error.getMessage());
         }
     }
 
