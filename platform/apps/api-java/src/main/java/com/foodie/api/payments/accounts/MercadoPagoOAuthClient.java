@@ -26,6 +26,9 @@ import org.springframework.web.client.RestClientResponseException;
 public class MercadoPagoOAuthClient {
     public record OAuthTokens(String accessToken, String refreshToken, String publicKey, String userId, long expiresInSeconds) {}
 
+    /** {@code confirmed}: o /users/me respondeu. Sem resposta não se sabe se a conta é de teste ou real. */
+    public record AccountInfo(String nickname, boolean testUser, boolean confirmed) {}
+
     private final String clientId;
     private final String clientSecret;
     private final String redirectUri;
@@ -69,29 +72,42 @@ public class MercadoPagoOAuthClient {
         }
     }
 
-    /** Vazio quando o Mercado Pago recusa (autorização revogada, refresh vencido): a loja precisa reconectar. */
+    /**
+     * Vazio só quando o Mercado Pago recusa o refresh token (HTTP 400/401: autorização revogada, refresh
+     * vencido): a loja precisa reconectar. Outros erros (429, 5xx) são passageiros e viram 502.
+     */
     public Optional<OAuthTokens> refresh(String refreshToken) {
         try {
             return Optional.of(tokens(token(Map.of("grant_type", "refresh_token", "refresh_token", refreshToken))));
         } catch (RestClientResponseException error) {
-            if (error.getStatusCode().is4xxClientError()) return Optional.empty();
+            int status = error.getStatusCode().value();
+            if (status == 400 || status == 401) return Optional.empty();
             throw new ApiException(502, "Mercado Pago recusou a renovação: " + message(error));
         } catch (ResourceAccessException error) {
             throw new ApiException(502, "Mercado Pago não respondeu: " + error.getMessage());
         }
     }
 
-    public String nickname(String accessToken) {
+    /**
+     * Uma leitura de /users/me: apelido da conta e se o Mercado Pago a marca como usuário de teste
+     * (tag "test_user"). Falha fechada: sem resposta, não há confirmação de que é conta de teste.
+     */
+    public AccountInfo accountInfo(String accessToken) {
         try {
             Map<String, Object> me = client.get().uri("/users/me").header("Authorization", "Bearer " + accessToken)
                 .retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {});
-            if (me == null) return null;
-            Object nickname = me.get("nickname");
-            if (nickname != null && !String.valueOf(nickname).isBlank()) return String.valueOf(nickname);
-            Object email = me.get("email");
-            return email == null ? null : String.valueOf(email);
+            if (me == null) return new AccountInfo(null, false, false);
+            String nickname = null;
+            Object nick = me.get("nickname");
+            if (nick != null && !String.valueOf(nick).isBlank()) {
+                nickname = String.valueOf(nick);
+            } else if (me.get("email") != null) {
+                nickname = String.valueOf(me.get("email"));
+            }
+            boolean testUser = me.get("tags") instanceof java.util.Collection<?> tags && tags.contains("test_user");
+            return new AccountInfo(nickname, testUser, true);
         } catch (RuntimeException error) {
-            return null;
+            return new AccountInfo(null, false, false);
         }
     }
 

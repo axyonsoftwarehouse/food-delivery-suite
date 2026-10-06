@@ -2,6 +2,8 @@ package com.foodie.api.payments;
 
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
+import com.foodie.api.payments.accounts.MerchantCredentials;
+import com.foodie.api.payments.accounts.PaymentAccountService;
 import java.sql.Timestamp;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OnlinePaymentService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(OnlinePaymentService.class);
     private static final Set<String> METHODS = Set.of("pix", "card");
     /** Valores aceitos pela coluna status de order_payments. */
     private static final Set<String> STATUSES = Set.of("pending", "paid", "cancelled", "refunded", "rejected", "expired");
@@ -24,13 +27,16 @@ public class OnlinePaymentService {
     private final JdbcTemplate jdbc;
     private final PaymentGatewayRegistry gateways;
     private final com.foodie.api.finance.LedgerService ledger;
+    private final PaymentAccountService accounts;
     private final boolean allowDirectOnlineCharges;
 
     public OnlinePaymentService(JdbcTemplate jdbc, PaymentGatewayRegistry gateways, com.foodie.api.finance.LedgerService ledger,
+                                PaymentAccountService accounts,
                                 @Value("${app.payments.allow-direct-online-charges:false}") boolean allowDirectOnlineCharges) {
         this.jdbc = jdbc;
         this.gateways = gateways;
         this.ledger = ledger;
+        this.accounts = accounts;
         this.allowDirectOnlineCharges = allowDirectOnlineCharges;
     }
 
@@ -65,7 +71,7 @@ public class OnlinePaymentService {
         String method = intent.method();
         String provider = intent.provider();
         if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento online inválida");
-        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, total_cents, status FROM orders WHERE id = ? FOR UPDATE", orderId);
+        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, total_cents, status FROM orders WHERE id = ? FOR UPDATE", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         boolean owner = ((Number) order.get("customer_id")).longValue() == actor.id();
@@ -106,8 +112,11 @@ public class OnlinePaymentService {
             }
         }
 
+        long restaurantId = ((Number) order.get("restaurant_id")).longValue();
+        MerchantCredentials credentials = accounts.credentialsFor(restaurantId)
+            .orElseThrow(() -> new ApiException(409, "Esta loja não recebe pagamento online: o Mercado Pago dela não está conectado"));
         PaymentGateway gateway = gateways.resolve(provider);
-        PaymentGateway.Charge charge = gateway.create(new PaymentGateway.ChargeRequest(
+        PaymentGateway.Charge charge = gateway.create(credentials, new PaymentGateway.ChargeRequest(
             orderId, due, method, "Pedido #" + orderId, payerEmail, idempotencyKey,
             intent.cardToken(), intent.installments(), intent.docType(), intent.docNumber(),
             intent.paymentMethodId(), payerFirstName));
@@ -122,18 +131,27 @@ public class OnlinePaymentService {
         }
         jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = ?, idempotency_key = ?, status = ?, raw_status = ?,"
                 + " qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ?, note = ?,"
-                + " confirmed_at = IF(? = 'paid', NOW(), confirmed_at) WHERE order_id = ?",
+                + " confirmed_at = IF(? = 'paid', NOW(), confirmed_at), payment_account_id = ?, provider_user_id = ? WHERE order_id = ?",
             gateway.provider(), method, charge.externalId(), idempotencyKey, status, charge.rawStatus(),
             charge.qrCode(), charge.qrCodeBase64(), charge.ticketUrl(),
-            charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), note, status, orderId);
+            charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), note, status,
+            credentials.accountId(), credentials.providerUserId(), orderId);
         return detail(orderId);
     }
 
     @Transactional
-    public Map<String, Object> handleWebhook(String provider, String paymentId) {
+    public Map<String, Object> handleWebhook(String provider, String paymentId, String providerUserId) {
+        // Sem conta conhecida não há token para consultar: a notificação não é de uma loja nossa.
+        if (providerUserId == null) return Map.of("ok", true, "ignored", true);
+        List<MerchantCredentials> sellers = accounts.credentialsForProviderUser(providerUserId);
+        if (sellers.isEmpty()) {
+            // Pix pago depois de a loja desconectar: o Foodie não tem mais token para consultar a cobrança.
+            log.warn("Webhook do Mercado Pago ignorado: conta {} sem loja conectada (loja desconectou ou trocou de conta?) — conferir no painel do Mercado Pago", providerUserId);
+            return Map.of("ok", true, "ignored", true);
+        }
         PaymentGateway.Charge charge;
         try {
-            charge = gateways.resolve(provider).fetch(paymentId);
+            charge = gateways.resolve(provider).fetch(sellers.getFirst(), paymentId);
         } catch (ApiException naoEncontrado) {
             // Notificação sobre algo que não é nosso — o próprio painel do Mercado Pago testa o webhook
             // com um pedido fictício ("123456"). Responder erro faria o provedor reenviar para sempre e
@@ -145,9 +163,16 @@ public class OnlinePaymentService {
         long orderId;
         try { orderId = Long.parseLong(charge.externalReference()); } catch (NumberFormatException error) { return Map.of("ok", true, "ignored", true); }
 
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT status, amount_due_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT p.status, p.amount_due_cents, o.restaurant_id FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE", orderId);
         if (rows.isEmpty()) return Map.of("ok", true, "ignored", true);
         Map<String, Object> row = rows.getFirst();
+        long restaurantId = ((Number) row.get("restaurant_id")).longValue();
+        // Uma conta só mexe nos pedidos das lojas que ela atende.
+        if (sellers.stream().noneMatch(seller -> seller.restaurantId() == restaurantId)) {
+            log.warn("Webhook do Mercado Pago ignorado: conta {} não atende a loja {} do pedido #{}", providerUserId, restaurantId, orderId);
+            return Map.of("ok", true, "ignored", true);
+        }
         String current = (String) row.get("status");
         if ("refunded".equals(current)) return Map.of("ok", true, "already", current);
         if ("paid".equals(current)) {

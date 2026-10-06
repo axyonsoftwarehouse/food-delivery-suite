@@ -1,6 +1,7 @@
 package com.foodie.api.payments;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,6 +32,9 @@ class PaymentWebhookControllerTest {
     @MockitoBean
     private PaymentGateway gateway;
 
+    @MockitoBean
+    private com.foodie.api.payments.accounts.PaymentAccountService accounts;
+
     @Test
     void ignoresNonPaymentEvents() throws Exception {
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
@@ -40,7 +44,7 @@ class PaymentWebhookControllerTest {
                 .content("{\"type\":\"merchant_order\",\"data\":{\"id\":\"1\"}}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.ignored").value(true));
-        verify(online, never()).handleWebhook(any(), any());
+        verify(online, never()).handleWebhook(any(), any(), any());
     }
 
     @Test
@@ -52,7 +56,7 @@ class PaymentWebhookControllerTest {
         mvc.perform(post("/webhooks/mercadopago").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"payment\",\"data\":{\"id\":\"123\"}}"))
             .andExpect(status().isUnauthorized());
-        verify(online, never()).handleWebhook(any(), any());
+        verify(online, never()).handleWebhook(any(), any(), any());
     }
 
     @Test
@@ -61,12 +65,36 @@ class PaymentWebhookControllerTest {
         when(gateway.provider()).thenReturn("mercadopago");
         when(gateway.webhookChargeId(any())).thenReturn(Optional.of("123"));
         when(gateway.verifyWebhook(any())).thenReturn(true);
-        when(online.handleWebhook("mercadopago", "123")).thenReturn(Map.of("ok", true, "status", "paid"));
+        when(gateway.webhookAccountId(any())).thenReturn(Optional.of("3588446200"));
+        when(online.handleWebhook("mercadopago", "123", "3588446200")).thenReturn(Map.of("ok", true, "status", "paid"));
 
         mvc.perform(post("/webhooks/mercadopago").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"payment\",\"data\":{\"id\":\"123\"}}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("paid"));
-        verify(online).handleWebhook("mercadopago", "123");
+        verify(online).handleWebhook("mercadopago", "123", "3588446200");
+    }
+
+    @Test
+    void deauthorizationMarksTheStoreToReconnect() throws Exception {
+        when(gateways.resolve("mercadopago")).thenReturn(gateway);
+        when(gateway.webhookDeauthorization(any())).thenReturn(java.util.Optional.of("3588446200"));
+        when(gateway.verifyWebhook(any())).thenReturn(true);
+        mvc.perform(post("/webhooks/mercadopago").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"mp-connect\",\"action\":\"application.deauthorized\",\"user_id\":3588446200}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deauthorized").value(true));
+        verify(accounts).markNeedsReconnect("3588446200");
+    }
+
+    @Test
+    void deauthorizationWithBadSignatureIs401() throws Exception {
+        when(gateways.resolve("mercadopago")).thenReturn(gateway);
+        when(gateway.webhookDeauthorization(any())).thenReturn(java.util.Optional.of("3588446200"));
+        when(gateway.verifyWebhook(any())).thenReturn(false);
+        mvc.perform(post("/webhooks/mercadopago").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"mp-connect\",\"action\":\"application.deauthorized\",\"user_id\":3588446200}"))
+            .andExpect(status().isUnauthorized());
+        verify(accounts, never()).markNeedsReconnect(anyString());
     }
 }

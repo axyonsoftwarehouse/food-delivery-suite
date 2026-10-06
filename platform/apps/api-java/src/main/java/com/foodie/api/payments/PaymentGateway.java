@@ -11,16 +11,26 @@ import java.util.Optional;
 public interface PaymentGateway {
     String provider();
 
-    Charge create(ChargeRequest request);
+    Charge create(com.foodie.api.payments.accounts.MerchantCredentials credentials, ChargeRequest request);
 
-    Charge fetch(String externalId);
+    Charge fetch(com.foodie.api.payments.accounts.MerchantCredentials credentials, String externalId);
 
     /**
      * Estorno total da cobrança no provedor. O padrão recusa: provedor sem estorno automático (o Pix
      * estático, por exemplo) é devolvido fora do sistema, e marcar "estornado" sem devolver seria mentir.
      */
-    default Charge refund(String externalId, String idempotencyKey) {
+    default Charge refund(com.foodie.api.payments.accounts.MerchantCredentials credentials, String externalId, String idempotencyKey) {
         throw new com.foodie.api.ApiException(409, "Este meio de pagamento não tem estorno automático; devolva o valor fora do sistema");
+    }
+
+    /** Conta do provedor (vendedor) a que a notificação se refere; vazio quando o provedor não informa. */
+    default Optional<String> webhookAccountId(WebhookRequest request) {
+        return Optional.empty();
+    }
+
+    /** Conta que revogou a autorização da plataforma (evento de desvinculação); vazio nos demais eventos. */
+    default Optional<String> webhookDeauthorization(WebhookRequest request) {
+        return Optional.empty();
     }
 
     /**

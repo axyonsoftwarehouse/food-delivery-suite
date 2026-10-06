@@ -91,6 +91,19 @@ class MercadoPagoOAuthClientTest {
     }
 
     @Test
+    void refreshReturnsEmptyWhenTheTokenIsUnauthorized() throws Exception {
+        assertTrue(client(401, "{\"message\":\"unauthorized\"}").refresh("TG-velho").isEmpty());
+    }
+
+    @Test
+    void rateLimitedRefreshIsA502NotARefusal() throws Exception {
+        // 429 e "tente depois", nao "autorizacao revogada": marcar a loja para reconectar seria errado.
+        MercadoPagoOAuthClient oauth = client(429, "{\"message\":\"too_many_requests\"}");
+        ApiException erro = assertThrows(ApiException.class, () -> oauth.refresh("TG-loja"));
+        assertEquals(502, erro.status());
+    }
+
+    @Test
     void refreshSendsTheRefreshToken() throws Exception {
         MercadoPagoOAuthClient oauth = client(200, """
             {"access_token":"APP_USR-novo","expires_in":15552000,"user_id":3588446200,"refresh_token":"TG-novo","public_key":"APP_USR-pk-loja"}
@@ -106,14 +119,32 @@ class MercadoPagoOAuthClientTest {
     @Test
     void nicknameComesFromUsersMe() throws Exception {
         MercadoPagoOAuthClient oauth = client(200, "{\"id\":3588446200,\"nickname\":\"TESTUSER4062\",\"email\":\"x@y\"}");
-        assertEquals("TESTUSER4062", oauth.nickname("APP_USR-loja"));
+        MercadoPagoOAuthClient.AccountInfo info = oauth.accountInfo("APP_USR-loja");
+        assertEquals("TESTUSER4062", info.nickname());
+        assertFalse(info.testUser());
+        assertTrue(info.confirmed());
         assertEquals("/users/me", caminho.get());
         assertEquals("Bearer APP_USR-loja", autorizacao.get());
     }
 
     @Test
-    void nicknameFailureIsNull() throws Exception {
-        assertNull(client(500, "{}").nickname("APP_USR-loja"));
+    void testUserTagMarksATestAccount() throws Exception {
+        MercadoPagoOAuthClient oauth = client(200, "{\"nickname\":\"TESTUSER1\",\"tags\":[\"normal\",\"test_user\"]}");
+        assertTrue(oauth.accountInfo("APP_USR-loja").testUser());
+    }
+
+    @Test
+    void bodyWithoutTestUserTagIsNotATestAccount() throws Exception {
+        MercadoPagoOAuthClient oauth = client(200, "{\"nickname\":\"LOJA\",\"tags\":[\"normal\",\"mshops\"]}");
+        assertFalse(oauth.accountInfo("APP_USR-loja").testUser());
+    }
+
+    @Test
+    void nicknameFailureIsNullAndNotATestAccount() throws Exception {
+        MercadoPagoOAuthClient.AccountInfo info = client(500, "{}").accountInfo("APP_USR-loja");
+        assertNull(info.nickname());
+        assertFalse(info.testUser());
+        assertFalse(info.confirmed());
     }
 
     @Test

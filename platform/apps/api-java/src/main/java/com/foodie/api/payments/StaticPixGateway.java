@@ -24,7 +24,7 @@ public class StaticPixGateway implements PaymentGateway {
     }
 
     @Override
-    public Charge create(ChargeRequest request) {
+    public Charge create(com.foodie.api.payments.accounts.MerchantCredentials credentials, ChargeRequest request) {
         String key = settings.text(SettingsCatalog.PAYMENT_PIX_KEY);
         if (key.isBlank()) throw new ApiException(503, "Chave Pix estática não configurada");
         String payload = brCode(key,
@@ -36,7 +36,7 @@ public class StaticPixGateway implements PaymentGateway {
     }
 
     @Override
-    public Charge fetch(String externalId) {
+    public Charge fetch(com.foodie.api.payments.accounts.MerchantCredentials credentials, String externalId) {
         return new Charge(externalId, null, 0, "pending", "pending", null, null, null, null);
     }
 

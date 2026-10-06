@@ -372,6 +372,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/payment-account/mercadopago/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["connect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/restaurant/marketing/offline-methods": {
         parameters: {
             query?: never;
@@ -1230,6 +1246,22 @@ export interface paths {
         get: operations["variations"];
         put?: never;
         post: operations["createVariation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/support/restaurants/{id}/payment-account/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["disconnect"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2676,6 +2708,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/payment-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete: operations["disconnect_1"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/restaurant/modules": {
         parameters: {
             query?: never;
@@ -3020,6 +3068,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payments/mercadopago/oauth/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["callback"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3580,6 +3644,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["profile_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/support/restaurants/{id}/payment-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["status_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4734,6 +4814,9 @@ export interface components {
             reason?: string;
             data: components["schemas"]["VariationRequest"];
         };
+        ReasonRequest: {
+            reason?: string;
+        };
         SupportRequestHoursRequest: {
             reason?: string;
             data: components["schemas"]["HoursRequest"];
@@ -5075,9 +5158,6 @@ export interface components {
             summary?: string;
             reason?: string;
             createdAt?: string;
-        };
-        ReasonRequest: {
-            reason?: string;
         };
     };
     responses: never;
@@ -6258,6 +6338,30 @@ export interface operations {
                 "application/json": components["schemas"]["VariationRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    connect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
@@ -8220,6 +8324,36 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SupportRequestVariationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    disconnect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
             };
         };
         responses: {
@@ -12182,6 +12316,54 @@ export interface operations {
             };
         };
     };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    disconnect_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     myModules: {
         parameters: {
             query?: never;
@@ -12673,7 +12855,9 @@ export interface operations {
     };
     publicConfig: {
         parameters: {
-            query?: never;
+            query?: {
+                restaurantId?: number;
+            };
             header?: never;
             path?: never;
             cookie?: {
@@ -12716,6 +12900,28 @@ export interface operations {
                         [key: string]: unknown;
                     };
                 };
+            };
+        };
+    };
+    callback: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -13600,6 +13806,32 @@ export interface operations {
         };
     };
     profile_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    status_1: {
         parameters: {
             query?: never;
             header?: never;

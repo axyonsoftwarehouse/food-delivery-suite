@@ -15,6 +15,9 @@ app:
     token-key: ${PAYMENTS_TOKEN_KEY:}
     # Página do painel da loja para onde o navegador volta depois da autorização.
     account-return-url: ${PAYMENTS_ACCOUNT_RETURN_URL:http://127.0.0.1:3001/painel/configuracoes}
+    # Ambiente de testes: só aceita conectar usuários de teste do Mercado Pago (evita ligar uma conta
+    # de dinheiro real numa loja de teste — aconteceu no staging em 06/10/2026). Produção: false.
+    require-test-accounts: ${PAYMENTS_REQUIRE_TEST_ACCOUNTS:false}
   auth:
     require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
     google:
@@ -43,15 +46,11 @@ app:
     provider: ${MAIL_PROVIDER:log}
     from: ${MAIL_FROM:}
   mercadopago:
-    access-token: ${MERCADOPAGO_ACCESS_TOKEN:}
     webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
     base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
     # A URL de notificação NÃO é configurável por ambiente: a API de Orders recusa
     # `notification_url` no corpo (400 unsupported_properties) e o Mercado Pago chama a URL
     # registrada no painel do app, no evento "Order".
-    # Public key da aplicação: vai para o navegador e tokeniza o cartão no checkout transparente
-    # (o número do cartão nunca passa pelo nosso servidor). Não é segredo.
-    public-key: ${MERCADOPAGO_PUBLIC_KEY:}
     # Vinculação de aplicações (OAuth): cada loja conecta a própria conta. client-id/secret são da
     # aplicação App-Checkout-Transparente-Foodie; o redirect é fixo e cadastrado na aplicação.
     client-id: ${MERCADOPAGO_CLIENT_ID:}

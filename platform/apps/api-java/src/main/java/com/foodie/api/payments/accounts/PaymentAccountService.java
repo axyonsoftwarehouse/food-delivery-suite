@@ -19,9 +19,15 @@ import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Conta Mercado Pago de cada loja (decisão de 05/10/2026: os valores do pedido são da loja). Conecta
@@ -39,19 +45,53 @@ public class PaymentAccountService {
     private final TokenCipher cipher;
     private final AdminAuditService audit;
     private final Clock clock;
+    private final boolean requireTestAccounts;
+    private final TransactionOperations renewalTx;
     private final SecureRandom random = new SecureRandom();
 
     @Autowired
-    public PaymentAccountService(PaymentAccountRepository accounts, MercadoPagoOAuthClient oauth, TokenCipher cipher, AdminAuditService audit) {
-        this(accounts, oauth, cipher, audit, Clock.systemUTC());
+    public PaymentAccountService(PaymentAccountRepository accounts, MercadoPagoOAuthClient oauth, TokenCipher cipher, AdminAuditService audit,
+                                 ObjectProvider<PlatformTransactionManager> transactions,
+                                 @Value("${app.payments.require-test-accounts:false}") boolean requireTestAccounts) {
+        // Resolvido só na hora de renovar (como no RecurringOrderRunner): o contexto sem banco do
+        // OpenApiDumpTest não tem gerenciador de transação.
+        this(accounts, oauth, cipher, audit, Clock.systemUTC(), requireTestAccounts,
+            lazyRenewalTransaction(transactions));
     }
 
-    PaymentAccountService(PaymentAccountRepository accounts, MercadoPagoOAuthClient oauth, TokenCipher cipher, AdminAuditService audit, Clock clock) {
+    PaymentAccountService(PaymentAccountRepository accounts, MercadoPagoOAuthClient oauth, TokenCipher cipher, AdminAuditService audit, Clock clock, boolean requireTestAccounts) {
+        this(accounts, oauth, cipher, audit, clock, requireTestAccounts, TransactionOperations.withoutTransaction());
+    }
+
+    PaymentAccountService(PaymentAccountRepository accounts, MercadoPagoOAuthClient oauth, TokenCipher cipher, AdminAuditService audit, Clock clock,
+                          boolean requireTestAccounts, TransactionOperations renewalTx) {
+        this.renewalTx = renewalTx;
         this.accounts = accounts;
         this.oauth = oauth;
         this.cipher = cipher;
         this.audit = audit;
         this.clock = clock;
+        this.requireTestAccounts = requireTestAccounts;
+    }
+
+    /**
+     * A renovação roda numa transação PRÓPRIA (REQUIRES_NEW): o Mercado Pago consome o refresh token na
+     * hora, então o token novo tem de ficar gravado mesmo que a requisição que pediu a renovação falhe
+     * depois e desfaça a transação dela.
+     */
+    static TransactionTemplate renewalTransaction(PlatformTransactionManager transactions) {
+        TransactionTemplate template = new TransactionTemplate(transactions);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template;
+    }
+
+    private static TransactionOperations lazyRenewalTransaction(ObjectProvider<PlatformTransactionManager> transactions) {
+        return new TransactionOperations() {
+            @Override
+            public <T> T execute(org.springframework.transaction.support.TransactionCallback<T> action) {
+                return renewalTransaction(transactions.getObject()).execute(action);
+            }
+        };
     }
 
     @Transactional
@@ -77,7 +117,19 @@ public class PaymentAccountService {
         if (error != null && !error.isBlank() || code == null || code.isBlank()) return "negado";
         try {
             MercadoPagoOAuthClient.OAuthTokens tokens = oauth.exchangeCode(code, cipher.decrypt(st.codeVerifierEnc()));
-            String nickname = oauth.nickname(tokens.accessToken());
+            MercadoPagoOAuthClient.AccountInfo info = oauth.accountInfo(tokens.accessToken());
+            // Ambiente de testes só liga usuário de teste do Mercado Pago: no staging uma conta de dinheiro
+            // real chegou a ser ligada a uma loja de teste (06/10/2026). Nada é gravado nesse caso.
+            if (requireTestAccounts && !info.confirmed()) {
+                // Sem resposta do /users/me não dá para saber se é conta de teste: não grava e pede nova tentativa.
+                log.warn("Vinculação não confirmada: /users/me não respondeu para a conta {} (loja {})", tokens.userId(), st.restaurantId());
+                return "falha";
+            }
+            if (requireTestAccounts && !info.testUser()) {
+                log.warn("Vinculação recusada: conta {} não é usuário de teste (loja {})", tokens.userId(), st.restaurantId());
+                return "conta_real";
+            }
+            String nickname = info.nickname();
             accounts.upsertConnected(st.restaurantId(), PROVIDER, tokens.userId(), nickname, tokens.publicKey(),
                 cipher.encrypt(tokens.accessToken()), cipher.encrypt(tokens.refreshToken()),
                 clock.instant().plusSeconds(tokens.expiresInSeconds()), st.userId());
@@ -155,21 +207,41 @@ public class PaymentAccountService {
 
     /** Renova quando faltam menos de 7 dias; renovação recusada deixa a loja em "precisa reconectar". */
     private Optional<MerchantCredentials> fresh(PaymentAccountRepository.Account account) {
-        String accessToken = cipher.decrypt(account.accessTokenEnc());
-        String publicKey = account.publicKey();
-        if (account.tokenExpiresAt() != null && account.tokenExpiresAt().isBefore(clock.instant().plus(RENEW_BEFORE))) {
-            Optional<MercadoPagoOAuthClient.OAuthTokens> renewed = oauth.refresh(cipher.decrypt(account.refreshTokenEnc()));
-            if (renewed.isEmpty()) {
-                accounts.markNeedsReconnect(account.id());
-                return Optional.empty();
-            }
-            MercadoPagoOAuthClient.OAuthTokens tokens = renewed.get();
-            accounts.updateTokens(account.id(), cipher.encrypt(tokens.accessToken()), cipher.encrypt(tokens.refreshToken()),
-                tokens.publicKey(), clock.instant().plusSeconds(tokens.expiresInSeconds()));
-            accessToken = tokens.accessToken();
-            if (tokens.publicKey() != null) publicKey = tokens.publicKey();
+        if (!nearExpiry(account)) return Optional.of(credentials(account));
+        return renewalTx.execute(status -> renew(account));
+    }
+
+    /**
+     * Roda na transação própria de {@link #renewalTransaction}. A linha fica travada: quem chega depois
+     * espera e, ao ler de novo, encontra o token já renovado — o refresh token é de uso único, gastá-lo
+     * duas vezes faria o Mercado Pago recusar a segunda e a loja cair em "precisa reconectar" à toa.
+     */
+    private Optional<MerchantCredentials> renew(PaymentAccountRepository.Account seen) {
+        Optional<PaymentAccountRepository.Account> locked = accounts.findByIdForUpdate(seen.id());
+        if (locked.isEmpty() || !connected(locked.get())) return Optional.empty();
+        PaymentAccountRepository.Account current = locked.get();
+        if (!nearExpiry(current) || !java.util.Objects.equals(current.refreshTokenEnc(), seen.refreshTokenEnc())) {
+            return Optional.of(credentials(current));
         }
-        return Optional.of(new MerchantCredentials(account.id(), account.restaurantId(), accessToken, publicKey, account.providerUserId()));
+        Optional<MercadoPagoOAuthClient.OAuthTokens> renewed = oauth.refresh(cipher.decrypt(current.refreshTokenEnc()));
+        if (renewed.isEmpty()) {
+            accounts.markNeedsReconnect(current.id());
+            return Optional.empty();
+        }
+        MercadoPagoOAuthClient.OAuthTokens tokens = renewed.get();
+        accounts.updateTokens(current.id(), cipher.encrypt(tokens.accessToken()), cipher.encrypt(tokens.refreshToken()),
+            tokens.publicKey(), clock.instant().plusSeconds(tokens.expiresInSeconds()));
+        String publicKey = tokens.publicKey() != null ? tokens.publicKey() : current.publicKey();
+        return Optional.of(new MerchantCredentials(current.id(), current.restaurantId(), tokens.accessToken(), publicKey, current.providerUserId()));
+    }
+
+    private boolean nearExpiry(PaymentAccountRepository.Account account) {
+        return account.tokenExpiresAt() != null && account.tokenExpiresAt().isBefore(clock.instant().plus(RENEW_BEFORE));
+    }
+
+    private MerchantCredentials credentials(PaymentAccountRepository.Account account) {
+        return new MerchantCredentials(account.id(), account.restaurantId(), cipher.decrypt(account.accessTokenEnc()), account.publicKey(),
+            account.providerUserId());
     }
 
     private static long restaurantOf(User owner) {

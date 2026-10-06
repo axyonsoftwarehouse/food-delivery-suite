@@ -2,10 +2,15 @@ package com.foodie.api.payments;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
 import java.util.Map;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestClientResponseException;
@@ -43,8 +48,8 @@ class MercadoPagoGatewayTest {
         // pareça válida. Com segredo configurado e sem assinatura também recusa (o ts/v1 faltam).
         PaymentGateway.WebhookRequest notificacao = new PaymentGateway.WebhookRequest(
             Map.of(), Map.of("type", "order", "data", Map.of("id", "ORD1")), Map.of());
-        assertFalse(new MercadoPagoGateway("token", "https://api.mercadopago.com", "").verifyWebhook(notificacao));
-        assertFalse(new MercadoPagoGateway("token", "https://api.mercadopago.com", "segredo-de-teste").verifyWebhook(notificacao));
+        assertFalse(new MercadoPagoGateway("https://api.mercadopago.com", "").verifyWebhook(notificacao));
+        assertFalse(new MercadoPagoGateway("https://api.mercadopago.com", "segredo-de-teste").verifyWebhook(notificacao));
     }
 
     @Test
@@ -70,5 +75,30 @@ class MercadoPagoGatewayTest {
                 + "\"details\":[\"additionalProperties '$.notification_url' not allowed\"]}]}")));
         assertEquals("HTTP 500", MercadoPagoGateway.providerMessage(erro(500, "")));
         assertEquals("HTTP 500", MercadoPagoGateway.providerMessage(erro(500, "nao e json")));
+    }
+
+    @Test
+    void mpConnectNotificationIsVerifiedOverTheBodyIdWhenTheQueryHasNone() throws Exception {
+        // A notificacao de vinculacao (mp-connect) nao e order nem payment: antes o manifesto saia com
+        // "id:" vazio e a desvinculacao assinada corretamente era recusada.
+        String secret = "segredo-de-teste";
+        String requestId = "req-connect";
+        String ts = "1759700000000";
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        String v1 = HexFormat.of().formatHex(mac.doFinal(("id:3588446200;request-id:" + requestId + ";ts:" + ts + ";").getBytes(StandardCharsets.UTF_8)));
+        PaymentGateway.WebhookRequest notificacao = new PaymentGateway.WebhookRequest(
+            Map.of("x-request-id", requestId, "x-signature", "ts=" + ts + ",v1=" + v1),
+            Map.of("type", "mp-connect", "action", "application.deauthorized", "user_id", 3588446200L, "data", Map.of("id", "3588446200")),
+            Map.of());
+
+        assertTrue(new MercadoPagoGateway("https://api.mercadopago.com", secret).verifyWebhook(notificacao));
+    }
+
+    @Test
+    void webhookWithoutUserIdHasNoAccount() {
+        PaymentGateway.WebhookRequest notificacao = new PaymentGateway.WebhookRequest(
+            Map.of(), Map.of("type", "order", "data", Map.of("id", "ORD1")));
+        assertTrue(new MercadoPagoGateway("https://api.mercadopago.com", "segredo").webhookAccountId(notificacao).isEmpty());
     }
 }

@@ -5,6 +5,7 @@ import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.payments.OnlinePaymentService;
 import com.foodie.api.payments.PaymentGatewayRegistry;
+import com.foodie.api.payments.accounts.PaymentAccountService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -17,7 +18,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -33,15 +33,14 @@ public class PaymentController {
     private final PaymentService payments;
     private final OnlinePaymentService online;
     private final PaymentGatewayRegistry gateways;
-    private final String mercadopagoPublicKey;
+    private final PaymentAccountService accounts;
 
-    public PaymentController(AuthService auth, PaymentService payments, OnlinePaymentService online, PaymentGatewayRegistry gateways,
-                             @Value("${app.mercadopago.public-key:}") String mercadopagoPublicKey) {
+    public PaymentController(AuthService auth, PaymentService payments, OnlinePaymentService online, PaymentGatewayRegistry gateways, PaymentAccountService accounts) {
         this.auth = auth;
         this.payments = payments;
         this.online = online;
         this.gateways = gateways;
-        this.mercadopagoPublicKey = mercadopagoPublicKey;
+        this.accounts = accounts;
     }
 
     @PostMapping("/orders/{id}/payment/online")
@@ -53,16 +52,18 @@ public class PaymentController {
             body.method(), body.provider(), body.cardToken(), body.installments(), body.docType(), body.docNumber(), body.paymentMethodId()));
     }
 
-    /** O que o checkout precisa para montar o formulário: provedor e public key (que não é segredo). */
+    /** O que o checkout precisa para a loja do carrinho: a public key DELA (não é segredo) e se cobra online. */
     @GetMapping("/payments/public-config")
-    public Map<String, Object> publicConfig(@CookieValue(value = "foodie_session", required = false) String token) {
+    public Map<String, Object> publicConfig(@CookieValue(value = "foodie_session", required = false) String token,
+                                            @RequestParam(required = false) Long restaurantId) {
         auth.requireUser(token);
+        String publicKey = restaurantId == null ? "" : accounts.publicKeyFor(restaurantId).orElse("");
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("provider", gateways.defaultProvider());
-        result.put("publicKey", mercadopagoPublicKey == null ? "" : mercadopagoPublicKey);
-        result.put("cardTransparent", mercadopagoPublicKey != null && !mercadopagoPublicKey.isBlank());
-        // Sem isto o site ofereceria "pagar agora" numa instalação que recusa a cobrança online (409).
-        result.put("onlineCharges", online.directChargesAllowed());
+        result.put("publicKey", publicKey);
+        result.put("cardTransparent", !publicKey.isBlank());
+        // Sem conta conectada a loja não recebe online: não oferecer "pagar agora" (a cobrança daria 409).
+        result.put("onlineCharges", online.directChargesAllowed() && !publicKey.isBlank());
         return result;
     }
 
