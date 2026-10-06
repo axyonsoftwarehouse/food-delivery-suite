@@ -29,6 +29,10 @@ class PaymentControllerPublicConfigTest {
     @MockitoBean private OnlinePaymentService online;
     @MockitoBean private PaymentGatewayRegistry gateways;
     @MockitoBean private PaymentAccountService accounts;
+    @MockitoBean private com.foodie.api.permissions.PermissionService permissions;
+    @MockitoBean private com.foodie.api.admin.AdminPermissionService adminPermissions;
+    @MockitoBean private com.foodie.api.support.SupportActionService support;
+    @MockitoBean private com.foodie.api.admin.AdminAuditService audit;
 
     @BeforeEach
     void setUp() {

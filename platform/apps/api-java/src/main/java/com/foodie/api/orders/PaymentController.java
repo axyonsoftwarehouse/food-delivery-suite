@@ -1,6 +1,12 @@
 package com.foodie.api.orders;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.admin.AdminAuditService;
+import com.foodie.api.admin.AdminPermissionService;
+import com.foodie.api.admin.AdminPermissions;
+import com.foodie.api.permissions.PermissionService;
+import com.foodie.api.permissions.Permissions;
+import com.foodie.api.support.SupportActionService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.payments.OnlinePaymentService;
@@ -34,8 +40,17 @@ public class PaymentController {
     private final OnlinePaymentService online;
     private final PaymentGatewayRegistry gateways;
     private final PaymentAccountService accounts;
+    private final PermissionService permissions;
+    private final AdminPermissionService adminPermissions;
+    private final SupportActionService support;
+    private final AdminAuditService audit;
 
-    public PaymentController(AuthService auth, PaymentService payments, OnlinePaymentService online, PaymentGatewayRegistry gateways, PaymentAccountService accounts) {
+    public PaymentController(AuthService auth, PaymentService payments, OnlinePaymentService online, PaymentGatewayRegistry gateways, PaymentAccountService accounts,
+                             PermissionService permissions, AdminPermissionService adminPermissions, SupportActionService support, AdminAuditService audit) {
+        this.permissions = permissions;
+        this.adminPermissions = adminPermissions;
+        this.support = support;
+        this.audit = audit;
         this.auth = auth;
         this.payments = payments;
         this.online = online;
@@ -84,11 +99,25 @@ public class PaymentController {
         return payments.confirm(actor, id, body.amountReceivedCents(), body.note());
     }
 
+    /**
+     * Estorno do pagamento. A loja estorna os próprios pedidos (decisão de 05/10/2026: os valores são
+     * dela); o admin só como suporte — em nome da loja, com motivo, trilha e aviso.
+     */
     @PostMapping("/orders/{id}/payment/refund")
     public Map<String, Object> refund(@CookieValue(value = "foodie_session", required = false) String token,
                                       @PathVariable @Positive long id,
                                       @Valid @RequestBody RefundRequest body) {
-        return payments.refund(auth.requireUser(token, "admin"), id, body.note());
+        User actor = auth.requireUser(token, "restaurant", "admin");
+        if ("restaurant".equals(actor.role())) {
+            permissions.require(actor, Permissions.PAYMENTS_MANAGE);
+            Map<String, Object> result = payments.refund(actor, id, body.note());
+            audit.record(actor, "order.refund", "order", id, "Pedido #" + id + " estornado pela loja");
+            return result;
+        }
+        adminPermissions.require(actor, AdminPermissions.SUPPORT_ACT);
+        String reason = SupportActionService.normalizeReason(body.note());
+        return support.act(actor, payments.restaurantOf(id), "order.refund", "order", id, "Pedido #" + id + " estornado", reason,
+            () -> payments.refund(actor, id, reason));
     }
 
     @GetMapping("/admin/payments")

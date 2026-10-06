@@ -99,9 +99,22 @@ public class PaymentService {
         return result;
     }
 
+    /** Loja dona do pedido. 404 quando o pedido não existe. */
+    public long restaurantOf(long orderId) {
+        List<Long> found = jdbc.queryForList("SELECT restaurant_id FROM orders WHERE id = ?", Long.class, orderId);
+        if (found.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
+        return found.getFirst();
+    }
+
     @Transactional
     public Map<String, Object> refund(User actor, long orderId, String note) {
-        if (!"admin".equals(actor.role())) throw new ApiException(403, "Acesso não autorizado");
+        // Decisão de 05/10/2026: o estorno é obrigação da loja. A loja estorna os próprios pedidos; o admin
+        // chega aqui só pelo modo suporte (PaymentController), que já exigiu motivo e auditou.
+        if ("restaurant".equals(actor.role())) {
+            if (actor.restaurantId() == null || restaurantOf(orderId) != actor.restaurantId()) throw new ApiException(404, "Pedido não encontrado");
+        } else if (!"admin".equals(actor.role())) {
+            throw new ApiException(403, "Acesso não autorizado");
+        }
         List<Map<String, Object>> rows = jdbc.queryForList(
             "SELECT method, status, modality, provider, external_id, payment_account_id, provider_user_id, amount_received_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (rows.isEmpty()) throw new ApiException(404, "Pagamento não encontrado");
