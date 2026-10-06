@@ -246,6 +246,12 @@ recusa e assim por diante.
   `support.act`, informa um motivo de 10 a 255 caracteres, e a ação vai para a trilha da loja, que recebe um
   aviso. Um estorno direto também fecha o pedido de reembolso que estiver aberto. O cliente só pode pedir
   reembolso de pedido pago.
+  **Estorno automático (PR #57, 06/10):** um pedido pago online que é cancelado, recusado ou expira é
+  estornado pela conta da loja antes de mudar de status; um pagamento aprovado depois do cancelamento
+  também é estornado. **Provado no staging em 06/10:**
+  - #33: Pix cancelado pelo cliente, estornado automaticamente;
+  - #32: estornado pela loja; ele tinha expirado com o código antigo e ficado pago;
+  - nos dois, a order ficou `refunded` no Mercado Pago, consultada com o token da loja.
 - **Entrega e gorjeta** (era "quem financia", decisão contratual): **são da loja**. O razão
   (`LedgerService.postOrder`) ainda credita frete e gorjeta ao entregador como saldo que a plataforma
   repassa. Esse repasse deixa de ser obrigação da Foodie, então é preciso revisar a carteira de repasse do
