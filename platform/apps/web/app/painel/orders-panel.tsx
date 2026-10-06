@@ -21,7 +21,7 @@ function matches(order: Order, query: string) {
 }
 
 export default function OrdersPanel({ restaurantId }: { restaurantId?: number } = {}) {
-  const { user, orders, couriers, busy, run, askReason, refresh, setMessage, expandedOrderId, setExpandedOrderId, receivePayment, refundPayment } = useApp();
+  const { user, permissions, orders, couriers, busy, run, askReason, refresh, setMessage, expandedOrderId, setExpandedOrderId, receivePayment, refundPayment } = useApp();
   const [courierByOrder, setCourierByOrder] = useState<Record<number, string>>({});
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<{ id: number; order: Order | null; error: string } | null>(null);
@@ -60,6 +60,6 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
     {user.role === 'courier' && order.status === 'assigned' && <><button disabled={busy} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'pickup' }) }), 'Pedido retirado.')}>Retirado</button><button className="availability-button" disabled={busy} onClick={() => { const reason = askReason('Motivo da falha na entrega:'); if (reason) run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'fail', reason }) }), 'Falha registrada.'); }}>Não entreguei</button></>}
     {user.role === 'courier' && order.status === 'picked_up' && <><button disabled={busy || order.payment_status !== 'paid'} onClick={() => run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'deliver' }) }), 'Entrega concluída.')}>Concluir entrega</button><button className="availability-button" disabled={busy} onClick={() => { const reason = askReason('Motivo da falha na entrega:'); if (reason) run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'fail', reason }) }), 'Falha registrada.'); }}>Falha na entrega</button></>}
     {user.role === 'admin' && ['placed','accepted','ready','assigned','picked_up'].includes(order.status) && <button className="availability-button" disabled={busy} onClick={() => { const reason = askReason('Motivo do cancelamento:'); if (reason) run(() => api(`/orders/${order.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'cancel', reason }) }), 'Pedido cancelado.'); }}>Cancelar</button>}
-    {user.role === 'admin' && order.payment_status === 'paid' && <button className="availability-button" disabled={busy} onClick={() => refundPayment(order)}>Estornar</button>}
+    {order.payment_status === 'paid' && (user.role === 'admin' || (user.role === 'restaurant' && permissions.includes('payments.manage'))) && <button className="availability-button" disabled={busy} onClick={() => refundPayment(order)}>Estornar</button>}
   </div></div>{expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}</div>)}</div>}</section>;
 }
