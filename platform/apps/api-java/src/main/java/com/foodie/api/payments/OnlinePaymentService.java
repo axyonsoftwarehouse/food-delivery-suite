@@ -2,6 +2,8 @@ package com.foodie.api.payments;
 
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
+import com.foodie.api.payments.accounts.MerchantCredentials;
+import com.foodie.api.payments.accounts.PaymentAccountService;
 import java.sql.Timestamp;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,13 +26,16 @@ public class OnlinePaymentService {
     private final JdbcTemplate jdbc;
     private final PaymentGatewayRegistry gateways;
     private final com.foodie.api.finance.LedgerService ledger;
+    private final PaymentAccountService accounts;
     private final boolean allowDirectOnlineCharges;
 
     public OnlinePaymentService(JdbcTemplate jdbc, PaymentGatewayRegistry gateways, com.foodie.api.finance.LedgerService ledger,
+                                PaymentAccountService accounts,
                                 @Value("${app.payments.allow-direct-online-charges:false}") boolean allowDirectOnlineCharges) {
         this.jdbc = jdbc;
         this.gateways = gateways;
         this.ledger = ledger;
+        this.accounts = accounts;
         this.allowDirectOnlineCharges = allowDirectOnlineCharges;
     }
 
@@ -65,7 +70,7 @@ public class OnlinePaymentService {
         String method = intent.method();
         String provider = intent.provider();
         if (method == null || !METHODS.contains(method)) throw new ApiException(400, "Forma de pagamento online inválida");
-        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, total_cents, status FROM orders WHERE id = ? FOR UPDATE", orderId);
+        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, total_cents, status FROM orders WHERE id = ? FOR UPDATE", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         boolean owner = ((Number) order.get("customer_id")).longValue() == actor.id();
@@ -106,8 +111,11 @@ public class OnlinePaymentService {
             }
         }
 
+        long restaurantId = ((Number) order.get("restaurant_id")).longValue();
+        MerchantCredentials credentials = accounts.credentialsFor(restaurantId)
+            .orElseThrow(() -> new ApiException(409, "Esta loja não recebe pagamento online: o Mercado Pago dela não está conectado"));
         PaymentGateway gateway = gateways.resolve(provider);
-        PaymentGateway.Charge charge = gateway.create(null /* TODO(Task 10/11): credenciais da loja */, new PaymentGateway.ChargeRequest(
+        PaymentGateway.Charge charge = gateway.create(credentials, new PaymentGateway.ChargeRequest(
             orderId, due, method, "Pedido #" + orderId, payerEmail, idempotencyKey,
             intent.cardToken(), intent.installments(), intent.docType(), intent.docNumber(),
             intent.paymentMethodId(), payerFirstName));
@@ -122,10 +130,11 @@ public class OnlinePaymentService {
         }
         jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = ?, idempotency_key = ?, status = ?, raw_status = ?,"
                 + " qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ?, note = ?,"
-                + " confirmed_at = IF(? = 'paid', NOW(), confirmed_at) WHERE order_id = ?",
+                + " confirmed_at = IF(? = 'paid', NOW(), confirmed_at), payment_account_id = ?, provider_user_id = ? WHERE order_id = ?",
             gateway.provider(), method, charge.externalId(), idempotencyKey, status, charge.rawStatus(),
             charge.qrCode(), charge.qrCodeBase64(), charge.ticketUrl(),
-            charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), note, status, orderId);
+            charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), note, status,
+            credentials.accountId(), credentials.providerUserId(), orderId);
         return detail(orderId);
     }
 

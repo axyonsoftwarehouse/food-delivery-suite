@@ -29,6 +29,8 @@ class OnlinePaymentServiceTest {
     private final PaymentGatewayRegistry gateways = mock(PaymentGatewayRegistry.class);
     private final PaymentGateway gateway = mock(PaymentGateway.class);
     private final com.foodie.api.finance.LedgerService ledger = mock(com.foodie.api.finance.LedgerService.class);
+    private final com.foodie.api.payments.accounts.PaymentAccountService accounts = mock(com.foodie.api.payments.accounts.PaymentAccountService.class);
+    private final com.foodie.api.payments.accounts.MerchantCredentials loja = new com.foodie.api.payments.accounts.MerchantCredentials(9, 3, "token-da-loja", "pk", "3588446200");
     private final User customer = new User(7, "Cliente", "cliente@demo.local", "customer", null);
     private final User stranger = new User(9, "Outro", "outro@demo.local", "customer", null);
 
@@ -36,13 +38,14 @@ class OnlinePaymentServiceTest {
     private final Map<String, Object> payment = new LinkedHashMap<>();
 
     private OnlinePaymentService service(boolean allowDirectOnlineCharges) {
-        return new OnlinePaymentService(jdbc, gateways, ledger, allowDirectOnlineCharges);
+        return new OnlinePaymentService(jdbc, gateways, ledger, accounts, allowDirectOnlineCharges);
     }
 
     @BeforeEach
     void setUp() {
         order.put("id", 1L);
         order.put("customer_id", 7L);
+        order.put("restaurant_id", 3L);
         order.put("total_cents", 1000L);
         order.put("status", "placed");
         payment.put("id", 11L);
@@ -55,6 +58,7 @@ class OnlinePaymentServiceTest {
         when(jdbc.queryForList(argThat(sql -> sql != null && sql.contains("FROM order_payments")), any(Object[].class))).thenReturn(List.of(payment));
         when(jdbc.queryForObject(anyString(), any(Class.class), any(Object[].class))).thenReturn("cliente@exemplo.com.br");
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+        when(accounts.credentialsFor(3L)).thenReturn(java.util.Optional.of(loja));
         when(gateways.resolve(any())).thenReturn(gateway);
         when(gateway.provider()).thenReturn("mercadopago");
     }
@@ -80,7 +84,7 @@ class OnlinePaymentServiceTest {
         service(true).startIntent(customer, 1, "pix", null);
 
         ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
-        verify(gateway).create(any(), request.capture());
+        verify(gateway).create(eq(loja), request.capture());
         assertEquals(1L, request.getValue().orderId());
         assertEquals(1000L, request.getValue().amountCents());
         assertEquals("cliente@exemplo.com.br", request.getValue().payerEmail());
@@ -97,7 +101,18 @@ class OnlinePaymentServiceTest {
         assertEquals("00020126...", saved[6]);
         assertEquals("base64image", saved[7]);
         assertEquals("https://www.mercadopago.com.br/payments/123456/ticket", saved[8]);
-        assertEquals(1L, saved[12]);
+        assertEquals(9L, saved[12]);
+        assertEquals("3588446200", saved[13]);
+        assertEquals(1L, saved[14]);
+    }
+
+    @Test
+    void storeWithoutMercadoPagoCannotChargeOnline() {
+        when(accounts.credentialsFor(3L)).thenReturn(java.util.Optional.empty());
+        ApiException erro = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, "pix", null));
+        assertEquals(409, erro.status());
+        assertEquals("Esta loja não recebe pagamento online: o Mercado Pago dela não está conectado", erro.getMessage());
+        verify(gateway, never()).create(any(), any());
     }
 
     @Test
@@ -166,7 +181,7 @@ class OnlinePaymentServiceTest {
         service(true).startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 3, "CPF", "12345678909"));
 
         ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
-        verify(gateway).create(any(), request.capture());
+        verify(gateway).create(eq(loja), request.capture());
         assertEquals("card", request.getValue().method());
         assertEquals("tok-123", request.getValue().cardToken());
         assertEquals(3, request.getValue().installments());

@@ -23,8 +23,9 @@ class PaymentServiceTest {
     private final com.foodie.api.rewards.RewardsService rewards = Mockito.mock(com.foodie.api.rewards.RewardsService.class);
     private final com.foodie.api.payments.PaymentGatewayRegistry gateways = Mockito.mock(com.foodie.api.payments.PaymentGatewayRegistry.class);
     private final com.foodie.api.payments.PaymentGateway gateway = Mockito.mock(com.foodie.api.payments.PaymentGateway.class);
-    private final PaymentService service = new PaymentService(jdbc, ledger, rewards, gateways, false);
-    private final PaymentService withOnline = new PaymentService(jdbc, ledger, rewards, gateways, true);
+    private final com.foodie.api.payments.accounts.PaymentAccountService accounts = Mockito.mock(com.foodie.api.payments.accounts.PaymentAccountService.class);
+    private final PaymentService service = new PaymentService(jdbc, ledger, rewards, gateways, accounts, false);
+    private final PaymentService withOnline = new PaymentService(jdbc, ledger, rewards, gateways, accounts, true);
     private final User admin = new User(1, "Admin", "admin@demo.local", "admin", null);
     private final User courier = new User(5, "Entregador", "entregador@demo.local", "courier", null);
 
@@ -114,6 +115,8 @@ class PaymentServiceTest {
         row.put("modality", "online");
         row.put("provider", "mercadopago");
         row.put("external_id", "ORDTST01ABC");
+        row.put("payment_account_id", 9L);
+        row.put("provider_user_id", "3588446200");
         row.put("amount_received_cents", null);
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
     }
@@ -123,6 +126,7 @@ class PaymentServiceTest {
         // 05/10/2026, pedido #23: o estorno do admin marcou `refunded` no Foodie e a order continuou
         // `processed/accredited` no Mercado Pago — o dinheiro não voltava para o cliente.
         storedOnlinePayment();
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(new com.foodie.api.payments.accounts.MerchantCredentials(9, 3, "t", "pk", "3588446200")));
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
         when(gateway.refund(any(), eq("ORDTST01ABC"), eq("refund-order-1"))).thenReturn(
             new com.foodie.api.payments.PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
@@ -141,6 +145,7 @@ class PaymentServiceTest {
     @Test
     void providerRefusalLeavesThePaymentPaid() {
         storedOnlinePayment();
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(new com.foodie.api.payments.accounts.MerchantCredentials(9, 3, "t", "pk", "3588446200")));
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
         when(gateway.refund(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o estorno: HTTP 400"));
 
@@ -157,5 +162,36 @@ class PaymentServiceTest {
         assertEquals("refunded", service.refund(admin, 1, "troco errado").get("status"));
         verify(gateways, Mockito.never()).resolve(any());
         verify(ledger).reverseOrder(1);
+    }
+
+    @Test
+    void disconnectedStoreCannotRefundThroughTheProvider() {
+        storedOnlinePayment();
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.empty());
+        ApiException erro = assertThrows(ApiException.class, () -> service.refund(admin, 1, "pedido de teste"));
+        assertEquals(409, erro.status());
+        assertEquals("A loja desconectou o Mercado Pago. Estorne pelo painel do Mercado Pago ou reconecte a conta.", erro.getMessage());
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void storeThatSwitchedAccountsCannotRefundAnOldCharge() {
+        storedOnlinePayment();
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(new com.foodie.api.payments.accounts.MerchantCredentials(9, 3, "t", "pk", "999")));
+        ApiException erro = assertThrows(ApiException.class, () -> service.refund(admin, 1, "pedido de teste"));
+        assertEquals(409, erro.status());
+        assertEquals("A loja trocou de conta Mercado Pago depois desta cobrança. Estorne pelo painel da conta que recebeu.", erro.getMessage());
+    }
+
+    @Test
+    void chargeMadeBeforeStoreAccountsIsRefusedClearly() {
+        storedOnlinePayment();
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenAnswer(inv -> {
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("status", "paid"); row.put("method", "pix"); row.put("modality", "online"); row.put("provider", "mercadopago");
+            row.put("external_id", "ORDTST01ABC"); row.put("payment_account_id", null); row.put("provider_user_id", null); row.put("amount_received_cents", null);
+            return List.of(row);
+        });
+        assertEquals(409, assertThrows(ApiException.class, () -> service.refund(admin, 1, "pedido de teste")).status());
     }
 }

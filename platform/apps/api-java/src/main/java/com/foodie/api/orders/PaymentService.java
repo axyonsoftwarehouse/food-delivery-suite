@@ -5,6 +5,8 @@ import com.foodie.api.auth.User;
 import com.foodie.api.finance.LedgerService;
 import com.foodie.api.payments.PaymentGateway;
 import com.foodie.api.payments.PaymentGatewayRegistry;
+import com.foodie.api.payments.accounts.MerchantCredentials;
+import com.foodie.api.payments.accounts.PaymentAccountService;
 import com.foodie.api.rewards.RewardsService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,14 +27,17 @@ public class PaymentService {
     private final LedgerService ledger;
     private final RewardsService rewards;
     private final PaymentGatewayRegistry gateways;
+    private final PaymentAccountService accounts;
     private final boolean allowDirectOnlineCharges;
 
     public PaymentService(JdbcTemplate jdbc, LedgerService ledger, RewardsService rewards, PaymentGatewayRegistry gateways,
+                          PaymentAccountService accounts,
                           @Value("${app.payments.allow-direct-online-charges:false}") boolean allowDirectOnlineCharges) {
         this.jdbc = jdbc;
         this.ledger = ledger;
         this.rewards = rewards;
         this.gateways = gateways;
+        this.accounts = accounts;
         this.allowDirectOnlineCharges = allowDirectOnlineCharges;
     }
 
@@ -98,7 +103,7 @@ public class PaymentService {
     public Map<String, Object> refund(User actor, long orderId, String note) {
         if (!"admin".equals(actor.role())) throw new ApiException(403, "Acesso não autorizado");
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT method, status, modality, provider, external_id, amount_received_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+            "SELECT method, status, modality, provider, external_id, payment_account_id, provider_user_id, amount_received_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (rows.isEmpty()) throw new ApiException(404, "Pagamento não encontrado");
         Map<String, Object> row = rows.getFirst();
         String trimmed = note == null ? null : note.strip();
@@ -107,8 +112,16 @@ public class PaymentService {
         // Se o provedor recusar, a exceção sobe e nada muda no Foodie.
         String providerStatus = null;
         if ("paid".equals(row.get("status")) && "online".equals(row.get("modality")) && row.get("provider") != null && row.get("external_id") != null) {
+            if (row.get("payment_account_id") == null) {
+                throw new ApiException(409, "Cobrança feita antes da conta Mercado Pago por loja. Estorne pelo painel do Mercado Pago.");
+            }
+            MerchantCredentials credentials = accounts.credentialsForAccount(((Number) row.get("payment_account_id")).longValue())
+                .orElseThrow(() -> new ApiException(409, "A loja desconectou o Mercado Pago. Estorne pelo painel do Mercado Pago ou reconecte a conta."));
+            if (row.get("provider_user_id") != null && !row.get("provider_user_id").equals(credentials.providerUserId())) {
+                throw new ApiException(409, "A loja trocou de conta Mercado Pago depois desta cobrança. Estorne pelo painel da conta que recebeu.");
+            }
             PaymentGateway.Charge estorno = gateways.resolve((String) row.get("provider"))
-                .refund(null /* TODO(Task 10/11): credenciais da loja */, (String) row.get("external_id"), "refund-order-" + orderId);
+                .refund(credentials, (String) row.get("external_id"), "refund-order-" + orderId);
             providerStatus = estorno.rawStatus();
         }
         int changed = jdbc.update("UPDATE order_payments SET status = 'refunded', note = ?, raw_status = COALESCE(?, raw_status), refunded_by = ?, refunded_at = NOW() WHERE order_id = ? AND status = 'paid'",
