@@ -41,6 +41,15 @@ class RefundRequestServiceTest {
     }
 
     @Test
+    void approvingAlreadyRefundedPaymentOnlyMarksApproved() {
+        stored("requested", 3);
+        when(payments.status(30L)).thenReturn("refunded");
+        assertEquals("approved", service.decide(owner, 7, "approve", "ok").get("status"));
+        verify(payments, never()).refund(any(), anyLong(), any());
+        verify(jdbc).update(contains("status = 'approved'"), eq(5L), eq("ok"), eq(7L));
+    }
+
+    @Test
     void storeRejectsWithoutRefunding() {
         stored("requested", 3);
         assertEquals("rejected", service.decide(owner, 7, "reject", "fora do prazo").get("status"));

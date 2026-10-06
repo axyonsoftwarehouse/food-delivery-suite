@@ -140,6 +140,10 @@ public class PaymentService {
         int changed = jdbc.update("UPDATE order_payments SET status = 'refunded', note = ?, raw_status = COALESCE(?, raw_status), refunded_by = ?, refunded_at = NOW() WHERE order_id = ? AND status = 'paid'",
             (trimmed == null || trimmed.isEmpty()) ? null : trimmed, providerStatus, actor.id(), orderId);
         if (changed == 0) throw new ApiException(409, "Só é possível estornar um pagamento confirmado");
+        // Se o cliente tinha um pedido de reembolso aberto, ele já recebeu o dinheiro de volta: fechar como
+        // aprovado evita deixá-lo "em análise" e obrigar a loja a "recusar" algo que já foi atendido.
+        jdbc.update("UPDATE refunds SET status = 'approved', decided_by = ?, decided_at = NOW(), decided_note = ? WHERE order_id = ? AND status = 'requested'",
+            actor.id(), "Pagamento estornado diretamente", orderId);
         ledger.reverseOrder(orderId);
         java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("orderId", orderId);

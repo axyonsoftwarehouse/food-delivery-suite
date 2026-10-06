@@ -53,7 +53,8 @@ public class RefundRequestService {
         long orderId = ((Number) refund.get("order_id")).longValue();
         String status;
         if ("approve".equals(decision)) {
-            payments.refund(actor, orderId, clean);
+            // Estorno direto anterior já devolveu o dinheiro: só fecha o pedido, sem estornar de novo.
+            if (!"refunded".equals(payments.status(orderId))) payments.refund(actor, orderId, clean);
             status = "approved";
         } else if ("reject".equals(decision)) {
             status = "rejected";

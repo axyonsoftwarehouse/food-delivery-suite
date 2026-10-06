@@ -42,6 +42,18 @@ class PaymentServiceTest {
     }
 
     @Test
+    void directRefundClosesTheOpenCustomerRequest() {
+        storedPayment("paid", "cash", 1000, 5L);
+        when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(1L))).thenReturn(List.of(3L));
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        service.refund(owner, 1, "cliente desistiu");
+
+        verify(jdbc).update(org.mockito.ArgumentMatchers.contains("UPDATE refunds SET status = 'approved'"), eq(5L), eq("Pagamento estornado diretamente"), eq(1L));
+        verify(jdbc).update(org.mockito.ArgumentMatchers.contains("WHERE order_id = ? AND status = 'requested'"), eq(5L), eq("Pagamento estornado diretamente"), eq(1L));
+    }
+
+    @Test
     void storeCannotRefundAnotherStoresOrder() {
         when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(1L))).thenReturn(List.of(4L));
         assertEquals(404, assertThrows(ApiException.class, () -> service.refund(owner, 1, "x")).status());

@@ -70,6 +70,15 @@ class RestaurantRefundControllerTest {
     }
 
     @Test
+    void rejectWithoutReasonIs400() throws Exception {
+        when(auth.requireUser("s", "restaurant")).thenReturn(owner);
+        mvc.perform(post("/restaurant/refunds/7/decision").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"decision\":\"reject\",\"note\":\"  a \"}"))
+            .andExpect(status().isBadRequest());
+        verify(refunds, never()).decide(any(), anyLong(), any(), any());
+    }
+
+    @Test
     void invalidDecisionIs400() throws Exception {
         when(auth.requireUser("s", "restaurant")).thenReturn(owner);
         mvc.perform(post("/restaurant/refunds/7/decision").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)

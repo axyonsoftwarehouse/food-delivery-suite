@@ -42,9 +42,10 @@ public class OrderExtrasController {
     private final OrderService orders;
     private final RefundRequestService refunds;
     private final SupportActionService support;
+    private final PaymentService payments;
 
     public OrderExtrasController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc, OrderService orders,
-                                RefundRequestService refunds, SupportActionService support) {
+                                RefundRequestService refunds, SupportActionService support, PaymentService payments) {
         this.auth = auth;
         this.permissions = permissions;
         this.audit = audit;
@@ -52,6 +53,7 @@ public class OrderExtrasController {
         this.orders = orders;
         this.refunds = refunds;
         this.support = support;
+        this.payments = payments;
     }
 
     // ----- E27: fatura -----
@@ -138,6 +140,7 @@ public class OrderExtrasController {
         if (order.isEmpty() || ((Number) order.getFirst().get("customer_id")).longValue() != customer.id()) {
             throw new ApiException(404, "Pedido não encontrado");
         }
+        if (!"paid".equals(payments.status(id))) throw new ApiException(409, "Só é possível pedir reembolso de um pedido pago");
         Integer pending = jdbc.query("SELECT 1 FROM refunds WHERE order_id = ? AND status = 'requested'", rs -> rs.next() ? 1 : null, id);
         if (pending != null) throw new ApiException(409, "Já existe um pedido de reembolso em análise");
         var key = new org.springframework.jdbc.support.GeneratedKeyHolder();

@@ -92,6 +92,15 @@ class PaymentControllerRefundTest {
     }
 
     @Test
+    void adminWithoutSupportActIs403() throws Exception {
+        when(auth.requireUser("s", "restaurant", "admin")).thenReturn(admin);
+        doThrow(new ApiException(403, "Acesso não autorizado")).when(adminPermissions).require(admin, AdminPermissions.SUPPORT_ACT);
+        mvc.perform(post("/orders/30/payment/refund").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"Loja pediu estorno por telefone\"}"))
+            .andExpect(status().isForbidden());
+        verify(payments, never()).refund(any(), anyLong(), any());
+    }
+
+    @Test
     void supportWithShortReasonIs400() throws Exception {
         when(auth.requireUser("s", "restaurant", "admin")).thenReturn(admin);
         mvc.perform(post("/orders/30/payment/refund").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"curto\"}"))

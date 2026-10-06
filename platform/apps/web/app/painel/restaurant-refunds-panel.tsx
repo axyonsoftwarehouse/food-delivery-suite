@@ -22,6 +22,7 @@ export default function RestaurantRefundsPanel() {
   async function decide(refund: Refund, decision: 'approve' | 'reject') {
     const note = window.prompt(decision === 'approve' ? `Aprovar o reembolso do pedido #${refund.order_id}? O valor volta ao cliente. Observação (opcional):` : `Recusar o reembolso do pedido #${refund.order_id}? Motivo:`);
     if (note === null) return;
+    if (decision === 'reject' && note.trim().length < 3) { setMessage('Informe o motivo da recusa (3+ caracteres).'); return; }
     setBusy(true);
     try {
       await api(`/restaurant/refunds/${refund.id}/decision`, { method: 'POST', body: JSON.stringify({ decision, note: note.trim() }) });

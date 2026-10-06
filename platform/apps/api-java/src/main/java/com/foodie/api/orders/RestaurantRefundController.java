@@ -47,6 +47,9 @@ public class RestaurantRefundController {
                                       @PathVariable @Positive long id,
                                       @Valid @RequestBody OrderExtrasController.RefundDecision body) {
         User owner = store(token);
+        if ("reject".equals(body.decision().strip()) && (body.note() == null || body.note().strip().length() < 3)) {
+            throw new ApiException(400, "Informe o motivo da recusa");
+        }
         Map<String, Object> result = refunds.decide(owner, id, body.decision().strip(), body.note());
         audit.record(owner, "refund.decide", "refund", id, "Reembolso #" + id + ("approve".equals(body.decision().strip()) ? " aprovado" : " recusado") + " pela loja");
         return result;

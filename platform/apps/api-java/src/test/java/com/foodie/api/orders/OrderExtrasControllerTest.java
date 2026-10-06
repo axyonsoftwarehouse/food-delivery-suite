@@ -134,4 +134,15 @@ class OrderExtrasControllerTest {
             .andExpect(status().isBadRequest());
         verify(refunds, never()).decide(any(), anyLong(), any(), any());
     }
+
+    @Test
+    void customerCannotRequestRefundForUnpaidOrder() throws Exception {
+        when(auth.requireUser("s", "customer")).thenReturn(new User(9, "Cliente", "c@demo.local", "customer", null));
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("FROM orders WHERE id = ?"), eq(30L)))
+            .thenReturn(List.of(Map.of("id", 30L, "customer_id", 9L, "status", "delivered")));
+        when(payments.status(30L)).thenReturn("refunded");
+        mvc.perform(post("/orders/30/refund-request").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"quero\"}"))
+            .andExpect(status().isConflict());
+    }
 }
