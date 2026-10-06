@@ -307,7 +307,7 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ### Decisões de negócio em aberto
 - Quem opera: marca própria ou cliente?
-- Licença do pacote comercial e do kit Figma Foodie
+- Licença do pacote comercial e do kit visual de terceiros (Figma)
 - Tokens do Mapbox configurados?
 
 ## 5. Próximo passo único

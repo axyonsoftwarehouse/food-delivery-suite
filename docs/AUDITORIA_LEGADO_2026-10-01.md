@@ -2,7 +2,7 @@
 
 Feita antes de decidir a migração do repositório para a organização Axyon, para
 responder a uma pergunta objetiva: **sobrou código ou material do pacote comercial
-StackFood v9 / do kit visual Foodie dentro do repositório?**
+StackFood v9 / do kit visual de terceiros dentro do repositório?**
 
 Método: comparação por **hash de blob** (arquivo byte-idêntico), comparação por
 **similaridade de conteúdo** (arquivo copiado e depois editado), busca por
@@ -10,14 +10,14 @@ Método: comparação por **hash de blob** (arquivo byte-idêntico), comparaçã
 Tudo executado contra `HEAD` e contra a tag `legacy-stackfood-v9`, com o
 repositório em `9a63a28` + PRs de 01/10.
 
-## 1. O kit visual Foodie: nada no repositório
+## 1. O kit visual de terceiros: nada no repositório
 
 | Item | Situação |
 | --- | --- |
-| `.fig` e 214 PNGs do kit (213 MB) | **fora do repositório** — em `C:\1.Arquivos Gerais\Foodie - Food Delivery App UI Kit` |
+| `.fig` e 214 PNGs do kit (213 MB) | **fora do repositório** — numa pasta local da máquina de trabalho |
 | Assets, ícones ou imagens do kit | **nenhum** — as únicas imagens do produto são 7 ícones Expo/Foodie e `foodie-burger-hero.png` |
 | Fonte do kit (Urbanist) | **não usada** — o produto usa DM Sans + Manrope |
-| Menções restantes | comentário em `tokens.css` (removido em 01/10) e o doc `REFERENCIA_UI_FOODIE.md` (removido em 01/10) |
+| Menções restantes | comentário em `tokens.css` (removido em 01/10) e um documento de referência do kit (removido em 01/10) |
 
 ## 2. O pacote StackFood: o que existia e foi removido
 
@@ -42,7 +42,7 @@ commit do repositório.
 | --- | --- |
 | Blobs idênticos entre a tag e o `HEAD` | 2.111 — **todos** dentro de `reference/flutter-apps`; nenhum em `platform/` ou `svg/` |
 | Cópias modificadas (similaridade > 85%) | **0 pares** em 30 comparações por nome + conteúdo |
-| Marcas do pacote no produto (`stackfood`, `foodie`, `6amtech`, `food_e*`, `efood`, `dinehub`, `tiffinking`) | só **texto**: uma frase no `platform/README.md` e o registro no `deploy/README.md` |
+| Marcas do pacote no produto (`stackfood`, o nome do kit visual, `6amtech`, `food_e*`, `efood`, `dinehub`, `tiffinking`) | só **texto**: uma frase no `platform/README.md` e o registro no `deploy/README.md` |
 | Dump do banco legado | **não existe** no Git (o `database.sql` nunca foi commitado) |
 | Schema copiado? | legado: 132 tabelas; produto: 88; **27 nomes em comum**, todos substantivos genéricos do domínio (`orders`, `users`, `categories`, `coupons`, `zones`…) e 105 tabelas do legado sem correspondência |
 
@@ -58,7 +58,7 @@ do produto.** O que existia era material de consulta, não código em uso.
   `INVENTARIO_LACUNAS_LEGADO.md`, `JAVA_MIGRATION_PLAN.md`,
   `REFERENCIA_FUNCIONAL.md`, `AUDITORIA_IMPEDIMENTOS.md`,
   `REFERENCIA_INSPIRACOES.md`, `PLANO_EVOLUCAO_INSPIRACOES.md`,
-  `REFERENCIA_UI_FOODIE.md`;
+  o documento de referência do kit visual de terceiros;
 - o comentário do `tokens.css` que citava o kit visual de terceiros (a paleta do
   produto não mudou).
 
@@ -89,7 +89,7 @@ comm -12 /tmp/tag.txt /tmp/head.txt | wc -l          # -> 2111
 #    (todos os caminhos do HEAD caem em reference/flutter-apps/)
 
 # 3) marcas do pacote dentro do produto
-git grep -in -E "stackfood|foodie|6amtech|efood|dinehub|tiffinking" -- platform svg
+git grep -in -E "stackfood|6amtech|efood|dinehub|tiffinking" -- platform svg
 
 # 4) nenhum arquivo de licença
 git log --all --diff-filter=A --name-only | grep -iE "license|notice|copying"

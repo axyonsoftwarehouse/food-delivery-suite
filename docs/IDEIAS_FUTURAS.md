@@ -71,7 +71,7 @@ encontrada e não será mais procurada — e a plataforma própria não depende 
   `INVENTARIO_LEGADO_STACKFOOD.md`, `INVENTARIO_LACUNAS_LEGADO.md`,
   `JAVA_MIGRATION_PLAN.md`, `REFERENCIA_FUNCIONAL.md`, `AUDITORIA_IMPEDIMENTOS.md`,
   `REFERENCIA_INSPIRACOES.md`, `PLANO_EVOLUCAO_INSPIRACOES.md`,
-  `REFERENCIA_UI_FOODIE.md`;
+  o documento de referência do kit visual de terceiros;
 - o comentário do `tokens.css` que citava o kit visual de terceiros saiu (a
   paleta do produto continua igual).
 

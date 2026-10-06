@@ -355,7 +355,7 @@ curl -fsS -o /dev/null -w '%{http_code}\n' https://staging.2.29.42.104.sslip.io
 | Ação | Ganho |
 | --- | --- |
 | `docker builder prune -f` (cache de build) | ~11,8 GB |
-| Imagens `foodie-staging-*` (fase anterior do projeto) | ~2,4 GB |
+| Imagens de staging com o nome antigo do projeto | ~2,4 GB |
 | Imagens do scaffold `production` (`postgres`, `redis`, `pgbouncer`) | ~0,5 GB |
 | Imagem `foodie-staging-web:pre-bf8a6a3` + dangling | ~1 GB |
 
@@ -388,8 +388,8 @@ docker ps -a --format '{{.Image}}' | sort -u
 > 25/09/2026 (`down -v` nos contêineres, volumes e rede, mais os diretórios
 > `/opt/food-delivery-suite` e `/opt/foodie`) — ver `platform/deploy/README.md`.
 > Não há contêiner, volume, rede ou diretório do legado sobrando. Os únicos
-> itens "não Foodie" que existiram — o scaffold `production` e as imagens
-> `foodie-*` — foram removidos em 30/09.
+> itens fora do projeto atual que existiram — o scaffold `production` e as imagens
+> com o nome antigo do projeto — foram removidos em 30/09.
 
 **Sinais de alarme:**
 
@@ -541,7 +541,7 @@ reconstrói o que já está lá.
 ```bash
 cd /home/deploy
 mv foodie-platform foodie-platform.bak
-git clone https://github.com/torinoorbit-dev/food-delivery-suite foodie-platform
+git clone https://github.com/axyonsoftwarehouse/food-delivery-suite foodie-platform
 cd foodie-platform/platform/deploy
 cp /home/deploy/foodie-platform.bak/deploy/.env .env   # o .env não vai no git
 cp -r /home/deploy/foodie-platform.bak/deploy/backups ./backups
