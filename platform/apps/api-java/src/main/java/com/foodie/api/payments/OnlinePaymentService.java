@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OnlinePaymentService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(OnlinePaymentService.class);
     private static final Set<String> METHODS = Set.of("pix", "card");
     /** Valores aceitos pela coluna status de order_payments. */
     private static final Set<String> STATUSES = Set.of("pending", "paid", "cancelled", "refunded", "rejected", "expired");
@@ -139,10 +140,14 @@ public class OnlinePaymentService {
     }
 
     @Transactional
-    public Map<String, Object> handleWebhook(String provider, String paymentId) {
+    public Map<String, Object> handleWebhook(String provider, String paymentId, String providerUserId) {
+        // Sem conta conhecida não há token para consultar: a notificação não é de uma loja nossa.
+        if (providerUserId == null) return Map.of("ok", true, "ignored", true);
+        List<MerchantCredentials> sellers = accounts.credentialsForProviderUser(providerUserId);
+        if (sellers.isEmpty()) return Map.of("ok", true, "ignored", true);
         PaymentGateway.Charge charge;
         try {
-            charge = gateways.resolve(provider).fetch(null /* TODO(Task 10/11): credenciais da loja */, paymentId);
+            charge = gateways.resolve(provider).fetch(sellers.getFirst(), paymentId);
         } catch (ApiException naoEncontrado) {
             // Notificação sobre algo que não é nosso — o próprio painel do Mercado Pago testa o webhook
             // com um pedido fictício ("123456"). Responder erro faria o provedor reenviar para sempre e
@@ -154,9 +159,16 @@ public class OnlinePaymentService {
         long orderId;
         try { orderId = Long.parseLong(charge.externalReference()); } catch (NumberFormatException error) { return Map.of("ok", true, "ignored", true); }
 
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT status, amount_due_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT p.status, p.amount_due_cents, o.restaurant_id FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE", orderId);
         if (rows.isEmpty()) return Map.of("ok", true, "ignored", true);
         Map<String, Object> row = rows.getFirst();
+        long restaurantId = ((Number) row.get("restaurant_id")).longValue();
+        // Uma conta só mexe nos pedidos das lojas que ela atende.
+        if (sellers.stream().noneMatch(seller -> seller.restaurantId() == restaurantId)) {
+            log.warn("Webhook do Mercado Pago ignorado: conta {} não atende a loja {} do pedido #{}", providerUserId, restaurantId, orderId);
+            return Map.of("ok", true, "ignored", true);
+        }
         String current = (String) row.get("status");
         if ("refunded".equals(current)) return Map.of("ok", true, "already", current);
         if ("paid".equals(current)) {

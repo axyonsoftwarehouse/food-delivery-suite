@@ -54,11 +54,13 @@ class OnlinePaymentServiceTest {
         payment.put("qr_code", null);
         payment.put("ticket_url", null);
         payment.put("amount_due_cents", 1000L);
+        payment.put("restaurant_id", 3L);
         when(jdbc.queryForList(argThat(sql -> sql != null && sql.contains("FROM orders")), any(Object[].class))).thenReturn(List.of(order));
         when(jdbc.queryForList(argThat(sql -> sql != null && sql.contains("FROM order_payments")), any(Object[].class))).thenReturn(List.of(payment));
         when(jdbc.queryForObject(anyString(), any(Class.class), any(Object[].class))).thenReturn("cliente@exemplo.com.br");
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
         when(accounts.credentialsFor(3L)).thenReturn(java.util.Optional.of(loja));
+        when(accounts.credentialsForProviderUser("3588446200")).thenReturn(java.util.List.of(loja));
         when(gateways.resolve(any())).thenReturn(gateway);
         when(gateway.provider()).thenReturn("mercadopago");
     }
@@ -232,7 +234,7 @@ class OnlinePaymentServiceTest {
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
         when(gateway.fetch(any(), eq("123456"))).thenThrow(new ApiException(404, "Cobrança não encontrada no provedor: 123456"));
 
-        Map<String, Object> resposta = service(true).handleWebhook("mercadopago", "123456");
+        Map<String, Object> resposta = service(true).handleWebhook("mercadopago", "123456", "3588446200");
 
         assertEquals(true, resposta.get("ok"));
         assertEquals(true, resposta.get("ignored"));
@@ -245,7 +247,7 @@ class OnlinePaymentServiceTest {
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
         when(gateway.fetch(any(), eq("123"))).thenThrow(new ApiException(502, "Mercado Pago recusou a consulta"));
 
-        assertThrows(ApiException.class, () -> service(true).handleWebhook("mercadopago", "123"));
+        assertThrows(ApiException.class, () -> service(true).handleWebhook("mercadopago", "123", "3588446200"));
     }
 
     @Test
@@ -255,7 +257,7 @@ class OnlinePaymentServiceTest {
         payment.put("status", "paid");
         when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
 
-        Map<String, Object> resposta = service(true).handleWebhook("mercadopago", "ORDTST01ABC");
+        Map<String, Object> resposta = service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200");
 
         assertEquals("refunded", resposta.get("status"));
         verify(jdbc).update(argThat(sql -> sql != null && sql.contains("status = 'refunded'") && sql.contains("refunded_at = NOW()")), any(Object[].class));
@@ -267,7 +269,7 @@ class OnlinePaymentServiceTest {
         payment.put("status", "paid");
         when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
 
-        assertEquals("paid", service(true).handleWebhook("mercadopago", "ORDTST01ABC").get("already"));
+        assertEquals("paid", service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("already"));
         verify(jdbc, never()).update(anyString(), any(Object[].class));
         verify(ledger, never()).reverseOrder(org.mockito.ArgumentMatchers.anyLong());
     }
@@ -278,8 +280,29 @@ class OnlinePaymentServiceTest {
         payment.put("status", "refunded");
         when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
 
-        assertEquals("refunded", service(true).handleWebhook("mercadopago", "ORDTST01ABC").get("already"));
+        assertEquals("refunded", service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("already"));
         verify(ledger, never()).reverseOrder(org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void unknownSellerIsIgnored() {
+        when(accounts.credentialsForProviderUser("777")).thenReturn(java.util.List.of());
+        assertEquals(true, service(true).handleWebhook("mercadopago", "ORDTST01ABC", "777").get("ignored"));
+        verify(gateway, never()).fetch(any(), anyString());
+    }
+
+    @Test
+    void sellerCannotTouchAnotherStoresOrder() {
+        payment.put("restaurant_id", 4L); // pedido da loja 4; a conta 3588446200 só atende a loja 3
+        when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
+        assertEquals(true, service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("ignored"));
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void fetchUsesTheSellersToken() {
+        when(gateway.fetch(eq(loja), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
+        assertEquals("paid", service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("status"));
     }
 
     @Test
