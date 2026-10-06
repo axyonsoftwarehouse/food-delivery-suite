@@ -25,8 +25,8 @@ capacitação — ver "Alternativa" no fim.
 - Apps nativos: **cliente** e **entregador**.
 - **Restaurante e admin permanecem no web responsivo** (já funcionam); app de restaurante só depois
   de medir uso real.
-- Referências de fluxo (apenas conceito): apps StackFood (GetX), eFood User/Delivery, TiffinKing,
-  e DineHub Expo (mesma stack).
+- Referências de fluxo (apenas conceito): apps do pacote legado (GetX) e outros apps
+  de referência de terceiros (um deles em Expo, mesma stack).
 
 ## Pré-requisitos de API (bloqueadores)
 
@@ -131,5 +131,5 @@ scaffold RN, sem criar um backend novo.
 ## Alternativa (Flutter)
 
 Mantido como opção se a equipe investir em Dart ou se os apps operacionais (rastreamento contínuo e
-impressora térmica) dominarem a decisão. Nesse caso, basear-se nos apps StackFood/eFood/TiffinKing
+impressora térmica) dominarem a decisão. Nesse caso, basear-se nos apps de referência de terceiros
 somente como referência conceitual.
