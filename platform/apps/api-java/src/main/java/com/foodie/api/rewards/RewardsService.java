@@ -126,12 +126,13 @@ public class RewardsService {
     }
 
     public long createCashbackRule(Long restaurantId, BigDecimal percent, int minOrderCents) {
+        if (restaurantId == null) throw new ApiException(400, "O cashback é definido por loja");
         var key = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbc.update(connection -> {
             var statement = connection.prepareStatement(
                 "INSERT INTO cashback_rules (restaurant_id, percent, min_order_cents) VALUES (?, ?, ?)",
                 java.sql.Statement.RETURN_GENERATED_KEYS);
-            if (restaurantId == null) statement.setNull(1, java.sql.Types.BIGINT); else statement.setLong(1, restaurantId);
+            statement.setLong(1, restaurantId);
             statement.setBigDecimal(2, percent);
             statement.setInt(3, minOrderCents);
             return statement;
@@ -197,11 +198,7 @@ public class RewardsService {
         List<BigDecimal> specific = jdbc.query(
             "SELECT percent FROM cashback_rules WHERE active = TRUE AND restaurant_id = ? AND min_order_cents <= ? ORDER BY id DESC LIMIT 1",
             (rs, row) -> rs.getBigDecimal(1), restaurantId, total);
-        if (!specific.isEmpty()) return specific.getFirst();
-        List<BigDecimal> global = jdbc.query(
-            "SELECT percent FROM cashback_rules WHERE active = TRUE AND restaurant_id IS NULL AND min_order_cents <= ? ORDER BY id DESC LIMIT 1",
-            (rs, row) -> rs.getBigDecimal(1), total);
-        return global.isEmpty() ? null : global.getFirst();
+        return specific.isEmpty() ? null : specific.getFirst();
     }
 
     private long loyaltyPoints(long userId) {
