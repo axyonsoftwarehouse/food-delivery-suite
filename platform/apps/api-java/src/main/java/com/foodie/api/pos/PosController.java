@@ -37,8 +37,9 @@ public class PosController {
     @GetMapping("/pos/customers")
     public List<Map<String, Object>> customers(@CookieValue(value = "foodie_session", required = false) String token,
                                                @RequestParam(required = false) String search) {
-        operator(token);
-        return pos.customers(search);
+        User operator = operator(token);
+        if (operator.restaurantId() == null) throw new com.foodie.api.ApiException(403, "Acesso não autorizado");
+        return pos.customers(operator.restaurantId(), search);
     }
 
     @PostMapping("/pos/orders")

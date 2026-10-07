@@ -1,7 +1,7 @@
 # Estado atual do Foodie
 
 Documento vivo. Última atualização: 05/10/2026 (noite).
-Base: `PLANO_EPICOS_STACKFOOD.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
+Base: `PLANO_EPICOS.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
 
@@ -52,15 +52,16 @@ A **Foodie** cobra **assinatura** da loja, não comissão sobre a venda.
 > devolve dinheiro de pedido. Consequências no código, ainda pendentes: §4, "Decorrências da decisão de
 > 05/10".
 
-**Legado StackFood v9 — removido por completo.** Saiu do repositório em
-25/09/2026 (`04e5686 chore: remove legacy StackFood code from the
-repository`) e da VPS na mesma data. Não existe mais `admin-panel`, `web`,
+**Legado de terceiros (v9) — removido por completo.** Saiu do repositório em
+25/09/2026 (commit de remoção do código legado) e da VPS na mesma data. Não existe mais `admin-panel`, `web`,
 `app-*` nem `payment-gateway` na árvore. Em **01/10/2026** a limpeza foi
 completada a pedido: a pasta `reference/flutter-apps/` (os três apps do pacote)
-e a tag `legacy-stackfood-v9` foram removidas — a tag também do remoto. Não há
+e a tag `legacy-v9` foram removidas — a tag também do remoto. Não há
 licença do pacote comercial, então ele não fica no repositório nem como atalho.
-O código permanece apenas no **histórico** do Git; o registro da auditoria está
-em `docs/AUDITORIA_LEGADO_2026-10-01.md`.
+Em **06/10/2026** o histórico do Git foi reescrito e o repositório passou para a
+organização `axyonsoftwarehouse`. O código do pacote **não existe mais em nenhum commit**,
+e o repositório antigo foi excluído. O registro da auditoria está em
+`docs/AUDITORIA_LEGADO_2026-10-01.md`.
 
 **Plataforma própria** (`platform/`): Java 21 + Spring Boot (API), Next.js
 (web), MariaDB isolado, deploy próprio. **É aqui que o projeto vive.**
@@ -280,7 +281,7 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
   clone** (não há `.git`). O que foi implantado é o **conteúdo da pasta
   `platform/`**, então o deploy fica em `.../foodie-platform/deploy` — **não**
   em `.../platform/deploy`. Todo comando nesse caminho errado falha.
-- **Não existe** legado para remover: o StackFood saiu da VPS em 25/09 e o
+- **Não existe** legado para remover: o pacote legado saiu da VPS em 25/09 e o
   scaffold `production` foi removido em 30/09. Esse scaffold **não era de
   terceiros nem tinha dados**: era um andaime criado pelo
   `/root/bootstrap-production.sh` em 15/09 — o mesmo script que criou o usuário
@@ -345,7 +346,7 @@ com justificativa e trilha de auditoria.
 **Atenção a dois pontos:**
 
 1. **Registrado como `E48` em 01/10/2026** — cartão completo em
-   `PLANO_EPICOS_STACKFOOD.md` (Onda 5 — Governança, P1). Decisões fechadas e
+   `PLANO_EPICOS.md` (Onda 5 — Governança, P1). Decisões fechadas e
    especificação aprovada em
    `docs/superpowers/specs/2026-10-01-e48-modo-suporte-design.md`; plano em
    `docs/superpowers/plans/2026-10-01-e48-modo-suporte.md`; implementado na branch.
@@ -496,7 +497,7 @@ Ver `docs/RUNBOOK_VPS.md`. Dois pontos que já custaram tempo:
 ## 8. Referências
 
 - **Decisão grande:** `docs/PLANO_RECONSTRUCAO_PROPRIA.md`
-- **Mapa de épicos:** `docs/PLANO_EPICOS_STACKFOOD.md`
+- **Mapa de épicos:** `docs/PLANO_EPICOS.md`
 - **Pendências atuais:** `docs/PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`
 - **Avaliação técnica:** `docs/AVALIACAO_E_PLANO_DE_EVOLUCAO.md`
 - **Referência funcional:** `docs/REFERENCIA_FUNCIONAL.md`

@@ -1,6 +1,5 @@
 package com.foodie.api.chat;
 
-import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import jakarta.validation.Valid;
@@ -24,10 +23,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class ChatController {
     private final AuthService auth;
     private final JdbcTemplate jdbc;
+    private final ChatPolicy policy;
 
-    public ChatController(AuthService auth, JdbcTemplate jdbc) {
+    public ChatController(AuthService auth, JdbcTemplate jdbc, ChatPolicy policy) {
         this.auth = auth;
         this.jdbc = jdbc;
+        this.policy = policy;
     }
 
     @GetMapping("/chat/conversations")
@@ -68,9 +69,7 @@ public class ChatController {
     public ResponseEntity<Map<String, Object>> send(@CookieValue(value = "foodie_session", required = false) String token,
                                                     @Valid @RequestBody MessageRequest body) {
         User me = auth.requireUser(token);
-        if (body.toUserId() == me.id()) throw new ApiException(400, "Destinatário inválido");
-        Integer exists = jdbc.query("SELECT 1 FROM users WHERE id = ? AND suspended_at IS NULL", rs -> rs.next() ? 1 : null, body.toUserId());
-        if (exists == null) throw new ApiException(400, "Destinatário não encontrado");
+        policy.requireCanSend(me, body.toUserId(), body.orderId());
         var key = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbc.update(connection -> {
             var statement = connection.prepareStatement("INSERT INTO chat_messages (from_user_id, to_user_id, order_id, body) VALUES (?, ?, ?, ?)",

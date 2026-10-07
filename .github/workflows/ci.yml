@@ -1,0 +1,60 @@
+name: CI - Foodie
+
+# Confere que o código está são, no PR (antes do merge) e na main (depois).
+# O deploy continua sendo o release.ps1 (PC -> VPS), de propósito: ele é o
+# processo provado, com backup e rollback automático.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verificação (Java, tipos, build, app da cozinha)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.21.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # O verify roda o Maven apontando para este cache local (.m2-cache), que
+      # não é versionado porque tem 102 MB. Guardamos entre execuções, com a
+      # chave amarrada ao pom.xml.
+      - uses: actions/cache@v6
+        with:
+          path: platform/apps/api-java/.m2-cache
+          key: m2-${{ hashFiles('platform/apps/api-java/pom.xml') }}
+          restore-keys: m2-
+
+      - name: Dependências (pnpm)
+        run: pnpm install --frozen-lockfile
+
+      - name: Verificação
+        run: pnpm verify
+        env:
+          # No PC o Maven roda offline, apoiado no cache local. Num runner limpo
+          # esse cache nasce vazio, então aqui o Maven baixa o que precisa.
+          VERIFY_ONLINE: '1'

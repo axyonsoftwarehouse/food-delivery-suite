@@ -1,5 +1,7 @@
 package com.foodie.api.payments;
 
+import com.foodie.api.admin.AdminPermissions;
+import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.PermissionService;
@@ -22,11 +24,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class OfflinePaymentController {
+    private final AdminPermissionService adminPermissions;
     private final AuthService auth;
     private final OfflinePaymentService offline;
     private final PermissionService permissions;
 
-    public OfflinePaymentController(AuthService auth, OfflinePaymentService offline, PermissionService permissions) {
+    public OfflinePaymentController(AuthService auth, OfflinePaymentService offline, PermissionService permissions, AdminPermissionService adminPermissions) {
+        this.adminPermissions = adminPermissions;
         this.auth = auth;
         this.offline = offline;
         this.permissions = permissions;
@@ -40,14 +44,14 @@ public class OfflinePaymentController {
 
     @GetMapping("/admin/offline-payment-methods")
     public List<Map<String, Object>> adminMethods(@CookieValue(value = "foodie_session", required = false) String token) {
-        auth.requireUser(token, "admin");
+        adminPermissions.require(auth.requireUser(token, "admin"), AdminPermissions.SETTINGS_MANAGE);
         return offline.methods(false);
     }
 
     @PostMapping("/admin/offline-payment-methods")
     public ResponseEntity<Map<String, Object>> adminCreate(@CookieValue(value = "foodie_session", required = false) String token,
                                                            @Valid @RequestBody MethodRequest body) {
-        auth.requireUser(token, "admin");
+        adminPermissions.require(auth.requireUser(token, "admin"), AdminPermissions.SETTINGS_MANAGE);
         boolean requiresProof = body.requiresProof() == null || body.requiresProof();
         boolean active = body.active() == null || body.active();
         return ResponseEntity.status(201).body(offline.createMethod(body.name(), body.slug(), body.instructions(), requiresProof, active));
@@ -57,7 +61,7 @@ public class OfflinePaymentController {
     public Map<String, Object> adminUpdate(@CookieValue(value = "foodie_session", required = false) String token,
                                            @PathVariable @Positive long id,
                                            @Valid @RequestBody MethodUpdateRequest body) {
-        auth.requireUser(token, "admin");
+        adminPermissions.require(auth.requireUser(token, "admin"), AdminPermissions.SETTINGS_MANAGE);
         return offline.updateMethod(id, body.name(), body.instructions(), body.requiresProof(), body.active());
     }
 
@@ -66,6 +70,7 @@ public class OfflinePaymentController {
                                       @PathVariable @Positive long id,
                                       @Valid @RequestBody ProofRequest body) {
         User actor = auth.requireUser(token, "customer", "admin");
+        adminPermissions.requireIfAdmin(actor, AdminPermissions.ORDERS_MANAGE);
         return offline.submitProof(actor, id, body.methodId(), body.proofUrl(), body.note());
     }
 
@@ -75,6 +80,7 @@ public class OfflinePaymentController {
                                       @Valid @RequestBody VerifyRequest body) {
         User actor = auth.requireUser(token, "restaurant", "admin");
         if ("restaurant".equals(actor.role())) permissions.require(actor, Permissions.PAYMENTS_MANAGE);
+        adminPermissions.requireIfAdmin(actor, AdminPermissions.ORDERS_MANAGE);
         return offline.verify(actor, id, body.approve(), body.note());
     }
 

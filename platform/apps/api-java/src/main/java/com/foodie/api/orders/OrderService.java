@@ -12,7 +12,11 @@ import com.foodie.api.routing.DeliveryService;
 import com.foodie.api.support.SupportActionService;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -127,24 +131,31 @@ public class OrderService {
         }
         String timezone = (String) restaurants.getFirst().get("timezone");
         double serviceFeePercent = "dine_in".equals(orderType) ? ((Number) restaurants.getFirst().get("service_fee_percent")).doubleValue() : 0;
+        // O horário escolhido no checkout é a hora LOCAL da loja (campo datetime-local). Antes era comparado
+        // com o relógio do servidor (UTC) e gravado como se fosse UTC: agendar para as próximas ~3h falhava e
+        // o pedido "vencia" 3h antes. Agora vira um instante no fuso da loja e é gravado relativo ao NOW() do
+        // banco, o mesmo relógio de created_at e da expiração.
+        ZoneId zone = RestaurantHoursService.zone(timezone);
         LocalDateTime scheduledAt = null;
+        Long scheduledInSeconds = null;
         if (request.scheduledFor() != null && !request.scheduledFor().isBlank()) {
             try {
                 scheduledAt = LocalDateTime.parse(request.scheduledFor().trim());
             } catch (java.time.format.DateTimeParseException error) {
                 throw new ApiException(400, "Data de agendamento inválida");
             }
-            LocalDateTime now = LocalDateTime.now();
-            if (!scheduledAt.isAfter(now.plusMinutes(15))) throw new ApiException(400, "Agende com pelo menos 15 minutos de antecedência");
-            if (scheduledAt.isAfter(now.plusDays(7))) throw new ApiException(400, "O agendamento é limitado a 7 dias");
+            scheduledInSeconds = scheduleDelaySeconds(scheduledAt, zone, Instant.now());
             hours.requireOpenAt(request.restaurantId(), timezone, scheduledAt);
         } else if (!hours.isOpen(request.restaurantId(), timezone)) {
             throw new ApiException(409, "Restaurante está fora do horário de funcionamento");
         }
+        // Janela de disponibilidade do produto na hora local da loja (na hora agendada, se houver).
+        LocalTime productTime = scheduledAt != null ? scheduledAt.toLocalTime() : LocalTime.now(zone);
         List<Map<String, Object>> rows = namedJdbc.queryForList(
             "SELECT id, name, price_cents, stock FROM products WHERE restaurant_id = :restaurantId AND available = TRUE AND id IN (:ids) "
-                + "AND (available_from IS NULL OR available_until IS NULL OR CURTIME() BETWEEN available_from AND available_until) FOR UPDATE",
+                + "AND (available_from IS NULL OR available_until IS NULL OR :localTime BETWEEN available_from AND available_until) FOR UPDATE",
             new MapSqlParameterSource("restaurantId", request.restaurantId()).addValue("ids", distinctIds)
+                .addValue("localTime", java.sql.Time.valueOf(productTime.withNano(0)))
         );
         if (rows.size() != distinctIds.size()) throw new ApiException(400, "Há produtos indisponíveis");
         Map<Long, Map<String, Object>> products = new HashMap<>();
@@ -197,7 +208,7 @@ public class OrderService {
         long fee = estimate == null ? 0 : estimate.feeCents();
         CouponService.Applied coupon = null;
         if (request.couponCode() != null && !request.couponCode().isBlank()) {
-            coupon = couponService.validate(request.couponCode(), request.restaurantId(), subtotal);
+            coupon = couponService.validate(request.couponCode(), request.restaurantId(), subtotal, customer.id());
         }
         CampaignService.Applied campaign = campaignService.best(request.restaurantId(), request.items().stream()
             .map(item -> new CampaignService.Line(item.productId(),
@@ -263,7 +274,7 @@ public class OrderService {
         }
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         final CouponService.Applied appliedCoupon = coupon;
-        final LocalDateTime orderScheduledAt = scheduledAt;
+        final Long orderScheduledInSeconds = scheduledInSeconds;
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
                 "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, discount_cents, coupon_code, total_cents, distance_meters, duration_seconds, scheduled_at, order_type, table_id, party_size, service_fee_cents, table_session_id, tip_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -281,7 +292,7 @@ public class OrderService {
             statement.setLong(10, payable);
             if (distanceMeters == null) statement.setNull(11, java.sql.Types.INTEGER); else statement.setLong(11, distanceMeters);
             if (durationSeconds == null) statement.setNull(12, java.sql.Types.INTEGER); else statement.setLong(12, durationSeconds);
-            if (orderScheduledAt == null) statement.setNull(13, java.sql.Types.TIMESTAMP); else statement.setObject(13, orderScheduledAt);
+            statement.setNull(13, java.sql.Types.TIMESTAMP); // gravado logo abaixo, relativo ao NOW() do banco
             statement.setString(14, orderType);
             if (tableIdForOrder == null) statement.setNull(15, java.sql.Types.BIGINT); else statement.setLong(15, tableIdForOrder);
             if (partySizeForOrder == null) statement.setNull(16, java.sql.Types.INTEGER); else statement.setInt(16, partySizeForOrder);
@@ -291,6 +302,9 @@ public class OrderService {
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
+        if (orderScheduledInSeconds != null) {
+            jdbc.update("UPDATE orders SET scheduled_at = DATE_ADD(NOW(), INTERVAL ? SECOND) WHERE id = ?", orderScheduledInSeconds, orderId);
+        }
         if (campaign != null) jdbc.update("UPDATE orders SET campaign_id = ?, campaign_name = ?, campaign_discount_cents = ? WHERE id = ?",
             campaign.campaignId(), campaign.name(), campaignDiscount, orderId);
         for (var item : request.items()) {
@@ -343,7 +357,7 @@ public class OrderService {
         if (serviceFee > 0) created.put("serviceFeeCents", serviceFee);
         if (tip > 0) created.put("tipCents", tip);
         if (sessionIdForOrder != null) created.put("tableSessionId", sessionIdForOrder);
-        if (orderScheduledAt != null) created.put("scheduledAt", orderScheduledAt.toString());
+        if (orderScheduledInSeconds != null) created.put("scheduledAt", scheduledAt.atZone(zone).toInstant().toString());
         created.put("address", addressText);
         created.put("paymentMethod", request.paymentMethod());
         created.put("distanceMeters", distanceMeters);
@@ -437,12 +451,13 @@ public class OrderService {
 
     @Transactional
     public Map<String, Object> changeStatus(User user, long orderId, String action, Long courierId, String reason) {
-        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, courier_id, status FROM orders WHERE id = ? FOR UPDATE", orderId);
+        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, courier_id, status, order_type FROM orders WHERE id = ? FOR UPDATE", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);
         String current = (String) order.get("status");
         OrderWorkflow.Transition transition = OrderWorkflow.resolve(current, action, user.role());
+        requireOrderTypeAllows(action, (String) order.get("order_type"));
         String trimmed = reason == null ? null : reason.strip();
         if (transition.requiresReason() && (trimmed == null || trimmed.length() < 3)) {
             throw new ApiException(400, "Informe o motivo (3 a 255 caracteres)");
@@ -450,20 +465,6 @@ public class OrderService {
         String next = transition.nextStatus();
         if ("deliver".equals(action) && !"paid".equals(payments.status(orderId))) {
             throw new ApiException(409, "Confirme o recebimento do pagamento antes de concluir a entrega");
-        }
-        // Adendo de 06/10/2026: pedido pago online que é cancelado/recusado devolve o dinheiro ANTES de mudar
-        // o status. Se o estorno falhar, a exceção desfaz a transação e o pedido fica como estava — nunca
-        // cancelado com o dinheiro retido. `failed` fica de fora: segue para o reembolso decidido pela loja.
-        String refundNote = automaticRefundNote(next, user.role());
-        boolean paymentRefunded;
-        try {
-            paymentRefunded = refundNote != null && payments.refundIfPaidOnline(user.id(), orderId, refundNote);
-        } catch (ApiException refundFailure) {
-            // A mensagem original orienta a loja/suporte ("estorne pelo painel do Mercado Pago"); para o
-            // cliente ela não serve. Ele recebe uma mensagem própria e a original vai para o log.
-            if (!"customer".equals(user.role())) throw refundFailure;
-            log.warn("Estorno automático do pedido #{} falhou no cancelamento pelo cliente: {}", orderId, refundFailure.getMessage());
-            throw new ApiException(409, "Não foi possível estornar o pagamento agora. Tente de novo em instantes ou fale com a loja.");
         }
         if ("assign".equals(action)) {
             if (courierId == null || courierId < 1) throw new ApiException(400, "Selecione um entregador");
@@ -476,6 +477,8 @@ public class OrderService {
             jdbc.update("UPDATE orders SET status = ? WHERE id = ?", next, orderId);
         }
         if (Set.of("rejected", "cancelled", "expired", "failed").contains(next)) payments.cancelPending(orderId);
+        // Estoque volta só se o pedido morreu antes do preparo (ainda aguardando aceite).
+        if ("placed".equals(current) && Set.of("rejected", "cancelled").contains(next)) restoreStock(orderId);
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, ?, ?, ?, ?)", orderId, user.id(), current, next, trimmed);
         if ("admin".equals(user.role()) && Set.of("cancel", "assign", "unassign").contains(action)) {
             support.recordOrderAction(user, number(order, "restaurant_id"), orderId, action, trimmed);
@@ -483,6 +486,22 @@ public class OrderService {
         notifyTransition(order, orderId, next, courierId);
         ledger.postOrder(orderId);
         rewards.onOrderCompleted(orderId);
+        // Pedido pago online que é cancelado/recusado devolve o dinheiro (adendo de 06/10/2026). O estorno no
+        // provedor é o ÚLTIMO passo: todo o resto já foi gravado nesta transação, então não sobra passo do
+        // banco que possa falhar depois de o dinheiro sair. Se o estorno falhar, a exceção desfaz a transação
+        // e o pedido fica como estava — nunca cancelado com o dinheiro retido. `failed` fica de fora: segue
+        // para o reembolso decidido pela loja.
+        String refundNote = automaticRefundNote(next, user.role());
+        boolean paymentRefunded;
+        try {
+            paymentRefunded = refundNote != null && payments.refundIfPaidOnline(user.id(), orderId, refundNote);
+        } catch (ApiException refundFailure) {
+            // A mensagem original orienta a loja/suporte ("estorne pelo painel do Mercado Pago"); para o
+            // cliente ela não serve. Ele recebe uma mensagem própria e a original vai para o log.
+            if (!"customer".equals(user.role())) throw refundFailure;
+            log.warn("Estorno automático do pedido #{} falhou no cancelamento pelo cliente: {}", orderId, refundFailure.getMessage());
+            throw new ApiException(409, "Não foi possível estornar o pagamento agora. Tente de novo em instantes ou fale com a loja.");
+        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", orderId);
         result.put("status", next);
@@ -490,6 +509,40 @@ public class OrderService {
         // A tela do cliente avisa que o dinheiro voltou só quando houve estorno de fato.
         if (paymentRefunded) result.put("paymentRefunded", true);
         return result;
+    }
+
+    private static final Set<String> DELIVERY_ACTIONS = Set.of("assign", "unassign", "pickup", "deliver", "fail");
+
+    /**
+     * Ações de entrega só valem para pedido de entrega; servir só para consumo no local; concluir só fora da
+     * entrega (o mesmo que o app da cozinha mostra). Antes a loja concluía um pedido de entrega direto de
+     * "pronto", pulando entregador e confirmação de pagamento.
+     */
+    static void requireOrderTypeAllows(String action, String orderType) {
+        String type = orderType == null ? "delivery" : orderType;
+        boolean allowed = switch (action) {
+            case "serve" -> "dine_in".equals(type);
+            case "complete" -> !"delivery".equals(type);
+            default -> !DELIVERY_ACTIONS.contains(action) || "delivery".equals(type);
+        };
+        if (!allowed) throw new ApiException(409, "Esta ação não se aplica a este tipo de pedido");
+    }
+
+    /**
+     * Devolve ao estoque o que o pedido tirou. Soma por produto antes: um UPDATE com JOIN atualiza cada
+     * produto uma vez só, mesmo que ele apareça em várias linhas (variações diferentes).
+     */
+    private void restoreStock(long orderId) {
+        jdbc.update("UPDATE products p JOIN (SELECT product_id, SUM(quantity) AS quantity FROM order_items WHERE order_id = ? GROUP BY product_id) oi "
+            + "ON oi.product_id = p.id SET p.stock = p.stock + oi.quantity WHERE p.stock IS NOT NULL", orderId);
+    }
+
+    /** Segundos entre agora e a hora local agendada no fuso da loja; valida a antecedência (15 min a 7 dias). */
+    static long scheduleDelaySeconds(LocalDateTime local, ZoneId zone, Instant now) {
+        Instant scheduled = local.atZone(zone).toInstant();
+        if (!scheduled.isAfter(now.plus(Duration.ofMinutes(15)))) throw new ApiException(400, "Agende com pelo menos 15 minutos de antecedência");
+        if (scheduled.isAfter(now.plus(Duration.ofDays(7)))) throw new ApiException(400, "O agendamento é limitado a 7 dias");
+        return Duration.between(now, scheduled).getSeconds();
     }
 
     private static String automaticRefundNote(String next, String role) {
@@ -566,11 +619,12 @@ public class OrderService {
         if (rows.isEmpty()) return;
         Map<String, Object> order = rows.getFirst();
         if (!"placed".equals(order.get("status")) || !truthy(order.get("due"))) return;
-        // Pago online e sem aceite: estorna antes de expirar, na mesma transação.
-        payments.refundIfPaidOnline(null, id, "Estorno automático: pedido expirado sem aceite");
         if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
             payments.cancelPending(id);
+            restoreStock(id);
             jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
+            // Pago online e sem aceite: estorna por último, na mesma transação (falha desfaz a expiração).
+            payments.refundIfPaidOnline(null, id, "Estorno automático: pedido expirado sem aceite");
         }
     }
 

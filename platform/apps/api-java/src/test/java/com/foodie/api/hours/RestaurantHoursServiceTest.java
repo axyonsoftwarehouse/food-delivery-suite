@@ -58,4 +58,35 @@ class RestaurantHoursServiceTest {
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("status", 409);
     }
+
+    @Test
+    void localTimeSqlBindsEachZoneInOrder() {
+        when(jdbc.queryForList("SELECT DISTINCT timezone FROM restaurants", String.class))
+            .thenReturn(List.of("America/Fortaleza", "America/Manaus"));
+        List<Object> args = new java.util.ArrayList<>();
+
+        String sql = hours.localTimeSql("r.timezone", value -> { args.add(value); return "?"; });
+
+        assertThat(sql).isEqualTo("CASE r.timezone WHEN ? THEN ? WHEN ? THEN ? ELSE ? END");
+        assertThat(args).hasSize(5);
+        assertThat(args.get(0)).isEqualTo("America/Fortaleza");
+        assertThat(args.get(1)).isInstanceOf(java.sql.Time.class);
+        assertThat(args.get(2)).isEqualTo("America/Manaus");
+        // Manaus fica uma hora atrás de Fortaleza.
+        int fortaleza = ((java.sql.Time) args.get(1)).toLocalTime().toSecondOfDay();
+        int manaus = ((java.sql.Time) args.get(3)).toLocalTime().toSecondOfDay();
+        assertThat(Math.floorMod(fortaleza - manaus, 86_400)).isBetween(3_598, 3_602);
+    }
+
+    @Test
+    void localTimeSqlWithoutRestaurantsIsASingleValue() {
+        when(jdbc.queryForList("SELECT DISTINCT timezone FROM restaurants", String.class)).thenReturn(List.of());
+        assertThat(hours.localTimeSql("r.timezone", value -> "?")).isEqualTo("?");
+    }
+
+    @Test
+    void invalidTimezoneFallsBackToTheColumnDefault() {
+        assertThat(RestaurantHoursService.zone("Nao/Existe")).isEqualTo(RestaurantHoursService.DEFAULT_ZONE);
+        assertThat(RestaurantHoursService.zone(null)).isEqualTo(RestaurantHoursService.DEFAULT_ZONE);
+    }
 }

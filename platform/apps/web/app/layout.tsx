@@ -8,6 +8,7 @@ import './loja.css';
 import './loja-conta.css';
 import './painel.css';
 import './home.css';
+import './cozinha.css';
 import { AppProvider } from './app-context';
 
 export const metadata: Metadata = {

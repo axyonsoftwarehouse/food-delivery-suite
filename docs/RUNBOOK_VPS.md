@@ -361,8 +361,25 @@ curl -fsS -o /dev/null -w '%{http_code}\n' https://staging.2.29.42.104.sslip.io
 
 **O que sobrou é intencional:** as imagens `:pre-e226cb2` (rollback do último
 deploy, 2,6 GB) e as bases em uso (`mariadb`, `node`, `prom/*`). Não há mais
-nada grande e descartável. **Cada deploy novo volta a custar ~2–3 GB** — quando
-o disco passar de ~70%, repita:
+nada grande e descartável. **Cada deploy novo volta a custar ~2–3 GB.**
+
+**Atualização (07/10/2026):** o disco voltou a **84%** (30 GB de 38 GB) depois
+dos ~15 deploys de 05–06/10, e a limpeza levou a **25%** (8,8 GB usados, 27 GB
+livres) — 16,9 GB de cache de build, as tags `pre-*` de 15 releases antigas e
+as camadas soltas. Para não fazer isso na mão, use o script (roda na VPS):
+
+```bash
+bash /home/deploy/foodie-platform/deploy/limpar-disco.sh --ensaio   # mostra o que faria
+bash /home/deploy/foodie-platform/deploy/limpar-disco.sh            # limpa
+```
+
+Ele guarda as tags `pre-*` dos **dois** releases mais recentes (o atual e o
+anterior) e remove o resto, as camadas sem tag e o cache de build. O `deploy.sh`
+**recusa publicar** com menos de 8 GB livres (`FOODIE_MIN_FREE_GB`) e roda a
+limpeza sozinho quando o disco passa de 70% (`FOODIE_LIMPEZA_EM`) — foi assim
+que este problema voltou sem ninguém notar.
+
+O equivalente na mão, se precisar:
 
 ```bash
 # 1. ver o que dá para recuperar
@@ -384,7 +401,7 @@ docker ps -a --format '{{.Image}}' | sort -u
 > resíduo de outros projetos. Os volumes existentes são os do `foodie-staging`
 > e do `foodie-monitoring`, e todos contêm dados em uso.
 
-> **Não existe legado na VPS para remover.** O StackFood foi retirado em
+> **Não existe legado na VPS para remover.** O pacote legado foi retirado em
 > 25/09/2026 (`down -v` nos contêineres, volumes e rede, mais os diretórios
 > `/opt/food-delivery-suite` e `/opt/foodie`) — ver `platform/deploy/README.md`.
 > Não há contêiner, volume, rede ou diretório do legado sobrando. Os únicos
@@ -609,7 +626,7 @@ Verificado em 30/09/2026 — a postura está boa:
 ## 12. Onde pedir ajuda
 
 - **Documentação do projeto:** `docs/ESTADO_ATUAL.md`,
-  `docs/PLANO_EPICOS_STACKFOOD.md`
+  `docs/PLANO_EPICOS.md`
 - **Publicar um release:** `platform/deploy/release.ps1` (no PC) e
   `platform/deploy/deploy.sh` (na VPS) — seção 4
 - **Deploy em detalhe:** `platform/deploy/README.md`

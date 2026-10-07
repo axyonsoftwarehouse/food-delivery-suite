@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
-export type Role = 'admin' | 'restaurant' | 'courier' | 'customer';
+export type Role = 'admin' | 'restaurant' | 'kitchen' | 'courier' | 'customer';
 export type User = { id: number; name: string; email: string; role: Role; restaurantId: number | null };
 export type Restaurant = { id: number; name: string; slug: string; active: boolean; open: boolean; timezone: string; service_fee_percent?: number };
 export type Category = { id: number; restaurant_id: number; name: string };
@@ -10,7 +10,7 @@ export type Product = { id: number; restaurant_id: number; category_id: number; 
 export type Catalog = { restaurants: Restaurant[]; categories: Category[]; products: Product[]; coverage: { restaurant_id: number; zone_id: number }[] };
 export type Zone = { id: number; name: string; city: string; state: string; delivery_fee_cents: number; minimum_order_cents: number };
 export type Address = { id: number; zone_id: number; postal_code: string | null; label: string; street: string; number: string; neighborhood: string; complement: string; zone_name: string; city: string; state: string };
-export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; customer_name?: string | null; created_at: string; scheduled_at?: string | null; payment_method: string | null; payment_status: string | null; payment_due_cents: number | null };
+export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; customer_name?: string | null; created_at: string; scheduled_at?: string | null; payment_method: string | null; payment_status: string | null; payment_due_cents: number | null; order_type?: string | null; table_id?: number | null; table_number?: string | null; party_size?: number | null };
 export type Courier = { id: number; name: string; email: string; suspended: boolean; approved: boolean };
 export type PostalRange = { id: number; zone_id: number; zone_name: string; postal_start: string; postal_end: string };
 
@@ -18,8 +18,8 @@ export const POLL_INTERVAL_MS = 8000;
 export const LATE_ORDER_MINUTES = 10;
 
 export const labels: Record<string, string> = {
-  admin: 'Administração', restaurant: 'Restaurante', courier: 'Entregas', customer: 'Cliente',
-  placed: 'Novo pedido', accepted: 'Aceito', ready: 'Pronto', assigned: 'Atribuído', picked_up: 'Em entrega', delivered: 'Entregue',
+  admin: 'Administração', restaurant: 'Restaurante', kitchen: 'Cozinha', courier: 'Entregas', customer: 'Cliente',
+  placed: 'Novo pedido', accepted: 'Aceito', ready: 'Pronto', assigned: 'Atribuído', picked_up: 'Em entrega', served: 'Servido', delivered: 'Entregue',
   rejected: 'Recusado', cancelled: 'Cancelado', expired: 'Expirado', failed: 'Falha na entrega',
 };
 export const paymentMethods: Record<string, string> = { cash: 'Dinheiro', card: 'Cartão', pix: 'Pix' };
@@ -36,7 +36,10 @@ export function minutesSince(createdAt: string) {
   return Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000));
 }
 export function roleHome(role: Role) {
-  return role === 'customer' ? '/loja' : '/painel';
+  if (role === 'customer') return '/loja';
+  // A cozinha tem tela própria, em tela cheia (KDS), fora do painel.
+  if (role === 'kitchen') return '/cozinha';
+  return '/painel';
 }
 function beep() {
   try {
@@ -176,7 +179,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setUser(me);
       setConnection('online');
       setLastSync(new Date());
-      if (!me || (me.role !== 'restaurant' && me.role !== 'admin')) {
+      if (!me || (me.role !== 'restaurant' && me.role !== 'admin' && me.role !== 'kitchen')) {
         knownOrderIds.current = new Set();
         primedOrders.current = false;
         return;
@@ -234,7 +237,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id, user?.role, refresh]);
 
   useEffect(() => {
-    const pending = user && (user.role === 'restaurant' || user.role === 'admin') ? orders.filter((order) => order.status === 'placed').length : 0;
+    const pending = user && (user.role === 'restaurant' || user.role === 'admin' || user.role === 'kitchen') ? orders.filter((order) => order.status === 'placed').length : 0;
     document.title = pending ? `(${pending}) Foodie • Plataforma independente` : 'Foodie • Plataforma independente';
   }, [orders, user]);
 

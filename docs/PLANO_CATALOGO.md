@@ -1,7 +1,7 @@
 # Plano de evolução do catálogo
 
 Data: 25/09/2026. Deriva da análise das inspirações (`REFERENCIA_INSPIRACOES.md`) e do
-aprofundamento do catálogo do eFood v11.9. Escopo: imagens, variações, adicionais e descoberta.
+aprofundamento do catálogo de um painel de referência de terceiros. Escopo: imagens, variações, adicionais e descoberta.
 Cupons e avaliações ficam para planos próprios, mas o desenho os antecipa.
 
 > **Status (26/09/2026):** Fase 1 implementada no backend e no web. Migration
@@ -67,9 +67,9 @@ do que foi comprado.
   `GET /catalog/search` por zona, texto e categoria com paginação por cursor.
 - Carrinho em `orders/CartService.java` (`cart_items`); checkout valida `expectedTotalCents`.
 
-## Aprofundamento: catálogo do eFood v11.9 (referência conceitual)
+## Aprofundamento: catálogo de um painel de terceiros (referência conceitual)
 
-Modelo real em `database/migrations` do painel eFood (6amtech). Não copiar código nem schema —
+Modelo real em `database/migrations` desse painel de terceiros. Não copiar código nem schema —
 apenas entender a decomposição do problema.
 
 - `products`: `name`, `description`, `image`, `price`, `discount`, `tax`, `product_type`
@@ -83,10 +83,10 @@ apenas entender a decomposição do problema.
   **por filial**. Nosso modelo é um restaurante por produto, então essa camada não se aplica agora.
 - `branch_promotions`, `premium` e `preparation_time` na filial — fora de escopo.
 
-Leitura: o eFood resolve multi-filial e catálogo compartilhado; nós não precisamos disso. O que
+Leitura: esse painel resolve multi-filial e catálogo compartilhado; nós não precisamos disso. O que
 nos interessa é a separação **produto → variações → grupos de adicionais → vínculo**, com
-preço recalculado no servidor. O TiffinKing usa `item_attributes`/`item_variations`/`item_taxes`
-e trata categorias como refeições — mesma ideia. O DineHub não tem adicionais (só quantidade):
+preço recalculado no servidor. Outro app de referência usa `item_attributes`/`item_variations`/`item_taxes`
+e trata categorias como refeições — mesma ideia. Um terceiro app de referência não tem adicionais (só quantidade):
 serve como referência visual do contador, não de regra.
 
 ## Modelo proposto (próxima migration livre, aditiva)

@@ -1,13 +1,13 @@
-# Auditoria do legado StackFood no repositório — 01/10/2026
+# Auditoria do legado de terceiros no repositório — 01/10/2026
 
 Feita antes de decidir a migração do repositório para a organização Axyon, para
 responder a uma pergunta objetiva: **sobrou código ou material do pacote comercial
-StackFood v9 / do kit visual de terceiros dentro do repositório?**
+legado de terceiros (v9) / do kit visual de terceiros dentro do repositório?**
 
 Método: comparação por **hash de blob** (arquivo byte-idêntico), comparação por
 **similaridade de conteúdo** (arquivo copiado e depois editado), busca por
 **marcas e nomes de pacote** e comparação dos **nomes de tabela** do schema.
-Tudo executado contra `HEAD` e contra a tag `legacy-stackfood-v9`, com o
+Tudo executado contra `HEAD` e contra a tag `legacy-v9`, com o
 repositório em `9a63a28` + PRs de 01/10.
 
 ## 1. O kit visual de terceiros: nada no repositório
@@ -19,7 +19,7 @@ repositório em `9a63a28` + PRs de 01/10.
 | Fonte do kit (Urbanist) | **não usada** — o produto usa DM Sans + Manrope |
 | Menções restantes | comentário em `tokens.css` (removido em 01/10) e um documento de referência do kit (removido em 01/10) |
 
-## 2. O pacote StackFood: o que existia e foi removido
+## 2. O pacote legado: o que existia e foi removido
 
 Antes da limpeza de 01/10/2026, o pacote comercial (que **não tem licença**
 localizada) sobrevivia em três lugares:
@@ -27,11 +27,11 @@ localizada) sobrevivia em três lugares:
 | Onde | Conteúdo | Volume |
 | --- | --- | --- |
 | `reference/flutter-apps/` | os três apps Flutter do pacote, versionados na árvore atual | 2.349 arquivos (~31 MB) |
-| **tag `legacy-stackfood-v9`** | snapshot completo, **publicada no GitHub** | 8.711 blobs / 194,2 MB (`admin-panel` 115,4 MB, `web` 35,9 MB, `app-user` 17,9 MB, `app-restaurant` 8,3 MB, `_local_server` 7,3 MB, `app-delivery` 4,7 MB, `payment-gateway` 2,2 MB) |
+| **tag `legacy-v9`** | snapshot completo, **publicada no GitHub** | 8.711 blobs / 194,2 MB (`admin-panel` 115,4 MB, `web` 35,9 MB, `app-user` 17,9 MB, `app-restaurant` 8,3 MB, `_local_server` 7,3 MB, `app-delivery` 4,7 MB, `payment-gateway` 2,2 MB) |
 | histórico do Git | os mesmos arquivos, em todos os 91 commits anteriores a `04e5686` | ~117 MB no `.git` |
 
 A tag era o ponto crítico: mesmo sem a pasta `reference/`, qualquer clone
-recuperava o pacote inteiro com `git checkout legacy-stackfood-v9 -- admin-panel`.
+recuperava o pacote inteiro com `git checkout legacy-v9 -- admin-panel`.
 
 **Nenhum arquivo de licença** (`LICENSE`, `NOTICE`, `COPYING`) existe em nenhum
 commit do repositório.
@@ -42,7 +42,7 @@ commit do repositório.
 | --- | --- |
 | Blobs idênticos entre a tag e o `HEAD` | 2.111 — **todos** dentro de `reference/flutter-apps`; nenhum em `platform/` ou `svg/` |
 | Cópias modificadas (similaridade > 85%) | **0 pares** em 30 comparações por nome + conteúdo |
-| Marcas do pacote no produto (`stackfood`, o nome do kit visual, `6amtech`, `food_e*`, `efood`, `dinehub`, `tiffinking`) | só **texto**: uma frase no `platform/README.md` e o registro no `deploy/README.md` |
+| Marcas do pacote no produto (nomes comerciais do pacote, do fornecedor e do kit visual) | só **texto**: uma frase no `platform/README.md` e o registro no `deploy/README.md` |
 | Dump do banco legado | **não existe** no Git (o `database.sql` nunca foi commitado) |
 | Schema copiado? | legado: 132 tabelas; produto: 88; **27 nomes em comum**, todos substantivos genéricos do domínio (`orders`, `users`, `categories`, `coupons`, `zones`…) e 105 tabelas do legado sem correspondência |
 
@@ -52,9 +52,9 @@ do produto.** O que existia era material de consulta, não código em uso.
 ## 4. O que foi removido em 01/10/2026
 
 - `reference/` (incluindo o `README.md` que ensinava a recuperar o pacote);
-- a tag `legacy-stackfood-v9`, **local e no remoto**
-  (`git push origin :refs/tags/legacy-stackfood-v9`);
-- documentos derivados do código do pacote: `INVENTARIO_LEGADO_STACKFOOD.md`,
+- a tag `legacy-v9`, **local e no remoto**
+  (`git push origin :refs/tags/legacy-v9`);
+- documentos derivados do código do pacote: `INVENTARIO_LEGADO.md`,
   `INVENTARIO_LACUNAS_LEGADO.md`, `JAVA_MIGRATION_PLAN.md`,
   `REFERENCIA_FUNCIONAL.md`, `AUDITORIA_IMPEDIMENTOS.md`,
   `REFERENCIA_INSPIRACOES.md`, `PLANO_EVOLUCAO_INSPIRACOES.md`,
@@ -81,7 +81,7 @@ Nenhum dos dois foi feito: são decisões de quem administra o repositório.
 
 ```bash
 # 1) arquivos idênticos entre a tag e a árvore atual
-git ls-tree -r legacy-stackfood-v9 | awk '{print $3}' | sort -u > /tmp/tag.txt
+git ls-tree -r legacy-v9 | awk '{print $3}' | sort -u > /tmp/tag.txt
 git ls-tree -r HEAD                 | awk '{print $3}' | sort -u > /tmp/head.txt
 comm -12 /tmp/tag.txt /tmp/head.txt | wc -l          # -> 2111
 
@@ -89,7 +89,7 @@ comm -12 /tmp/tag.txt /tmp/head.txt | wc -l          # -> 2111
 #    (todos os caminhos do HEAD caem em reference/flutter-apps/)
 
 # 3) marcas do pacote dentro do produto
-git grep -in -E "stackfood|6amtech|efood|dinehub|tiffinking" -- platform svg
+git grep -in -E "<nomes comerciais do pacote e do fornecedor>" -- platform svg
 
 # 4) nenhum arquivo de licença
 git log --all --diff-filter=A --name-only | grep -iE "license|notice|copying"

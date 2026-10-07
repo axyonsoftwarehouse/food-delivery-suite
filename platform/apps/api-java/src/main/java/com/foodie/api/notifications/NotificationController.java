@@ -62,6 +62,9 @@ public class NotificationController {
     public Map<String, Boolean> subscribe(@CookieValue(value = "foodie_session", required = false) String token,
                                           @Valid @RequestBody SubscriptionRequest body) {
         long userId = auth.requireUser(token).id();
+        if (!PushEndpoints.allowed(body.endpoint())) throw new ApiException(400, "Endereço de notificação inválido");
+        // Reatribuir o endpoint ao usuário atual é intencional: o mesmo navegador pode trocar de conta, e o
+        // endpoint é uma URL secreta que só o próprio navegador conhece.
         jdbc.update("INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?) "
                 + "ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), p256dh = VALUES(p256dh), auth = VALUES(auth), last_seen_at = NOW()",
             userId, body.endpoint(), body.p256dh(), body.auth());

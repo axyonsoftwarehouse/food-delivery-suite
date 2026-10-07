@@ -1,7 +1,7 @@
-# Plano de épicos — absorver o StackFood na plataforma própria
+# Plano de épicos — absorver o pacote legado na plataforma própria
 
-Data: 27/09/2026. Converte o catálogo em `INVENTARIO_LEGADO_STACKFOOD.md` em **blocos de épicos
-executáveis**, para absorver todas as funcionalidades do StackFood **mantendo o layout atual**.
+Data: 27/09/2026. Converte o catálogo em `INVENTARIO_LEGADO.md` em **blocos de épicos
+executáveis**, para absorver todas as funcionalidades do pacote legado **mantendo o layout atual**.
 
 ## Princípios
 

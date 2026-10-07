@@ -63,6 +63,7 @@ public class PaymentController {
                                            @PathVariable @Positive long id,
                                            @Valid @RequestBody OnlineRequest body) {
         User actor = auth.requireUser(token, "customer", "admin");
+        adminPermissions.requireIfAdmin(actor, AdminPermissions.ORDERS_MANAGE);
         return online.startIntent(actor, id, new OnlinePaymentService.Intent(
             body.method(), body.provider(), body.cardToken(), body.installments(), body.docType(), body.docNumber(), body.paymentMethodId()));
     }
@@ -96,6 +97,7 @@ public class PaymentController {
                                        @PathVariable @Positive long id,
                                        @Valid @RequestBody ConfirmRequest body) {
         User actor = auth.requireUser(token, "courier", "admin");
+        adminPermissions.requireIfAdmin(actor, AdminPermissions.ORDERS_MANAGE);
         return payments.confirm(actor, id, body.amountReceivedCents(), body.note());
     }
 
@@ -124,7 +126,7 @@ public class PaymentController {
     public Map<String, Object> reconciliation(@CookieValue(value = "foodie_session", required = false) String token,
                                               @RequestParam(required = false) String from,
                                               @RequestParam(required = false) String to) {
-        auth.requireUser(token, "admin");
+        adminPermissions.require(auth.requireUser(token, "admin"), AdminPermissions.FINANCE_VIEW);
         String end = parseDate(to == null || to.isBlank() ? LocalDate.now().toString() : to);
         String start = parseDate(from == null || from.isBlank() ? end : from);
         if (start.compareTo(end) > 0) throw new ApiException(400, "Período inválido");

@@ -1,7 +1,7 @@
 # E48 — Modo suporte do admin: especificação
 
 Data: 01/10/2026. Status: **aprovada no brainstorming**, aguardando plano de implementação.
-Cartão do épico: `docs/PLANO_EPICOS_STACKFOOD.md` (Onda 5 — Governança).
+Cartão do épico: `docs/PLANO_EPICOS.md` (Onda 5 — Governança).
 
 ## 1. Objetivo
 

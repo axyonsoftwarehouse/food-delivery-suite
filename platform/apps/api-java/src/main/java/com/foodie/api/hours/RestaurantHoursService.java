@@ -81,6 +81,34 @@ public class RestaurantHoursService {
         }
     }
 
+    /** Mesmo padrão da coluna {@code restaurants.timezone}; usado quando o valor está vazio ou inválido. */
+    public static final ZoneId DEFAULT_ZONE = ZoneId.of("America/Fortaleza");
+
+    public static ZoneId zone(String timezone) {
+        if (timezone == null || timezone.isBlank()) return DEFAULT_ZONE;
+        try { return ZoneId.of(timezone); }
+        catch (RuntimeException error) { return DEFAULT_ZONE; }
+    }
+
+    /**
+     * Expressão SQL com a hora local de cada loja, para comparar com {@code available_from/until}.
+     * {@code CURTIME()} é a hora do banco (UTC), não a da loja; e o MariaDB do Docker não traz as tabelas
+     * de fuso que o {@code CONVERT_TZ} precisaria. A API calcula a hora de cada fuso cadastrado e monta
+     * {@code CASE <coluna> WHEN ? THEN ? ... ELSE ? END}; {@code bind} registra cada valor e devolve o
+     * marcador ({@code ?} ou {@code :nome}).
+     */
+    public String localTimeSql(String timezoneColumn, java.util.function.Function<Object, String> bind) {
+        List<String> zones = jdbc.queryForList("SELECT DISTINCT timezone FROM restaurants", String.class);
+        // `bind` é chamado na mesma ordem em que os marcadores aparecem no SQL (importa para `?`).
+        if (zones.isEmpty()) return bind.apply(Time.valueOf(LocalTime.now(DEFAULT_ZONE).withNano(0)));
+        StringBuilder sql = new StringBuilder("CASE ").append(timezoneColumn);
+        for (String timezone : zones) {
+            sql.append(" WHEN ").append(bind.apply(timezone))
+                .append(" THEN ").append(bind.apply(Time.valueOf(LocalTime.now(zone(timezone)).withNano(0))));
+        }
+        return sql.append(" ELSE ").append(bind.apply(Time.valueOf(LocalTime.now(DEFAULT_ZONE).withNano(0)))).append(" END").toString();
+    }
+
     public String timezone(long restaurantId) {
         List<String> values = jdbc.query("SELECT timezone FROM restaurants WHERE id = ?", (rs, row) -> rs.getString("timezone"), restaurantId);
         if (values.isEmpty()) throw new ApiException(404, "Restaurante não encontrado");

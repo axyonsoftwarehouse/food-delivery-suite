@@ -1,0 +1,85 @@
+name: Deploy - Foodie
+
+# BOTÃO. Não roda sozinho de propósito: o deploy aplica migração de banco num
+# ambiente único (staging), então publicar é um ato deliberado — quem clica
+# precisa ter acesso de escrita no repositório (ver a conversa do cartão
+# `2WAGG5Gl`). O caminho do PC (`platform/deploy/publicar.bat`) continua valendo.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'O que publicar (branch, tag ou commit)'
+        required: true
+        default: main
+      confirmar:
+        description: 'Digite PUBLICAR para confirmar'
+        required: true
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Publicar no staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Conferir a confirmação
+        run: |
+          if [ "${{ inputs.confirmar }}" != "PUBLICAR" ]; then
+            echo "::error::Confirmação inválida — escreva PUBLICAR no campo para publicar."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Empacotar o commit (mesmo `git archive` do release.ps1)
+        id: pacote
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          PKG="/tmp/platform-release-$SHA.tar"
+          git -c core.autocrlf=false -c core.eol=lf archive --format=tar -o "$PKG" "${SHA}:platform"
+          # O coreutils prefixa a linha com "\" quando o caminho do arquivo tem barra
+          # invertida; sem tirar isso, a VPS recusa como "sha256 invalido".
+          LINHA="$(sha256sum "$PKG")"
+          SHA256="${LINHA%% *}"
+          SHA256="${SHA256#\\}"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          ls -lh "$PKG"
+          echo "### Pacote" >> "$GITHUB_STEP_SUMMARY"
+          echo "- commit: \`$SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- sha256 do pacote: \`$SHA256\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Instalar a chave do deploy
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Publicar na VPS
+        run: |
+          SHA="${{ steps.pacote.outputs.sha }}"
+          SHA256="${{ steps.pacote.outputs.sha256 }}"
+          PKG="/tmp/platform-release-$SHA.tar"
+          # A chave do CI é amarrada a UM comando na VPS (`deploy-ci.sh`), que lê o
+          # pacote por stdin, confere o sha256 e chama o deploy.sh de sempre —
+          # backup, aplicação, /ready, schema e rollback automático.
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
+              "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
+              "apply $SHA $SHA256" < "$PKG"
+
+      - name: Conferir o que está no ar
+        run: |
+          sleep 5
+          echo "### No ar" >> "$GITHUB_STEP_SUMMARY"
+          curl -fsS "${{ vars.FOODIE_API_URL }}/health" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          curl -fsS -o /dev/null -w 'ready=%{http_code}\n' "${{ vars.FOODIE_API_URL }}/ready" | tee -a "$GITHUB_STEP_SUMMARY"
+          curl -fsS -o /dev/null -w 'site=%{http_code}\n' "${{ vars.FOODIE_SITE_URL }}" | tee -a "$GITHUB_STEP_SUMMARY"

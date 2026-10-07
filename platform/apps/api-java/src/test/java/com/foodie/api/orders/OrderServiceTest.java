@@ -68,23 +68,29 @@ class OrderServiceTest {
     }
 
     private void storedOrder(long id, String status) {
+        storedOrder(id, status, "delivery");
+    }
+
+    private void storedOrder(long id, String status, String orderType) {
         Map<String, Object> row = new java.util.HashMap<>();
         row.put("id", id); row.put("customer_id", 8L); row.put("restaurant_id", 3L); row.put("courier_id", 9L); row.put("status", status);
-        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT id, customer_id, restaurant_id, courier_id, status FROM orders"), any(Object[].class)))
+        row.put("order_type", orderType);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT id, customer_id, restaurant_id, courier_id, status, order_type FROM orders"), any(Object[].class)))
             .thenReturn(List.of(row));
     }
 
     @Test
-    void customerCancellingAPaidOnlineOrderIsRefundedBeforeTheStatusChanges() {
-        // Adendo 06/10/2026: cancelar só cancelava pagamento pendente; o pago ficava retido.
+    void customerCancellingAPaidOnlineOrderIsRefundedAsTheLastStep() {
+        // Adendo 06/10/2026: cancelar só cancelava pagamento pendente; o pago ficava retido. O estorno no
+        // provedor vem por último: nenhum passo do banco pode falhar depois de o dinheiro sair.
         storedOrder(40, "placed");
 
         orders.changeStatus(CUSTOMER, 40, "cancel", null, "mudei de ideia");
 
         org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(payments, jdbc);
-        ordem.verify(payments).refundIfPaidOnline(8L, 40L, "Estorno automático: pedido cancelado pelo cliente");
         ordem.verify(jdbc).update("UPDATE orders SET status = ? WHERE id = ?", "cancelled", 40L);
         ordem.verify(payments).cancelPending(40L);
+        ordem.verify(payments).refundIfPaidOnline(8L, 40L, "Estorno automático: pedido cancelado pelo cliente");
     }
 
     @Test
@@ -113,16 +119,17 @@ class OrderServiceTest {
     }
 
     @Test
-    void failedRefundKeepsTheOrderUnchanged() {
+    void failedRefundPropagatesSoTheTransactionUndoesTheStatusChange() {
+        // changeStatus é @Transactional: a exceção do estorno (último passo) desfaz a mudança de status, o
+        // pagamento pendente e o evento. Aqui, sem banco, o que se verifica é que a falha sobe.
         storedOrder(40, "placed");
         when(payments.refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString()))
             .thenThrow(new ApiException(409, "A loja desconectou o Mercado Pago. Estorne pelo painel do Mercado Pago ou reconecte a conta."));
 
         assertThatThrownBy(() -> orders.changeStatus(CUSTOMER, 40, "cancel", null, "mudei de ideia"))
             .isInstanceOf(ApiException.class);
-
-        verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.startsWith("UPDATE orders SET status"), any(Object[].class));
-        verify(payments, org.mockito.Mockito.never()).cancelPending(org.mockito.ArgumentMatchers.anyLong());
+        assertThat(OrderService.class.getMethods()).filteredOn(method -> method.getName().equals("changeStatus"))
+            .allMatch(method -> method.isAnnotationPresent(org.springframework.transaction.annotation.Transactional.class));
     }
 
     @Test
@@ -170,8 +177,8 @@ class OrderServiceTest {
         orders.changeStatus(RESTAURANT, 40, "reject", null, "sem ingrediente");
 
         org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(payments, jdbc);
-        ordem.verify(payments).refundIfPaidOnline(2L, 40L, "Estorno automático: pedido recusado pela loja");
         ordem.verify(jdbc).update("UPDATE orders SET status = ? WHERE id = ?", "rejected", 40L);
+        ordem.verify(payments).refundIfPaidOnline(2L, 40L, "Estorno automático: pedido recusado pela loja");
     }
 
     @Test
@@ -257,7 +264,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void expiryRefundsBeforeExpiring() {
+    void expiryRefundsAsTheLastStep() {
         staleOrders(41L);
         lockedReread("placed", 1L);
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
@@ -265,12 +272,15 @@ class OrderServiceTest {
         orders.list(ADMIN);
 
         org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(payments, jdbc);
-        ordem.verify(payments).refundIfPaidOnline(null, 41L, "Estorno automático: pedido expirado sem aceite");
         ordem.verify(jdbc).update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", 41L);
+        ordem.verify(payments).cancelPending(41L);
+        ordem.verify(payments).refundIfPaidOnline(null, 41L, "Estorno automático: pedido expirado sem aceite");
     }
 
     @Test
-    void failedExpiryRefundLeavesTheOrderPlaced() {
+    void failedExpiryRefundDoesNotStopTheOthers() {
+        // Cada pedido expira na própria transação (REQUIRES_NEW, ver eachStaleOrderExpiresInItsOwnTransaction):
+        // a falha no estorno de um desfaz só ele, e ele continua `placed` para a próxima leitura.
         staleOrders(41L, 42L);
         lockedReread("placed", 1L);
         when(payments.refundIfPaidOnline(null, 41L, "Estorno automático: pedido expirado sem aceite"))
@@ -279,9 +289,88 @@ class OrderServiceTest {
 
         orders.list(ADMIN);
 
-        verify(jdbc, org.mockito.Mockito.never()).update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", 41L);
-        verify(payments, org.mockito.Mockito.never()).cancelPending(41L);
-        // Um pedido com estorno falho não trava a expiração dos outros.
+        verify(payments).refundIfPaidOnline(null, 42L, "Estorno automático: pedido expirado sem aceite");
         verify(jdbc).update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", 42L);
+    }
+
+    @Test
+    void stockReturnsWhenTheOrderDiesBeforePreparation() {
+        storedOrder(40, "placed");
+
+        orders.changeStatus(CUSTOMER, 40, "cancel", null, "mudei de ideia");
+
+        verify(jdbc).update(org.mockito.ArgumentMatchers.startsWith("UPDATE products p JOIN"), eq(40L));
+    }
+
+    @Test
+    void stockStaysWhenTheStoreHadAlreadyAccepted() {
+        storedOrder(40, "accepted");
+
+        orders.changeStatus(ADMIN, 40, "cancel", null, "cliente pediu por telefone");
+
+        verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.startsWith("UPDATE products p JOIN"), any(Object[].class));
+    }
+
+    @Test
+    void expiredOrderReturnsItsStock() {
+        staleOrders(41L);
+        lockedReread("placed", 1L);
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        orders.list(ADMIN);
+
+        verify(jdbc).update(org.mockito.ArgumentMatchers.startsWith("UPDATE products p JOIN"), eq(41L));
+    }
+
+    @Test
+    void storeCannotCompleteADeliveryOrder() {
+        // Antes a loja concluía a entrega direto de "pronto", pulando entregador e pagamento.
+        storedOrder(40, "ready", "delivery");
+
+        assertThatThrownBy(() -> orders.changeStatus(RESTAURANT, 40, "complete", null, null))
+            .isInstanceOf(ApiException.class)
+            .hasMessage("Esta ação não se aplica a este tipo de pedido");
+        verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.startsWith("UPDATE orders SET status"), any(Object[].class));
+    }
+
+    @Test
+    void storeCompletesATakeAwayOrder() {
+        storedOrder(40, "ready", "take_away");
+
+        assertThat(orders.changeStatus(RESTAURANT, 40, "complete", null, null)).containsEntry("status", "completed");
+    }
+
+    @Test
+    void orderTypeRulesMirrorTheKitchenApp() {
+        OrderService.requireOrderTypeAllows("serve", "dine_in");
+        OrderService.requireOrderTypeAllows("complete", "dine_in");
+        OrderService.requireOrderTypeAllows("complete", "take_away");
+        OrderService.requireOrderTypeAllows("assign", "delivery");
+        OrderService.requireOrderTypeAllows("accept", "take_away");
+        for (String[] denied : new String[][] { {"serve", "take_away"}, {"serve", "delivery"}, {"complete", "delivery"},
+                {"assign", "dine_in"}, {"pickup", "take_away"}, {"deliver", "dine_in"}, {"fail", "take_away"} }) {
+            assertThatThrownBy(() -> OrderService.requireOrderTypeAllows(denied[0], denied[1]))
+                .as(denied[0] + " em " + denied[1]).isInstanceOf(ApiException.class);
+        }
+    }
+
+    // Hora do datetime-local é a da loja (Fortaleza, UTC-3). Às 18:00 locais (21:00 UTC), agendar para 19:00
+    // locais é daqui a 1h — antes o servidor comparava 19:00 com 21:00 UTC e recusava.
+    @Test
+    void scheduleUsesTheRestaurantTimezone() {
+        java.time.Instant now = java.time.Instant.parse("2026-10-06T21:00:00Z");
+        long delay = OrderService.scheduleDelaySeconds(java.time.LocalDateTime.parse("2026-10-06T19:00"),
+            java.time.ZoneId.of("America/Fortaleza"), now);
+        assertThat(delay).isEqualTo(3600L);
+    }
+
+    @Test
+    void scheduleRequiresFifteenMinutesAndAtMostSevenDays() {
+        java.time.Instant now = java.time.Instant.parse("2026-10-06T21:00:00Z");
+        java.time.ZoneId fortaleza = java.time.ZoneId.of("America/Fortaleza");
+        assertThatThrownBy(() -> OrderService.scheduleDelaySeconds(java.time.LocalDateTime.parse("2026-10-06T18:10"), fortaleza, now))
+            .isInstanceOf(ApiException.class).hasMessageContaining("15 minutos");
+        assertThatThrownBy(() -> OrderService.scheduleDelaySeconds(java.time.LocalDateTime.parse("2026-10-13T18:30"), fortaleza, now))
+            .isInstanceOf(ApiException.class).hasMessageContaining("7 dias");
     }
 }

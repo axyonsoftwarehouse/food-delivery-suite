@@ -104,17 +104,57 @@ public class PaymentAccountService {
         return oauth.authorizationUrl(state, s256(verifier));
     }
 
-    /** Retorno do Mercado Pago. Nunca lança: o navegador precisa voltar ao painel com o motivo. */
+    /** Resultado do retorno do provedor: {@code confirmar} (com token) ou o motivo da falha. */
+    public record Callback(String outcome, String confirmToken) {
+        static Callback failed(String outcome) {
+            return new Callback(outcome, null);
+        }
+    }
+
+    /**
+     * Retorno do Mercado Pago, no domínio da API (sem a sessão do painel). NÃO conecta: guarda o código de
+     * autorização cifrado e devolve um token de confirmação de uso único, que o navegador leva ao painel.
+     * Quem conecta é {@link #confirmConnection}, com a sessão do dono que iniciou. Antes o retorno conectava
+     * direto: quem mandasse o próprio link de autorização a outra pessoa ligava a conta Mercado Pago dela à
+     * própria loja. Nunca lança: o navegador precisa voltar ao painel com o motivo.
+     */
     @Transactional
-    public String completeConnection(String code, String state, String error) {
-        if (state == null || state.isBlank()) return "invalido";
+    public Callback receiveCallback(String code, String state, String error) {
+        if (state == null || state.isBlank()) return Callback.failed("invalido");
         String hash = sha256Hex(state);
         Optional<PaymentAccountRepository.OAuthState> found = accounts.findStateForUpdate(hash);
-        if (found.isEmpty() || found.get().usedAt() != null) return "invalido";
+        if (found.isEmpty() || found.get().usedAt() != null || found.get().returnedAt() != null) return Callback.failed("invalido");
         PaymentAccountRepository.OAuthState st = found.get();
+        if (st.expiresAt().isBefore(clock.instant())) return Callback.failed("expirado");
+        if (error != null && !error.isBlank() || code == null || code.isBlank()) {
+            accounts.markStateUsed(hash);
+            return Callback.failed("negado");
+        }
+        String confirmToken = randomToken(32);
+        accounts.saveCallback(hash, cipher.encrypt(code), sha256Hex(confirmToken));
+        return new Callback("confirmar", confirmToken);
+    }
+
+    /**
+     * Confirmação vinda do painel, com a sessão. Só conecta se quem confirma é o mesmo usuário (e a mesma
+     * loja) que iniciou a vinculação. O token vale uma vez: qualquer tentativa o consome.
+     */
+    @Transactional
+    public String confirmConnection(User owner, String confirmToken) {
+        if (confirmToken == null || confirmToken.isBlank()) return "invalido";
+        Optional<PaymentAccountRepository.OAuthState> found = accounts.findStateByConfirmTokenForUpdate(sha256Hex(confirmToken));
+        if (found.isEmpty() || found.get().usedAt() != null || found.get().authCodeEnc() == null) return "invalido";
+        PaymentAccountRepository.OAuthState st = found.get();
+        accounts.markStateUsed(st.stateHash());
         if (st.expiresAt().isBefore(clock.instant())) return "expirado";
-        accounts.markStateUsed(hash);
-        if (error != null && !error.isBlank() || code == null || code.isBlank()) return "negado";
+        if (owner.id() != st.userId() || owner.restaurantId() == null || owner.restaurantId() != st.restaurantId()) {
+            log.warn("Vinculação recusada: usuário {} tentou confirmar a vinculação iniciada por {} (loja {})", owner.id(), st.userId(), st.restaurantId());
+            return "outra_sessao";
+        }
+        return exchange(st, cipher.decrypt(st.authCodeEnc()));
+    }
+
+    private String exchange(PaymentAccountRepository.OAuthState st, String code) {
         try {
             MercadoPagoOAuthClient.OAuthTokens tokens = oauth.exchangeCode(code, cipher.decrypt(st.codeVerifierEnc()));
             MercadoPagoOAuthClient.AccountInfo info = oauth.accountInfo(tokens.accessToken());

@@ -154,20 +154,24 @@ public class AuthRepository {
         jdbc.update("INSERT INTO auth_otp (phone, code_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))", phone, codeHash, minutes);
     }
 
+    /**
+     * Cada tentativa é reservada com um UPDATE condicional ANTES de comparar o código: requisições
+     * paralelas não passam do limite de tentativas (antes, todas liam o mesmo contador e comparavam).
+     */
     public boolean consumeOtp(String phone, String codeHash, int maxAttempts) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, code_hash, attempts FROM auth_otp WHERE phone = ? AND used_at IS NULL AND expires_at > NOW() ORDER BY id DESC LIMIT 1", phone);
+            "SELECT id, code_hash FROM auth_otp WHERE phone = ? AND used_at IS NULL AND expires_at > NOW() ORDER BY id DESC LIMIT 1", phone);
         if (rows.isEmpty()) return false;
         Map<String, Object> row = rows.getFirst();
         long id = ((Number) row.get("id")).longValue();
-        int attempts = ((Number) row.get("attempts")).intValue();
-        if (attempts >= maxAttempts) return false;
-        if (codeHash.equals(row.get("code_hash"))) {
-            jdbc.update("UPDATE auth_otp SET used_at = NOW() WHERE id = ?", id);
-            return true;
+        int reserved = jdbc.update("UPDATE auth_otp SET attempts = attempts + 1 WHERE id = ? AND used_at IS NULL AND attempts < ?", id, maxAttempts);
+        if (reserved == 0) return false;
+        if (!java.security.MessageDigest.isEqual(
+                codeHash.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                String.valueOf(row.get("code_hash")).getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            return false;
         }
-        jdbc.update("UPDATE auth_otp SET attempts = attempts + 1 WHERE id = ?", id);
-        return false;
+        return jdbc.update("UPDATE auth_otp SET used_at = NOW() WHERE id = ? AND used_at IS NULL", id) == 1;
     }
 
     private static User user(ResultSet rs) throws SQLException {

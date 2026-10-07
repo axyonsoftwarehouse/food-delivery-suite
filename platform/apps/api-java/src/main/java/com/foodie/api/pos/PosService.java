@@ -29,14 +29,24 @@ public class PosService {
         this.passwords = passwords;
     }
 
-    public List<Map<String, Object>> customers(String search) {
+    /**
+     * Busca só entre os clientes que já pediram NESTA loja: a base de clientes da plataforma não é da
+     * loja (antes a busca devolvia nome e email de qualquer cliente). Cliente novo é "Consumidor balcão".
+     */
+    public List<Map<String, Object>> customers(long restaurantId, String search) {
         String term = search == null ? "" : search.strip();
         if (term.length() < 2) return List.of();
-        String like = "%" + term + "%";
+        String like = "%" + escapeLike(term) + "%";
         return jdbc.queryForList(
-            "SELECT id, name, email FROM users WHERE role = 'customer' AND (name LIKE ? OR email LIKE ?) ORDER BY name LIMIT 8",
-            like, like
+            "SELECT u.id, u.name, u.email FROM users u WHERE u.role = 'customer' AND (u.name LIKE ? OR u.email LIKE ?) "
+                + "AND u.email NOT LIKE 'balcao+%@pos.foodie.local' "
+                + "AND EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = u.id AND o.restaurant_id = ?) ORDER BY u.name LIMIT 8",
+            like, like, restaurantId
         );
+    }
+
+    static String escapeLike(String term) {
+        return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     @Transactional
@@ -69,10 +79,12 @@ public class PosService {
 
     private User resolveCustomer(long restaurantId, Long customerId) {
         if (customerId != null) {
+            // Mesmo critério da busca: só cliente que já pediu nesta loja pode receber a venda no nome dele.
             List<User> found = jdbc.query(
-                "SELECT id, name, email, role FROM users WHERE id = ? AND role = 'customer' LIMIT 1",
+                "SELECT u.id, u.name, u.email, u.role FROM users u WHERE u.id = ? AND u.role = 'customer' "
+                    + "AND EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = u.id AND o.restaurant_id = ?) LIMIT 1",
                 (rs, row) -> new User(rs.getLong("id"), rs.getString("name"), rs.getString("email"), rs.getString("role"), null),
-                customerId);
+                customerId, restaurantId);
             if (found.isEmpty()) throw new ApiException(400, "Cliente não encontrado");
             return found.getFirst();
         }

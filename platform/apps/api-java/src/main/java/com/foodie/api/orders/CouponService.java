@@ -20,8 +20,13 @@ public class CouponService {
 
     public record Applied(long couponId, String code, long discountCents) {}
 
-    @Transactional
+    /** Validação sem cliente (não confere o limite por cliente). Uso interno e testes. */
     public Applied validate(String code, long restaurantId, long subtotalCents) {
+        return validate(code, restaurantId, subtotalCents, null);
+    }
+
+    @Transactional
+    public Applied validate(String code, long restaurantId, long subtotalCents, Long customerId) {
         Map<String, Object> coupon = fetch(code);
         Object owner = coupon.get("restaurant_id");
         if (owner == null || ((Number) owner).longValue() != restaurantId) {
@@ -35,18 +40,38 @@ public class CouponService {
         if (maxUses != null && ((Number) coupon.get("used_count")).intValue() >= ((Number) maxUses).intValue()) {
             throw new ApiException(400, "Este cupom já foi esgotado");
         }
+        Object perCustomer = coupon.get("max_uses_per_customer");
+        if (customerId != null && perCustomer != null && usesBy(customerId, (String) coupon.get("code")) >= ((Number) perCustomer).intValue()) {
+            throw new ApiException(400, "Você já usou este cupom o número máximo de vezes");
+        }
         long discount = discountCents(coupon, subtotalCents);
         return new Applied(((Number) coupon.get("id")).longValue(), (String) coupon.get("code"), discount);
     }
 
+    /**
+     * Consome um uso só se ainda houver saldo, no mesmo UPDATE: a validação lê `used_count` sem trava, e
+     * dois checkouts simultâneos passariam do `max_uses`. Quem chega depois recebe 409 e o pedido é desfeito.
+     */
     public void consume(long couponId) {
-        jdbc.update("UPDATE coupons SET used_count = used_count + 1 WHERE id = ?", couponId);
+        int changed = jdbc.update("UPDATE coupons SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)", couponId);
+        if (changed == 0) throw new ApiException(409, "Este cupom acabou de esgotar. Remova-o para continuar");
+    }
+
+    /**
+     * Pedidos do cliente com o cupom que não morreram (cancelados, recusados e expirados não contam).
+     * O checkout trava a linha do cliente (CartService.lock), então dois pedidos dele não passam juntos.
+     */
+    private int usesBy(long customerId, String code) {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM orders WHERE customer_id = ? AND coupon_code = ? AND status NOT IN ('rejected','cancelled','expired')",
+            Integer.class, customerId, code);
+        return count == null ? 0 : count;
     }
 
     private Map<String, Object> fetch(String code) {
         if (code == null || code.isBlank()) throw new ApiException(400, "Informe um cupom");
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, restaurant_id, code, discount_type, discount_value, min_order_cents, max_uses, used_count, active, expires_at FROM coupons WHERE code = ?",
+            "SELECT id, restaurant_id, code, discount_type, discount_value, min_order_cents, max_uses, max_uses_per_customer, used_count, active, expires_at FROM coupons WHERE code = ?",
             code.trim().toUpperCase(Locale.ROOT));
         if (rows.isEmpty()) throw new ApiException(404, "Cupom inválido");
         Map<String, Object> coupon = rows.getFirst();

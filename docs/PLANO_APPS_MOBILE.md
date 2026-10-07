@@ -2,10 +2,71 @@
 
 Data: 25/09/2026. **Decisão registrada: React Native + Expo + TypeScript.**
 
+> ⚠️ **Revista em 07/10/2026:** os aplicativos operacionais passam a ser **PWA** e o **Firebase sai
+> do projeto** — ver "Decisão de 07/10/2026" logo abaixo. O restante deste documento fica como
+> **histórico** da decisão de 25/09.
+
 Este documento substitui `PLANO_APPS_FLUTTER.md` (removido). A análise das inspirações está em
 `REFERENCIA_INSPIRACOES.md`; o catálogo em `PLANO_CATALOGO.md`.
 
-## Decisão e justificativa
+## Decisão de 07/10/2026 — os aplicativos operacionais são PWA (cozinha e entregador)
+
+**Decisão:** a **cozinha** e o **entregador** passam a ser **PWA** (aplicativo instalável pelo
+navegador) dentro do próprio site — **nenhum app nativo** e **nenhum projeto Firebase**. O app
+Expo da cozinha (`apps/kitchen`) é portado para uma rota do site e **sai quando a tela estiver
+equivalente** (não antes).
+
+**Por que o plano de 25/09 foi revisto.** Três fatos apurados em 07/10:
+
+1. **O push sem Firebase já existe e funciona.** O backend tem **Web Push com chaves VAPID
+   próprias** (`WEBPUSH_PUBLIC_KEY/PRIVATE_KEY`, `WebPushSender`), com fila, retentativas e
+   inscrições por navegador. O **FCM sustenta apenas o app Expo da cozinha** e está **desligado**
+   (`FCM_SERVICE_ACCOUNT_JSON` vazio) — hoje o Firebase é dependência de uma funcionalidade que
+   ninguém usa.
+2. **A localização em segundo plano deixou de ser requisito.** Decisão do dono do produto
+   (07/10): do entregador basta saber **quando saiu para entrega** (`picked_up`) e **quando
+   entregou** (`delivered`). Sem rastreio contínuo, **nada obriga app nativo** — e era o único item
+   que forçava React Native/Flutter na mesa.
+3. **O custo de manter duas bases.** O app Expo tem navegação, tema, i18n, impressão e cliente de
+   API próprios: cada mudança no fluxo do pedido precisa ser feita **duas vezes**. Num produto com
+   quatro papéis e equipe pequena, é o gasto que mais dói.
+
+**O que muda na prática**
+
+| Item | Antes (25 e 26/09) | Agora (07/10) |
+| --- | --- | --- |
+| Cozinha | app Expo (`apps/kitchen`) + push FCM | rota do site, instalável, push Web Push |
+| Entregador | app nativo com localização em background | PWA, só os eventos de estado do pedido |
+| Cliente | app nativo (piloto) | site responsivo + "adicionar à tela inicial" |
+| Notificação | FCM (Firebase) | **Web Push com VAPID próprio** |
+| Distribuição | EAS + Play/App Store | o deploy que já existe |
+| Firebase | projeto + `FCM_SERVICE_ACCOUNT_JSON` | **sai do projeto** |
+
+**O caminho (ordem sugerida)**
+
+1. **Rota da cozinha no site** — quadro Novos/Em preparo/Prontos, detalhe do ticket, ações
+   `accept`/`ready`/`reject`, som de alerta, destaque de atraso (> 10 min) e **tela cheia**
+   (modo quiosque).
+2. **Web Push no papel `kitchen`** — reaproveita o `WebPushSender`; o **polling de 8 s** continua
+   como rede de segurança, como já era no app.
+3. **PWA** — `manifest` por papel e o subdomínio `cozinha.` no Caddy (os quatro subdomínios por
+   papel já estão configurados e apontam para o mesmo site).
+4. **Aposentar o app Expo** quando a tela web cobrir o que ele faz hoje.
+5. **Entregador como PWA** — "Minhas entregas" e os dois eventos (`picked_up`/`delivered`).
+6. **Tirar o caminho FCM** (`FirebaseFcmSender`, `device_tokens`/`V016`, `device_deliveries`,
+   `FCM_*`) em migration própria, quando não houver mais consumidor.
+
+**Limites que ficam registrados (isto não é de graça)**
+
+- **iOS:** push de PWA instalado funciona (16.4+), mas é menos previsível que o nativo.
+- **Tela da cozinha suspensa:** o push depende do navegador vivo; o polling cobre com a tela
+  aberta. Mitigação: manter o dispositivo ligado, em modo quiosque.
+- **Impressão ESC/POS:** continua sendo o **único** item que exigiria código nativo (ou uma ponte
+  local). Fica fora deste escopo, como já estava no MVP do KDS.
+- **Rastreio contínuo:** descartado por decisão de produto — o cliente vê o **estado** do pedido,
+  não o entregador andando no mapa.
+
+## Decisão e justificativa (25/09/2026 — histórico)
 
 | Fator | Efeito na escolha |
 | --- | --- |
@@ -20,13 +81,13 @@ exigiria aprender Dart do zero e criar um segundo ecossistema sem sinergia com o
 Fica registrado como **alternativa** caso os apps operacionais virem prioridade e houver
 capacitação — ver "Alternativa" no fim.
 
-## Escopo do piloto
+## Escopo do piloto (25/09 — superado pela decisão de 07/10)
 
-- Apps nativos: **cliente** e **entregador**.
+- ~~Apps nativos: **cliente** e **entregador**.~~ → **PWA** (ver a decisão de 07/10 no topo).
 - **Restaurante e admin permanecem no web responsivo** (já funcionam); app de restaurante só depois
   de medir uso real.
-- Referências de fluxo (apenas conceito): apps StackFood (GetX), eFood User/Delivery, TiffinKing,
-  e DineHub Expo (mesma stack).
+- Referências de fluxo (apenas conceito): apps do pacote legado (GetX) e outros apps
+  de referência de terceiros (um deles em Expo, mesma stack).
 
 ## Pré-requisitos de API (bloqueadores)
 
@@ -131,5 +192,5 @@ scaffold RN, sem criar um backend novo.
 ## Alternativa (Flutter)
 
 Mantido como opção se a equipe investir em Dart ou se os apps operacionais (rastreamento contínuo e
-impressora térmica) dominarem a decisão. Nesse caso, basear-se nos apps StackFood/eFood/TiffinKing
+impressora térmica) dominarem a decisão. Nesse caso, basear-se nos apps de referência de terceiros
 somente como referência conceitual.
