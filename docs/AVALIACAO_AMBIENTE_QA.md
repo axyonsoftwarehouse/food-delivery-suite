@@ -66,10 +66,51 @@ tocar no processo de deploy provado e sem infra nova. Só avaliar a **Opção B*
 surgir a necessidade real de um humano navegar num ambiente de QA separado do
 staging.
 
+## Medição na VPS (07/10/2026)
+
+Leitura direta no host (`free`, `df`, `docker stats`, `nproc`), com staging e
+monitoração no ar.
+
+| Recurso | Total | Em uso | Disponível |
+| --- | --- | --- | --- |
+| CPU | 2 vCPU | ~3–4% em repouso | — |
+| RAM | 3,7 GiB | 1,3 GiB | **2,4 GiB** |
+| Swap | 2,0 GiB | 0,22 GiB | 1,8 GiB |
+| Disco `/` | 38 GB | 16 GB (43%) | **21 GB** |
+
+Em repouso, por contêiner: `api` 301 MiB, `web` 64 MiB, `db` 37 MiB, `caddy`
+18 MiB (staging ≈ 420 MiB no total) e a monitoração (Prometheus + Alertmanager +
+Blackbox) ≈ 97 MiB. O Docker ocupa 9,7 GB em imagens (**7,2 GB recuperáveis**) e
+7,1 GB de build cache (**5,1 GB recuperáveis**).
+
+### Veredito
+
+**Dá, com folga no disco e atenção na RAM.** Um segundo stack de QA fica em
+~420–500 MiB em repouso — cabe nos 2,4 GiB livres. O pico é o **build** de cada
+deploy (`mvn package` + `next build`), que já roda com sucesso neste mesmo host
+para o staging; além disso o `deploy.sh` serializa as publicações com `flock`,
+então staging e QA não compilam ao mesmo tempo.
+
+Pré-requisitos para a Opção B:
+
+1. **Não subir um segundo Caddy** nas portas 80/443. Reaproveitar o Caddy do
+   staging numa **rede externa compartilhada** e adicionar um site block
+   `qa.{$FOODIE_DOMAIN} → foodie-qa-web:3001`. Hoje o Caddy está em
+   `foodie-staging_default`; seria preciso uma rede comum aos dois projetos.
+2. **Limitar recursos** do QA (ex.: `mem_limit` e `-Xmx` do Java ≈ 512m) para o
+   pior caso não empurrar para swap.
+3. **Limpar o Docker** com regularidade (hoje há ~12 GB recuperáveis entre
+   imagens e cache; sem isso o disco some com o tempo).
+4. **Parametrizar** `release.ps1`/`deploy.sh`, hoje amarrados ao nome fixo
+   `foodie-staging`, além de separar `.env`, segredos e banco.
+
+Só valeria considerar **aumentar a RAM da VPS** (para 8 GB) se o QA for receber
+carga real ou rodar testes de carga — em repouso, não é necessário.
+
 ## Perguntas em aberto (para quando for decidir)
 
 1. Os smokes de integração devem ser **obrigatórios** em todo PR ou só na `main`?
 2. O aceite antes de publicar pode ser feito no próprio staging (hoje) ou precisa
    mesmo de um ambiente isolado?
-3. Há orçamento de RAM/disco na VPS para um segundo stack completo? (checar
-   `docs/RUNBOOK_VPS.md` §6 — disco estava em 21% em 05/10)
+3. Se o QA for para frente, aceitar o aperto de RAM (~0,5 GiB a mais em repouso)
+   ou já subir a VPS para 8 GB? (medição acima: 2,4 GiB livres hoje)
