@@ -78,30 +78,23 @@ valores só de CI). O tempo-limite subiu de 30 para 45 min.
 Validado no GitHub Actions em 07/10/2026 (run `37686653903`): banco/API efêmeros,
 seed e os cinco smokes passaram em ~3 min.
 
-### Proteção da `main` — bloqueada pelo plano
+### Proteção da `main` — habilitada (07/10/2026)
 
-A intenção de exigir PR + CI verde antes do merge **não pôde ser aplicada**: a
-organização `axyonsoftwarehouse` está no plano **free** e o repositório é privado,
-então *branch protection* e *rulesets* retornam `HTTP 403` ("Upgrade to GitHub
-Pro or make this repository public"). Não é configuração errada — é recurso pago.
+O repositório `axyonsoftwarehouse/food-delivery-suite` passou a ser **público** em
+07/10/2026, o que libera *branch protection* no plano free. A `main` está
+protegida com:
 
-Quando houver GitHub Pro (ou o repositório virar público), habilitar:
+- check obrigatório `Verificação (Java, tipos, build, app da cozinha)`, exigindo a
+  branch atualizada (`strict`);
+- **1 revisão aprovada** por PR;
+- proibido *force-push* e exclusão da branch;
+- `enforce_admins=false` (o admin pode contornar numa emergência).
 
-```bash
-gh api -X PUT repos/axyonsoftwarehouse/food-delivery-suite/branches/main/protection \
-  -H "Accept: application/vnd.github+json" \
-  -f 'required_status_checks[strict]=true' \
-  -f 'required_status_checks[contexts][]=Verificação (Java, tipos, build, app da cozinha)' \
-  -F 'enforce_admins=false' \
-  -f 'required_pull_request_reviews[required_approving_review_count]=1' \
-  -F 'restrictions=' \
-  -F 'allow_force_pushes=false' \
-  -F 'allow_deletions=false'
-```
-
-Enquanto isso, o gate é **social + visível**: o CI roda em todo PR e no push da
-`main`, há um `pull_request_template.md` com o checklist, e a equipe combina
-merge só por PR com o check verde.
+Antes de publicar, conferido que não há segredos versionados: nenhum `.env` real,
+sem chaves privadas ou tokens, backups e `.tar` no `.gitignore` e nenhum `.env`
+no histórico. O que fica visível são o código e os docs — inclusive o IP da VPS,
+que **já era público** pelo domínio `staging.2.29.42.104.sslip.io` (resolve via
+DNS), então o repo não aumentou essa exposição.
 
 ## Medição na VPS (07/10/2026)
 
