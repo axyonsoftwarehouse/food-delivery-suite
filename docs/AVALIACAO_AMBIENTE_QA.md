@@ -75,6 +75,9 @@ e os smokes de carrinho, exceções, contas e cobertura por CEP. O job gera
 opcionais `CI_DB_PASSWORD`, `CI_DB_ROOT_PASSWORD`, `CI_DEMO_PASSWORD`; sem eles,
 valores só de CI). O tempo-limite subiu de 30 para 45 min.
 
+Validado no GitHub Actions em 07/10/2026 (run `37686653903`): banco/API efêmeros,
+seed e os cinco smokes passaram em ~3 min.
+
 ### Proteção da `main` — bloqueada pelo plano
 
 A intenção de exigir PR + CI verde antes do merge **não pôde ser aplicada**: a
