@@ -31,6 +31,7 @@ const menuFor: Record<string, Item[]> = {
   restaurant: [
     { href: '/painel', label: 'Visão geral', icon: 'home' },
     { href: '/painel/pedidos', label: 'Pedidos', icon: 'receipt' },
+    { href: '/cozinha', label: 'Cozinha (KDS)', icon: 'utensils' },
     { href: '/painel/catalogo', label: 'Catálogo', icon: 'book' },
     { href: '/painel/horarios', label: 'Horários', icon: 'clock' },
     { href: '/painel/pos', label: 'PDV', icon: 'cash' },
@@ -40,18 +41,6 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/financeiro', label: 'Financeiro', icon: 'wallet', module: 'finance' },
     { href: '/painel/minha-pagina', label: 'Minha página', icon: 'store', module: 'storefront' },
     { href: '/painel/configuracoes', label: 'Configurações', icon: 'settings' },
-    { href: '/painel', label: 'Visão geral', icon: '◫' },
-    { href: '/painel/pedidos', label: 'Pedidos', icon: '▤' },
-    { href: '/cozinha', label: 'Cozinha (KDS)', icon: '▦' },
-    { href: '/painel/catalogo', label: 'Catálogo', icon: '◉' },
-    { href: '/painel/horarios', label: 'Horários', icon: '◔' },
-    { href: '/painel/pos', label: 'PDV', icon: '🧾' },
-    { href: '/painel/mesas', label: 'Mesas', icon: '🍽' },
-    { href: '/painel/estoque', label: 'Estoque', icon: '📦', module: 'inventory' },
-    { href: '/painel/promocoes', label: 'Promoções', icon: '🎯', module: 'marketing' },
-    { href: '/painel/financeiro', label: 'Financeiro', icon: '$', module: 'finance' },
-    { href: '/painel/minha-pagina', label: 'Minha página', icon: '🏪', module: 'storefront' },
-    { href: '/painel/configuracoes', label: 'Configurações', icon: '⚙' },
   ],
   courier: [
     { href: '/painel', label: 'Visão geral', icon: 'home' },
@@ -89,10 +78,8 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
     else if (user.role === 'kitchen') router.replace('/cozinha');
   }, [initializing, user, router]);
 
-  if (initializing || !user || user.role === 'customer') {
-    return <main className="app-loading" role="status"><span className="app-loading-brand"><span className="app-loading-mark"><Icon name="sparkle" /></span>foodie<span>.</span></span><p>{'Carregando painel...'}</p></main>;
   if (initializing || !user || user.role === 'customer' || user.role === 'kitchen') {
-    return <main className="app-loading" role="status"><span className="app-loading-brand">✦ foodie<span>.</span></span><p>{'Carregando painel...'}</p></main>;
+    return <main className="app-loading" role="status"><span className="app-loading-brand"><span className="app-loading-mark"><Icon name="sparkle" /></span>foodie<span>.</span></span><p>{'Carregando painel...'}</p></main>;
   }
 
   const menu = [...(menuFor[user.role] ?? [])]
