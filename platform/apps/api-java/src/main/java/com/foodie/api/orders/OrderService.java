@@ -484,7 +484,6 @@ public class OrderService {
             support.recordOrderAction(user, number(order, "restaurant_id"), orderId, action, trimmed);
         }
         notifyTransition(order, orderId, next, courierId);
-        ledger.postOrder(orderId);
         rewards.onOrderCompleted(orderId);
         // Pedido pago online que é cancelado/recusado devolve o dinheiro (adendo de 06/10/2026). O estorno no
         // provedor é o ÚLTIMO passo: todo o resto já foi gravado nesta transação, então não sobra passo do

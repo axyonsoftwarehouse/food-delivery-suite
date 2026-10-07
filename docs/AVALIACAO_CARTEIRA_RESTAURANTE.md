@@ -15,7 +15,7 @@ Essa conclusão depende de **todos** os meios de pagamento, inclusive Pix e cart
 | `LedgerService.postOrder` | Credita venda ao restaurante e debita comissão por pedido | Parar de criar saldo sacável da loja; registrar vendas somente no financeiro privado e cobranças da assinatura em razão próprio da plataforma. |
 | `WalletController` e `PayoutService` | Permitem saldo, métodos e solicitações de saque do restaurante | Encerrar novas solicitações após conciliar as abertas; manter histórico somente para consulta. |
 | `FinanceController` | Admin enxerga saldo e extrato individuais e decide repasses | Limitar a assinatura, cobranças, GMV agregado e eventuais acertos históricos. |
-| `/painel/carteira` | Exibe saldo “pronto para saque” ao restaurante | Retirar do menu da loja após o corte contábil; preservar a carteira do entregador se a Foodie ainda lhe repassar frete e gorjeta. |
+| `/painel/carteira` | Exibe saldo “pronto para saque” ao restaurante | Retirar do menu da loja após o corte contábil. (A carteira de repasse do entregador foi retirada em 07/10/2026: virou extrato informativo em `/painel/ganhos`.) |
 | Pagamento online | O gateway é selecionado sem uma conta de recebimento do restaurante | Implementar conta/credenciais por loja ou provedor com divisão e liquidação contratualmente definida. |
 | `subscription_packages` | Permite `commission_percent` além do preço periódico | Definir pacotes só com mensalidade se comissão por pedido foi descartada; migrar contratos existentes sem alterar cobranças passadas. |
 
@@ -27,4 +27,4 @@ Essa conclusão depende de **todos** os meios de pagamento, inclusive Pix e cart
 4. Desabilitar novos créditos e saques da carteira de restaurante; manter consulta histórica e retirar a navegação da loja e os controles de repasse do admin.
 5. Separar cobrança da assinatura SaaS do fluxo de pedidos e remover comissão dos novos contratos, caso a política final seja exclusivamente mensalidade.
 
-Não apagar lançamentos, pedidos ou solicitações históricas. A carteira do cliente (créditos/recompensas) e a do entregador têm finalidades próprias e exigem decisões separadas.
+Não apagar lançamentos, pedidos ou solicitações históricas. A carteira do cliente (créditos/recompensas) segue com decisões próprias. A carteira do entregador foi decidida em 07/10/2026: frete e gorjeta são da loja e o entregador passou a ter só um extrato informativo.

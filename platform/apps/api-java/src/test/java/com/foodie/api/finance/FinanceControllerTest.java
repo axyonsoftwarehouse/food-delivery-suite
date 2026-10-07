@@ -51,9 +51,6 @@ class FinanceControllerTest {
     private LedgerService ledger;
 
     @MockitoBean
-    private PayoutService payouts;
-
-    @MockitoBean
     private ExpenseRepository expenses;
 
     @Test

@@ -192,7 +192,7 @@ public class ReportsService {
 
     private static String party(String scope) {
         String value = scope == null || scope.isBlank() ? "admin" : scope.strip().toLowerCase(Locale.ROOT);
-        if (!List.of("admin", "restaurant", "courier").contains(value)) throw new ApiException(400, "Escopo inválido");
+        if (!List.of("admin", "restaurant").contains(value)) throw new ApiException(400, "Escopo inválido");
         return value;
     }
 

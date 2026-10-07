@@ -377,7 +377,6 @@ try {
   await campaign('Semana da massa', 'basic', 15, cantina, null);
   await campaign('Combo do dia', 'item', 10, cozinha, comboAlmoco);
   await campaign('Burger week', 'basic', 20, burger, null);
-  await cashbackRule(null, 3, 3000);
   await cashbackRule(cantina, 5, 4000);
 
   // Assinaturas (SaaS) e recorrência
@@ -411,22 +410,11 @@ try {
   const referredId = (await firstId("SELECT id FROM users WHERE email = 'cliente2@demo.local'", []))!;
   await db.query("INSERT INTO referrals (referrer_id, referred_id, code, status, reward_cents, rewarded_at) SELECT ?, ?, 'FOODIE01', 'rewarded', 500, NOW() WHERE NOT EXISTS (SELECT 1 FROM referrals WHERE referred_id = ?)", [customerId, referredId, referredId]);
 
-  // Ledger para pedidos entregues (financeiro do lojista/admin/entregador)
+  // Entregas de demonstração para o extrato informativo do entregador.
+  // A plataforma não lança frete/gorjeta no razão: esses valores são da loja (decisão de 05/10/2026).
   const ids = newDemoOrderIds.map(() => '?').join(', ');
   if (newDemoOrderIds.length) {
     await db.query(`UPDATE orders SET courier_id = ? WHERE id IN (${ids})`, [courierId, ...newDemoOrderIds]);
-  }
-  const delivered = newDemoOrderIds.length
-    ? (await db.query(`SELECT id, restaurant_id, courier_id, subtotal_cents, delivery_fee_cents, service_fee_cents, tip_cents FROM orders WHERE id IN (${ids})`, newDemoOrderIds)) as any[]
-    : [];
-  for (const o of delivered) {
-    const fee = Number(o.delivery_fee_cents ?? 0);
-    const tip = Number(o.tip_cents ?? 0);
-    await db.query('INSERT IGNORE INTO order_finance_postings (order_id) VALUES (?)', [Number(o.id)]);
-    if (o.courier_id) {
-      if (fee > 0) await ledger('courier', Number(o.courier_id), Number(o.id), 'delivery_fee', fee, `Taxa de entrega do pedido #${o.id}`);
-      if (tip > 0) await ledger('courier', Number(o.courier_id), Number(o.id), 'tip', tip, `Gorjeta do pedido #${o.id}`);
-    }
   }
 
   // Fidelidade e cashback do cliente

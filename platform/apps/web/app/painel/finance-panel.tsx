@@ -4,13 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, money, useApp } from '../app-context';
 import PaymentsPanel from '../PaymentsPanel';
 
-type Payout = { id: number; party: string; party_id: number; amount_cents: number; status: string; note: string; party_name: string | null; created_at: string };
 type Expense = { id: number; category: string; description: string; amount_cents: number; incurred_at: string; created_by_name: string | null };
 type LedgerEntry = { id: number; party: string; party_id: number | null; order_id: number | null; kind: string; amount_cents: number; description: string; created_at: string };
 
-const PAYOUT_STATUS: Record<string, string> = { requested: 'Solicitado', approved: 'Aprovado', paid: 'Pago', rejected: 'Recusado' };
 const KIND_LABEL: Record<string, string> = { sale: 'Venda', commission: 'Comissão', delivery_fee: 'Entrega', tip: 'Gorjeta', refund: 'Estorno', payout: 'Repasse', adjustment: 'Ajuste' };
-const PARTY_LABEL: Record<string, string> = { admin: 'Plataforma', restaurant: 'Restaurante', courier: 'Entregador' };
 
 function today() { return new Date().toISOString().slice(0, 10); }
 
@@ -28,51 +25,18 @@ export default function FinancePanel() {
   const [tab, setTab] = useState('payments');
 
   return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">FINANCEIRO</span><h2>Dinheiro da operação</h2></div><p>Pagamentos, repasses dos entregadores, despesas e histórico financeiro.</p></div>
+    <div className="panel-heading"><div><span className="eyebrow">FINANCEIRO</span><h2>Dinheiro da operação</h2></div><p>Pagamentos, histórico financeiro e despesas da plataforma.</p></div>
     <div className="ui-chips" style={{ marginBottom: 16 }}>
-      {[['payments', 'Pagamentos'], ['earnings', 'Histórico'], ['payouts', 'Repasses'], ['expenses', 'Despesas'], ['ledger', 'Extrato']].map(([id, label]) =>
+      {[['payments', 'Pagamentos'], ['earnings', 'Histórico'], ['expenses', 'Despesas'], ['ledger', 'Extrato']].map(([id, label]) =>
         <button key={id} type="button" className={`ui-chip${tab === id ? ' selected' : ''}`} onClick={() => setTab(id)}>{label}</button>)}
     </div>
     {tab === 'payments' && <PaymentsPanel onMessage={setMessage} />}
     {tab === 'earnings' && <EarningsTab onMessage={setMessage} />}
-    {tab === 'payouts' && <PayoutsTab onMessage={setMessage} />}
     {tab === 'expenses' && <ExpensesTab onMessage={setMessage} />}
     {tab === 'ledger' && <LedgerTab onMessage={setMessage} />}
   </section>;
 }
 
-function PayoutsTab({ onMessage }: { onMessage: (m: string) => void }) {
-  const [status, setStatus] = useState('requested');
-  const [items, setItems] = useState<Payout[]>([]);
-  const [busy, setBusy] = useState(false);
-
-  const load = useCallback(async () => {
-    try { setItems(await api<Payout[]>(`/admin/finance/payouts${status ? `?status=${status}` : ''}`)); }
-    catch (error) { onMessage(error instanceof Error ? error.message : 'Erro ao carregar repasses.'); }
-  }, [status, onMessage]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  async function decide(item: Payout, decision: string) {
-    setBusy(true);
-    try {
-      await api(`/admin/finance/payouts/${item.id}/decision`, { method: 'POST', body: JSON.stringify({ decision }) });
-      onMessage(`Repasse #${item.id} ${PAYOUT_STATUS[decision === 'paid' ? 'paid' : decision === 'approve' ? 'approved' : 'rejected'].toLowerCase()}.`);
-      await load();
-    } catch (error) { onMessage(error instanceof Error ? error.message : 'Não foi possível decidir.'); }
-    finally { setBusy(false); }
-  }
-
-  return <>
-    <div className="ui-chips" style={{ marginBottom: 12 }}>
-      {['requested', 'approved', 'paid', 'rejected', ''].map((value) => <button key={value || 'all'} type="button" className={`ui-chip${status === value ? ' selected' : ''}`} onClick={() => setStatus(value)}>{value ? PAYOUT_STATUS[value] : 'Todos'}</button>)}
-    </div>
-    <div className="postal-range-list">{items.length ? items.map((item) => <div key={item.id}><span><strong>{item.party_name ?? `#${item.party_id}`}</strong> ({PARTY_LABEL[item.party]}) · {money(item.amount_cents)} · {PAYOUT_STATUS[item.status]}{item.note ? ` · ${item.note}` : ''}</span><span style={{ display: 'flex', gap: 8 }}>
-      {item.status === 'requested' && <button className="secondary-button" disabled={busy} onClick={() => void decide(item, 'approve')}>Aprovar</button>}
-      {['requested', 'approved'].includes(item.status) && <><button className="secondary-button" disabled={busy} onClick={() => void decide(item, 'paid')}>Marcar pago</button><button className="availability-button" disabled={busy} onClick={() => void decide(item, 'reject')}>Recusar</button></>}
-    </span></div>) : <p className="form-help">Nenhuma solicitação.</p>}</div>
-  </>;
-}
 
 function ExpensesTab({ onMessage }: { onMessage: (m: string) => void }) {
   const [from, setFrom] = useState(today().slice(0, 8) + '01');
@@ -150,7 +114,7 @@ function LedgerTab({ onMessage }: { onMessage: (m: string) => void }) {
 
   return <>
     <div className="ui-chips" style={{ marginBottom: 12 }}>
-      <select value={party} aria-label="Parte do extrato" onChange={(event) => setParty(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurante (histórico)</option><option value="courier">Entregador</option></select>
+      <select value={party} aria-label="Parte do extrato" onChange={(event) => setParty(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurante (histórico)</option></select>
       {party !== 'admin' && <input inputMode="numeric" aria-label="ID da parte" value={partyId} onChange={(event) => setPartyId(event.target.value)} placeholder="ID da parte" />}
       <input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} />
       <input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} />
@@ -174,11 +138,11 @@ function EarningsTab({ onMessage }: { onMessage: (m: string) => void }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const kinds: [keyof EarnBucket | 'netCents', string][] = [['saleCents', 'Vendas'], ['commissionCents', 'Comissão'], ['delivery_feeCents', 'Entregas'], ['refundCents', 'Estornos'], ['payoutCents', 'Repasses'], ['netCents', 'Líquido']];
+  const kinds: [keyof EarnBucket | 'netCents', string][] = [['saleCents', 'Vendas'], ['commissionCents', 'Comissão'], ['refundCents', 'Estornos'], ['netCents', 'Líquido']];
 
   return <>
     <div className="ui-chips" style={{ marginBottom: 12 }}>
-      <select value={scope} aria-label="Escopo dos ganhos" onChange={(event) => setScope(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurantes (histórico)</option><option value="courier">Entregadores</option></select>
+      <select value={scope} aria-label="Escopo dos ganhos" onChange={(event) => setScope(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurantes (histórico)</option></select>
       <select value={groupBy} aria-label="Agrupar ganhos por" onChange={(event) => setGroupBy(event.target.value)}><option value="day">Por dia</option><option value="week">Por semana</option><option value="month">Por mês</option></select>
       <input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} />
       <input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} />

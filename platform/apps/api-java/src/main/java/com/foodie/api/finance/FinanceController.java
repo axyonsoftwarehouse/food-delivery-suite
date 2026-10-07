@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,26 +37,22 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/finance")
 public class FinanceController {
-    private static final Set<String> PARTIES = Set.of("admin", "restaurant", "courier");
+    private static final Set<String> PARTIES = Set.of("admin", "restaurant");
 
     private final AuthService auth;
     private final AdminPermissionService permissions;
     private final AdminAuditService audit;
-    private final JdbcTemplate jdbc;
     private final CommissionRepository commissions;
     private final LedgerService ledger;
-    private final PayoutService payouts;
     private final ExpenseRepository expenses;
 
-    public FinanceController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc,
-                             CommissionRepository commissions, LedgerService ledger, PayoutService payouts, ExpenseRepository expenses) {
+    public FinanceController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit,
+                             CommissionRepository commissions, LedgerService ledger, ExpenseRepository expenses) {
         this.auth = auth;
         this.permissions = permissions;
         this.audit = audit;
-        this.jdbc = jdbc;
         this.commissions = commissions;
         this.ledger = ledger;
-        this.payouts = payouts;
         this.expenses = expenses;
     }
 
@@ -98,11 +93,8 @@ public class FinanceController {
         admin(token, AdminPermissions.FINANCE_VIEW);
         List<Map<String, Object>> entries = new ArrayList<>();
         entries.add(balanceEntry("admin", null, "Plataforma"));
-        jdbc.queryForList("SELECT id, name FROM users WHERE role = 'courier' ORDER BY name").forEach((row) ->
-            entries.add(balanceEntry("courier", ((Number) row.get("id")).longValue(), (String) row.get("name"))));
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("entries", entries);
-        result.put("payouts", payouts.adminRequests(null));
         return result;
     }
 
@@ -113,23 +105,6 @@ public class FinanceController {
         entry.put("name", name);
         entry.put("balanceCents", ledger.balance(new Party(party, partyId)));
         return entry;
-    }
-
-    @GetMapping("/payouts")
-    public List<Map<String, Object>> payoutRequests(@CookieValue(value = "foodie_session", required = false) String token,
-                                                    @RequestParam(required = false) String status) {
-        admin(token, AdminPermissions.FINANCE_VIEW);
-        return payouts.adminRequests(status);
-    }
-
-    @PostMapping("/payouts/{id}/decision")
-    public Map<String, Object> decidePayout(@CookieValue(value = "foodie_session", required = false) String token,
-                                            @PathVariable @Positive long id,
-                                            @Valid @RequestBody PayoutDecisionRequest body) {
-        User actor = admin(token, AdminPermissions.FINANCE_MANAGE);
-        Map<String, Object> result = payouts.decide(actor, id, body.decision(), body.note());
-        audit.record(actor, "update", "payout", id, "Repasse " + body.decision());
-        return result;
     }
 
     @GetMapping("/expenses")
@@ -175,9 +150,6 @@ public class FinanceController {
 
     public record CommissionRequest(@Positive Long restaurantId,
                                     @NotNull @DecimalMin("0") @DecimalMax("50") BigDecimal percent) {}
-
-    public record PayoutDecisionRequest(@NotBlank @Pattern(regexp = "approve|reject|paid") String decision,
-                                        @Size(max = 255) String note) {}
 
     public record ExpenseRequest(@NotBlank @Size(min = 2, max = 60) String category,
                                  @Size(max = 255) String description,

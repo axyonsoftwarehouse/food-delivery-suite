@@ -14,15 +14,6 @@ public class LedgerRepository {
         this.jdbc = jdbc;
     }
 
-    public boolean orderPosted(long orderId) {
-        Integer found = jdbc.query("SELECT 1 FROM order_finance_postings WHERE order_id = ?", rs -> rs.next() ? 1 : null, orderId);
-        return found != null;
-    }
-
-    public boolean markOrderPosted(long orderId) {
-        return jdbc.update("INSERT IGNORE INTO order_finance_postings (order_id) VALUES (?)", orderId) == 1;
-    }
-
     public boolean orderReversed(long orderId) {
         Integer found = jdbc.query("SELECT 1 FROM ledger_entries WHERE order_id = ? AND kind = 'refund' LIMIT 1", rs -> rs.next() ? 1 : null, orderId);
         return found != null;
@@ -60,11 +51,5 @@ public class LedgerRepository {
 
     public List<Map<String, Object>> forOrder(long orderId) {
         return jdbc.queryForList("SELECT party, party_id, amount_cents FROM ledger_entries WHERE order_id = ? AND kind <> 'refund'", orderId);
-    }
-
-    public java.util.Optional<Map<String, Object>> orderFinance(long orderId) {
-        return jdbc.queryForList(
-            "SELECT o.restaurant_id, o.courier_id, o.subtotal_cents, o.delivery_fee_cents, o.service_fee_cents, o.tip_cents, o.status, p.status AS payment_status "
-                + "FROM orders o LEFT JOIN order_payments p ON p.order_id = o.id WHERE o.id = ?", orderId).stream().findFirst();
     }
 }

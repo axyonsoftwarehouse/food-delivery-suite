@@ -94,7 +94,6 @@ public class PaymentService {
         result.put("amountReceivedCents", amountReceivedCents);
         result.put("changeCents", change);
         if (trimmed != null && !trimmed.isEmpty()) result.put("note", trimmed);
-        ledger.postOrder(orderId);
         rewards.onOrderCompleted(orderId);
         return result;
     }
