@@ -12,6 +12,7 @@ const RETURN_MESSAGES: Record<string, string> = {
   expirado: 'O link de autorização venceu (10 minutos). Tente conectar de novo.',
   invalido: 'Link de autorização inválido ou já usado. Tente conectar de novo.',
   falha: 'O Mercado Pago não confirmou a conexão. Tente de novo em instantes.',
+  outra_sessao: 'Esta autorização foi iniciada por outra conta. Nada foi conectado. Entre com a conta do dono da loja e clique em "Conectar Mercado Pago".',
   conta_real: 'Este é um ambiente de testes: conecte um usuário de teste do Mercado Pago, não uma conta real. Nada foi conectado. Se você autorizou uma conta real, remova o acesso do Foodie em Aplicativos conectados, no Mercado Pago.',
 };
 
@@ -28,15 +29,26 @@ export default function PaymentAccountCard() {
   }, [setMessage]);
 
   useEffect(() => {
-    // Volta da autorização: ?mercadopago=conectado ou ?mercadopago=erro&motivo=...
+    // Volta da autorização: ?mercadopago=confirmar&token=... (a conexão só acontece quando esta sessão, a do
+    // dono que iniciou, confirma) ou ?mercadopago=erro&motivo=...
     const params = new URLSearchParams(window.location.search);
     const result = params.get('mercadopago');
-    if (result) {
-      setNotice(RETURN_MESSAGES[result === 'conectado' ? 'conectado' : params.get('motivo') ?? 'falha'] ?? RETURN_MESSAGES.falha);
-      window.history.replaceState(null, '', window.location.pathname);
+    const token = params.get('token');
+    if (result) window.history.replaceState(null, '', window.location.pathname);
+    if (result === 'confirmar' && token) {
+      setBusy(true);
+      api<{ result: string; account: Account }>('/restaurant/payment-account/mercadopago/confirm', { method: 'POST', body: JSON.stringify({ token }) })
+        .then(({ result: outcome, account: current }) => {
+          setNotice(RETURN_MESSAGES[outcome] ?? RETURN_MESSAGES.falha);
+          setAccount(current);
+        })
+        .catch((error) => setMessage(error instanceof Error ? error.message : 'Não foi possível confirmar a conexão.'))
+        .finally(() => setBusy(false));
+      return;
     }
+    if (result) setNotice(RETURN_MESSAGES[params.get('motivo') ?? 'falha'] ?? RETURN_MESSAGES.falha);
     void load();
-  }, [load]);
+  }, [load, setMessage]);
 
   async function connect() {
     setBusy(true);

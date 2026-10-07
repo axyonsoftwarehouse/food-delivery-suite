@@ -33,6 +33,8 @@ public class WebPushSender implements PushSender {
     @Override
     public void send(String endpoint, String p256dh, String auth, String payload) {
         if (!configured()) throw new ApiException(503, "Web Push não configurado: defina WEBPUSH_PUBLIC_KEY e WEBPUSH_PRIVATE_KEY");
+        // Inscrições gravadas antes da validação no cadastro também passam por aqui.
+        if (!PushEndpoints.allowed(endpoint)) throw new ApiException(400, "Endereço de Web Push fora dos serviços permitidos");
         try {
             Notification notification = new Notification(endpoint, p256dh, auth, payload);
             HttpResponse response = new PushService(publicKey, privateKey, subject).send(notification);

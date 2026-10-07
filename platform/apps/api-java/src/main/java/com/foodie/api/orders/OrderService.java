@@ -451,12 +451,13 @@ public class OrderService {
 
     @Transactional
     public Map<String, Object> changeStatus(User user, long orderId, String action, Long courierId, String reason) {
-        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, courier_id, status FROM orders WHERE id = ? FOR UPDATE", orderId);
+        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, courier_id, status, order_type FROM orders WHERE id = ? FOR UPDATE", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);
         String current = (String) order.get("status");
         OrderWorkflow.Transition transition = OrderWorkflow.resolve(current, action, user.role());
+        requireOrderTypeAllows(action, (String) order.get("order_type"));
         String trimmed = reason == null ? null : reason.strip();
         if (transition.requiresReason() && (trimmed == null || trimmed.length() < 3)) {
             throw new ApiException(400, "Informe o motivo (3 a 255 caracteres)");
@@ -464,20 +465,6 @@ public class OrderService {
         String next = transition.nextStatus();
         if ("deliver".equals(action) && !"paid".equals(payments.status(orderId))) {
             throw new ApiException(409, "Confirme o recebimento do pagamento antes de concluir a entrega");
-        }
-        // Adendo de 06/10/2026: pedido pago online que é cancelado/recusado devolve o dinheiro ANTES de mudar
-        // o status. Se o estorno falhar, a exceção desfaz a transação e o pedido fica como estava — nunca
-        // cancelado com o dinheiro retido. `failed` fica de fora: segue para o reembolso decidido pela loja.
-        String refundNote = automaticRefundNote(next, user.role());
-        boolean paymentRefunded;
-        try {
-            paymentRefunded = refundNote != null && payments.refundIfPaidOnline(user.id(), orderId, refundNote);
-        } catch (ApiException refundFailure) {
-            // A mensagem original orienta a loja/suporte ("estorne pelo painel do Mercado Pago"); para o
-            // cliente ela não serve. Ele recebe uma mensagem própria e a original vai para o log.
-            if (!"customer".equals(user.role())) throw refundFailure;
-            log.warn("Estorno automático do pedido #{} falhou no cancelamento pelo cliente: {}", orderId, refundFailure.getMessage());
-            throw new ApiException(409, "Não foi possível estornar o pagamento agora. Tente de novo em instantes ou fale com a loja.");
         }
         if ("assign".equals(action)) {
             if (courierId == null || courierId < 1) throw new ApiException(400, "Selecione um entregador");
@@ -490,6 +477,8 @@ public class OrderService {
             jdbc.update("UPDATE orders SET status = ? WHERE id = ?", next, orderId);
         }
         if (Set.of("rejected", "cancelled", "expired", "failed").contains(next)) payments.cancelPending(orderId);
+        // Estoque volta só se o pedido morreu antes do preparo (ainda aguardando aceite).
+        if ("placed".equals(current) && Set.of("rejected", "cancelled").contains(next)) restoreStock(orderId);
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, ?, ?, ?, ?)", orderId, user.id(), current, next, trimmed);
         if ("admin".equals(user.role()) && Set.of("cancel", "assign", "unassign").contains(action)) {
             support.recordOrderAction(user, number(order, "restaurant_id"), orderId, action, trimmed);
@@ -497,6 +486,22 @@ public class OrderService {
         notifyTransition(order, orderId, next, courierId);
         ledger.postOrder(orderId);
         rewards.onOrderCompleted(orderId);
+        // Pedido pago online que é cancelado/recusado devolve o dinheiro (adendo de 06/10/2026). O estorno no
+        // provedor é o ÚLTIMO passo: todo o resto já foi gravado nesta transação, então não sobra passo do
+        // banco que possa falhar depois de o dinheiro sair. Se o estorno falhar, a exceção desfaz a transação
+        // e o pedido fica como estava — nunca cancelado com o dinheiro retido. `failed` fica de fora: segue
+        // para o reembolso decidido pela loja.
+        String refundNote = automaticRefundNote(next, user.role());
+        boolean paymentRefunded;
+        try {
+            paymentRefunded = refundNote != null && payments.refundIfPaidOnline(user.id(), orderId, refundNote);
+        } catch (ApiException refundFailure) {
+            // A mensagem original orienta a loja/suporte ("estorne pelo painel do Mercado Pago"); para o
+            // cliente ela não serve. Ele recebe uma mensagem própria e a original vai para o log.
+            if (!"customer".equals(user.role())) throw refundFailure;
+            log.warn("Estorno automático do pedido #{} falhou no cancelamento pelo cliente: {}", orderId, refundFailure.getMessage());
+            throw new ApiException(409, "Não foi possível estornar o pagamento agora. Tente de novo em instantes ou fale com a loja.");
+        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", orderId);
         result.put("status", next);
@@ -504,6 +509,32 @@ public class OrderService {
         // A tela do cliente avisa que o dinheiro voltou só quando houve estorno de fato.
         if (paymentRefunded) result.put("paymentRefunded", true);
         return result;
+    }
+
+    private static final Set<String> DELIVERY_ACTIONS = Set.of("assign", "unassign", "pickup", "deliver", "fail");
+
+    /**
+     * Ações de entrega só valem para pedido de entrega; servir só para consumo no local; concluir só fora da
+     * entrega (o mesmo que o app da cozinha mostra). Antes a loja concluía um pedido de entrega direto de
+     * "pronto", pulando entregador e confirmação de pagamento.
+     */
+    static void requireOrderTypeAllows(String action, String orderType) {
+        String type = orderType == null ? "delivery" : orderType;
+        boolean allowed = switch (action) {
+            case "serve" -> "dine_in".equals(type);
+            case "complete" -> !"delivery".equals(type);
+            default -> !DELIVERY_ACTIONS.contains(action) || "delivery".equals(type);
+        };
+        if (!allowed) throw new ApiException(409, "Esta ação não se aplica a este tipo de pedido");
+    }
+
+    /**
+     * Devolve ao estoque o que o pedido tirou. Soma por produto antes: um UPDATE com JOIN atualiza cada
+     * produto uma vez só, mesmo que ele apareça em várias linhas (variações diferentes).
+     */
+    private void restoreStock(long orderId) {
+        jdbc.update("UPDATE products p JOIN (SELECT product_id, SUM(quantity) AS quantity FROM order_items WHERE order_id = ? GROUP BY product_id) oi "
+            + "ON oi.product_id = p.id SET p.stock = p.stock + oi.quantity WHERE p.stock IS NOT NULL", orderId);
     }
 
     /** Segundos entre agora e a hora local agendada no fuso da loja; valida a antecedência (15 min a 7 dias). */
@@ -588,11 +619,12 @@ public class OrderService {
         if (rows.isEmpty()) return;
         Map<String, Object> order = rows.getFirst();
         if (!"placed".equals(order.get("status")) || !truthy(order.get("due"))) return;
-        // Pago online e sem aceite: estorna antes de expirar, na mesma transação.
-        payments.refundIfPaidOnline(null, id, "Estorno automático: pedido expirado sem aceite");
         if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
             payments.cancelPending(id);
+            restoreStock(id);
             jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
+            // Pago online e sem aceite: estorna por último, na mesma transação (falha desfaz a expiração).
+            payments.refundIfPaidOnline(null, id, "Estorno automático: pedido expirado sem aceite");
         }
     }
 

@@ -28,8 +28,11 @@ public class PaymentOAuthCallbackController {
     public ResponseEntity<Void> callback(@RequestParam(required = false) String code,
                                          @RequestParam(required = false) String state,
                                          @RequestParam(required = false) String error) {
-        String outcome = accounts.completeConnection(code, state, error);
-        String query = "conectado".equals(outcome) ? "mercadopago=conectado" : "mercadopago=erro&motivo=" + outcome;
+        PaymentAccountService.Callback result = accounts.receiveCallback(code, state, error);
+        // O painel confirma com a sessão do dono (POST .../mercadopago/confirm); só então a conta é conectada.
+        String query = "confirmar".equals(result.outcome())
+            ? "mercadopago=confirmar&token=" + result.confirmToken()
+            : "mercadopago=erro&motivo=" + result.outcome();
         String target = returnUrl + (returnUrl.contains("?") ? "&" : "?") + query;
         return ResponseEntity.status(302).location(URI.create(target)).build();
     }

@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Localização do entregador e rastreio do pedido (E40). */
 @RestController
 public class TrackingController {
+    static final java.util.Set<String> ACTIVE_DELIVERY = java.util.Set.of("assigned", "picked_up");
     private final AdminPermissionService adminPermissions;
     private final AuthService auth;
     private final OrderService orders;
@@ -58,7 +59,9 @@ public class TrackingController {
                 + "FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN addresses a ON a.id = o.address_id WHERE o.id = ?", id);
         Map<String, Object> result = new LinkedHashMap<>(order);
         Object courierId = order.get("courier_id");
-        if (courierId != null) {
+        // Localização do entregador só durante a entrega deste pedido: depois dela, a posição atual dele não
+        // é mais da conta de quem fez o pedido.
+        if (courierId != null && ACTIVE_DELIVERY.contains(String.valueOf(order.get("status")))) {
             List<Map<String, Object>> location = jdbc.queryForList(
                 "SELECT latitude, longitude, updated_at FROM courier_locations WHERE courier_id = ?", ((Number) courierId).longValue());
             result.put("courierLocation", location.isEmpty() ? null : location.getFirst());

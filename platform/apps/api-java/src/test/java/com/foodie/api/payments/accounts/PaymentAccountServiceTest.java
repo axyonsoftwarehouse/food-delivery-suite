@@ -84,7 +84,7 @@ class PaymentAccountServiceTest {
         when(oauth.accountInfo("APP_USR-loja")).thenReturn(new MercadoPagoOAuthClient.AccountInfo("TESTUSER4062", false, true));
         when(repo.userName(5)).thenReturn("Dona da Cantina");
 
-        assertEquals("conectado", service.completeConnection("TG-codigo", "st", null));
+        assertEquals("conectado", connect(service, "TG-codigo"));
 
         verify(repo).markStateUsed(PaymentAccountService.sha256Hex("st"));
         ArgumentCaptor<String> access = ArgumentCaptor.forClass(String.class);
@@ -94,6 +94,70 @@ class PaymentAccountServiceTest {
         assertEquals("APP_USR-loja", cipher.decrypt(access.getValue()));
         assertEquals("TG-loja", cipher.decrypt(refresh.getValue()));
         verify(audit).record(any(User.class), eq("payment_account.connect"), eq("restaurant"), eq(3L), anyString());
+    }
+
+    /** Retorno do provedor seguido da confirmação pelo dono (a sessão que iniciou). */
+    private String connect(PaymentAccountService svc, String code) {
+        PaymentAccountService.Callback callback = svc.receiveCallback(code, "st", null);
+        if (!"confirmar".equals(callback.outcome())) return callback.outcome();
+        String hash = PaymentAccountService.sha256Hex("st");
+        ArgumentCaptor<String> codeEnc = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> tokenHash = ArgumentCaptor.forClass(String.class);
+        verify(repo, org.mockito.Mockito.atLeastOnce()).saveCallback(eq(hash), codeEnc.capture(), tokenHash.capture());
+        assertEquals(PaymentAccountService.sha256Hex(callback.confirmToken()), tokenHash.getValue());
+        PaymentAccountRepository.OAuthState st = repo.findStateForUpdate(hash).orElseThrow();
+        when(repo.findStateByConfirmTokenForUpdate(tokenHash.getValue())).thenReturn(Optional.of(new PaymentAccountRepository.OAuthState(
+            st.restaurantId(), st.userId(), st.codeVerifierEnc(), st.expiresAt(), null, hash, codeEnc.getValue(), NOW)));
+        return svc.confirmConnection(owner, callback.confirmToken());
+    }
+
+    @Test
+    void callbackAloneNeverConnects() {
+        when(repo.findStateForUpdate(PaymentAccountService.sha256Hex("st"))).thenReturn(Optional.of(
+            new PaymentAccountRepository.OAuthState(3, 5, cipher.encrypt("verificador"), NOW.plusSeconds(300), null)));
+
+        PaymentAccountService.Callback callback = service.receiveCallback("TG-codigo", "st", null);
+
+        assertEquals("confirmar", callback.outcome());
+        assertTrue(callback.confirmToken() != null && callback.confirmToken().length() >= 40);
+        ArgumentCaptor<String> codeEnc = ArgumentCaptor.forClass(String.class);
+        verify(repo).saveCallback(eq(PaymentAccountService.sha256Hex("st")), codeEnc.capture(), anyString());
+        assertEquals("TG-codigo", cipher.decrypt(codeEnc.getValue()));
+        verify(oauth, never()).exchangeCode(anyString(), anyString());
+        verify(repo, never()).upsertConnected(anyLong(), anyString(), anyString(), any(), any(), anyString(), anyString(), any(), anyLong());
+    }
+
+    @Test
+    void secondCallbackForTheSameStateIsInvalid() {
+        when(repo.findStateForUpdate(PaymentAccountService.sha256Hex("st"))).thenReturn(Optional.of(new PaymentAccountRepository.OAuthState(
+            3, 5, cipher.encrypt("v"), NOW.plusSeconds(300), null, PaymentAccountService.sha256Hex("st"), cipher.encrypt("c"), NOW)));
+        assertEquals("invalido", service.receiveCallback("outro", "st", null).outcome());
+        verify(repo, never()).saveCallback(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void anotherSessionCannotConfirmAndBurnsTheToken() {
+        String hash = PaymentAccountService.sha256Hex("st");
+        when(repo.findStateByConfirmTokenForUpdate(PaymentAccountService.sha256Hex("tok"))).thenReturn(Optional.of(
+            new PaymentAccountRepository.OAuthState(3, 5, cipher.encrypt("v"), NOW.plusSeconds(300), null, hash, cipher.encrypt("c"), NOW)));
+        User outraLoja = new User(8, "Outra", "outra@loja.com.br", "restaurant", 4L);
+
+        assertEquals("outra_sessao", service.confirmConnection(outraLoja, "tok"));
+
+        verify(repo).markStateUsed(hash);
+        verify(oauth, never()).exchangeCode(anyString(), anyString());
+        verify(repo, never()).upsertConnected(anyLong(), anyString(), anyString(), any(), any(), anyString(), anyString(), any(), anyLong());
+    }
+
+    @Test
+    void usedOrUnknownConfirmTokenIsInvalid() {
+        assertEquals("invalido", service.confirmConnection(owner, ""));
+        when(repo.findStateByConfirmTokenForUpdate(anyString())).thenReturn(Optional.empty());
+        assertEquals("invalido", service.confirmConnection(owner, "tok"));
+        when(repo.findStateByConfirmTokenForUpdate(anyString())).thenReturn(Optional.of(new PaymentAccountRepository.OAuthState(
+            3, 5, "v1:x", NOW.plusSeconds(300), NOW, "h", null, NOW)));
+        assertEquals("invalido", service.confirmConnection(owner, "tok"));
+        verify(oauth, never()).exchangeCode(anyString(), anyString());
     }
 
     private PaymentAccountService strictService() {
@@ -112,7 +176,7 @@ class PaymentAccountServiceTest {
     @Test
     void testEnvironmentRefusesARealAccountAndStoresNothing() {
         stubExchange(false);
-        assertEquals("conta_real", strictService().completeConnection("TG-codigo", "st", null));
+        assertEquals("conta_real", connect(strictService(), "TG-codigo"));
         verify(repo, never()).upsertConnected(anyLong(), anyString(), anyString(), any(), any(), anyString(), anyString(), any(), anyLong());
         verify(audit, never()).record(any(User.class), eq("payment_account.connect"), anyString(), anyLong(), anyString());
     }
@@ -123,14 +187,14 @@ class PaymentAccountServiceTest {
         // "falha" (tente de novo), nao "conta_real" (que mandaria a loja trocar de conta a toa).
         stubExchange(false);
         when(oauth.accountInfo("APP_USR-loja")).thenReturn(new MercadoPagoOAuthClient.AccountInfo(null, false, false));
-        assertEquals("falha", strictService().completeConnection("TG-codigo", "st", null));
+        assertEquals("falha", connect(strictService(), "TG-codigo"));
         verify(repo, never()).upsertConnected(anyLong(), anyString(), anyString(), any(), any(), anyString(), anyString(), any(), anyLong());
     }
 
     @Test
     void testEnvironmentAcceptsATestUser() {
         stubExchange(true);
-        assertEquals("conectado", strictService().completeConnection("TG-codigo", "st", null));
+        assertEquals("conectado", connect(strictService(), "TG-codigo"));
         verify(repo).upsertConnected(eq(3L), eq("mercadopago"), eq("91587907"), eq("TESTUSER4062"), eq("APP_USR-pk"),
             anyString(), anyString(), eq(NOW.plusSeconds(15552000)), eq(5L));
     }
@@ -138,13 +202,13 @@ class PaymentAccountServiceTest {
     @Test
     void stateProblemsAreReportedAndNeverExchange() {
         String hash = PaymentAccountService.sha256Hex("st");
-        assertEquals("invalido", service.completeConnection("c", "", null));
+        assertEquals("invalido", service.receiveCallback("c", "", null).outcome());
         when(repo.findStateForUpdate(hash)).thenReturn(Optional.empty());
-        assertEquals("invalido", service.completeConnection("c", "st", null));
+        assertEquals("invalido", service.receiveCallback("c", "st", null).outcome());
         when(repo.findStateForUpdate(hash)).thenReturn(Optional.of(new PaymentAccountRepository.OAuthState(3, 5, "v1:x", NOW.plusSeconds(60), NOW)));
-        assertEquals("invalido", service.completeConnection("c", "st", null));
+        assertEquals("invalido", service.receiveCallback("c", "st", null).outcome());
         when(repo.findStateForUpdate(hash)).thenReturn(Optional.of(new PaymentAccountRepository.OAuthState(3, 5, "v1:x", NOW.minusSeconds(1), null)));
-        assertEquals("expirado", service.completeConnection("c", "st", null));
+        assertEquals("expirado", service.receiveCallback("c", "st", null).outcome());
         verify(oauth, never()).exchangeCode(anyString(), anyString());
     }
 
@@ -152,7 +216,7 @@ class PaymentAccountServiceTest {
     void deniedAuthorizationConsumesTheState() {
         when(repo.findStateForUpdate(PaymentAccountService.sha256Hex("st"))).thenReturn(Optional.of(
             new PaymentAccountRepository.OAuthState(3, 5, cipher.encrypt("v"), NOW.plusSeconds(300), null)));
-        assertEquals("negado", service.completeConnection(null, "st", "access_denied"));
+        assertEquals("negado", service.receiveCallback(null, "st", "access_denied").outcome());
         verify(repo).markStateUsed(PaymentAccountService.sha256Hex("st"));
         verify(oauth, never()).exchangeCode(anyString(), anyString());
     }
@@ -162,7 +226,7 @@ class PaymentAccountServiceTest {
         when(repo.findStateForUpdate(PaymentAccountService.sha256Hex("st"))).thenReturn(Optional.of(
             new PaymentAccountRepository.OAuthState(3, 5, cipher.encrypt("v"), NOW.plusSeconds(300), null)));
         when(oauth.exchangeCode("c", "v")).thenThrow(new ApiException(502, "Mercado Pago recusou a vinculação: HTTP 400"));
-        assertEquals("falha", service.completeConnection("c", "st", null));
+        assertEquals("falha", connect(service, "c"));
     }
 
     @Test

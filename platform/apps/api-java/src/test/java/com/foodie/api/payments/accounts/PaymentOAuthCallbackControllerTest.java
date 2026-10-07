@@ -20,15 +20,15 @@ class PaymentOAuthCallbackControllerTest {
 
     @Test
     void successGoesBackToThePanel() throws Exception {
-        when(accounts.completeConnection("TG-c", "st", null)).thenReturn("conectado");
+        when(accounts.receiveCallback("TG-c", "st", null)).thenReturn(new PaymentAccountService.Callback("confirmar", "tok123"));
         mvc.perform(get("/payments/mercadopago/oauth/callback").param("code", "TG-c").param("state", "st"))
             .andExpect(status().isFound())
-            .andExpect(header().string("Location", "https://restaurante.foodie.test/painel/configuracoes?mercadopago=conectado"));
+            .andExpect(header().string("Location", "https://restaurante.foodie.test/painel/configuracoes?mercadopago=confirmar&token=tok123"));
     }
 
     @Test
     void failureCarriesTheReason() throws Exception {
-        when(accounts.completeConnection(null, "st", "access_denied")).thenReturn("negado");
+        when(accounts.receiveCallback(null, "st", "access_denied")).thenReturn(new PaymentAccountService.Callback("negado", null));
         mvc.perform(get("/payments/mercadopago/oauth/callback").param("state", "st").param("error", "access_denied"))
             .andExpect(status().isFound())
             .andExpect(header().string("Location", "https://restaurante.foodie.test/painel/configuracoes?mercadopago=erro&motivo=negado"));

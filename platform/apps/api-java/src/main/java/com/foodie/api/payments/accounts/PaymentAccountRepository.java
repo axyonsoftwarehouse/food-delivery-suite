@@ -16,7 +16,13 @@ public class PaymentAccountRepository {
                           String accessTokenEnc, String refreshTokenEnc, Instant tokenExpiresAt, String status,
                           Instant connectedAt, Instant disconnectedAt) {}
 
-    public record OAuthState(long restaurantId, long userId, String codeVerifierEnc, Instant expiresAt, Instant usedAt) {}
+    public record OAuthState(long restaurantId, long userId, String codeVerifierEnc, Instant expiresAt, Instant usedAt,
+                             String stateHash, String authCodeEnc, Instant returnedAt) {
+        /** State recém-criado, antes do retorno do provedor. */
+        public OAuthState(long restaurantId, long userId, String codeVerifierEnc, Instant expiresAt, Instant usedAt) {
+            this(restaurantId, userId, codeVerifierEnc, expiresAt, usedAt, null, null, null);
+        }
+    }
 
     private static final String COLUMNS = "id, restaurant_id, provider, provider_user_id, provider_nickname, public_key, "
         + "access_token_enc, refresh_token_enc, token_expires_at, status, connected_at, disconnected_at";
@@ -83,14 +89,31 @@ public class PaymentAccountRepository {
             stateHash, restaurantId, userId, codeVerifierEnc, timestamp(expiresAt));
     }
 
+    private static final String STATE_COLUMNS =
+        "SELECT state_hash, restaurant_id, user_id, code_verifier_enc, expires_at, used_at, auth_code_enc, returned_at FROM payment_oauth_states ";
+
     public Optional<OAuthState> findStateForUpdate(String stateHash) {
-        return jdbc.query("SELECT restaurant_id, user_id, code_verifier_enc, expires_at, used_at FROM payment_oauth_states WHERE state_hash = ? FOR UPDATE",
-            (rs, row) -> new OAuthState(rs.getLong("restaurant_id"), rs.getLong("user_id"), rs.getString("code_verifier_enc"),
-                instant(rs, "expires_at"), instant(rs, "used_at")), stateHash).stream().findFirst();
+        return jdbc.query(STATE_COLUMNS + "WHERE state_hash = ? FOR UPDATE", this::state, stateHash).stream().findFirst();
     }
 
+    public Optional<OAuthState> findStateByConfirmTokenForUpdate(String confirmTokenHash) {
+        return jdbc.query(STATE_COLUMNS + "WHERE confirm_token_hash = ? FOR UPDATE", this::state, confirmTokenHash).stream().findFirst();
+    }
+
+    /** Retorno do provedor: guarda o código (cifrado) e o hash do token de confirmação. */
+    public void saveCallback(String stateHash, String authCodeEnc, String confirmTokenHash) {
+        jdbc.update("UPDATE payment_oauth_states SET auth_code_enc = ?, confirm_token_hash = ?, returned_at = NOW() WHERE state_hash = ?",
+            authCodeEnc, confirmTokenHash, stateHash);
+    }
+
+    /** Uso único: marca como usado e apaga o código de autorização guardado. */
     public void markStateUsed(String stateHash) {
-        jdbc.update("UPDATE payment_oauth_states SET used_at = NOW() WHERE state_hash = ?", stateHash);
+        jdbc.update("UPDATE payment_oauth_states SET used_at = NOW(), auth_code_enc = NULL WHERE state_hash = ?", stateHash);
+    }
+
+    private OAuthState state(ResultSet rs, int row) throws SQLException {
+        return new OAuthState(rs.getLong("restaurant_id"), rs.getLong("user_id"), rs.getString("code_verifier_enc"),
+            instant(rs, "expires_at"), instant(rs, "used_at"), rs.getString("state_hash"), rs.getString("auth_code_enc"), instant(rs, "returned_at"));
     }
 
     public String userName(long userId) {

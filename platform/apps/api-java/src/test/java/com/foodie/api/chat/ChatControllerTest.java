@@ -30,6 +30,9 @@ class ChatControllerTest {
     @MockitoBean
     private JdbcTemplate jdbc;
 
+    @MockitoBean
+    private ChatPolicy policy;
+
     @Test
     void conversationsRequireLogin() throws Exception {
         when(auth.requireUser(null)).thenThrow(new ApiException(401, "Faça login para continuar"));
