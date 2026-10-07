@@ -35,13 +35,13 @@ export default function PixPayment({ image, title = 'Finalize o pagamento', hint
   }
 
   return <section className="customer-card customer-online-payment">
-    <div className="customer-card-title"><div><span className="customer-kicker">PAGAMENTO PIX</span><h2>{title}</h2></div></div>
+    <div className="customer-card-title"><h2>{title}</h2></div>
     {desenho && <img className="customer-qr" src={desenho} alt="QR Code do Pix deste pedido" />}
     {codigo && <>
       <label>Pix copia e cola<textarea readOnly rows={3} value={codigo} /></label>
       <button className="customer-solid-button" type="button" onClick={() => void copiar()}>{copiado ? 'Código copiado' : 'Copiar código Pix'}</button>
     </>}
     {link && <a className="customer-solid-button" href={link} target="_blank" rel="noreferrer">Abrir no Mercado Pago</a>}
-    <p className="form-help">{hint ?? 'Escaneie o QR Code no aplicativo do banco, ou use o Pix copia e cola. A confirmação chega sozinha e o restaurante começa o preparo.'}</p>
+    <p className="form-help">{hint ?? 'A confirmação é automática.'}</p>
   </section>;
 }

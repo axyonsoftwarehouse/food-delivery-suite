@@ -23,21 +23,31 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { user, connection, lastSync, localMessage, cartCount, subtotal, fee } = useCustomer();
   const timeLocale = 'pt-BR';
 
+  const notice = message || localMessage;
+  const firstName = user.name.split(' ')[0];
+
   return <main className="customer-app">
     <header className="customer-header">
       <Link className="customer-brand" href="/loja" aria-label="Foodie"><span className="customer-brand-mark"><Icon name="sparkle" /></span>foodie<span>.</span></Link>
       <nav className="customer-nav" aria-label="Seções">
-        {nav.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href || (item.href === '/loja' && pathname.startsWith('/loja/restaurantes/')) ? 'active' : ''}><Icon name={item.icon} />{item.label}{item.href === '/loja/carrinho' && cartCount > 0 ? ` (${cartCount})` : ''}</Link>)}
+        {nav.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href || (item.href === '/loja' && pathname.startsWith('/loja/restaurantes/')) ? 'active' : ''}>
+          <span className="customer-nav-icon"><Icon name={item.icon} />{item.href === '/loja/carrinho' && cartCount > 0 && <span className="customer-nav-badge" key={cartCount} aria-label={`${cartCount} itens`}>{cartCount}</span>}</span>{item.label}
+        </Link>)}
       </nav>
-      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString(timeLocale)}` : ''}>{connection === 'online' ? `● ao vivo` : `● sem conexão`}</span>}<ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} /><span className="customer-greeting">{`Olá, ${user.name.split(' ')[0]}!`}</span><button className="customer-logout" onClick={logout} disabled={busy}><Icon name="logout" /><span>{'Sair'}</span></button></div>
+      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString(timeLocale)}` : ''}>{connection === 'online' ? <><span className="m-live-dot" />{'ao vivo'}</> : <>{'● sem conexão'}</>}</span>}<ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} /><span className="customer-greeting" title={user.name}><span className="customer-avatar" aria-hidden="true">{firstName.charAt(0).toLocaleUpperCase('pt-BR')}</span><span className="sr-only">{user.name}</span></span><button className="customer-logout" onClick={logout} disabled={busy}><Icon name="logout" /><span>{'Sair'}</span></button></div>
     </header>
 
-    <div className="customer-content">
-      {(message || localMessage) && <div className="customer-notice" role="status">{message || localMessage}</div>}
+    <div className="customer-content customer-page" key={pathname}>
       {children}
     </div>
 
-    {cartCount > 0 && pathname !== '/loja/carrinho' && <Link className="customer-cart-dock" href="/loja/carrinho"><span>{`${cartCount} no carrinho`}</span><strong>{money(subtotal + fee)}<Icon name="arrow-right" /></strong></Link>}
+    {notice && <div className="customer-toast" role="status" key={`${notice}-${cartCount}`}><span className="customer-toast-icon"><Icon name="sparkle" size={14} /></span>{notice}</div>}
+
+    {cartCount > 0 && pathname !== '/loja/carrinho' && <Link className="customer-cart-dock" href="/loja/carrinho">
+      <span className="customer-cart-dock-icon" key={cartCount}><Icon name="bag" /><span>{cartCount}</span></span>
+      <span className="customer-cart-dock-label">{'Ver carrinho'}<small>{`${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`}</small></span>
+      <strong>{money(subtotal + fee)}<Icon name="arrow-right" /></strong>
+    </Link>}
   </main>;
 }
 

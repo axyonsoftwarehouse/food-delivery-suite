@@ -2,8 +2,12 @@ import type { Metadata } from 'next';
 import './tokens.css';
 import './styles.css';
 import './ui.css';
+import './motion.css';
 import './auth.css';
 import './loja.css';
+import './loja-conta.css';
+import './painel.css';
+import './home.css';
 import './cozinha.css';
 import { AppProvider } from './app-context';
 

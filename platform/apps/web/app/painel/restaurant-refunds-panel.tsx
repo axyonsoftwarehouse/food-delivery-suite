@@ -33,7 +33,9 @@ export default function RestaurantRefundsPanel() {
     finally { setBusy(false); }
   }
 
-  return <section className="panel"><div className="panel-heading"><div><span className="eyebrow">CLIENTES</span><h2>Reembolsos</h2></div></div>
+  if (!rows.length) return null;
+
+  return <section className="panel"><div className="panel-heading"><div><h2>Reembolsos</h2></div></div>
     {rows.length ? <div className="postal-range-list">{rows.map((r) => <div key={r.id}><span><strong>#{r.order_id}</strong> · {r.customer_name} · {r.reason ?? 'sem motivo'}{r.note ? ` · ${r.note}` : ''} · {STATUS[r.status] ?? r.status}</span>
       {r.status === 'requested' && <span style={{ display: 'flex', gap: 8 }}><button className="secondary-button" disabled={busy} onClick={() => void decide(r, 'approve')}>Aprovar</button><button className="availability-button" disabled={busy} onClick={() => void decide(r, 'reject')}>Recusar</button></span>}
     </div>)}</div> : <p className="form-help">Nenhuma solicitação de reembolso.</p>}

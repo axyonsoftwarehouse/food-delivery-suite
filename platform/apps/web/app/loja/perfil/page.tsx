@@ -1,37 +1,41 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api, useApp } from '../../app-context';
+import { api } from '../../app-context';
 import { useCustomer } from '../customer-context';
 import AddressForm from '../address-form';
 import RewardsCard from './rewards-card';
 import PersonalizationCard from './personalization-card';
 import RecurringOrdersCard from './recurring-orders-card';
+import { Icon } from '../../icons';
 
 export default function PerfilClientePage() {
-  const { logout, busy } = useApp();
   const { user, addresses, showAddressForm, setShowAddressForm } = useCustomer();
   const [security, setSecurity] = useState<{ emailVerified: boolean } | null>(null);
 
   useEffect(() => { api<{ emailVerified: boolean }>('/auth/security').then(setSecurity).catch(() => {}); }, []);
 
-  return <>
-    <section className="customer-card">
-      <div className="customer-card-title"><div><span className="customer-kicker">SUA CONTA</span><h1>Perfil</h1></div><button onClick={logout} disabled={busy}>Sair</button></div>
-      <div className="customer-order-list">
-        <div className="customer-cart-row"><div><strong>Nome</strong><small>{user.name}</small></div></div>
-        <div className="customer-cart-row"><div><strong>Email</strong><small>{user.email}</small></div><span className={`customer-order-status ${security?.emailVerified ? 'delivered' : ''}`}>{security ? (security.emailVerified ? 'Verificado' : 'Pendente') : '...'}</span></div>
+  return <div className="profile-page">
+    <section className="profile-hero m-rise">
+      <span className="profile-avatar" aria-hidden="true">{user.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
+      <div className="profile-id">
+        <h1>{user.name}</h1>
+        <p>{user.email}{security && <span className={`profile-badge${security.emailVerified ? ' is-ok' : ''}`}>{security.emailVerified ? <><Icon name="check" size={12} />{'Verificado'}</> : 'E-mail pendente'}</span>}</p>
       </div>
     </section>
 
-    <section className="customer-card">
-      <div className="customer-card-title"><div><span className="customer-kicker">ONDE RECEBER</span><h2>Endereços</h2></div><button onClick={() => setShowAddressForm(!showAddressForm)}>{showAddressForm ? 'Fechar' : '+ Novo endereço'}</button></div>
+    <RewardsCard />
+
+    <section className="pf-section m-rise" style={{ '--i': 2 } as React.CSSProperties}>
+      <div className="pf-head"><h2>{'Endereços'}</h2><button className={`pf-add${showAddressForm ? ' is-open' : ''}`} onClick={() => setShowAddressForm(!showAddressForm)} aria-label={showAddressForm ? 'Fechar novo endereço' : 'Novo endereço'} title={showAddressForm ? 'Fechar' : 'Novo endereço'}><Icon name="plus" size={18} /></button></div>
       {showAddressForm && <AddressForm />}
-      {addresses.length ? <div className="customer-order-list">{addresses.map((address) => <div className="customer-cart-row" key={address.id}><div><strong>{address.label}</strong><small>{address.street}, {address.number} · {address.neighborhood} · {address.city}/{address.state}{address.postal_code ? ` · CEP ${address.postal_code}` : ' · recadastre com CEP'}</small></div></div>)}</div> : <p className="customer-muted">Nenhum endereço cadastrado.</p>}
+      {addresses.length ? <ul className="pf-list">{addresses.map((address) => <li className="pf-row" key={address.id}>
+        <span className="pf-icon"><Icon name={address.label.toLocaleLowerCase('pt-BR').includes('trab') ? 'store' : 'home'} size={18} /></span>
+        <div><strong>{address.label}</strong><small>{`${address.street}, ${address.number} · ${address.neighborhood} · ${address.city}/${address.state}`}</small>{!address.postal_code && <small className="pf-warn">{'Recadastre com CEP'}</small>}</div>
+      </li>)}</ul> : <p className="pf-empty">{'Nenhum endereço cadastrado.'}</p>}
     </section>
 
-    <RewardsCard />
-    <RecurringOrdersCard />
     <PersonalizationCard />
-  </>;
+    <RecurringOrdersCard />
+  </div>;
 }
