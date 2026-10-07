@@ -7,7 +7,7 @@ import { useApp } from '../app-context';
 import NotificationsBell from '../NotificationsBell';
 import ThemeToggle from '../ThemeToggle';
 
-const ROLE_LABELS: Record<string, string> = { admin: 'Administração', restaurant: 'Restaurante', courier: 'Entregas', customer: 'Cliente' };
+const ROLE_LABELS: Record<string, string> = { admin: 'Administração', restaurant: 'Restaurante', kitchen: 'Cozinha', courier: 'Entregas', customer: 'Cliente' };
 
 
 type Item = { href: string; label: string; icon: string; module?: string; permission?: string };
@@ -30,6 +30,7 @@ const menuFor: Record<string, Item[]> = {
   restaurant: [
     { href: '/painel', label: 'Visão geral', icon: '◫' },
     { href: '/painel/pedidos', label: 'Pedidos', icon: '▤' },
+    { href: '/cozinha', label: 'Cozinha (KDS)', icon: '▦' },
     { href: '/painel/catalogo', label: 'Catálogo', icon: '◉' },
     { href: '/painel/horarios', label: 'Horários', icon: '◔' },
     { href: '/painel/pos', label: 'PDV', icon: '🧾' },
@@ -57,9 +58,10 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
     if (initializing) return;
     if (!user) router.replace('/entrar');
     else if (user.role === 'customer') router.replace('/loja');
+    else if (user.role === 'kitchen') router.replace('/cozinha');
   }, [initializing, user, router]);
 
-  if (initializing || !user || user.role === 'customer') {
+  if (initializing || !user || user.role === 'customer' || user.role === 'kitchen') {
     return <main className="app-loading" role="status"><span className="app-loading-brand">✦ foodie<span>.</span></span><p>{'Carregando painel...'}</p></main>;
   }
 
