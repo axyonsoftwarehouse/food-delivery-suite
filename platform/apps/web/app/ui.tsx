@@ -111,6 +111,8 @@ const ORDER_STATUS: Record<string, { label: string; tone: Tone }> = {
   accepted: { label: 'Aceito', tone: 'info' },
   ready: { label: 'Pronto', tone: 'brand' },
   assigned: { label: 'Com entregador', tone: 'info' },
+  served: { label: 'Servido', tone: 'success' },
+  completed: { label: 'Concluído', tone: 'success' },
   picked_up: { label: 'Em rota', tone: 'info' },
   delivered: { label: 'Entregue', tone: 'success' },
   paid: { label: 'Pago', tone: 'success' },
