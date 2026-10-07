@@ -43,7 +43,11 @@ jobs:
           SHA="$(git rev-parse HEAD)"
           PKG="/tmp/platform-release-$SHA.tar"
           git -c core.autocrlf=false -c core.eol=lf archive --format=tar -o "$PKG" "${SHA}:platform"
-          SHA256="$(sha256sum "$PKG" | sed 's/^\\//' | awk '{print $1}')"
+          # O coreutils prefixa a linha com "\" quando o caminho do arquivo tem barra
+          # invertida; sem tirar isso, a VPS recusa como "sha256 invalido".
+          LINHA="$(sha256sum "$PKG")"
+          SHA256="${LINHA%% *}"
+          SHA256="${SHA256#\\}"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
           ls -lh "$PKG"
