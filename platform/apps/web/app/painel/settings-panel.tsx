@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, labels, useApp } from '../app-context';
+import { settingsGroupFromSlug } from './configuracoes/sections';
 
 type SettingDescriptor = { key: string; label: string; type: string; group: string; value: string };
 
-export default function SettingsPanel() {
+export default function SettingsPanel({ section }: { section?: string }) {
   const { user, busy, logout, permissions, setMessage } = useApp();
   const [security, setSecurity] = useState<{ emailVerified: boolean } | null>(null);
   const [settings, setSettings] = useState<SettingDescriptor[]>([]);
@@ -46,10 +47,8 @@ export default function SettingsPanel() {
 
   if (!user) return null;
 
-  const groups = Array.from(new Set(settings.map((item) => item.group)));
-
-  return <>
-    <section className="panel">
+  if (section === 'conta') {
+    return <section className="panel">
       <div className="panel-heading"><div><span className="eyebrow">CONTA</span><h2>Configurações</h2></div><p>Seus dados de acesso e status da conta.</p></div>
       <div className="courier-list">
         <div className="courier-row"><div><strong>Nome</strong><span>{user.name}</span></div></div>
@@ -58,19 +57,25 @@ export default function SettingsPanel() {
         <div className="courier-row"><div><strong>Email verificado</strong><small className={security?.emailVerified ? 'courier-state approved' : 'courier-state'}>{security ? (security.emailVerified ? 'Verificado' : 'Pendente') : 'Consultando...'}</small></div></div>
         <div className="courier-row"><div><strong>Sessão</strong><span>Encerre o acesso neste navegador.</span></div><button className="availability-button" onClick={logout} disabled={busy}>Sair</button></div>
       </div>
-    </section>
+    </section>;
+  }
 
-    {groups.map((group) => <section className="panel" key={group}>
-      <div className="panel-heading"><div><span className="eyebrow">SISTEMA</span><h2>{group}</h2></div><p>Configurações da plataforma aplicadas a toda a operação.</p></div>
-      <form onSubmit={(event) => { event.preventDefault(); void saveGroup(group); }}>
-        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(2,minmax(0,1fr))' }}>
-          {settings.filter((item) => item.group === group).map((item) => item.type === 'bool'
-            ? <label className="check" key={item.key}><input type="checkbox" checked={draft[item.key] === 'true'} onChange={(event) => setDraft({ ...draft, [item.key]: event.target.checked ? 'true' : 'false' })} /> {item.label}</label>
-            : <label key={item.key}>{item.label}<input type={item.type === 'int' ? 'number' : 'text'} value={draft[item.key] ?? ''} onChange={(event) => setDraft({ ...draft, [item.key]: event.target.value })} maxLength={1000} /></label>
-          )}
-        </div>
-        <button className="secondary-button" disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>
-      </form>
-    </section>)}
-  </>;
+  const group = section ? settingsGroupFromSlug(section) : undefined;
+
+  if (!group || !settings.some((item) => item.group === group)) {
+    return <section className="panel"><div className="panel-heading"><div><span className="eyebrow">SISTEMA</span><h2>Configurações</h2></div><p>Selecione uma seção no menu lateral.</p></div></section>;
+  }
+
+  return <section className="panel">
+    <div className="panel-heading"><div><span className="eyebrow">SISTEMA</span><h2>{group}</h2></div><p>Configurações da plataforma aplicadas a toda a operação.</p></div>
+    <form onSubmit={(event) => { event.preventDefault(); void saveGroup(group); }}>
+      <div className="form-grid" style={{ gridTemplateColumns: 'repeat(2,minmax(0,1fr))' }}>
+        {settings.filter((item) => item.group === group).map((item) => item.type === 'bool'
+          ? <label className="check" key={item.key}><input type="checkbox" checked={draft[item.key] === 'true'} onChange={(event) => setDraft({ ...draft, [item.key]: event.target.checked ? 'true' : 'false' })} /> {item.label}</label>
+          : <label key={item.key}>{item.label}<input type={item.type === 'int' ? 'number' : 'text'} value={draft[item.key] ?? ''} onChange={(event) => setDraft({ ...draft, [item.key]: event.target.value })} maxLength={1000} /></label>
+        )}
+      </div>
+      <button className="secondary-button" disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>
+    </form>
+  </section>;
 }

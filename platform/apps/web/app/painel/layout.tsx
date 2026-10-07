@@ -7,11 +7,25 @@ import { useApp } from '../app-context';
 import NotificationsBell from '../NotificationsBell';
 import ThemeToggle from '../ThemeToggle';
 import { Icon, type IconName } from '../icons';
+import { SETTINGS_GROUP_SECTIONS } from './configuracoes/sections';
 
 const ROLE_LABELS: Record<string, string> = { admin: 'Administração', restaurant: 'Restaurante', kitchen: 'Cozinha', courier: 'Entregas', customer: 'Cliente' };
 
 
-type Item = { href: string; label: string; icon: IconName; module?: string; permission?: string };
+type SubItem = { href: string; label: string; permission?: string };
+type Item = { href: string; label: string; icon: IconName; module?: string; permission?: string; children?: SubItem[] };
+
+const CONFIG_CHILDREN: Record<'admin' | 'restaurant', SubItem[]> = {
+  admin: [
+    { href: '/painel/configuracoes/conta', label: 'Conta' },
+    ...SETTINGS_GROUP_SECTIONS.map((section) => ({ href: `/painel/configuracoes/${section.slug}`, label: section.label, permission: 'settings.manage' })),
+    { href: '/painel/configuracoes/auditoria', label: 'Trilha administrativa', permission: 'audit.view' },
+  ],
+  restaurant: [
+    { href: '/painel/configuracoes/conta', label: 'Conta' },
+    { href: '/painel/configuracoes/pagamentos', label: 'Pagamentos', permission: 'payments.manage' },
+  ],
+};
 
 const menuFor: Record<string, Item[]> = {
   admin: [
@@ -26,7 +40,7 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/financeiro', label: 'Financeiro', icon: 'wallet' },
     { href: '/painel/cupons', label: 'Cupons', icon: 'ticket' },
     { href: '/painel/equipe', label: 'Equipe e acessos', icon: 'shield' },
-    { href: '/painel/configuracoes', label: 'Configurações', icon: 'settings' },
+    { href: '/painel/configuracoes', label: 'Configurações', icon: 'settings', children: CONFIG_CHILDREN.admin },
   ],
   restaurant: [
     { href: '/painel', label: 'Visão geral', icon: 'home' },
@@ -40,7 +54,7 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/promocoes', label: 'Promoções', icon: 'megaphone', module: 'marketing' },
     { href: '/painel/financeiro', label: 'Financeiro', icon: 'wallet', module: 'finance' },
     { href: '/painel/minha-pagina', label: 'Minha página', icon: 'store', module: 'storefront' },
-    { href: '/painel/configuracoes', label: 'Configurações', icon: 'settings' },
+    { href: '/painel/configuracoes', label: 'Configurações', icon: 'settings', children: CONFIG_CHILDREN.restaurant },
   ],
   courier: [
     { href: '/painel', label: 'Visão geral', icon: 'home' },
@@ -84,7 +98,8 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
 
   const menu = [...(menuFor[user.role] ?? [])]
     .filter((item) => !item.module || user.role !== 'restaurant' || modules.includes(item.module))
-    .filter((item) => !item.permission || permissions.includes(item.permission));
+    .filter((item) => !item.permission || permissions.includes(item.permission))
+    .map((item) => item.children ? { ...item, children: item.children.filter((child) => !child.permission || permissions.includes(child.permission)) } : item);
   if ((user.role === 'restaurant' || user.role === 'admin') && permissions.includes('staff.manage') && !menu.some((item) => item.href === '/painel/equipe')) {
     menu.splice(Math.max(menu.length - 1, 0), 0, { href: '/painel/equipe', label: 'Equipe e acessos', icon: 'shield' });
   }
@@ -104,7 +119,16 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
         <button className="sidebar-close" type="button" onClick={() => setDrawer(false)} aria-label="Fechar menu"><Icon name="x" size={20} /></button>
       </div>
       <nav className="side-nav">
-        {menu.map((item, index) => <Link key={item.href} className={`nav-item${current?.href === item.href ? ' active' : ''}`} href={item.href} style={{ '--i': index } as React.CSSProperties} aria-current={current?.href === item.href ? 'page' : undefined}><Icon name={item.icon} size={19} />{item.label}</Link>)}
+        {menu.map((item, index) => {
+          const isActive = current?.href === item.href;
+          const expanded = Boolean(item.children?.length) && pathname.startsWith(item.href);
+          return <div className="nav-group" key={item.href}>
+            <Link className={`nav-item${isActive ? ' active' : ''}`} href={item.href} style={{ '--i': index } as React.CSSProperties} aria-current={isActive ? 'page' : undefined}><Icon name={item.icon} size={19} />{item.label}{item.children?.length ? <Icon name="chevron-down" size={16} className={`nav-caret${expanded ? ' is-open' : ''}`} /> : null}</Link>
+            {expanded && item.children && <div className="side-subnav">
+              {item.children.map((child) => <Link key={child.href} className={`nav-subitem${pathname === child.href ? ' active' : ''}`} href={child.href} aria-current={pathname === child.href ? 'page' : undefined}>{child.label}</Link>)}
+            </div>}
+          </div>;
+        })}
       </nav>
       <div className="side-user">
         <span className="side-avatar" aria-hidden="true">{firstName.charAt(0).toLocaleUpperCase('pt-BR')}</span>
