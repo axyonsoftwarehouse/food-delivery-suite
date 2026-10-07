@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const defaultJavaHome = process.env.JAVA_HOME ?? (existsSync('C:\\Users\\werne\\tools\\jdk-21') ? 'C:\\Users\\werne\\tools\\jdk-21' : undefined);
 const integration = process.env.VERIFY_INTEGRATION === '1';
+// No PC o Maven roda offline (-o), apoiado no cache local .m2-cache, que não é
+// versionado. Num runner limpo esse cache nasce vazio, então o CI liga
+// VERIFY_ONLINE=1 e o Maven baixa o que precisa.
+const mvnOffline = process.env.VERIFY_ONLINE === '1' ? [] : ['-o'];
 let failures = 0;
 
 function run(name, command, args, { cwd = root, env = {} } = {}) {
@@ -44,7 +48,7 @@ async function waitForReady(url, attempts = 60, timeoutMs = 5000) {
 }
 
 // --- Verificação sempre executada (sem banco) ---
-run('Testes Java (api-java)', 'mvn', ['-o', '-q', '-Dmaven.repo.local=.m2-cache', 'test'], { cwd: join(root, 'apps/api-java'), env: { JAVA_HOME: defaultJavaHome } });
+run('Testes Java (api-java)', 'mvn', [...mvnOffline, '-q', '-Dmaven.repo.local=.m2-cache', 'test'], { cwd: join(root, 'apps/api-java'), env: { JAVA_HOME: defaultJavaHome } });
 run('Tipos do site (tsc)', 'npx', ['tsc', '--noEmit'], { cwd: join(root, 'apps/web') });
 run('Build do site (next build)', 'npm', ['run', 'build'], { cwd: join(root, 'apps/web') });
 run('Tipos do app da cozinha (tsc)', 'pnpm', ['--filter', '@foodie/kitchen', 'typecheck'], { cwd: root });
