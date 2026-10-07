@@ -59,7 +59,7 @@ const menuFor: Record<string, Item[]> = {
   courier: [
     { href: '/painel', label: 'Visão geral', icon: 'home' },
     { href: '/painel/pedidos', label: 'Minhas entregas', icon: 'bike' },
-    { href: '/painel/carteira', label: 'Carteira', icon: 'wallet' },
+    { href: '/painel/ganhos', label: 'Ganhos', icon: 'wallet' },
     { href: '/painel/configuracoes', label: 'Configurações', icon: 'settings' },
   ],
 };

@@ -89,22 +89,10 @@ function Banners({ onMessage }: { onMessage: (m: string) => void }) {
 }
 
 function Cashback({ onMessage }: { onMessage: (m: string) => void }) {
-  const { rows, reload } = useJsonArray<{ id: number; restaurant_id: number | null; restaurant_name: string | null; percent: number; min_order_cents: number }>('/admin/rewards/cashback-rules', onMessage);
-  const [restaurantId, setRestaurantId] = useState('');
-  const [percent, setPercent] = useState('5');
-  const [minOrder, setMinOrder] = useState('0');
-  return <div className="form-grid">
-    <form onSubmit={(e) => { e.preventDefault(); void act('/admin/rewards/cashback-rules', 'POST', { restaurantId: restaurantId ? Number(restaurantId) : null, percent: Number(percent.replace(',', '.')), minOrderCents: Math.round(Number(minOrder.replace(',', '.')) * 100) }, 'Regra criada.', reload, onMessage); }}>
-      <h3>Nova regra de cashback</h3>
-      <label>Restaurante (ID, vazio = global)<input inputMode="numeric" value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)} /></label>
-      <label>Percentual (%)<input inputMode="decimal" value={percent} onChange={(e) => setPercent(e.target.value)} required /></label>
-      <label>Pedido mínimo (R$)<input inputMode="decimal" value={minOrder} onChange={(e) => setMinOrder(e.target.value)} /></label>
-      <button className="secondary-button">Criar regra</button>
-      <p className="form-help">Lembre de habilitar o cashback em Configurações › Programa.</p>
-    </form>
-    <div className="courier-list"><h3>Regras</h3>
-      {rows.length ? rows.map((r) => <div className="courier-row" key={r.id}><div><strong>{r.restaurant_name ?? 'Global'}</strong><span>{r.percent}% · mínimo {money(r.min_order_cents)}</span></div><button className="availability-button" onClick={() => void act(`/admin/rewards/cashback-rules/${r.id}`, 'DELETE', undefined, 'Removida.', reload, onMessage)}>Excluir</button></div>) : <p className="form-help">Nenhuma regra.</p>}
-    </div>
+  const { rows } = useJsonArray<{ id: number; restaurant_id: number | null; restaurant_name: string | null; percent: number; min_order_cents: number; active: boolean }>('/admin/rewards/cashback-rules', onMessage);
+  return <div className="courier-list">
+    <p className="form-help">O cashback é definido e financiado por cada loja. Aqui você só acompanha as regras. Lembre que a loja precisa habilitar o cashback em Configurações › Programa.</p>
+    {rows.length ? rows.map((r) => <div className="courier-row" key={r.id}><div><strong>{r.restaurant_id == null ? 'Global (não se aplica)' : (r.restaurant_name ?? `Loja #${r.restaurant_id}`)}</strong><span>{r.percent}% · mínimo {money(r.min_order_cents)}{r.active ? '' : ' · inativa'}</span></div></div>) : <p className="form-help">Nenhuma regra.</p>}
   </div>;
 }
 
