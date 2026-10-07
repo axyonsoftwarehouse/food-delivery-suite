@@ -253,12 +253,13 @@ recusa e assim por diante.
   - #33: Pix cancelado pelo cliente, estornado automaticamente;
   - #32: estornado pela loja; ele tinha expirado com o código antigo e ficado pago;
   - nos dois, a order ficou `refunded` no Mercado Pago, consultada com o token da loja.
-- **Entrega e gorjeta** (era "quem financia", decisão contratual): **são da loja**. O razão
-  (`LedgerService.postOrder`) ainda credita frete e gorjeta ao entregador como saldo que a plataforma
-  repassa. Esse repasse deixa de ser obrigação da Foodie, então é preciso revisar a carteira de repasse do
-  entregador e o acerto com a loja.
-- **Cashback** (era "quem paga"): **é da loja**. As regras globais do admin
-  (`/admin/rewards/cashback-rules`) precisam ficar restritas a cada loja, que é quem financia.
+- **Entrega e gorjeta** (era "quem financia", decisão contratual): **são da loja**. **Implementado em 07/10/2026**:
+  o razão não credita mais frete/gorjeta ao entregador; a carteira de repasse (saque, métodos e solicitações) saiu
+  da API e da interface, e o entregador passou a ver um **extrato informativo** em `/painel/ganhos`, calculado dos
+  pedidos (`/me/earnings`). A loja remunera o entregador fora da plataforma.
+- **Cashback** (era "quem paga"): **é da loja**. **Implementado em 07/10/2026**: as regras globais foram desativadas
+  (migration `V060`) e o fallback global saiu do cálculo; só a loja cria regras e o admin só lê
+  (`/admin/rewards/cashback-rules`). Fora de escopo: a contrapartida contábil do cashback no razão.
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
