@@ -18,7 +18,7 @@ jobs:
   verify:
     name: Verificação (Java, tipos, build, app da cozinha)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: platform
@@ -52,9 +52,28 @@ jobs:
       - name: Dependências (pnpm)
         run: pnpm install --frozen-lockfile
 
+      # O verify integrado sobe um banco efêmero (docker-compose.test.yml) e lê as
+      # senhas de platform/.env e platform/tools/.env, que não são versionados. São
+      # descartáveis: o banco nasce e morre dentro do job. Os secrets são opcionais —
+      # sem eles valem os valores de CI abaixo.
+      - name: Ambiente do banco efêmero
+        run: |
+          {
+            echo "DB_PASSWORD=${DB_PASSWORD}"
+            echo "DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}"
+          } > .env
+          echo "DEMO_PASSWORD=${DEMO_PASSWORD}" > tools/.env
+        env:
+          DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD || 'foodie-ci-test' }}
+          DB_ROOT_PASSWORD: ${{ secrets.CI_DB_ROOT_PASSWORD || 'foodie-ci-test-root' }}
+          DEMO_PASSWORD: ${{ secrets.CI_DEMO_PASSWORD || 'foodie-ci-demo' }}
+
       - name: Verificação
         run: pnpm verify
         env:
           # No PC o Maven roda offline, apoiado no cache local. Num runner limpo
           # esse cache nasce vazio, então aqui o Maven baixa o que precisa.
           VERIFY_ONLINE: '1'
+          # Liga os smokes de integração: banco + API efêmeros, seed demonstrativo
+          # e os fluxos de carrinho, exceções, contas e cobertura por CEP.
+          VERIFY_INTEGRATION: '1'
