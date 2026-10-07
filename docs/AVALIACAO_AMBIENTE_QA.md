@@ -66,6 +66,40 @@ tocar no processo de deploy provado e sem infra nova. Só avaliar a **Opção B*
 surgir a necessidade real de um humano navegar num ambiente de QA separado do
 staging.
 
+## Opção A — implementada (07/10/2026)
+
+O job `Verificação` do `.github/workflows/ci.yml` passou a rodar o verify
+**integrado** (`VERIFY_INTEGRATION=1`): banco + API efêmeros, seed demonstrativo
+e os smokes de carrinho, exceções, contas e cobertura por CEP. O job gera
+`platform/.env` e `platform/tools/.env` com senhas descartáveis (secrets
+opcionais `CI_DB_PASSWORD`, `CI_DB_ROOT_PASSWORD`, `CI_DEMO_PASSWORD`; sem eles,
+valores só de CI). O tempo-limite subiu de 30 para 45 min.
+
+### Proteção da `main` — bloqueada pelo plano
+
+A intenção de exigir PR + CI verde antes do merge **não pôde ser aplicada**: a
+organização `axyonsoftwarehouse` está no plano **free** e o repositório é privado,
+então *branch protection* e *rulesets* retornam `HTTP 403` ("Upgrade to GitHub
+Pro or make this repository public"). Não é configuração errada — é recurso pago.
+
+Quando houver GitHub Pro (ou o repositório virar público), habilitar:
+
+```bash
+gh api -X PUT repos/axyonsoftwarehouse/food-delivery-suite/branches/main/protection \
+  -H "Accept: application/vnd.github+json" \
+  -f 'required_status_checks[strict]=true' \
+  -f 'required_status_checks[contexts][]=Verificação (Java, tipos, build, app da cozinha)' \
+  -F 'enforce_admins=false' \
+  -f 'required_pull_request_reviews[required_approving_review_count]=1' \
+  -F 'restrictions=' \
+  -F 'allow_force_pushes=false' \
+  -F 'allow_deletions=false'
+```
+
+Enquanto isso, o gate é **social + visível**: o CI roda em todo PR e no push da
+`main`, há um `pull_request_template.md` com o checklist, e a equipe combina
+merge só por PR com o check verde.
+
 ## Medição na VPS (07/10/2026)
 
 Leitura direta no host (`free`, `df`, `docker stats`, `nproc`), com staging e
