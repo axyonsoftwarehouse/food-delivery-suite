@@ -19,12 +19,15 @@
 #   7. espera /ready e confere o schemaVersion contra as migrations do pacote
 #   8. grava <tree>/.deployed
 #   9. se 6, 7 ou 8 falharem: restaura o snapshot e sobe de novo
+#  10. se o disco passou do limite, limpa (deploy/limpar-disco.sh)
 #
 # Variáveis opcionais:
 #   FOODIE_TREE          pasta da plataforma  (padrão /home/deploy/foodie-platform)
 #   FOODIE_RELEASES      pasta de releases    (padrão /home/deploy/releases)
 #   FOODIE_HEALTH_TRIES  tentativas de /ready (padrão 40)
 #   FOODIE_HEALTH_SLEEP  segundos entre elas  (padrão 5)
+#   FOODIE_MIN_FREE_GB   espaço livre mínimo em / para publicar (padrão 8)
+#   FOODIE_LIMPEZA_EM    % de uso de / que dispara a limpeza pós-deploy (padrão 70)
 #
 set -euo pipefail
 
@@ -66,10 +69,22 @@ if [ -n "$EXPECTED_SHA256" ] && [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
   die "sha256 do pacote não confere (esperado $EXPECTED_SHA256, obtido $ACTUAL_SHA256)"
 fi
 
+# ------------------------------------------------------- espaço em disco
+# Um build consome ~2-3 GB. Sem espaço, o `dc up -d --build` morre no meio do
+# caminho e o deploy reverte por um motivo que não tem a ver com o código.
+MIN_FREE_GB="${FOODIE_MIN_FREE_GB:-8}"
+FREE_GB="$(df -BG / | awk 'NR==2{gsub(/[^0-9]/,"",$4); print $4}')"
+if [ -z "${FREE_GB:-}" ] || [ "$FREE_GB" -lt "$MIN_FREE_GB" ]; then
+  die "só há ${FREE_GB:-?} GB livres em / e o mínimo é ${MIN_FREE_GB} GB (cada build consome ~2-3 GB).
+       Libere espaço e tente de novo:   bash $DEPLOY_DIR/limpar-disco.sh
+       Para publicar sem limpar:        FOODIE_MIN_FREE_GB=0 bash $0 $PACKAGE $SHA"
+fi
+
 say "Deploy do release $SHA"
 info "pacote : $PACKAGE ($(du -h "$PACKAGE" | cut -f1))"
 info "sha256 : $ACTUAL_SHA256"
 info "destino: $TREE"
+info "disco  : ${FREE_GB} GB livres (mínimo ${MIN_FREE_GB} GB)"
 info "log    : $LOG"
 
 # ------------------------------------------------- validação do pacote
@@ -261,3 +276,20 @@ info "registro      : $TREE/.deployed"
 info "log           : $LOG"
 info "rollback de imagem disponível: foodie-staging-{api,web}:pre-$SHA"
 info "para voltar o código: tar -xf $SNAP -C $TREE && (cd $DEPLOY_DIR && docker compose up -d --build)"
+
+# ------------------------------------------------- 8. higiene de disco
+# Não é para limpar sempre: o cache de build acelera o próximo deploy. Só
+# quando o disco passa do limite.
+LIMPEZA_EM="${FOODIE_LIMPEZA_EM:-70}"
+USO_PCT="$(df / | awk 'NR==2{gsub(/[^0-9]/,"",$5); print $5}')"
+if [ -n "${USO_PCT:-}" ] && [ "$USO_PCT" -ge "$LIMPEZA_EM" ]; then
+  say "Disco em ${USO_PCT}% (limite ${LIMPEZA_EM}%) — limpando"
+  # Guarda só o rollback deste release: o pre-$SHA acabou de ser criado.
+  if FOODIE_MANTER_ROLLBACK=1 bash "$DEPLOY_DIR/limpar-disco.sh"; then
+    info "limpeza concluída"
+  else
+    warn "a limpeza falhou — o deploy já está no ar, isso não derruba nada"
+  fi
+else
+  info "disco  : ${USO_PCT}% (limpeza automática a partir de ${LIMPEZA_EM}%)"
+fi
