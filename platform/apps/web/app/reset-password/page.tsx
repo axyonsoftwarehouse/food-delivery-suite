@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Icon } from '../icons';
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState('');
@@ -33,18 +35,19 @@ export default function ResetPasswordPage() {
     finally { setBusy(false); }
   }
 
-  return <main className="standalone-page">
-    <section className="login-card">
-      <span className="eyebrow">RECUPERAÇÃO DE ACESSO</span>
-      <h2>Definir nova senha</h2>
-      <p>Escolha uma senha forte de pelo menos 12 caracteres.</p>
-      {message && <div className="notice" role="status">{message}</div>}
+  return <main className="account-page">
+    <Link href="/" className="account-brand" aria-label="Foodie, início"><span className="auth-brand-mark"><Icon name="sparkle" /></span>foodie<span>.</span></Link>
+    <section className="account-card m-scale">
+      <span className={`account-icon${done ? ' is-ok' : ''}`}><Icon name={done ? 'check' : 'lock'} size={26} /></span>
+      <h1>{done ? 'Senha redefinida' : 'Nova senha'}</h1>
+      {!done && <p>{'Use pelo menos 12 caracteres.'}</p>}
+      {message && !done && <div className="ui-alert ui-alert--info" role="status">{message}</div>}
       {done
-        ? <a className="primary-button" href="/"><span>Ir para o início</span> <span>↗</span></a>
-        : <form onSubmit={submit}>
-            <label>Nova senha<input type="password" minLength={12} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required /></label>
-            <label>Confirme a senha<input type="password" minLength={12} maxLength={128} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="new-password" required /></label>
-            <button className="primary-button" disabled={busy || !token}>Redefinir senha <span>↗</span></button>
+        ? <Link className="ui-btn ui-btn--primary ui-btn--block auth-submit m-shine" href="/entrar"><span>{'Entrar'}</span><Icon name="arrow-right" size={18} /></Link>
+        : <form className="auth-form" onSubmit={submit}>
+            <label className="ui-field"><span className="ui-label">{'Nova senha'}</span><span className="auth-input"><Icon name="lock" size={18} /><input className="ui-input" type="password" minLength={12} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required /></span></label>
+            <label className="ui-field"><span className="ui-label">{'Confirme a senha'}</span><span className="auth-input"><Icon name="lock" size={18} /><input className="ui-input" type="password" minLength={12} maxLength={128} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="new-password" required /></span></label>
+            <button className="ui-btn ui-btn--primary ui-btn--block auth-submit m-shine" disabled={busy || !token}>{busy ? <><span>{'Salvando...'}</span><span className="m-spinner" /></> : <><span>{'Redefinir senha'}</span><Icon name="arrow-right" size={18} /></>}</button>
           </form>}
     </section>
   </main>;

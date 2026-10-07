@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button } from '../ui';
 import { useCustomer } from './customer-context';
+import { Icon } from '../icons';
 
 export default function ReviewForm({ orderId }: { orderId: number }) {
   const { submitReview } = useCustomer();
@@ -28,7 +29,7 @@ export default function ReviewForm({ orderId }: { orderId: number }) {
 
   if (state === 'loading') return null;
   if (state === 'done') {
-    return <p className="customer-muted">Você avaliou este pedido com {existingRating} estrela(s). Obrigado!</p>;
+    return <span className="review-done" aria-label={`Sua avaliação: ${existingRating} de 5`}>{[1, 2, 3, 4, 5].map((value) => <Icon key={value} name="star" size={14} filled={value <= existingRating} />)}</span>;
   }
 
   async function send() {
@@ -41,11 +42,13 @@ export default function ReviewForm({ orderId }: { orderId: number }) {
   }
 
   return <div className="review-row">
-    <span className="review-stars" role="radiogroup" aria-label="Sua nota">
-      {[1, 2, 3, 4, 5].map((value) => <button type="button" key={value} className={value <= rating ? 'on' : ''} onClick={() => setRating(value)} aria-label={`${value} estrela(s)`} aria-checked={value === rating} role="radio">★</button>)}
+    <span className="review-stars" role="radiogroup" aria-label="Avalie o restaurante">
+      {[1, 2, 3, 4, 5].map((value) => <button type="button" key={value} className={value <= rating ? 'on' : ''} onClick={() => setRating(value)} aria-label={`${value} estrela(s)`} aria-checked={value === rating} role="radio"><Icon name="star" size={20} filled={value <= rating} /></button>)}
     </span>
-    <input value={comment} onChange={(event) => setComment(event.target.value)} maxLength={500} placeholder="Comentário (opcional)" aria-label="Comentário" style={{ flex: 1, minWidth: 160 }} />
-    <Button size="sm" onClick={() => void send()} disabled={busy}>{busy ? '...' : 'Avaliar restaurante'}</Button>
+    {rating > 0 && <>
+      <input value={comment} onChange={(event) => setComment(event.target.value)} maxLength={500} placeholder="Comentário (opcional)" aria-label="Comentário" />
+      <Button size="sm" onClick={() => void send()} disabled={busy}>{busy ? '...' : 'Enviar'}</Button>
+    </>}
     {message && <Alert tone="error">{message}</Alert>}
   </div>;
 }

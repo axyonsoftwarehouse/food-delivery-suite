@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Icon } from '../../icons';
 
 type Storefront = {
   name: string;
@@ -33,18 +34,24 @@ export default async function RestaurantPage({ params }: Props) {
   const instagram = data.instagram.replace(/^@/, '').trim();
   const instagramHandle = /^[A-Za-z0-9._]{1,30}$/.test(instagram) ? instagram : '';
 
-  return <main className="storefront-public">
-    <header className="storefront-public-header"><Link href="/" className="customer-brand">✦ foodie<span>.</span></Link><Link href="/entrar">Entrar para pedir</Link></header>
-    {data.cover_url && <div className="storefront-public-cover"><img src={data.cover_url} alt={`Capa de ${data.name}`} /></div>}
-    <section className="storefront-public-content">
-      <span className="eyebrow">RESTAURANTE NO FOODIE</span>
-      <h1>{data.name}</h1>
-      {data.headline && <p className="storefront-public-headline">{data.headline}</p>}
-      {data.about && <p className="storefront-public-about">{data.about}</p>}
-      <div className="storefront-public-links">
-        <Link className="primary-button" href="/loja">Ver pratos e pedir</Link>
-        {whatsapp && <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
-        {instagramHandle && <a href={`https://www.instagram.com/${instagramHandle}/`} target="_blank" rel="noopener noreferrer">Instagram</a>}
+  const initial = data.name.trim().charAt(0).toLocaleUpperCase('pt-BR');
+
+  return <main className="home storefront-public">
+    <header className="home-header"><Link href="/" className="home-brand" aria-label="Foodie, início"><span className="home-brand-mark"><Icon name="sparkle" size={18} /></span>foodie<span>.</span></Link><nav><Link className="home-login" href="/entrar">{'Entrar'}</Link></nav></header>
+    <section className={`storefront-hero${data.cover_url ? ' has-cover' : ''}`}>
+      {data.cover_url ? <img src={data.cover_url} alt="" /> : <span className="storefront-pattern" aria-hidden="true" />}
+      <div className="storefront-hero-body">
+        <span className="storefront-mark" aria-hidden="true">{initial}</span>
+        <h1>{data.name}</h1>
+        {data.headline && <p>{data.headline}</p>}
+      </div>
+    </section>
+    <section className="storefront-body">
+      {data.about && <p className="storefront-about">{data.about}</p>}
+      <div className="storefront-links">
+        <Link className="home-primary m-shine" href="/loja">{'Ver pratos e pedir'}<Icon name="arrow-right" size={18} /></Link>
+        {whatsapp && <a className="home-secondary" href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener noreferrer"><Icon name="phone" size={16} />{'WhatsApp'}</a>}
+        {instagramHandle && <a className="home-secondary" href={`https://www.instagram.com/${instagramHandle}/`} target="_blank" rel="noopener noreferrer"><Icon name="heart" size={16} />{'Instagram'}</a>}
       </div>
     </section>
   </main>;

@@ -112,7 +112,7 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
     }
   }
 
-  if (loading) return <div className="order-details" aria-live="polite"><p>Carregando detalhes...</p></div>;
+  if (loading) return <div className="order-details is-loading" aria-live="polite"><span className="ui-skeleton" /><span className="ui-skeleton" /><span className="ui-skeleton" /><span className="sr-only">Carregando detalhes...</span></div>;
   if (error || !detail) return <div className="order-details" aria-live="polite"><p role="alert">{error}</p></div>;
 
   const payment = detail.payment;
@@ -125,7 +125,7 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
       <div><h3>Andamento</h3><ol>{detail.history.map((event, index) => <li key={index}><strong>{statusLabels[event.to_status] ?? event.to_status}</strong>{event.reason && <em> · {event.reason}</em>}<time dateTime={event.created_at}>{date(event.created_at)}</time></li>)}</ol></div>
     </div>
     <div className="order-details-summary"><span>Subtotal {money(detail.subtotal_cents)}</span>{detail.campaign_discount_cents > 0 && <span>Campanha {detail.campaign_name}: −{money(detail.campaign_discount_cents)}</span>}{detail.coupon_code && <span>Cupom {detail.coupon_code}: −{money(Math.max(0, detail.discount_cents - detail.campaign_discount_cents))}</span>}{detail.discount_cents > 0 && !detail.campaign_name && !detail.coupon_code && <span>Desconto: −{money(detail.discount_cents)}</span>}<span>Entrega {money(detail.delivery_fee_cents)}</span><strong>Total {money(detail.total_cents)}</strong>{payment && <span>Pagamento {paymentMethods[payment.method] ?? payment.method} · {paymentStatuses[payment.status] ?? payment.status}{payment.change_cents ? ` · troco ${money(payment.change_cents)}` : ''}</span>}</div>
-    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+    <div className="order-details-actions">
       <a className="ui-btn ui-btn--secondary ui-btn--sm" href={`/backend/orders/${orderId}/invoice`} target="_blank" rel="noreferrer">Fatura</a>
       <button className="ui-btn ui-btn--secondary ui-btn--sm" type="button" onClick={() => void track()}>Rastrear entrega</button>
       {user?.role === 'customer' && ['delivered', 'completed', 'served'].includes(status) && <button className="ui-btn ui-btn--danger ui-btn--sm" type="button" onClick={() => void requestRefund()}>Solicitar reembolso</button>}
@@ -134,12 +134,12 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
       <PixPayment
         image={payment.image}
         title="Pague este pedido com Pix"
-        hint="Escaneie o QR Code no aplicativo do banco ou use o Pix copia e cola. A confirmação chega sozinha: não é preciso avisar o restaurante."
+        hint="A confirmação é automática."
       />
     )}
     {payment && payment.modality === 'offline' && (
       <div className="order-proof">
-        <span className="customer-kicker">PAGAMENTO MANUAL</span>
+        <h3>Pagamento manual</h3>
         {payment.proof_url
           ? <a href={payment.proof_url} target="_blank" rel="noreferrer">Ver comprovante</a>
           : <span className="form-help">Sem comprovante anexado.</span>}

@@ -1,0 +1,51 @@
+/*
+ * Movimento compartilhado das telas do cliente e do login.
+ * Entradas em cascata usam a variável --i (índice do item) para atrasar cada elemento.
+ * Tudo é desligado em prefers-reduced-motion no fim do arquivo.
+ */
+:root {
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --stagger: 60ms;
+}
+
+@keyframes m-fade-up { from { opacity: 0; transform: translateY(18px); } }
+@keyframes m-fade-in { from { opacity: 0; } }
+@keyframes m-scale-in { from { opacity: 0; transform: scale(0.94); } }
+@keyframes m-pop { 0% { transform: scale(1); } 40% { transform: scale(1.28); } 100% { transform: scale(1); } }
+@keyframes m-bump { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px) scale(1.04); } 60% { transform: translateY(1px); } }
+@keyframes m-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes m-float-rot { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(-12px) rotate(calc(var(--r, 0deg) * -1)); } }
+@keyframes m-drift { 0% { transform: translate(0, 0) scale(1); } 33% { transform: translate(30px, -24px) scale(1.08); } 66% { transform: translate(-20px, 18px) scale(0.95); } 100% { transform: translate(0, 0) scale(1); } }
+@keyframes m-spin-slow { to { transform: rotate(360deg); } }
+@keyframes m-kenburns { from { transform: scale(1.02); } to { transform: scale(1.1) translateX(-1.5%); } }
+@keyframes m-shine { 0% { transform: translateX(-120%) skewX(-20deg); } 60%, 100% { transform: translateX(260%) skewX(-20deg); } }
+@keyframes m-pulse-ring { 0% { box-shadow: 0 0 0 0 rgb(47 179 107 / 0.55); } 80%, 100% { box-shadow: 0 0 0 7px rgb(47 179 107 / 0); } }
+@keyframes m-sheet-up { from { transform: translateY(100%); } }
+@keyframes m-toast { 0% { opacity: 0; transform: translate(-50%, 16px) scale(0.96); } 8%, 88% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, 8px) scale(0.98); visibility: hidden; } }
+@keyframes m-heart { 0% { transform: scale(1); } 25% { transform: scale(1.35); } 50% { transform: scale(0.9); } 100% { transform: scale(1); } }
+@keyframes m-burst { 0% { opacity: 0.9; transform: scale(0.4); } 100% { opacity: 0; transform: scale(1.9); } }
+@keyframes m-progress { from { transform: scaleX(0); } }
+@keyframes m-wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-12deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 80% { transform: rotate(4deg); } }
+@keyframes m-dash { to { stroke-dashoffset: 0; } }
+
+/* Utilitários de entrada */
+.m-rise { animation: m-fade-up 0.6s var(--ease-out) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+.m-fade { animation: m-fade-in 0.5s ease both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+.m-scale { animation: m-scale-in 0.5s var(--ease-out) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+
+/* Botão com brilho atravessando no hover */
+.m-shine { position: relative; overflow: hidden; isolation: isolate; }
+.m-shine::after { content: ''; position: absolute; inset: 0 auto 0 0; z-index: -1; width: 40%; background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.35), transparent); transform: translateX(-120%) skewX(-20deg); pointer-events: none; }
+.m-shine:hover:not(:disabled)::after { animation: m-shine 0.9s var(--ease-out); }
+
+/* Ponto "ao vivo" pulsando */
+.m-live-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--brand-400); animation: m-pulse-ring 1.8s ease-out infinite; }
+
+/* Mini spinner dentro de botões */
+.m-spinner { width: 18px; height: 18px; border: 2.5px solid rgb(255 255 255 / 0.4); border-top-color: #fff; border-radius: 50%; animation: m-spin-slow 0.7s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .m-rise, .m-fade, .m-scale { animation: none; }
+  .m-shine::after, .m-live-dot { animation: none; }
+}

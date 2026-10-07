@@ -2,25 +2,58 @@
 
 import Link from 'next/link';
 import { useApp } from './app-context';
+import { Icon, type IconName } from './icons';
+
+const STEPS: { icon: IconName; title: string; text: string }[] = [
+  { icon: 'search', title: 'Escolha', text: 'Encontre o restaurante e o prato que dão vontade.' },
+  { icon: 'bag', title: 'Peça', text: 'Informe onde receber e pague como preferir.' },
+  { icon: 'bike', title: 'Acompanhe', text: 'Veja cada etapa até a comida chegar.' },
+];
 
 export default function Home() {
   const { catalog, user } = useApp();
   const restaurants = catalog.restaurants.filter((restaurant) => restaurant.active);
   const destination = user ? (user.role === 'customer' ? '/loja' : '/painel') : '/entrar';
 
-  return <main className="foodie-home">
-    <header className="foodie-home-header">
-      <Link className="foodie-home-brand" href="/" aria-label="Foodie, início">✦ foodie<span>.</span></Link>
-      <nav aria-label="Navegação principal"><a href="#restaurantes">Restaurantes</a><a href="#como-funciona">Como funciona</a><Link className="foodie-home-login" href="/entrar">Entrar</Link></nav>
+  return <main className="home">
+    <header className="home-header">
+      <Link className="home-brand" href="/" aria-label="Foodie, início"><span className="home-brand-mark"><Icon name="sparkle" size={18} /></span>foodie<span>.</span></Link>
+      <nav aria-label="Navegação principal"><a href="#restaurantes">{'Restaurantes'}</a><a href="#como-funciona">{'Como funciona'}</a><Link className="home-login" href={destination}>{user ? 'Abrir' : 'Entrar'}</Link></nav>
     </header>
-    <section className="foodie-home-hero">
-      <div className="foodie-home-hero-copy"><span className="foodie-home-eyebrow">FOODIE · PEÇA DO SEU JEITO</span><h1>Seu próximo prato favorito está por aqui<span>.</span></h1><p>Descubra restaurantes, escolha o que combina com o seu momento e peça com facilidade.</p><div className="foodie-home-actions"><Link className="foodie-home-primary" href={destination}>Fazer um pedido <span aria-hidden="true">↗</span></Link><a href="#restaurantes">Conhecer restaurantes</a></div></div>
-      <div className="foodie-home-hero-art" role="img" aria-label="Hambúrguer do Foodie" />
+
+    <section className="home-hero">
+      <div className="home-hero-copy">
+        <h1 className="m-rise">{'Seu próximo prato favorito está por aqui'}<span>.</span></h1>
+        <p className="m-rise" style={{ '--i': 1 } as React.CSSProperties}>{'Descubra restaurantes da sua região e peça com facilidade.'}</p>
+        <div className="home-actions m-rise" style={{ '--i': 2 } as React.CSSProperties}>
+          <Link className="home-primary m-shine" href={destination}>{'Fazer um pedido'}<Icon name="arrow-right" size={18} /></Link>
+          <a className="home-secondary" href="#restaurantes">{'Ver restaurantes'}</a>
+        </div>
+      </div>
+      <div className="home-stage" aria-hidden="true">
+        <span className="home-plate-ring" />
+        <span className="home-plate" />
+        <div className="home-float home-float--a"><span className="is-green"><Icon name="check" size={16} /></span><div><strong>{'Pedido aceito'}</strong><small>{'Preparando agora'}</small></div></div>
+        <div className="home-float home-float--b"><span className="is-orange"><Icon name="bike" size={16} /></span><div><strong>{'A caminho'}</strong><small>{'Acompanhe ao vivo'}</small></div></div>
+      </div>
     </section>
-    <section className="foodie-home-restaurants" id="restaurantes"><div className="foodie-home-section-heading"><div><span className="foodie-home-eyebrow">TEM SABOR PRA TODO MUNDO</span><h2>Restaurantes no Foodie</h2></div><p>Conheça as lojas. Para ver os pratos disponíveis e pedir, entre e informe seu endereço.</p></div>
-      {restaurants.length ? <div className="foodie-home-grid">{restaurants.map((restaurant) => <Link key={restaurant.id} className="foodie-home-restaurant" href={`/restaurantes/${restaurant.id}`}><span className="foodie-home-restaurant-mark">✦</span><div><strong>{restaurant.name}</strong><small>{restaurant.open ? 'Aberto agora' : 'Confira os horários'}</small></div><span aria-hidden="true">↗</span></Link>)}</div> : <p className="foodie-home-empty">Os restaurantes aparecerão aqui em breve.</p>}
+
+    <section className="home-section" id="restaurantes">
+      <h2 className="m-rise">{'Restaurantes no Foodie'}</h2>
+      {restaurants.length ? <div className="customer-restaurant-grid">{restaurants.map((restaurant, index) => <Link key={restaurant.id} className={`customer-restaurant-card m-rise${restaurant.open ? '' : ' is-closed'}`} style={{ '--i': index } as React.CSSProperties} href={`/restaurantes/${restaurant.id}`}>
+        <span className={`customer-restaurant-cover tone-${restaurant.id % 5}`} aria-hidden="true"><span className="customer-restaurant-cover-letter">{restaurant.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span><Icon name="sparkle" size={18} className="customer-restaurant-cover-spark" /></span>
+        <span className={`customer-restaurant-status ${restaurant.open ? 'is-open' : 'is-closed'}`}>{restaurant.open ? 'Aberto agora' : 'Fechado no momento'}</span>
+        <span className={`customer-restaurant-mark tone-${restaurant.id % 5}`} aria-hidden="true">{restaurant.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
+        <span className="customer-restaurant-info"><strong>{restaurant.name}</strong></span>
+        <span className="customer-restaurant-arrow" aria-hidden="true"><Icon name="arrow-right" /></span>
+      </Link>)}</div> : <p className="home-empty">{'Os restaurantes aparecerão aqui em breve.'}</p>}
     </section>
-    <section className="foodie-home-how" id="como-funciona"><div><span className="foodie-home-eyebrow">SIMPLES ASSIM</span><h2>Uma boa refeição em três passos</h2></div><ol><li><strong>01</strong><span>Explore os restaurantes e encontre o que dá vontade.</span></li><li><strong>02</strong><span>Escolha seus pratos e informe onde quer receber.</span></li><li><strong>03</strong><span>Acompanhe o pedido até a hora de aproveitar.</span></li></ol></section>
-    <footer className="foodie-home-footer"><Link className="foodie-home-brand" href="/">✦ foodie<span>.</span></Link><span>Comida boa conecta pessoas.</span><Link href="/entrar">Entrar na plataforma</Link></footer>
+
+    <section className="home-section" id="como-funciona">
+      <h2 className="m-rise">{'Simples assim'}</h2>
+      <ol className="home-steps">{STEPS.map((step, index) => <li key={step.title} className="m-rise" style={{ '--i': index + 1 } as React.CSSProperties}><span><Icon name={step.icon} size={22} /></span><strong>{step.title}</strong><p>{step.text}</p></li>)}</ol>
+    </section>
+
+    <footer className="home-footer"><Link className="home-brand" href="/"><span className="home-brand-mark"><Icon name="sparkle" size={14} /></span>foodie<span>.</span></Link><span>{'© 2026 Axyon Software House'}</span></footer>
   </main>;
 }
