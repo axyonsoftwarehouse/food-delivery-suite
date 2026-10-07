@@ -23,19 +23,19 @@ jobs:
       run:
         working-directory: platform
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.21.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: platform/pnpm-lock.yaml
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -43,7 +43,7 @@ jobs:
       # O verify roda o Maven apontando para este cache local (.m2-cache), que
       # não é versionado porque tem 102 MB. Guardamos entre execuções, com a
       # chave amarrada ao pom.xml.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: platform/apps/api-java/.m2-cache
           key: m2-${{ hashFiles('platform/apps/api-java/pom.xml') }}
