@@ -170,7 +170,7 @@ public class PaymentService {
         // aprovado evita deixá-lo "em análise" e obrigar a loja a "recusar" algo que já foi atendido.
         jdbc.update("UPDATE refunds SET status = 'approved', decided_by = ?, decided_at = NOW(), decided_note = ? WHERE order_id = ? AND status = 'requested'",
             actorId, "Pagamento estornado diretamente", orderId);
-        ledger.reverseOrder(orderId);
+        reverseOrderValues(orderId);
         java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("orderId", orderId);
         result.put("method", row.get("method"));
@@ -179,6 +179,16 @@ public class PaymentService {
         result.put("amountReceivedCents", row.get("amount_received_cents"));
         if (trimmed != null && !trimmed.isEmpty()) result.put("note", trimmed);
         return result;
+    }
+
+    /**
+     * Desfaz o que o pedido estornado gerou para o cliente: o razão (cashback) e os pontos de fidelidade.
+     * Usado pelo estorno feito no Foodie e pelo feito no painel do Mercado Pago (webhook).
+     */
+    @Transactional
+    public void reverseOrderValues(long orderId) {
+        ledger.reverseOrder(orderId);
+        rewards.reverseOrder(orderId);
     }
 
     public void cancelPending(long orderId) {

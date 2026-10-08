@@ -39,6 +39,8 @@ class PaymentServiceTest {
 
         assertEquals("refunded", service.refund(owner, 1, "cliente desistiu").get("status"));
         verify(ledger).reverseOrder(1);
+        // Revisão de 08/10/2026: os pontos de fidelidade do pedido também voltam.
+        verify(rewards).reverseOrder(1);
     }
 
     @Test
