@@ -1,6 +1,6 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 05/10/2026 (noite).
+Documento vivo. Última atualização: 08/10/2026.
 Base: `PLANO_EPICOS.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -260,6 +260,21 @@ recusa e assim por diante.
 - **Cashback** (era "quem paga"): **é da loja**. **Implementado em 07/10/2026**: as regras globais foram desativadas
   (migration `V060`) e o fallback global saiu do cálculo; só a loja cria regras e o admin só lê
   (`/admin/rewards/cashback-rules`). Fora de escopo: a contrapartida contábil do cashback no razão.
+- **Entregador da loja e despacho pela loja** (decisão de 08/10/2026): o entregador é **exclusivo de uma loja**
+  (`users.restaurant_id`). **Implementado em 08/10/2026 (branch `feat/entregador-da-loja`, não publicado)**: a loja
+  cadastra, aprova e suspende os entregadores em **Equipe** (`/restaurant/couriers`, permissão `couriers.manage`),
+  atribui/troca/remove o entregador do pedido (`orders.dispatch`) e cancela o pedido depois do aceite, com motivo e
+  estorno automático (`orders.cancel`). O admin não cadastra nem aprova mais; como suporte, atribui só entregador da
+  loja do pedido e liga a uma loja quem ficou sem loja (`PATCH /admin/couriers/{id}/restaurant`, com motivo).
+  A migração `V061` liga cada entregador antigo à loja de **todas** as entregas dele; quem entregou para mais de
+  uma loja (ou nunca entregou) fica sem loja até o suporte ligá-lo. Quantos ficam assim no staging: **(a confirmar)**
+  — `SELECT id, name FROM users WHERE role = 'courier' AND restaurant_id IS NULL;` depois do deploy.
+- **Revisão de lógica do backend (08/10/2026) — próximas PRs:** B) pagamento online (nova tentativa depois de recusa,
+  sem confirmação manual de pagamento online, sem troca para comprovante com cobrança viva, webhook sem regressão de
+  status, loja confirma dinheiro na retirada/local; a loja vê e pode aceitar o pedido antes do pagamento);
+  C) expiração por agendamento, não nas leituras; D) cashback sobre **subtotal menos descontos** (sem gorjeta, frete e
+  taxa de serviço; só se a loja tiver regra), pontos revertidos no estorno, cupom recupera o uso de pedido morto;
+  E) **indicação vira cupom de desconto da loja**, com valores definidos por ela (precisa de especificação).
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
