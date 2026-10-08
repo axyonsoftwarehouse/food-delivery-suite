@@ -109,4 +109,38 @@ await request(`${support}/products/${product.id}`, admin, 'DELETE', { reason: 'T
 const extra = await request<{ id: number }>(`${support}/products`, admin, 'POST', { reason, data: { categoryId: category.id, name: 'Prato extra', priceCents: 1000 } }, 201);
 await request(`${support}/products/${extra.id}`, admin, 'DELETE', { reason: 'Remoção do produto extra do teste' });
 await request(`${support}/categories/${category.id}`, admin, 'DELETE', { reason: 'Tentativa de exclusão de categoria com produtos' }, 409);
-console.log(`Fluxo completo validado no pedido #${order.id}.`);
+
+// Indicação como cupom da loja (spec de 08/10/2026): a loja liga o programa, o Cliente Demo indica, o Cliente
+// Indicado registra a indicação e ganha o cupom de boas-vindas, usa no primeiro pedido e, com o pedido pago e
+// entregue, quem indicou ganha o cupom de indicação — tudo em cupom da loja, nada em dinheiro.
+await request(`/admin/restaurants/${restaurant.id}/modules`, admin, 'PUT', { moduleKeys: ['marketing'] });
+await request('/restaurant/marketing/referral-program', restaurantSession, 'PUT',
+  { active: true, referrerType: 'fixed', referrerValue: 500, referredType: 'fixed', referredValue: 300, minOrderCents: 0, validDays: 30 });
+const referrer = await request<{ code: string; program: { referredValue: number } | null }>(`/me/referral?restaurantId=${restaurant.id}`, customer);
+assert.equal(referrer.program?.referredValue, 300, 'programa de indicação ativo deveria aparecer para o cliente');
+await request('/me/referrals', customer, 'POST', { code: referrer.code, restaurantId: restaurant.id }, 400);
+const referred = await login('cliente2@demo.local');
+const welcome = await request<{ couponCode: string }>('/me/referrals', referred, 'POST', { code: referrer.code, restaurantId: restaurant.id }, 201);
+await request('/me/referrals', referred, 'POST', { code: referrer.code, restaurantId: restaurant.id }, 409);
+await request('/coupons/validate', customer, 'POST', { code: welcome.couponCode, restaurantId: restaurant.id, subtotalCents: 2500 }, 404);
+assert.ok((await request<{ code: string }[]>('/me/coupons', referred)).some((item) => item.code === welcome.couponCode));
+const referredAddress = await request<{ id: number }>('/addresses', referred, 'POST', { postalCode, label: 'Indicação', street: 'Rua da indicação', number: '7', neighborhood: 'Centro' }, 201);
+await request('/cart', referred, 'DELETE');
+await request(`/cart/items/${product.id}`, referred, 'PATCH', { delta: 1 });
+const referredCart = await request<{ version: string }>('/cart', referred);
+const referredOrder = await request<{ id: number; discountCents: number; totalCents: number }>('/cart/checkout', referred, 'POST', {
+  addressId: referredAddress.id, expectedTotalCents: 2500 + 599 - 300, expectedVersion: referredCart.version, paymentMethod: 'cash',
+  couponCode: welcome.couponCode, idempotencyKey: `smoke-indicacao-${unique}` }, 201);
+assert.equal(referredOrder.discountCents, 300);
+await request(`/orders/${referredOrder.id}/status`, restaurantSession, 'PATCH', { action: 'accept' });
+await request(`/orders/${referredOrder.id}/status`, restaurantSession, 'PATCH', { action: 'ready' });
+await request(`/orders/${referredOrder.id}/status`, restaurantSession, 'PATCH', { action: 'assign', courierId: storeCourier.id });
+await request(`/orders/${referredOrder.id}/status`, storeCourierSession, 'PATCH', { action: 'pickup' });
+await request(`/orders/${referredOrder.id}/payment`, storeCourierSession, 'PATCH', { amountReceivedCents: referredOrder.totalCents });
+await request(`/orders/${referredOrder.id}/status`, storeCourierSession, 'PATCH', { action: 'deliver' });
+const rewards = await request<{ origin: string; restaurant_id: number; discount_value: number }[]>('/me/coupons', customer);
+assert.ok(rewards.some((item) => item.origin === 'referral_reward' && item.restaurant_id === restaurant.id && item.discount_value === 500),
+  'quem indicou deveria ganhar o cupom de indicação da loja');
+const storeReferrals = await request<{ status: string }[]>('/restaurant/marketing/referrals', restaurantSession);
+assert.equal(storeReferrals[0]?.status, 'rewarded');
+console.log(`Fluxo completo validado no pedido #${order.id}; indicação no pedido #${referredOrder.id}.`);
