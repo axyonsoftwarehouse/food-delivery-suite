@@ -201,28 +201,8 @@ public class AdminController {
         return created(Map.of("id", id, "name", body.name().trim(), "email", email, "role", role, "restaurantId", body.restaurantId()));
     }
 
-    @PostMapping("/couriers")
-    public ResponseEntity<Map<String, Object>> courier(@CookieValue(value = "foodie_session", required = false) String token,
-                                                        @Valid @RequestBody CourierRequest body) {
-        User actor = admin(token, AdminPermissions.COURIERS_MANAGE);
-        String email = body.email().toLowerCase(java.util.Locale.ROOT);
-        Integer exists = jdbc.query("SELECT 1 FROM users WHERE email = ?", rs -> rs.next() ? 1 : null, email);
-        if (exists != null) throw new ApiException(409, "Já existe um acesso com este email");
-        long id = insert("INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, 'courier', NULL)",
-            body.name().trim(), email, passwords.hash(body.password()));
-        audit(actor, "create", "courier", id, "Entregador " + body.name().trim());
-        return created(Map.of("id", id, "name", body.name().trim(), "email", email, "suspended", false, "approved", false));
-    }
-
-    @PatchMapping("/couriers/{id}/approval")
-    public Map<String, Boolean> approveCourier(@CookieValue(value = "foodie_session", required = false) String token,
-                                                @PathVariable @Positive long id) {
-        User actor = admin(token, AdminPermissions.COURIERS_MANAGE);
-        int changed = jdbc.update("UPDATE users SET courier_approved_at = COALESCE(courier_approved_at, NOW()) WHERE id = ? AND role = 'courier'", id);
-        if (changed == 0) throw new ApiException(404, "Entregador não encontrado");
-        audit(actor, "update", "courier", id, "Entregador aprovado");
-        return Map.of("ok", true);
-    }
+    // Cadastro e aprovação de entregador saíram do admin em 08/10/2026: o entregador é da loja, que o
+    // cadastra e aprova (RestaurantCourierController). Aqui fica a suspensão, por segurança da plataforma.
 
     @PatchMapping("/couriers/{id}/suspension")
     public Map<String, Boolean> suspendCourier(@CookieValue(value = "foodie_session", required = false) String token,
@@ -298,8 +278,5 @@ public class AdminController {
                                         @NotBlank @Email @Size(max = 190) String email,
                                         @NotBlank @Size(min = 12, max = 128) String password,
                                         @Pattern(regexp = "restaurant|kitchen") String role) {}
-    public record CourierRequest(@NotBlank @Size(min = 2, max = 120) String name,
-                                 @NotBlank @Email @Size(max = 190) String email,
-                                 @NotBlank @Size(min = 12, max = 128) String password) {}
     public record SuspensionRequest(boolean suspended, @Size(max = 255) String reason) {}
 }

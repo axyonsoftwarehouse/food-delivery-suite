@@ -17,7 +17,7 @@ class OrderWorkflowTest {
     void followsAllRolesInOrder() {
         String status = next("placed", "accept", "restaurant");
         status = next(status, "ready", "restaurant");
-        status = next(status, "assign", "admin");
+        status = next(status, "assign", "restaurant");
         status = next(status, "pickup", "courier");
         assertEquals("delivered", next(status, "deliver", "courier"));
     }
@@ -46,6 +46,26 @@ class OrderWorkflowTest {
     }
 
     @Test
+    void storeDispatchesItsOwnCouriers() {
+        // Decisão de 08/10/2026: o entregador é da loja, então é ela quem atribui, troca e remove.
+        assertEquals("assigned", next("ready", "assign", "restaurant"));
+        assertEquals("assigned", next("assigned", "assign", "restaurant"));
+        assertTrue(OrderWorkflow.resolve("assigned", "unassign", "restaurant").clearsCourier());
+        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("accepted", "assign", "restaurant")).status());
+    }
+
+    @Test
+    void storeCancelsAfterAcceptingWithReason() {
+        // Antes de aceitar a loja recusa; depois, cancela com motivo (o estorno automático vale também aqui).
+        for (String status : new String[] {"accepted", "ready", "assigned", "picked_up"}) {
+            assertEquals("cancelled", next(status, "cancel", "restaurant"));
+            assertTrue(OrderWorkflow.resolve(status, "cancel", "restaurant").requiresReason());
+        }
+        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("placed", "cancel", "restaurant")).status());
+        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("delivered", "cancel", "restaurant")).status());
+    }
+
+    @Test
     void exceptionActionsRequireReason() {
         assertTrue(OrderWorkflow.resolve("placed", "reject", "restaurant").requiresReason());
         assertTrue(OrderWorkflow.resolve("placed", "cancel", "customer").requiresReason());
@@ -63,11 +83,11 @@ class OrderWorkflowTest {
     }
 
     @Test
-    void kitchenCannotAssignPickupDeliverOrCancel() {
-        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("ready", "assign", "kitchen")).status());
+    void kitchenCannotPickupDeliverOrRejectLate() {
+        // Despachar e cancelar valem para o lado da loja; quem barra a cozinha é a permissão
+        // (orders.dispatch e orders.cancel não estão no padrão dela), conferida no controller.
         assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("assigned", "pickup", "kitchen")).status());
         assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("picked_up", "deliver", "kitchen")).status());
-        assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("ready", "cancel", "kitchen")).status());
         assertEquals(409, assertThrows(ApiException.class, () -> OrderWorkflow.resolve("accepted", "reject", "kitchen")).status());
     }
 

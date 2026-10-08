@@ -119,6 +119,49 @@ class OrderServiceTest {
     }
 
     @Test
+    void storeCancellationAfterAcceptUsesTheStoreNote() {
+        storedOrder(40, "ready");
+
+        orders.changeStatus(RESTAURANT, 40, "cancel", null, "acabou o ingrediente");
+
+        verify(payments).refundIfPaidOnline(2L, 40L, "Estorno automático: pedido cancelado pela loja");
+    }
+
+    private Integer courierLookup(User actor) {
+        storedOrder(40, "ready");
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object> args = ArgumentCaptor.forClass(Object.class);
+        when(jdbc.query(anyString(), any(org.springframework.jdbc.core.ResultSetExtractor.class), any(), any())).thenReturn(1);
+        orders.changeStatus(actor, 40, "assign", 12L, null);
+        verify(jdbc).query(sql.capture(), any(org.springframework.jdbc.core.ResultSetExtractor.class), args.capture(), args.capture());
+        assertThat(sql.getValue()).contains("role = 'courier'").contains("restaurant_id = ?");
+        assertThat(args.getAllValues()).containsExactly(12L, 3L);
+        return 1;
+    }
+
+    @Test
+    void storeAssignsOnlyACourierOfTheOrdersStore() {
+        // Decisão de 08/10/2026: o entregador é exclusivo de uma loja. A busca do entregador exige a loja do pedido.
+        courierLookup(RESTAURANT);
+        verify(jdbc).update("UPDATE orders SET status = ?, courier_id = ? WHERE id = ?", "assigned", 12L, 40L);
+    }
+
+    @Test
+    void supportAlsoAssignsOnlyACourierOfTheOrdersStore() {
+        courierLookup(ADMIN);
+    }
+
+    @Test
+    void courierOfAnotherStoreIsRefused() {
+        storedOrder(40, "ready");
+        when(jdbc.query(anyString(), any(org.springframework.jdbc.core.ResultSetExtractor.class), any(), any())).thenReturn(null);
+
+        assertThatThrownBy(() -> orders.changeStatus(RESTAURANT, 40, "assign", 12L, null))
+            .isInstanceOf(ApiException.class)
+            .hasMessage("Entregador não é da loja, não está aprovado ou está suspenso");
+    }
+
+    @Test
     void failedRefundPropagatesSoTheTransactionUndoesTheStatusChange() {
         // changeStatus é @Transactional: a exceção do estorno (último passo) desfaz a mudança de status, o
         // pagamento pendente e o evento. Aqui, sem banco, o que se verifica é que a falha sobe.

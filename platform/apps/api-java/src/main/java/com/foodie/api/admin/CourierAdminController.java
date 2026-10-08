@@ -3,6 +3,7 @@ package com.foodie.api.admin;
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.support.SupportActionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -33,13 +34,34 @@ public class CourierAdminController {
     private final AuthService auth;
     private final AdminPermissionService permissions;
     private final AdminAuditService audit;
+    private final SupportActionService support;
     private final JdbcTemplate jdbc;
 
-    public CourierAdminController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc) {
+    public CourierAdminController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, SupportActionService support, JdbcTemplate jdbc) {
         this.auth = auth;
         this.permissions = permissions;
         this.audit = audit;
+        this.support = support;
         this.jdbc = jdbc;
+    }
+
+    /**
+     * Liga a uma loja o entregador que ficou sem loja na migração V061 (decisão de 08/10/2026: o entregador
+     * é exclusivo de uma loja). Só liga quem está sem loja: mover de loja com entregas em andamento quebraria
+     * o vínculo. É intervenção de suporte: exige motivo e vai para a trilha da loja.
+     */
+    @PatchMapping("/{id}/restaurant")
+    public Map<String, Boolean> linkToRestaurant(@CookieValue(value = "foodie_session", required = false) String token,
+                                                 @PathVariable @Positive long id,
+                                                 @Valid @RequestBody LinkRequest body) {
+        User actor = admin(token);
+        permissions.require(actor, AdminPermissions.SUPPORT_ACT);
+        requireCourier(id);
+        return support.act(actor, body.restaurantId(), "courier.link", "courier", id, "Entregador #" + id + " ligado à loja", body.reason(), () -> {
+            int changed = jdbc.update("UPDATE users SET restaurant_id = ? WHERE id = ? AND role = 'courier' AND restaurant_id IS NULL", body.restaurantId(), id);
+            if (changed == 0) throw new ApiException(409, "Este entregador já pertence a uma loja");
+            return Map.of("ok", true);
+        });
     }
 
     @GetMapping("/{id}/profile")
@@ -170,6 +192,7 @@ public class CourierAdminController {
     public record ProfileRequest(@NotBlank @Pattern(regexp = "moto|bike|carro|van|a_pe") String vehicleType,
                                  @Size(max = 20) String vehiclePlate,
                                  @Min(0) @Max(100_000) Integer extraFeeCents) {}
+    public record LinkRequest(@Positive long restaurantId, @NotBlank @Size(max = 500) String reason) {}
     public record IncentiveRequest(@NotBlank @Size(min = 2, max = 255) String description,
                                    @Positive @Max(10_000_000) long amountCents) {}
 }

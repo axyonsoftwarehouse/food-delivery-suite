@@ -468,8 +468,10 @@ public class OrderService {
         }
         if ("assign".equals(action)) {
             if (courierId == null || courierId < 1) throw new ApiException(400, "Selecione um entregador");
-            Integer courier = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier' AND suspended_at IS NULL AND courier_approved_at IS NOT NULL", rs -> rs.next() ? 1 : null, courierId);
-            if (courier == null) throw new ApiException(400, "Entregador não aprovado ou indisponível");
+            // O entregador é exclusivo de uma loja (decisão de 08/10/2026): vale também para o suporte.
+            Integer courier = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier' AND restaurant_id = ? AND suspended_at IS NULL AND courier_approved_at IS NOT NULL",
+                rs -> rs.next() ? 1 : null, courierId, number(order, "restaurant_id"));
+            if (courier == null) throw new ApiException(400, "Entregador não é da loja, não está aprovado ou está suspenso");
             jdbc.update("UPDATE orders SET status = ?, courier_id = ? WHERE id = ?", next, courierId, orderId);
         } else if (transition.clearsCourier()) {
             jdbc.update("UPDATE orders SET status = ?, courier_id = NULL WHERE id = ?", next, orderId);

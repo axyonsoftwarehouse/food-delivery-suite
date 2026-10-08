@@ -93,6 +93,8 @@ public class OrderController {
             case "accept" -> Permissions.ORDERS_ACCEPT;
             case "ready", "serve", "complete" -> Permissions.ORDERS_READY;
             case "reject" -> Permissions.ORDERS_REJECT;
+            case "assign", "unassign" -> Permissions.ORDERS_DISPATCH;
+            case "cancel" -> Permissions.ORDERS_CANCEL;
             default -> null;
         };
         if (permission != null) permissions.require(user, permission);
@@ -101,7 +103,9 @@ public class OrderController {
     @GetMapping("/admin/couriers")
     public List<Map<String, Object>> couriers(@CookieValue(value = "foodie_session", required = false) String token) {
         adminPermissions.require(auth.requireUser(token, "admin"), AdminPermissions.ORDERS_MANAGE, AdminPermissions.COURIERS_MANAGE);
-        return jdbc.queryForList("SELECT id, name, email, suspended_at IS NOT NULL AS suspended, courier_approved_at IS NOT NULL AS approved FROM users WHERE role = 'courier' ORDER BY name");
+        // Com a loja de cada um: o suporte só atribui entregador da loja do pedido (decisão de 08/10/2026).
+        return jdbc.queryForList("SELECT u.id, u.name, u.email, u.suspended_at IS NOT NULL AS suspended, u.courier_approved_at IS NOT NULL AS approved, "
+            + "u.restaurant_id, r.name AS restaurant_name FROM users u LEFT JOIN restaurants r ON r.id = u.restaurant_id WHERE u.role = 'courier' ORDER BY u.name");
     }
 
     public record OrderRequest(@Positive long restaurantId, @Positive Long addressId,
