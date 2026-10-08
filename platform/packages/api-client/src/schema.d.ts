@@ -340,6 +340,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/refunds/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/restaurant/products": {
         parameters: {
             query?: never;
@@ -382,6 +398,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["connect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/restaurant/payment-account/mercadopago/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirm"];
         delete?: never;
         options?: never;
         head?: never;
@@ -532,6 +564,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/couriers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_3"];
+        put?: never;
+        post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/restaurant/categories": {
         parameters: {
             query?: never;
@@ -637,7 +685,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_2"];
+        post: operations["create_3"];
         delete?: never;
         options?: never;
         head?: never;
@@ -653,7 +701,7 @@ export interface paths {
         };
         get: operations["forOrder"];
         put?: never;
-        post: operations["create_3"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -846,38 +894,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["pause"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/me/payout-requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["requests"];
-        put?: never;
-        post: operations["createRequest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/me/payout-methods": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["methods"];
-        put?: never;
-        post: operations["createMethod"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1380,22 +1396,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/rewards/cashback-rules": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["cashback_1"];
-        put?: never;
-        post: operations["createCashback_1"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/restaurants": {
         parameters: {
             query?: never;
@@ -1515,9 +1515,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_3"];
+        get: operations["list_4"];
         put?: never;
-        post: operations["create_4"];
+        post: operations["create_5"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1582,22 +1582,6 @@ export interface paths {
         get: operations["broadcasts"];
         put?: never;
         post: operations["broadcast"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/finance/payouts/{id}/decision": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["decidePayout"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1675,9 +1659,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_4"];
+        get: operations["list_5"];
         put?: never;
-        post: operations["create_5"];
+        post: operations["create_6"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1694,22 +1678,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["coverage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/couriers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["couriers"];
-        put?: never;
-        post: operations["courier"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1787,9 +1755,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_5"];
+        get: operations["list_6"];
         put?: never;
-        post: operations["create_6"];
+        post: operations["create_7"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1805,7 +1773,7 @@ export interface paths {
         };
         get: operations["addresses"];
         put?: never;
-        post: operations["create_7"];
+        post: operations["create_8"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2020,6 +1988,38 @@ export interface paths {
         patch: operations["updateItem"];
         trace?: never;
     };
+    "/restaurant/couriers/{id}/suspension": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["suspension"];
+        trace?: never;
+    };
+    "/restaurant/couriers/{id}/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["approve"];
+        trace?: never;
+    };
     "/restaurant/categories/{id}": {
         parameters: {
             query?: never;
@@ -2097,7 +2097,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch: operations["confirm"];
+        patch: operations["confirm_1"];
         trace?: never;
     };
     "/me/subscriptions/{id}/status": {
@@ -2532,6 +2532,22 @@ export interface paths {
         patch: operations["endShift"];
         trace?: never;
     };
+    "/admin/couriers/{id}/restaurant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["linkToRestaurant"];
+        trace?: never;
+    };
     "/admin/couriers/{id}/profile": {
         parameters: {
             query?: never;
@@ -2546,22 +2562,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["updateProfile"];
-        trace?: never;
-    };
-    "/admin/couriers/{id}/approval": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["approveCourier"];
         trace?: never;
     };
     "/admin/commerce/banners/{id}": {
@@ -2700,6 +2700,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["restaurantList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/restaurant/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_7"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3099,7 +3115,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_6"];
+        get: operations["list_8"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3211,7 +3227,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["methods_1"];
+        get: operations["methods"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3371,7 +3387,39 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_9"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/earnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["summary_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/earnings/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["statement_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3732,6 +3780,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/rewards/cashback-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["cashback_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/reviews": {
         parameters: {
             query?: never;
@@ -3739,7 +3803,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_8"];
+        get: operations["list_10"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3940,22 +4004,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/finance/payouts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["payoutRequests"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/finance/ledger": {
         parameters: {
             query?: never;
@@ -3995,7 +4043,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["summary_1"];
+        get: operations["summary_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4011,7 +4059,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_9"];
+        get: operations["list_11"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4068,6 +4116,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/couriers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["couriers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/couriers/{id}/reviews": {
         parameters: {
             query?: never;
@@ -4107,7 +4171,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_10"];
+        get: operations["list_12"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4212,22 +4276,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/me/payout-methods/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["deleteMethod"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/support/restaurants/{id}/tags/{tagId}": {
         parameters: {
             query?: never;
@@ -4271,22 +4319,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["deletePackage"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/rewards/cashback-rules/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["deleteCashback_1"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4460,6 +4492,10 @@ export interface components {
         ReplyRequest: {
             reply: string;
         };
+        RefundDecision: {
+            decision: string;
+            note?: string;
+        };
         ProductRequest: {
             /** Format: int64 */
             categoryId?: number;
@@ -4474,6 +4510,9 @@ export interface components {
             priceDeltaCents?: number;
             /** Format: int32 */
             sort?: number;
+        };
+        ConfirmRequest: {
+            token: string;
         };
         OfflineMethodRequest: {
             name: string;
@@ -4490,6 +4529,8 @@ export interface components {
             /** Format: int32 */
             maxUses?: number;
             expiresAt?: string;
+            /** Format: int32 */
+            maxUsesPerCustomer?: number;
         };
         CashbackRequest: {
             percent: number;
@@ -4542,6 +4583,11 @@ export interface components {
             /** Format: int64 */
             amountCents?: number;
             incurredAt: string;
+        };
+        CourierRequest: {
+            name: string;
+            email: string;
+            password: string;
         };
         CategoryRequest: {
             name: string;
@@ -4636,27 +4682,6 @@ export interface components {
         PauseRequest: {
             startsAt: string;
             endsAt: string;
-        };
-        PayoutRequest: {
-            /** Format: int64 */
-            amountCents?: number;
-            /** Format: int64 */
-            methodId?: number;
-            note?: string;
-        };
-        MethodRequest: {
-            type: string;
-            details?: string;
-        };
-        Method: {
-            /** Format: int64 */
-            id?: number;
-            party?: string;
-            /** Format: int64 */
-            partyId?: number;
-            type?: string;
-            details?: string;
-            active?: boolean;
         };
         StoredFile: {
             /** Format: int64 */
@@ -4866,10 +4891,6 @@ export interface components {
             /** Format: int32 */
             trialDays?: number;
         };
-        RefundDecision: {
-            decision: string;
-            note?: string;
-        };
         LabelRequest: {
             label: string;
         };
@@ -4893,6 +4914,13 @@ export interface components {
             /** Format: int32 */
             sort?: number;
         };
+        MethodRequest: {
+            name: string;
+            slug: string;
+            instructions?: string;
+            requiresProof?: boolean;
+            active?: boolean;
+        };
         TemplateRequest: {
             name: string;
             channel: string;
@@ -4903,10 +4931,6 @@ export interface components {
             title: string;
             body?: string;
             audience: string;
-        };
-        PayoutDecisionRequest: {
-            decision: string;
-            note?: string;
         };
         EmployeeCreateRequest: {
             name: string;
@@ -4934,11 +4958,6 @@ export interface components {
             restaurantId?: number;
             /** Format: int64 */
             zoneId?: number;
-        };
-        CourierRequest: {
-            name: string;
-            email: string;
-            password: string;
         };
         IncentiveRequest: {
             description: string;
@@ -5042,11 +5061,6 @@ export interface components {
             /** Format: int64 */
             courierId?: number;
             reason?: string;
-        };
-        ConfirmRequest: {
-            /** Format: int64 */
-            amountReceivedCents: number;
-            note?: string;
         };
         DeltaRequest: {
             /** Format: int32 */
@@ -6244,6 +6258,36 @@ export interface operations {
             };
         };
     };
+    decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundDecision"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     ownProducts: {
         parameters: {
             query?: never;
@@ -6362,6 +6406,34 @@ export interface operations {
             };
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -6825,6 +6897,58 @@ export interface operations {
             };
         };
     };
+    list_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    create_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourierRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     ownCategory: {
         parameters: {
             query?: never;
@@ -7043,7 +7167,7 @@ export interface operations {
             };
         };
     };
-    create_2: {
+    create_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -7097,7 +7221,7 @@ export interface operations {
             };
         };
     };
-    create_3: {
+    create_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -7517,106 +7641,6 @@ export interface operations {
                     "*/*": {
                         [key: string]: unknown;
                     };
-                };
-            };
-        };
-    };
-    requests: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    createRequest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PayoutRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    methods: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["Method"][];
-                };
-            };
-        };
-    };
-    createMethod: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MethodRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["Method"];
                 };
             };
         };
@@ -8703,58 +8727,6 @@ export interface operations {
             };
         };
     };
-    cashback_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    createCashback_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CashbackRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     restaurant: {
         parameters: {
             query?: never;
@@ -9029,7 +9001,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -9053,7 +9025,7 @@ export interface operations {
             };
         };
     };
-    create_4: {
+    create_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -9289,36 +9261,6 @@ export interface operations {
             };
         };
     };
-    decidePayout: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PayoutDecisionRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     expenseList_1: {
         parameters: {
             query?: {
@@ -9482,7 +9424,7 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    list_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -9506,7 +9448,7 @@ export interface operations {
             };
         };
     };
-    create_5: {
+    create_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -9546,58 +9488,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CoverageRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    couriers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    courier: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CourierRequest"];
             };
         };
         responses: {
@@ -9802,7 +9692,7 @@ export interface operations {
             };
         };
     };
-    list_5: {
+    list_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -9826,7 +9716,7 @@ export interface operations {
             };
         };
     };
-    create_6: {
+    create_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -9878,7 +9768,7 @@ export interface operations {
             };
         };
     };
-    create_7: {
+    create_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -10556,6 +10446,62 @@ export interface operations {
             };
         };
     };
+    suspension: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuspensionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+        };
+    };
+    approve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+        };
+    };
     ownDeleteCategory: {
         parameters: {
             query?: never;
@@ -10756,7 +10702,7 @@ export interface operations {
             };
         };
     };
-    confirm: {
+    confirm_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -11951,6 +11897,36 @@ export interface operations {
             };
         };
     };
+    linkToRestaurant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+        };
+    };
     profile: {
         parameters: {
             query?: never;
@@ -12002,32 +11978,6 @@ export interface operations {
                 content: {
                     "*/*": {
                         [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    approveCourier: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
                     };
                 };
             };
@@ -12295,6 +12245,32 @@ export interface operations {
     restaurantList: {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    list_7: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
             header?: never;
             path?: never;
             cookie?: {
@@ -12925,7 +12901,7 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -13103,7 +13079,7 @@ export interface operations {
             };
         };
     };
-    methods_1: {
+    methods: {
         parameters: {
             query?: never;
             header?: never;
@@ -13347,9 +13323,61 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_9: {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    summary_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    statement_1: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: {
@@ -13400,7 +13428,9 @@ export interface operations {
             path: {
                 id: number;
             };
-            cookie?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
         };
         requestBody?: never;
         responses: {
@@ -13960,7 +13990,31 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    cashback_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    list_10: {
         parameters: {
             query?: {
                 restaurantId?: number;
@@ -14302,32 +14356,6 @@ export interface operations {
             };
         };
     };
-    payoutRequests: {
-        parameters: {
-            query?: {
-                status?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
     ledger: {
         parameters: {
             query: {
@@ -14382,7 +14410,7 @@ export interface operations {
             };
         };
     };
-    summary_1: {
+    summary_2: {
         parameters: {
             query?: {
                 from?: string;
@@ -14410,7 +14438,7 @@ export interface operations {
             };
         };
     };
-    list_9: {
+    list_11: {
         parameters: {
             query?: {
                 query?: string;
@@ -14512,6 +14540,30 @@ export interface operations {
             };
         };
     };
+    couriers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
     reviews: {
         parameters: {
             query?: never;
@@ -14560,7 +14612,7 @@ export interface operations {
             };
         };
     };
-    list_10: {
+    list_12: {
         parameters: {
             query?: never;
             header?: never;
@@ -14743,32 +14795,6 @@ export interface operations {
             };
         };
     };
-    deleteMethod: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
     deleteTag: {
         parameters: {
             query?: never;
@@ -14832,32 +14858,6 @@ export interface operations {
         };
     };
     deletePackage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
-    deleteCashback_1: {
         parameters: {
             query?: never;
             header?: never;
