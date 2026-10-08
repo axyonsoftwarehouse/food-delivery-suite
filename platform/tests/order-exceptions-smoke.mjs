@@ -94,6 +94,21 @@ await call(`/orders/${cancelledByStore.id}/status`, { cookie: restaurant, method
 await call(`/orders/${cancelledByStore.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'cancel', reason: 'Acabou o ingrediente' } });
 assert.equal((await call(`/orders/${cancelledByStore.id}`, { cookie: customer })).status, 'cancelled');
 
+// Retirada em dinheiro: sem entregador, quem recebe e confirma é a loja (revisão de 08/10/2026).
+await call('/cart', { cookie: customer, method: 'DELETE' });
+await call(`/cart/items/${product.id}`, { cookie: customer, method: 'PATCH', body: { delta: 1 } });
+const takeAwayCart = await call('/cart', { cookie: customer });
+const takeAway = await call('/cart/checkout', { cookie: customer, method: 'POST', expected: 201,
+  body: { expectedVersion: takeAwayCart.version, expectedTotalCents: product.price_cents, paymentMethod: 'cash',
+    orderType: 'take_away', idempotencyKey: `exceptions-${randomUUID()}` } });
+await call(`/orders/${takeAway.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'accept' } });
+await call(`/orders/${takeAway.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'ready' } });
+await call(`/orders/${takeAway.id}/payment`, { cookie: restaurant, method: 'PATCH', body: { amountReceivedCents: product.price_cents } });
+await call(`/orders/${takeAway.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'complete' } });
+const takeAwayDetail = await call(`/orders/${takeAway.id}`, { cookie: customer });
+assert.equal(takeAwayDetail.status, 'completed');
+assert.equal(takeAwayDetail.payment.status, 'paid');
+
 const cancelledByAdmin = await place();
 await call(`/orders/${cancelledByAdmin.id}/status`, { cookie: admin, method: 'PATCH', body: { action: 'cancel', reason: 'Loja fechou' } });
 assert.equal((await call(`/orders/${cancelledByAdmin.id}`, { cookie: admin })).status, 'cancelled');
@@ -102,4 +117,4 @@ const trail = await call(`/admin/support/restaurants/${cancelledDetail.restauran
 assert.ok(trail.some((entry) => entry.action === 'order.cancel' && entry.entityId === cancelledByAdmin.id && entry.reason === 'Loja fechou'),
   'cancelamento do admin deveria aparecer na trilha de suporte da loja');
 
-console.log(`Exceções validadas: recusa #${rejected.id}, cancelamento do cliente #${cancelledByCustomer.id}, falha/reatribuição #${accepted.id}, cancelamento da loja #${cancelledByStore.id}, cancelamento do admin #${cancelledByAdmin.id}.`);
+console.log(`Exceções validadas: recusa #${rejected.id}, cancelamento do cliente #${cancelledByCustomer.id}, falha/reatribuição #${accepted.id}, cancelamento da loja #${cancelledByStore.id}, retirada paga na loja #${takeAway.id}, cancelamento do admin #${cancelledByAdmin.id}.`);

@@ -96,8 +96,9 @@ public class PaymentController {
     public Map<String, Object> confirm(@CookieValue(value = "foodie_session", required = false) String token,
                                        @PathVariable @Positive long id,
                                        @Valid @RequestBody ConfirmRequest body) {
-        User actor = auth.requireUser(token, "courier", "admin");
+        User actor = auth.requireUser(token, "courier", "admin", "restaurant", "kitchen");
         adminPermissions.requireIfAdmin(actor, AdminPermissions.ORDERS_MANAGE);
+        if ("restaurant".equals(actor.role()) || "kitchen".equals(actor.role())) permissions.require(actor, Permissions.PAYMENTS_MANAGE);
         return payments.confirm(actor, id, body.amountReceivedCents(), body.note());
     }
 
