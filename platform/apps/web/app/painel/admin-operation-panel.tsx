@@ -4,14 +4,19 @@ import { useEffect, useState } from 'react';
 import { api, useApp } from '../app-context';
 
 export default function AdminOperationPanel() {
-  const { catalog, couriers, busy, run } = useApp();
+  const { catalog, couriers, busy, run, askReason } = useApp();
+  // Entregador sem loja (migração de 08/10/2026): o suporte liga a uma loja, com motivo na trilha dela.
+  const linkToStore = (courierId: number) => {
+    const restaurantId = Number(linkTarget[courierId] || 0);
+    if (!restaurantId) return;
+    const reason = askReason('Motivo da intervenção (10 a 500 caracteres):');
+    if (reason) run(() => api(`/admin/couriers/${courierId}/restaurant`, { method: 'PATCH', body: JSON.stringify({ restaurantId, reason }) }), 'Entregador ligado à loja.');
+  };
   const [locationRestaurantId, setLocationRestaurantId] = useState('');
   const [locationAddress, setLocationAddress] = useState('');
   const [locationLat, setLocationLat] = useState('');
   const [locationLng, setLocationLng] = useState('');
-  const [courierName, setCourierName] = useState('');
-  const [courierEmail, setCourierEmail] = useState('');
-  const [courierPassword, setCourierPassword] = useState('');
+  const [linkTarget, setLinkTarget] = useState<Record<number, string>>({});
   const [approvalRestaurantId, setApprovalRestaurantId] = useState('');
   const [approval, setApproval] = useState('approved');
   const [tagRestaurantId, setTagRestaurantId] = useState('');
@@ -46,9 +51,8 @@ export default function AdminOperationPanel() {
       </div>
     </section>
 
-    <section className="panel"><div className="panel-heading"><div><span className="eyebrow">EQUIPE DE ENTREGA</span><h2>Entregadores</h2></div><p>Crie acessos, aprove, suspenda e configure veículo e incentivos.</p></div><div className="form-grid">
-      <form onSubmit={async (event) => { event.preventDefault(); const ok = await run(() => api('/admin/couriers', { method: 'POST', body: JSON.stringify({ name: courierName, email: courierEmail, password: courierPassword }) }), 'Entregador cadastrado.'); if (ok) { setCourierName(''); setCourierEmail(''); setCourierPassword(''); } }}><h3>Novo entregador</h3><label>Nome<input value={courierName} onChange={(event) => setCourierName(event.target.value)} placeholder="Nome completo" required /></label><label>Email<input type="email" value={courierEmail} onChange={(event) => setCourierEmail(event.target.value)} placeholder="entregador@exemplo.com" required /></label><label>Senha inicial<input type="password" minLength={12} maxLength={128} value={courierPassword} onChange={(event) => setCourierPassword(event.target.value)} placeholder="Mínimo de 12 caracteres" required /></label><button className="secondary-button" disabled={busy}>Criar acesso</button></form>
-      <div className="courier-list"><h3>Equipe cadastrada</h3>{couriers.length ? couriers.map((courier) => <div className="courier-row" key={courier.id}><div><strong>{courier.name}</strong><span>{courier.email}</span><small className={courier.approved ? 'courier-state approved' : 'courier-state'}>{courier.approved ? 'Aprovado para entregas' : 'Aguardando aprovação'}</small></div><div className="courier-actions">{!courier.approved && <button className="secondary-button" disabled={busy || courier.suspended} onClick={() => run(() => api(`/admin/couriers/${courier.id}/approval`, { method: 'PATCH' }), 'Entregador aprovado para receber pedidos.')}>Aprovar</button>}<button className={courier.suspended ? 'availability-button paused' : 'availability-button'} disabled={busy} onClick={() => run(() => api(`/admin/couriers/${courier.id}/suspension`, { method: 'PATCH', body: JSON.stringify({ suspended: !courier.suspended }) }), courier.suspended ? 'Entregador reativado.' : 'Entregador suspenso e sessões encerradas.')}>{courier.suspended ? 'Reativar' : 'Suspender'}</button></div></div>) : <p className="form-help">Nenhum entregador cadastrado.</p>}</div>
+    <section className="panel"><div className="panel-heading"><div><span className="eyebrow">EQUIPE DE ENTREGA</span><h2>Entregadores</h2></div><p>Cada entregador é de uma loja, que o cadastra e aprova. Aqui o suporte liga a uma loja quem ficou sem loja, suspende e configura veículo e incentivos.</p></div><div className="form-grid">
+      <div className="courier-list"><h3>Equipe cadastrada</h3>{couriers.length ? couriers.map((courier) => <div className="courier-row" key={courier.id}><div><strong>{courier.name}</strong><span>{courier.email}</span><small className={courier.restaurant_id && courier.approved ? 'courier-state approved' : 'courier-state'}>{courier.restaurant_id ? `${courier.restaurant_name ?? `Loja #${courier.restaurant_id}`} · ${courier.approved ? 'aprovado' : 'aguardando aprovação da loja'}` : 'Sem loja: não recebe pedidos'}</small></div><div className="courier-actions">{!courier.restaurant_id && <><select value={linkTarget[courier.id] ?? ''} aria-label={`Loja de ${courier.name}`} onChange={(event) => setLinkTarget({ ...linkTarget, [courier.id]: event.target.value })}><option value="">Loja</option>{catalog.restaurants.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}</select><button className="secondary-button" disabled={busy || !linkTarget[courier.id]} onClick={() => linkToStore(courier.id)}>Ligar à loja</button></>}<button className={courier.suspended ? 'availability-button paused' : 'availability-button'} disabled={busy} onClick={() => run(() => api(`/admin/couriers/${courier.id}/suspension`, { method: 'PATCH', body: JSON.stringify({ suspended: !courier.suspended }) }), courier.suspended ? 'Entregador reativado.' : 'Entregador suspenso e sessões encerradas.')}>{courier.suspended ? 'Reativar' : 'Suspender'}</button></div></div>) : <p className="form-help">Nenhum entregador cadastrado.</p>}</div>
     </div>
     <div className="form-grid" style={{ marginTop: 16 }}>
       <form onSubmit={(event) => { event.preventDefault(); const id = Number(vehicleCourierId || couriers[0]?.id || 0); run(() => api(`/admin/couriers/${id}/profile`, { method: 'PATCH', body: JSON.stringify({ vehicleType, vehiclePlate, extraFeeCents: Math.round(Number(extraFee.replace(',', '.')) * 100) }) }), 'Veículo atualizado.'); }}><h3>Veículo</h3><label>Entregador<select value={vehicleCourierId} onChange={(event) => setVehicleCourierId(event.target.value)}>{couriers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Tipo<select value={vehicleType} onChange={(event) => setVehicleType(event.target.value)}><option value="moto">Moto</option><option value="bike">Bicicleta</option><option value="carro">Carro</option><option value="van">Van</option><option value="a_pe">A pé</option></select></label><label>Placa<input value={vehiclePlate} onChange={(event) => setVehiclePlate(event.target.value)} maxLength={20} /></label><label>Taxa extra (R$)<input inputMode="decimal" value={extraFee} onChange={(event) => setExtraFee(event.target.value)} /></label><button className="secondary-button" disabled={busy || !couriers.length}>Salvar veículo</button></form>
