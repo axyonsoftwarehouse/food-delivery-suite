@@ -111,4 +111,35 @@ class CouponServiceTest {
         new CouponService(db).release("BEMVINDO");
         org.mockito.Mockito.verify(db).update("UPDATE coupons SET used_count = used_count - 1 WHERE code = ? AND used_count > 0", "BEMVINDO");
     }
+
+    @Test
+    void personalCouponWorksOnlyForItsOwner() {
+        // Spec de 08/10/2026 (indicação): cupom com dono só vale para o dono; para os outros, é inexistente.
+        coupon(3L);
+        when(jdbc.queryForList(anyString(), eq("CANTINA15"))).thenAnswer(call -> {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", 1L); row.put("restaurant_id", 3L); row.put("customer_id", 7L); row.put("code", "CANTINA15");
+            row.put("discount_type", "fixed"); row.put("discount_value", 1000); row.put("min_order_cents", 0);
+            row.put("max_uses", 1); row.put("max_uses_per_customer", null); row.put("used_count", 0); row.put("active", true); row.put("expires_at", null);
+            return List.of(row);
+        });
+
+        assertThat(coupons.validate("CANTINA15", 3, 4000, 7L).discountCents()).isEqualTo(1000L);
+        assertThat(org.junit.jupiter.api.Assertions.assertThrows(com.foodie.api.ApiException.class,
+            () -> coupons.validate("CANTINA15", 3, 4000, 8L)).getMessage()).isEqualTo("Cupom inválido");
+        assertThat(org.junit.jupiter.api.Assertions.assertThrows(com.foodie.api.ApiException.class,
+            () -> coupons.validate("CANTINA15", 3, 4000)).status()).isEqualTo(404);
+    }
+
+    @Test
+    void issuesAPersonalSingleUseCoupon() {
+        when(jdbc.queryForObject(eq("SELECT id FROM coupons WHERE code = ?"), eq(Long.class), anyString())).thenReturn(55L);
+
+        CouponService.Issued issued = coupons.issuePersonal(3, 7, "referral_welcome", "fixed", 1000, 0, 30);
+
+        assertThat(issued.couponId()).isEqualTo(55L);
+        assertThat(issued.code()).startsWith("IND").hasSize(10);
+        Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("max_uses, max_uses_per_customer, expires_at"),
+            eq(3L), eq(7L), eq("referral_welcome"), eq(issued.code()), eq("fixed"), eq(1000L), eq(0L), eq(30));
+    }
 }

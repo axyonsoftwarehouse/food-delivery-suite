@@ -48,8 +48,6 @@ public final class SettingsCatalog {
     public static final String LOYALTY_ENABLED = "loyalty.enabled";
     public static final String LOYALTY_POINTS_PER_REAL = "loyalty.points_per_real";
     public static final String LOYALTY_EXCHANGE_RATE = "loyalty.exchange_rate";
-    public static final String REFERRAL_ENABLED = "referral.enabled";
-    public static final String REFERRAL_REWARD_CENTS = "referral.reward_cents";
     public static final String CASHBACK_ENABLED = "cashback.enabled";
 
     public static final String ANALYTICS_GA = "analytics.google_id";
@@ -110,8 +108,6 @@ public final class SettingsCatalog {
         new Descriptor(LOYALTY_ENABLED, "Habilitar pontos de fidelidade", "bool", "true", "Programa"),
         new Descriptor(LOYALTY_POINTS_PER_REAL, "Pontos por R$ 1 gasto", "int", "1", "Programa"),
         new Descriptor(LOYALTY_EXCHANGE_RATE, "Pontos necessários por R$ 1 de desconto", "int", "100", "Programa"),
-        new Descriptor(REFERRAL_ENABLED, "Habilitar indicação", "bool", "true", "Programa"),
-        new Descriptor(REFERRAL_REWARD_CENTS, "Recompensa por indicação (centavos)", "int", "500", "Programa"),
         new Descriptor(CASHBACK_ENABLED, "Habilitar cashback", "bool", "false", "Programa"),
 
         new Descriptor(ANALYTICS_GA, "Google Analytics (ID)", "text", "", "Analytics"),

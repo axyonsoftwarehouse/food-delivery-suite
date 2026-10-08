@@ -6,6 +6,7 @@ import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import com.foodie.api.permissions.PermissionService;
 import com.foodie.api.permissions.Permissions;
+import com.foodie.api.rewards.ReferralService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,12 +44,15 @@ public class RestaurantMarketingController {
     private final PermissionService permissions;
     private final ModuleAccessService modules;
     private final JdbcTemplate jdbc;
+    private final ReferralService referrals;
 
-    public RestaurantMarketingController(AuthService auth, PermissionService permissions, ModuleAccessService modules, JdbcTemplate jdbc) {
+    public RestaurantMarketingController(AuthService auth, PermissionService permissions, ModuleAccessService modules, JdbcTemplate jdbc,
+                                         ReferralService referrals) {
         this.auth = auth;
         this.permissions = permissions;
         this.modules = modules;
         this.jdbc = jdbc;
+        this.referrals = referrals;
     }
 
     // ----- Cupons -----
@@ -55,7 +60,7 @@ public class RestaurantMarketingController {
     @GetMapping("/coupons")
     public List<Map<String, Object>> coupons(@CookieValue(value = "foodie_session", required = false) String token) {
         long restaurantId = manager(token);
-        return jdbc.queryForList("SELECT id, code, discount_type, discount_value, min_order_cents, max_uses, max_uses_per_customer, used_count, active, expires_at FROM coupons WHERE restaurant_id = ? ORDER BY id DESC", restaurantId);
+        return jdbc.queryForList("SELECT id, code, origin, discount_type, discount_value, min_order_cents, max_uses, max_uses_per_customer, used_count, active, expires_at FROM coupons WHERE restaurant_id = ? ORDER BY id DESC", restaurantId);
     }
 
     @PostMapping("/coupons")
@@ -158,6 +163,26 @@ public class RestaurantMarketingController {
         return Map.of("ok", true);
     }
 
+    // ----- Indicação da loja (spec de 08/10/2026: o prêmio é cupom da loja, com valores definidos por ela) -----
+
+    @GetMapping("/referral-program")
+    public Map<String, Object> referralProgram(@CookieValue(value = "foodie_session", required = false) String token) {
+        return referrals.program(manager(token));
+    }
+
+    @PutMapping("/referral-program")
+    public Map<String, Object> saveReferralProgram(@CookieValue(value = "foodie_session", required = false) String token,
+                                                   @Valid @RequestBody ReferralProgramRequest body) {
+        long restaurantId = manager(token);
+        return referrals.saveProgram(restaurantId, new ReferralService.Program(body.active(), body.referrerType(), body.referrerValue(),
+            body.referredType(), body.referredValue(), body.minOrderCents() == null ? 0 : body.minOrderCents(), body.validDays() == null ? 30 : body.validDays()));
+    }
+
+    @GetMapping("/referrals")
+    public List<Map<String, Object>> referrals(@CookieValue(value = "foodie_session", required = false) String token) {
+        return referrals.storeReferrals(manager(token));
+    }
+
     // ----- Cashback da loja -----
 
     @GetMapping("/cashback-rules")
@@ -224,6 +249,13 @@ public class RestaurantMarketingController {
     }
 
     public record ToggleRequest(@NotNull Boolean active) {}
+    public record ReferralProgramRequest(@NotNull Boolean active,
+                                         @NotBlank @Pattern(regexp = "percent|fixed") String referrerType,
+                                         @Min(1) @Max(100_000) int referrerValue,
+                                         @NotBlank @Pattern(regexp = "percent|fixed") String referredType,
+                                         @Min(1) @Max(100_000) int referredValue,
+                                         @Min(0) @Max(10_000_000) Integer minOrderCents,
+                                         @Min(1) @Max(365) Integer validDays) {}
     public record CouponRequest(@NotBlank @Size(min = 3, max = 40) String code,
                                 @NotBlank @Pattern(regexp = "percent|fixed") String discountType,
                                 @Min(1) @Max(100_000_000) int discountValue,

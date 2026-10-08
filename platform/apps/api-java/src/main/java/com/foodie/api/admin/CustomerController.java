@@ -91,27 +91,8 @@ public class CustomerController {
         return result;
     }
 
-    @PostMapping("/{id}/wallet/credit")
-    public Map<String, Object> creditWallet(@CookieValue(value = "foodie_session", required = false) String token,
-                                            @PathVariable long id,
-                                            @Valid @RequestBody WalletAdjustment body) {
-        User actor = admin(token);
-        customers.find(id).orElseThrow(() -> new ApiException(404, "Cliente não encontrado"));
-        long balance = rewards.credit(id, body.amountCents(), body.note());
-        audit.record(actor, "update", "customer_wallet", id, "Crédito de " + body.amountCents());
-        return Map.of("balanceCents", balance);
-    }
-
-    @PostMapping("/{id}/wallet/debit")
-    public Map<String, Object> debitWallet(@CookieValue(value = "foodie_session", required = false) String token,
-                                           @PathVariable long id,
-                                           @Valid @RequestBody WalletAdjustment body) {
-        User actor = admin(token);
-        customers.find(id).orElseThrow(() -> new ApiException(404, "Cliente não encontrado"));
-        long balance = rewards.debit(id, body.amountCents(), body.note());
-        audit.record(actor, "update", "customer_wallet", id, "Débito de " + body.amountCents());
-        return Map.of("balanceCents", balance);
-    }
+    // Crédito e débito manual na carteira saíram em 08/10/2026: eram dinheiro da plataforma, contra a decisão
+    // de 05/10 (os valores do pedido são da loja). O extrato acima continua.
 
     @GetMapping("/export")
     public ResponseEntity<String> export(@CookieValue(value = "foodie_session", required = false) String token) {
@@ -149,6 +130,4 @@ public class CustomerController {
 
     public record SuspensionRequest(boolean suspended, @Size(max = 255) String reason) {}
 
-    public record WalletAdjustment(@jakarta.validation.constraints.Positive @jakarta.validation.constraints.Max(100_000_000) long amountCents,
-                                   @Size(max = 255) String note) {}
 }

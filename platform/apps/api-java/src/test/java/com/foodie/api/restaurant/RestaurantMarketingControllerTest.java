@@ -42,6 +42,9 @@ class RestaurantMarketingControllerTest {
     @MockitoBean
     private JdbcTemplate jdbc;
 
+    @MockitoBean
+    private com.foodie.api.rewards.ReferralService referrals;
+
     @Test
     void ownerListsCoupons() throws Exception {
         when(auth.requireUser("s", "restaurant", "kitchen")).thenReturn(new User(3, "Dono", "dono@demo.local", "restaurant", 1L));
