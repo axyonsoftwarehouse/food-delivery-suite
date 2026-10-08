@@ -23,6 +23,8 @@ public class OnlinePaymentService {
     /** Pedidos que não vão mais ser preparados: pagamento que chega depois é devolvido na hora. */
     private static final Set<String> DEAD_ORDER = Set.of("cancelled", "rejected", "expired");
     private static final Set<String> CLOSED_ORDER = Set.of("delivered", "rejected", "cancelled", "expired", "failed");
+    /** Cobrança que não vai mais ser paga: o cliente pode tentar de novo (outro cartão, novo Pix). */
+    private static final Set<String> RETRYABLE = Set.of("rejected", "expired", "cancelled");
     /** TLDs reservados (RFC 6761/2606) e de rede interna: o Mercado Pago recusa como email do pagador. */
     private static final Set<String> TLDS_RESERVADOS = Set.of("local", "localhost", "test", "invalid", "example", "internal", "lan", "home");
 
@@ -94,9 +96,12 @@ public class OnlinePaymentService {
         if (!allowDirectOnlineCharges) {
             throw new ApiException(409, "Novas cobranças online exigem recebimento direto pelo restaurante");
         }
-        // Cobrança já criada e sem QR nem link (provedor não devolveu): devolve o que está guardado,
-        // em vez de cobrar de novo.
-        if (payment.get("external_id") != null) return detail(orderId);
+        // Cobrança já criada e ainda viva, sem QR nem link (provedor não devolveu): devolve o que está
+        // guardado, em vez de cobrar de novo. Recusada, expirada ou cancelada abre uma nova tentativa
+        // (revisão de 08/10/2026: antes o "Tente outro cartão" da tela nunca cobrava de novo).
+        String previousCharge = (String) payment.get("external_id");
+        boolean retry = previousCharge != null && RETRYABLE.contains(paymentStatus);
+        if (previousCharge != null && !retry) return detail(orderId);
 
         long due = ((Number) payment.get("amount_due_cents")).longValue();
         String payerEmail = jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, ((Number) order.get("customer_id")).longValue());
@@ -105,7 +110,9 @@ public class OnlinePaymentService {
             throw new ApiException(400, "O Mercado Pago recusa o email do cliente para cobrança online (endereço de demonstração ou inválido): "
                 + (payerEmail == null || payerEmail.isBlank() ? "sem email cadastrado" : payerEmail));
         }
-        String idempotencyKey = "order-" + orderId + "-" + payment.get("id");
+        // A nova tentativa deriva a chave da cobrança que falhou: clique duplo na mesma tentativa continua
+        // idempotente no provedor, e cada falha nova abre uma chave nova.
+        String idempotencyKey = "order-" + orderId + "-" + payment.get("id") + (retry ? "-retry-" + previousCharge : "");
 
         if ("card".equals(method)) {
             if (intent.cardToken() == null || intent.cardToken().isBlank()) {
@@ -168,13 +175,22 @@ public class OnlinePaymentService {
         try { orderId = Long.parseLong(charge.externalReference()); } catch (NumberFormatException error) { return Map.of("ok", true, "ignored", true); }
 
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT p.status, p.amount_due_cents, o.restaurant_id, o.status AS order_status FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE", orderId);
+            "SELECT p.status, p.amount_due_cents, p.external_id, o.restaurant_id, o.status AS order_status FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE", orderId);
         if (rows.isEmpty()) return Map.of("ok", true, "ignored", true);
         Map<String, Object> row = rows.getFirst();
         long restaurantId = ((Number) row.get("restaurant_id")).longValue();
         // Uma conta só mexe nos pedidos das lojas que ela atende.
         if (sellers.stream().noneMatch(seller -> seller.restaurantId() == restaurantId)) {
             log.warn("Webhook do Mercado Pago ignorado: conta {} não atende a loja {} do pedido #{}", providerUserId, restaurantId, orderId);
+            return Map.of("ok", true, "ignored", true);
+        }
+        // Depois de uma nova tentativa, o aviso atrasado de uma cobrança anterior não mexe na atual.
+        Object currentCharge = row.get("external_id");
+        if (currentCharge != null && charge.externalId() != null && !currentCharge.equals(charge.externalId())) {
+            if ("paid".equals(charge.status())) {
+                log.error("Pedido #{}: cobrança anterior {} aparece paga, mas a atual é {} — conferir no painel do Mercado Pago da loja e estornar a duplicada",
+                    orderId, charge.externalId(), currentCharge);
+            }
             return Map.of("ok", true, "ignored", true);
         }
         String current = (String) row.get("status");
@@ -189,6 +205,9 @@ public class OnlinePaymentService {
             return Map.of("ok", true, "orderId", orderId, "status", "refunded");
         }
 
+        // Só "pago" muda um pagamento que já saiu de pendente: um "pending" atrasado não reabre o que foi
+        // cancelado (pedido morto), recusado ou expirado.
+        if (!"paid".equals(charge.status()) && !"pending".equals(current)) return Map.of("ok", true, "already", current);
         long due = ((Number) row.get("amount_due_cents")).longValue();
         String next = charge.status();
         String note = null;

@@ -74,7 +74,48 @@ class PaymentServiceTest {
         row.put("method", method);
         row.put("amount_due_cents", due);
         row.put("courier_id", courierId);
+        row.put("restaurant_id", 3L);
+        row.put("modality", "on_delivery");
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
+    }
+
+    private void storedPayment(String status, String method, long due, Long courierId, String modality, long restaurantId) {
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("status", status);
+        row.put("method", method);
+        row.put("amount_due_cents", due);
+        row.put("courier_id", courierId);
+        row.put("restaurant_id", restaurantId);
+        row.put("modality", modality);
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
+    }
+
+    @Test
+    void manualConfirmationIsOnlyForPaymentOnDelivery() {
+        // Revisão de 08/10/2026: entregador ou admin marcavam como pago um Pix/cartão online pendente sem
+        // dinheiro no provedor. Online é confirmado pelo provedor; comprovante, pela verificação da loja.
+        for (String modality : List.of("online", "offline")) {
+            storedPayment("pending", "pix", 1000, 5L, modality, 3L);
+            ApiException error = assertThrows(ApiException.class, () -> service.confirm(courier, 1, 1000, null));
+            assertEquals(409, error.status(), modality);
+        }
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void storeConfirmsPaymentOfItsOwnOrder() {
+        // Retirada e consumo no local não têm entregador: quem recebe o dinheiro é a loja.
+        storedPayment("pending", "cash", 1000, null, "on_delivery", 3L);
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        assertEquals("paid", service.confirm(owner, 1, 1000, null).get("status"));
+    }
+
+    @Test
+    void storeCannotConfirmAnotherStoresPayment() {
+        storedPayment("pending", "cash", 1000, null, "on_delivery", 4L);
+        assertEquals(404, assertThrows(ApiException.class, () -> service.confirm(owner, 1, 1000, null)).status());
+        verify(jdbc, Mockito.never()).update(anyString(), any(Object[].class));
     }
 
     @Test

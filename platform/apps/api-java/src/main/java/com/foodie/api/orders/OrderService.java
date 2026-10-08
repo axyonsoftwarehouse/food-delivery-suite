@@ -368,7 +368,7 @@ public class OrderService {
         return created;
     }
 
-    private static final String ORDER_BASE = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN users c ON c.id = o.customer_id LEFT JOIN order_payments p ON p.order_id = o.id LEFT JOIN restaurant_tables t ON t.id = o.table_id ";
+    private static final String ORDER_BASE = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN users c ON c.id = o.customer_id LEFT JOIN order_payments p ON p.order_id = o.id LEFT JOIN restaurant_tables t ON t.id = o.table_id ";
     private static final String TERMINAL = "'delivered','rejected','cancelled','expired','failed','completed'";
     private static final int ACTIVE_LIMIT = 200;
     private static final int HISTORY_LIMIT = 100;
