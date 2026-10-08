@@ -10,7 +10,7 @@ export type Product = { id: number; restaurant_id: number; category_id: number; 
 export type Catalog = { restaurants: Restaurant[]; categories: Category[]; products: Product[]; coverage: { restaurant_id: number; zone_id: number }[] };
 export type Zone = { id: number; name: string; city: string; state: string; delivery_fee_cents: number; minimum_order_cents: number };
 export type Address = { id: number; zone_id: number; postal_code: string | null; label: string; street: string; number: string; neighborhood: string; complement: string; zone_name: string; city: string; state: string };
-export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; customer_name?: string | null; created_at: string; scheduled_at?: string | null; payment_method: string | null; payment_status: string | null; payment_due_cents: number | null; order_type?: string | null; table_id?: number | null; table_number?: string | null; party_size?: number | null };
+export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; customer_name?: string | null; created_at: string; scheduled_at?: string | null; payment_method: string | null; payment_modality?: string | null; payment_status: string | null; payment_due_cents: number | null; order_type?: string | null; table_id?: number | null; table_number?: string | null; party_size?: number | null };
 export type Courier = { id: number; name: string; email: string; suspended: boolean; approved: boolean; restaurant_id?: number | null; restaurant_name?: string | null };
 export type PostalRange = { id: number; zone_id: number; zone_name: string; postal_start: string; postal_end: string };
 
@@ -23,11 +23,15 @@ export const labels: Record<string, string> = {
   rejected: 'Recusado', cancelled: 'Cancelado', expired: 'Expirado', failed: 'Falha na entrega',
 };
 export const paymentMethods: Record<string, string> = { cash: 'Dinheiro', card: 'Cartão', pix: 'Pix' };
-export const paymentStatuses: Record<string, string> = { pending: 'a receber', paid: 'pago', cancelled: 'cancelado', refunded: 'estornado' };
+export const paymentStatuses: Record<string, string> = { pending: 'a receber', paid: 'pago', cancelled: 'cancelado', refunded: 'estornado', rejected: 'recusado', expired: 'expirado' };
 
 export function paymentLabel(order: Order) {
   if (!order.payment_method) return '';
-  return `${paymentMethods[order.payment_method] ?? order.payment_method} · ${paymentStatuses[order.payment_status ?? 'pending'] ?? order.payment_status}`;
+  // Online pendente não é "a receber" na mão: o cliente ainda não pagou o Pix/cartão.
+  const status = order.payment_modality === 'online' && (order.payment_status ?? 'pending') === 'pending'
+    ? 'aguardando pagamento online'
+    : paymentStatuses[order.payment_status ?? 'pending'] ?? order.payment_status;
+  return `${paymentMethods[order.payment_method] ?? order.payment_method} · ${status}`;
 }
 export function money(cents: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
