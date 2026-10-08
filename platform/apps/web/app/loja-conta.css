@@ -182,3 +182,9 @@
 @media (prefers-reduced-motion: reduce) {
   .orders-steps::after, .orders-steps li.is-current > span { animation: none; }
 }
+
+/* Meus cupons (indicação como cupom da loja, 08/10/2026) */
+.pf-head--spaced { margin-top: var(--space-6); }
+.pf-coupon-code { flex: none; padding: 6px 12px; border: 1px dashed var(--tone-b); border-radius: var(--radius-pill); background: var(--tone-soft); color: var(--text); font: 700 var(--text-sm) var(--font-mono, monospace); letter-spacing: 0.5px; cursor: pointer; }
+.pf-coupon-code:hover { background: var(--surface); }
+

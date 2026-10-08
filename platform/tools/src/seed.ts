@@ -410,7 +410,13 @@ try {
   await db.query("UPDATE users SET referral_code = 'FOODIE01' WHERE email = 'cliente@demo.local' AND (referral_code IS NULL OR referral_code = '')");
   await db.query("INSERT INTO users (name, email, password_hash, role, email_verified_at) VALUES ('Cliente Indicado', 'cliente2@demo.local', ?, 'customer', NOW()) ON DUPLICATE KEY UPDATE name = VALUES(name)", [hashPassword(password)]);
   const referredId = (await firstId("SELECT id FROM users WHERE email = 'cliente2@demo.local'", []))!;
-  await db.query("INSERT INTO referrals (referrer_id, referred_id, code, status, reward_cents, rewarded_at) SELECT ?, ?, 'FOODIE01', 'rewarded', 500, NOW() WHERE NOT EXISTS (SELECT 1 FROM referrals WHERE referred_id = ?)", [customerId, referredId, referredId]);
+  // A indicação é programa da loja, pago em cupom dela (spec de 08/10/2026): a Cozinha Demo tem o programa
+  // ligado e uma indicação de exemplo (Cliente Demo indicou o Cliente Indicado, que ganhou o cupom de boas-vindas).
+  await db.query("INSERT INTO restaurant_referral_programs (restaurant_id, active, referrer_type, referrer_value, referred_type, referred_value, min_order_cents, valid_days) VALUES (?, TRUE, 'fixed', 1000, 'percent', 10, 2000, 30) ON DUPLICATE KEY UPDATE restaurant_id = restaurant_id", [cozinha]);
+  if (!(await firstId('SELECT id FROM referrals WHERE referred_id = ? AND restaurant_id = ?', [referredId, cozinha]))) {
+    const welcomeId = await insert("INSERT INTO coupons (restaurant_id, customer_id, origin, code, discount_type, discount_value, min_order_cents, max_uses, max_uses_per_customer, expires_at) VALUES (?, ?, 'referral_welcome', 'INDDEMO001', 'percent', 10, 2000, 1, 1, DATE_ADD(NOW(), INTERVAL 30 DAY)) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)", [cozinha, referredId]);
+    await db.query("INSERT INTO referrals (referrer_id, referred_id, restaurant_id, code, referrer_type, referrer_value, referred_type, referred_value, min_order_cents, valid_days, expires_at, welcome_coupon_id) VALUES (?, ?, ?, 'FOODIE01', 'fixed', 1000, 'percent', 10, 2000, 30, DATE_ADD(NOW(), INTERVAL 30 DAY), ?)", [customerId, referredId, cozinha, welcomeId]);
+  }
 
   // Entregas de demonstração para o extrato informativo do entregador.
   // A plataforma não lança frete/gorjeta no razão: esses valores são da loja (decisão de 05/10/2026).
@@ -430,7 +436,6 @@ try {
     const cashback = Math.round((Number(o.total_cents) * 3) / 100);
     await db.query("INSERT INTO ledger_entries (party, party_id, order_id, kind, amount_cents, description) SELECT 'customer', ?, ?, 'cashback', ?, ? WHERE NOT EXISTS (SELECT 1 FROM ledger_entries l WHERE l.order_id = ? AND l.kind = 'cashback')", [customerId, Number(o.id), cashback, `Cashback do pedido #${o.id}`, Number(o.id)]);
   }
-  await db.query("INSERT INTO ledger_entries (party, party_id, order_id, kind, amount_cents, description) SELECT 'customer', ?, NULL, 'bonus', 500, 'Bônus por indicação' WHERE NOT EXISTS (SELECT 1 FROM ledger_entries WHERE party = 'customer' AND party_id = ? AND kind = 'bonus')", [customerId, customerId]);
 
   console.log('Dados demonstrativos prontos: 6 restaurantes, cuisines, storefronts, módulos, banners, campanhas, anúncios, cashback, assinaturas, estoque, fidelidade, indicação e financeiro populado.');
 } finally {

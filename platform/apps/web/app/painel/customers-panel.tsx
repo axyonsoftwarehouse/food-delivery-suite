@@ -17,8 +17,6 @@ export default function CustomersPanel() {
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [walletAmount, setWalletAmount] = useState('');
-  const [walletNote, setWalletNote] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async (q: string, before?: number | null) => {
@@ -46,20 +44,6 @@ export default function CustomersPanel() {
       setDetail({ ...data, orders_detail: (data as unknown as { orders: OrderRow[] }).orders });
       setWallet(walletData);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível abrir o cliente.'); }
-    finally { setBusy(false); }
-  }
-
-  async function adjustWallet(direction: 'credit' | 'debit') {
-    if (!detail) return;
-    const cents = Math.round(Number(walletAmount.replace(',', '.')) * 100);
-    if (!Number.isFinite(cents) || cents <= 0) { setMessage('Informe um valor válido.'); return; }
-    setBusy(true);
-    try {
-      await api(`/admin/customers/${detail.id}/wallet/${direction}`, { method: 'POST', body: JSON.stringify({ amountCents: cents, note: walletNote }) });
-      setWalletAmount(''); setWalletNote('');
-      setMessage(direction === 'credit' ? 'Saldo creditado.' : 'Saldo debitado.');
-      await openDetail(detail.id);
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível ajustar o saldo.'); }
     finally { setBusy(false); }
   }
 
@@ -118,13 +102,7 @@ export default function CustomersPanel() {
         </div>
       </div>
       <div className="ui-card" style={{ marginTop: 16 }}>
-        <header className="ui-card__head"><div><h2 className="ui-card__title">Carteira</h2><p className="ui-card__subtitle">Saldo: {money(wallet?.balanceCents ?? 0)}</p></div></header>
-        <form className="ui-chips" style={{ marginBottom: 12 }} onSubmit={(event) => event.preventDefault()}>
-          <input inputMode="decimal" value={walletAmount} onChange={(event) => setWalletAmount(event.target.value)} placeholder="Valor em R$" />
-          <input value={walletNote} onChange={(event) => setWalletNote(event.target.value)} placeholder="Observação" maxLength={255} />
-          <button className="secondary-button" type="button" disabled={busy} onClick={() => void adjustWallet('credit')}>Creditar</button>
-          <button className="availability-button" type="button" disabled={busy} onClick={() => void adjustWallet('debit')}>Debitar</button>
-        </form>
+        <header className="ui-card__head"><div><h2 className="ui-card__title">Carteira</h2><p className="ui-card__subtitle">Saldo: {money(wallet?.balanceCents ?? 0)} · só leitura (cashback das lojas)</p></div></header>
         <div className="postal-range-list">{wallet?.items.length ? wallet.items.map((entry) => <div key={entry.id}><span><strong>{KIND_LABEL[entry.kind] ?? entry.kind}</strong> · {entry.description || '—'}</span><span>{money(entry.amount_cents)} · {new Date(entry.created_at).toLocaleString('pt-BR')}</span></div>) : <p className="form-help">Sem lançamentos.</p>}</div>
       </div>
     </section>}

@@ -20,11 +20,13 @@ public class RewardsController {
     private final AuthService auth;
     private final AdminPermissionService permissions;
     private final RewardsService rewards;
+    private final ReferralService referrals;
 
-    public RewardsController(AuthService auth, AdminPermissionService permissions, RewardsService rewards) {
+    public RewardsController(AuthService auth, AdminPermissionService permissions, RewardsService rewards, ReferralService referrals) {
         this.auth = auth;
         this.permissions = permissions;
         this.rewards = rewards;
+        this.referrals = referrals;
     }
 
     @GetMapping("/loyalty")
@@ -43,7 +45,7 @@ public class RewardsController {
     @GetMapping("/referrals")
     public List<Map<String, Object>> referrals(@CookieValue(value = "foodie_session", required = false) String token) {
         admin(token, AdminPermissions.CUSTOMERS_MANAGE);
-        return rewards.referrals();
+        return referrals.adminReferrals();
     }
 
     private User admin(String token, String permission) {

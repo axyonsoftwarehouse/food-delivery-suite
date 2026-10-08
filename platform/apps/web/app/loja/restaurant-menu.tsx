@@ -8,6 +8,7 @@ import { Icon } from '../icons';
 import { useCustomer } from './customer-context';
 import AddressForm from './address-form';
 import AddressPicker from './address-picker';
+import { ReferralBlock } from './referral';
 
 export default function RestaurantMenu() {
   const { busy } = useApp();
@@ -116,6 +117,8 @@ export default function RestaurantMenu() {
 
     <div className="customer-store-address"><AddressPicker emptyText="Cadastre um endereço para descobrir o cardápio disponível." onChange={() => { setCategoryId(null); setTagId(null); }} /></div>
     </div>
+
+    {restaurant && <ReferralBlock restaurantId={restaurant.id} />}
 
     {showAddressForm && <AddressForm />}
 

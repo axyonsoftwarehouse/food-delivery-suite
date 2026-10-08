@@ -7,9 +7,7 @@ import com.foodie.api.settings.SettingsService;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Random;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,11 +21,13 @@ public class RewardsService {
     private final JdbcTemplate jdbc;
     private final LedgerRepository ledger;
     private final SettingsService settings;
+    private final ReferralService referrals;
 
-    public RewardsService(JdbcTemplate jdbc, LedgerRepository ledger, SettingsService settings) {
+    public RewardsService(JdbcTemplate jdbc, LedgerRepository ledger, SettingsService settings, ReferralService referrals) {
         this.jdbc = jdbc;
         this.ledger = ledger;
         this.settings = settings;
+        this.referrals = referrals;
     }
 
     @Transactional
@@ -64,19 +64,8 @@ public class RewardsService {
             }
         }
 
-        if (settings.bool(SettingsCatalog.REFERRAL_ENABLED)) {
-            List<Map<String, Object>> pending = jdbc.queryForList(
-                "SELECT id, referrer_id FROM referrals WHERE referred_id = ? AND status = 'pending'", customerId);
-            if (!pending.isEmpty()) {
-                Map<String, Object> referral = pending.getFirst();
-                long reward = Math.max(0, settings.intValue(SettingsCatalog.REFERRAL_REWARD_CENTS));
-                if (reward > 0) {
-                    ledger.insert("customer", number(referral, "referrer_id"), null, "bonus", reward, "Bônus por indicação");
-                }
-                jdbc.update("UPDATE referrals SET status = 'rewarded', reward_cents = ?, rewarded_at = NOW() WHERE id = ?",
-                    reward, number(referral, "id"));
-            }
-        }
+        // Indicação (spec de 08/10/2026): o prêmio é cupom da loja, não dinheiro; o programa é ligado por loja.
+        referrals.onOrderCompleted(orderId, customerId, restaurantId);
     }
 
     /**
@@ -95,6 +84,8 @@ public class RewardsService {
             jdbc.update("INSERT INTO loyalty_transactions (user_id, order_id, points, kind, description) VALUES (?, ?, ?, 'reversal', ?)",
                 number(entry, "user_id"), orderId, -points, "Estorno do pedido #" + orderId);
         }
+        // Cupom de indicação gerado por este pedido e ainda não usado deixa de valer (regra 8 da spec de 08/10).
+        referrals.onOrderRefunded(orderId);
     }
 
     public Map<String, Object> wallet(long userId) {
@@ -110,20 +101,6 @@ public class RewardsService {
 
     public List<Map<String, Object>> walletStatement(long userId, int limit) {
         return ledger.list("customer", userId, null, null, limit);
-    }
-
-    public long credit(long userId, long amountCents, String note) {
-        if (amountCents <= 0) throw new ApiException(400, "Informe um valor válido");
-        ledger.insert("customer", userId, null, "adjustment", amountCents, note == null ? "Crédito manual" : note);
-        return ledger.sum("customer", userId);
-    }
-
-    public long debit(long userId, long amountCents, String note) {
-        if (amountCents <= 0) throw new ApiException(400, "Informe um valor válido");
-        long balance = ledger.sum("customer", userId);
-        if (amountCents > balance) throw new ApiException(409, "Saldo insuficiente");
-        ledger.insert("customer", userId, null, "adjustment", -amountCents, note == null ? "Débito manual" : note);
-        return ledger.sum("customer", userId);
     }
 
     public Map<String, Object> loyalty(long userId) {
@@ -165,46 +142,6 @@ public class RewardsService {
         return jdbc.update("DELETE FROM cashback_rules WHERE id = ?", id);
     }
 
-    public Map<String, Object> referral(long userId) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("code", referralCode(userId));
-        result.put("rewardCents", settings.intValue(SettingsCatalog.REFERRAL_REWARD_CENTS));
-        result.put("invited", jdbc.queryForList(
-            "SELECT r.id, u.name, r.status, r.reward_cents, r.created_at FROM referrals r JOIN users u ON u.id = r.referred_id WHERE r.referrer_id = ? ORDER BY r.id DESC", userId));
-        return result;
-    }
-
-    public List<Map<String, Object>> referrals() {
-        return jdbc.queryForList(
-            "SELECT r.id, r.code, r.status, r.reward_cents, r.created_at, a.name AS referrer_name, b.name AS referred_name "
-                + "FROM referrals r JOIN users a ON a.id = r.referrer_id JOIN users b ON b.id = r.referred_id ORDER BY r.id DESC LIMIT 200");
-    }
-
-    public void applyReferral(long userId, String code) {
-        if (code == null || code.isBlank()) return;
-        List<Map<String, Object>> referrers = jdbc.queryForList(
-            "SELECT id FROM users WHERE referral_code = ? AND id <> ? LIMIT 1", code.strip().toUpperCase(Locale.ROOT), userId);
-        if (referrers.isEmpty()) return;
-        Integer exists = jdbc.query("SELECT 1 FROM referrals WHERE referred_id = ?", rs -> rs.next() ? 1 : null, userId);
-        if (exists != null) return;
-        jdbc.update("INSERT INTO referrals (referrer_id, referred_id, code) VALUES (?, ?, ?)",
-            number(referrers.getFirst(), "id"), userId, code.strip().toUpperCase(Locale.ROOT));
-    }
-
-    public String referralCode(long userId) {
-        List<String> existing = jdbc.query("SELECT referral_code FROM users WHERE id = ?", (rs, row) -> rs.getString(1), userId);
-        if (!existing.isEmpty() && existing.getFirst() != null) return existing.getFirst();
-        String code = null;
-        for (int attempt = 0; attempt < 5 && code == null; attempt++) {
-            String candidate = randomCode();
-            Integer taken = jdbc.query("SELECT 1 FROM users WHERE referral_code = ?", rs -> rs.next() ? 1 : null, candidate);
-            if (taken == null) code = candidate;
-        }
-        if (code == null) throw new ApiException(500, "Não foi possível gerar o código de indicação");
-        jdbc.update("UPDATE users SET referral_code = ? WHERE id = ?", code, userId);
-        return code;
-    }
-
     private boolean loyaltyAwarded(long orderId) {
         Integer found = jdbc.query("SELECT 1 FROM loyalty_transactions WHERE order_id = ? AND kind = 'earn' LIMIT 1", rs -> rs.next() ? 1 : null, orderId);
         return found != null;
@@ -225,14 +162,6 @@ public class RewardsService {
     private long loyaltyPoints(long userId) {
         Long total = jdbc.queryForObject("SELECT COALESCE(SUM(points),0) FROM loyalty_transactions WHERE user_id = ?", Long.class, userId);
         return total == null ? 0L : total;
-    }
-
-    private static String randomCode() {
-        String alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        Random random = new Random();
-        StringBuilder code = new StringBuilder(8);
-        for (int i = 0; i < 8; i++) code.append(alphabet.charAt(random.nextInt(alphabet.length())));
-        return code.toString();
     }
 
     private static long number(Map<String, Object> row, String key) {

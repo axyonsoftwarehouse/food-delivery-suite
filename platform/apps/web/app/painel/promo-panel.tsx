@@ -167,8 +167,10 @@ function Loyalty({ onMessage }: { onMessage: (m: string) => void }) {
 }
 
 function Referrals({ onMessage }: { onMessage: (m: string) => void }) {
-  const { rows } = useJsonArray<{ id: number; code: string; status: string; reward_cents: number; referrer_name: string; referred_name: string }>('/admin/rewards/referrals', onMessage);
-  return <div className="postal-range-list">{rows.length ? rows.map((r) => <div key={r.id}><span><strong>{r.referrer_name}</strong> indicou {r.referred_name}</span><span>{r.status} · {money(r.reward_cents)}</span></div>) : <p className="form-help">Nenhuma indicação ainda.</p>}</div>;
+  // Indicação é programa da loja, pago em cupom dela (spec de 08/10/2026): o admin só acompanha.
+  const { rows } = useJsonArray<{ id: number; code: string; status: string; referrer_name: string; referred_name: string; restaurant_name: string }>('/admin/rewards/referrals', onMessage);
+  const label: Record<string, string> = { pending: 'aguardando 1º pedido', rewarded: 'cupom entregue', expired: 'expirada' };
+  return <div className="postal-range-list">{rows.length ? rows.map((r) => <div key={r.id}><span><strong>{r.referrer_name}</strong> indicou {r.referred_name} · {r.restaurant_name}</span><span>{label[r.status] ?? r.status}</span></div>) : <p className="form-help">Nenhuma indicação ainda.</p>}</div>;
 }
 
 function Ads({ onMessage }: { onMessage: (m: string) => void }) {

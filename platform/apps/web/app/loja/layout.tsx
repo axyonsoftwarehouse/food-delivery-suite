@@ -8,6 +8,7 @@ import { CustomerProvider, useCustomer } from './customer-context';
 import NotificationsBell from '../NotificationsBell';
 import ThemeToggle from '../ThemeToggle';
 import { Icon, type IconName } from '../icons';
+import { captureReferralLink, usePendingReferral } from './referral';
 
 const nav: { href: string; label: string; icon: IconName }[] = [
   { href: '/loja', label: 'Início', icon: 'home' },
@@ -23,6 +24,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { user, connection, lastSync, localMessage, cartCount, subtotal, fee } = useCustomer();
   const timeLocale = 'pt-BR';
 
+  usePendingReferral();
   const notice = message || localMessage;
   const firstName = user.name.split(' ')[0];
 
@@ -54,6 +56,9 @@ function Shell({ children }: { children: React.ReactNode }) {
 export default function LojaLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, initializing } = useApp();
+
+  // Antes da checagem de login: o redirecionamento para /entrar perderia o código do link de indicação.
+  useEffect(() => { captureReferralLink(); }, []);
 
   useEffect(() => {
     if (initializing) return;

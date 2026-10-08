@@ -24,20 +24,34 @@ class RewardsServiceTest {
     private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
     private final LedgerRepository ledger = mock(LedgerRepository.class);
     private final SettingsService settings = mock(SettingsService.class);
-    private final RewardsService service = new RewardsService(jdbc, ledger, settings);
+    private final ReferralService referrals = mock(ReferralService.class);
+    private final RewardsService service = new RewardsService(jdbc, ledger, settings, referrals);
 
     @Test
-    void walletAndManualCreditDebit() {
+    void walletShowsTheLedgerBalance() {
+        // Crédito e débito manual saíram em 08/10/2026 (dinheiro da plataforma); o saldo continua informativo.
         when(ledger.sum("customer", 7L)).thenReturn(2000L);
         assertThat(service.wallet(7L).get("balanceCents")).isEqualTo(2000L);
+    }
 
-        service.credit(7L, 500, "bônus manual");
-        verify(ledger).insert("customer", 7L, null, "adjustment", 500, "bônus manual");
+    @Test
+    @SuppressWarnings("unchecked")
+    void completedOrderTriggersTheStoreReferral() {
+        Map<String, Object> order = new HashMap<>();
+        order.put("customer_id", 8L); order.put("restaurant_id", 3L); order.put("subtotal_cents", 4000L); order.put("discount_cents", 0L);
+        order.put("total_cents", 4599L); order.put("status", "delivered"); order.put("payment_status", "paid");
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(order));
 
-        when(ledger.sum("customer", 7L)).thenReturn(100L);
-        assertThatThrownBy(() -> service.debit(7L, 500, null))
-            .isInstanceOf(ApiException.class)
-            .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(409));
+        service.onOrderCompleted(10);
+
+        verify(referrals).onOrderCompleted(10L, 8L, 3L);
+        verify(ledger, org.mockito.Mockito.never()).insert(anyString(), any(), any(), eq("bonus"), org.mockito.ArgumentMatchers.anyLong(), anyString());
+    }
+
+    @Test
+    void refundAlsoGoesThroughTheReferral() {
+        service.reverseOrder(10);
+        verify(referrals).onOrderRefunded(10L);
     }
 
     @Test
@@ -45,7 +59,6 @@ class RewardsServiceTest {
         when(settings.bool(SettingsCatalog.LOYALTY_ENABLED)).thenReturn(true);
         when(settings.intValue(SettingsCatalog.LOYALTY_POINTS_PER_REAL)).thenReturn(1);
         when(settings.bool(SettingsCatalog.CASHBACK_ENABLED)).thenReturn(false);
-        when(settings.bool(SettingsCatalog.REFERRAL_ENABLED)).thenReturn(false);
 
         Map<String, Object> order = new HashMap<>();
         order.put("customer_id", 7L);

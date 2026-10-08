@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from '../app-context';
 
-type Coupon = { id: number; code: string; discount_type: string; discount_value: number; active: boolean };
+type Coupon = { id: number; code: string; origin?: string; discount_type: string; discount_value: number; active: boolean };
+type ReferralProgram = { active: boolean; referrerType: string; referrerValue: number; referredType: string; referredValue: number; minOrderCents: number; validDays: number };
+type Referral = { id: number; referrer_name: string; referred_name: string; status: string; created_at: string; welcome_coupon: string | null; reward_coupon: string | null };
 type Campaign = { id: number; name: string; type: string; percent: number; active: boolean };
 type Ad = { id: number; title: string; type: string; media_url: string; status: string; active: boolean };
 type Cashback = { id: number; percent: number; min_order_cents: number };
 type OfflineMethod = { id: number; name: string; instructions: string | null; requires_proof: boolean; active: boolean };
 
-const TABS: [string, string][] = [['coupons', 'Cupons'], ['campaigns', 'Campanhas'], ['ads', 'Anúncios'], ['cashback', 'Cashback'], ['offline', 'Pagamentos presenciais']];
+const TABS: [string, string][] = [['coupons', 'Cupons'], ['campaigns', 'Campanhas'], ['ads', 'Anúncios'], ['cashback', 'Cashback'], ['referral', 'Indicação'], ['offline', 'Pagamentos presenciais']];
 
 export default function RestaurantMarketingPanel() {
   const { setMessage } = useApp();
@@ -23,6 +25,7 @@ export default function RestaurantMarketingPanel() {
     {tab === 'campaigns' && <Campaigns onMessage={setMessage} />}
     {tab === 'ads' && <Ads onMessage={setMessage} />}
     {tab === 'cashback' && <CashbackTab onMessage={setMessage} />}
+    {tab === 'referral' && <ReferralTab onMessage={setMessage} />}
     {tab === 'offline' && <Offline onMessage={setMessage} />}
   </section>;
 }
@@ -58,7 +61,7 @@ function Coupons({ onMessage }: { onMessage: (m: string) => void }) {
       <button className="secondary-button">Criar cupom</button>
     </form>
     <div className="courier-list"><h3>Cupons</h3>
-      {rows.length ? rows.map((coupon) => <div className="courier-row" key={coupon.id}><div><strong>{coupon.code}</strong><span>{coupon.discount_type === 'percent' ? `${coupon.discount_value}%` : `R$ ${(coupon.discount_value / 100).toFixed(2)}`} · {coupon.active ? 'ativo' : 'inativo'}</span></div><div className="courier-actions"><button className={coupon.active ? 'availability-button' : 'availability-button paused'} onClick={() => void act(`/restaurant/marketing/coupons/${coupon.id}`, 'PATCH', { active: !coupon.active }, 'Atualizado.', reload, onMessage)}>{coupon.active ? 'Desativar' : 'Ativar'}</button><button className="availability-button" onClick={() => void act(`/restaurant/marketing/coupons/${coupon.id}`, 'DELETE', undefined, 'Removido.', reload, onMessage)}>Excluir</button></div></div>) : <p className="form-help">Nenhum cupom.</p>}
+      {rows.length ? rows.map((coupon) => <div className="courier-row" key={coupon.id}><div><strong>{coupon.code}</strong><span>{coupon.discount_type === 'percent' ? `${coupon.discount_value}%` : `R$ ${(coupon.discount_value / 100).toFixed(2)}`} · {coupon.origin === 'referral_welcome' ? 'indicação (boas-vindas) · ' : coupon.origin === 'referral_reward' ? 'indicação (prêmio) · ' : ''}{coupon.active ? 'ativo' : 'inativo'}</span></div><div className="courier-actions"><button className={coupon.active ? 'availability-button' : 'availability-button paused'} onClick={() => void act(`/restaurant/marketing/coupons/${coupon.id}`, 'PATCH', { active: !coupon.active }, 'Atualizado.', reload, onMessage)}>{coupon.active ? 'Desativar' : 'Ativar'}</button><button className="availability-button" onClick={() => void act(`/restaurant/marketing/coupons/${coupon.id}`, 'DELETE', undefined, 'Removido.', reload, onMessage)}>Excluir</button></div></div>) : <p className="form-help">Nenhum cupom.</p>}
     </div>
   </div>;
 }
@@ -123,6 +126,63 @@ function CashbackTab({ onMessage }: { onMessage: (m: string) => void }) {
     </form>
     <div className="courier-list"><h3>Regras</h3>
       {rows.length ? rows.map((rule) => <div className="courier-row" key={rule.id}><div><strong>{rule.percent}%</strong><span>mínimo R$ {(rule.min_order_cents / 100).toFixed(2)}</span></div><button className="availability-button" onClick={() => void act(`/restaurant/marketing/cashback-rules/${rule.id}`, 'DELETE', undefined, 'Removida.', reload, onMessage)}>Excluir</button></div>) : <p className="form-help">Nenhuma regra.</p>}
+    </div>
+  </div>;
+}
+
+const REFERRAL_STATUS: Record<string, string> = { pending: 'aguardando o 1º pedido', rewarded: 'cupom entregue a quem indicou', expired: 'expirada' };
+
+/** Valor do cupom como a loja digita: em reais para fixo, em % para percentual. */
+function couponInput(type: string, value: number) {
+  return type === 'fixed' ? (value / 100).toFixed(2).replace('.', ',') : String(value);
+}
+
+function couponValue(type: string, text: string) {
+  const number = Number(text.replace(',', '.'));
+  return type === 'fixed' ? Math.round(number * 100) : Math.round(number);
+}
+
+/**
+ * Programa de indicação da loja (spec de 08/10/2026): quem é indicado ganha um cupom de boas-vindas na hora;
+ * quem indicou ganha um cupom depois do primeiro pedido pago e concluído do indicado. Tudo em cupom da loja.
+ */
+function ReferralTab({ onMessage }: { onMessage: (m: string) => void }) {
+  const { rows, reload } = useList<Referral>('/restaurant/marketing/referrals', onMessage);
+  const [program, setProgram] = useState<ReferralProgram | null>(null);
+  const [referrer, setReferrer] = useState('');
+  const [referred, setReferred] = useState('');
+  const [minimum, setMinimum] = useState('0');
+  const [days, setDays] = useState('30');
+  useEffect(() => {
+    api<ReferralProgram>('/restaurant/marketing/referral-program').then((data) => {
+      setProgram(data);
+      setReferrer(couponInput(data.referrerType, data.referrerValue));
+      setReferred(couponInput(data.referredType, data.referredValue));
+      setMinimum((data.minOrderCents / 100).toFixed(2).replace('.', ','));
+      setDays(String(data.validDays));
+    }).catch((error: Error) => onMessage(error.message));
+  }, [onMessage]);
+  if (!program) return <p className="form-help">Carregando…</p>;
+  const save = (active: boolean) => void act('/restaurant/marketing/referral-program', 'PUT', {
+    active,
+    referrerType: program.referrerType, referrerValue: couponValue(program.referrerType, referrer),
+    referredType: program.referredType, referredValue: couponValue(program.referredType, referred),
+    minOrderCents: Math.round(Number(minimum.replace(',', '.')) * 100), validDays: Number(days),
+  }, active ? 'Programa de indicação salvo e ligado.' : 'Programa de indicação desligado.', () => { setProgram({ ...program, active }); reload(); }, onMessage);
+  const typeSelect = (value: string, onChange: (type: string) => void) => <select value={value} onChange={(event) => onChange(event.target.value)}><option value="fixed">R$ (valor fixo)</option><option value="percent">% (percentual)</option></select>;
+  return <div className="form-grid">
+    <form onSubmit={(event) => { event.preventDefault(); save(true); }}>
+      <h3>Programa de indicação {program.active ? '· ligado' : '· desligado'}</h3>
+      <p className="form-help">Seus clientes indicam a loja por um link. Quem é indicado ganha um cupom de boas-vindas; quem indicou ganha um cupom depois do primeiro pedido pago do indicado. Os cupons são da sua loja e valem uma vez.</p>
+      <label>Cupom de quem indica{typeSelect(program.referrerType, (type) => setProgram({ ...program, referrerType: type }))}<input inputMode="decimal" value={referrer} onChange={(event) => setReferrer(event.target.value)} required /></label>
+      <label>Cupom de quem é indicado{typeSelect(program.referredType, (type) => setProgram({ ...program, referredType: type }))}<input inputMode="decimal" value={referred} onChange={(event) => setReferred(event.target.value)} required /></label>
+      <label>Pedido mínimo para usar (R$)<input inputMode="decimal" value={minimum} onChange={(event) => setMinimum(event.target.value)} /></label>
+      <label>Validade dos cupons (dias)<input type="number" min={1} max={365} value={days} onChange={(event) => setDays(event.target.value)} required /></label>
+      <button className="secondary-button">{program.active ? 'Salvar' : 'Salvar e ligar'}</button>
+      {program.active && <button type="button" className="availability-button" onClick={() => save(false)}>Desligar programa</button>}
+    </form>
+    <div className="courier-list"><h3>Indicações</h3>
+      {rows.length ? rows.map((item) => <div className="courier-row" key={item.id}><div><strong>{item.referrer_name} indicou {item.referred_name}</strong><span>{REFERRAL_STATUS[item.status] ?? item.status} · {new Date(item.created_at).toLocaleDateString('pt-BR')}{item.reward_coupon ? ` · cupom ${item.reward_coupon}` : ''}</span></div></div>) : <p className="form-help">Nenhuma indicação ainda.</p>}
     </div>
   </div>;
 }
