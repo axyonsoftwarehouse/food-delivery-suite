@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/marketing/referral-program": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["referralProgram"];
+        put: operations["saveReferralProgram"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/interests": {
         parameters: {
             query?: never;
@@ -900,6 +916,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/favorites/{productId}": {
         parameters: {
             query?: never;
@@ -1614,38 +1646,6 @@ export interface paths {
         get: operations["employees"];
         put?: never;
         post: operations["createEmployee"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/customers/{id}/wallet/debit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["debitWallet"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/customers/{id}/wallet/credit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["creditWallet"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2756,6 +2756,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/marketing/referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["referrals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/restaurant/inventory/movements": {
         parameters: {
             query?: never;
@@ -3428,6 +3444,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["coupons_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -3755,7 +3787,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["referrals"];
+        get: operations["referrals_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4425,6 +4457,19 @@ export interface components {
         GroupIdsRequest: {
             groupIds: number[];
         };
+        ReferralProgramRequest: {
+            active: boolean;
+            referrerType: string;
+            /** Format: int32 */
+            referrerValue?: number;
+            referredType: string;
+            /** Format: int32 */
+            referredValue?: number;
+            /** Format: int32 */
+            minOrderCents?: number;
+            /** Format: int32 */
+            validDays?: number;
+        };
         InterestsRequest: {
             cuisineIds: number[];
         };
@@ -4683,6 +4728,11 @@ export interface components {
             startsAt: string;
             endsAt: string;
         };
+        RegisterRequest: {
+            code: string;
+            /** Format: int64 */
+            restaurantId?: number;
+        };
         StoredFile: {
             /** Format: int64 */
             id?: number;
@@ -4792,7 +4842,6 @@ export interface components {
             name: string;
             email: string;
             password: string;
-            referralCode?: string;
         };
         ResetRequest: {
             token: string;
@@ -4947,11 +4996,6 @@ export interface components {
             /** Format: int64 */
             adminRoleId?: number;
             suspended?: boolean;
-        };
-        WalletAdjustment: {
-            /** Format: int64 */
-            amountCents?: number;
-            note?: string;
         };
         CoverageRequest: {
             /** Format: int64 */
@@ -5512,6 +5556,58 @@ export interface operations {
                     "*/*": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    referralProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    saveReferralProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReferralProgramRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -7645,6 +7741,34 @@ export interface operations {
             };
         };
     };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     add: {
         parameters: {
             query?: never;
@@ -9360,66 +9484,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["Employee"];
-                };
-            };
-        };
-    };
-    debitWallet: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WalletAdjustment"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    creditWallet: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WalletAdjustment"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
                 };
             };
         };
@@ -12364,6 +12428,30 @@ export interface operations {
             };
         };
     };
+    referrals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
     movements: {
         parameters: {
             query: {
@@ -13253,7 +13341,9 @@ export interface operations {
     };
     referral: {
         parameters: {
-            query?: never;
+            query?: {
+                restaurantId?: number;
+            };
             header?: never;
             path?: never;
             cookie?: {
@@ -13378,6 +13468,30 @@ export interface operations {
                 to?: string;
                 limit?: number;
             };
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    coupons_1: {
+        parameters: {
+            query?: never;
             header?: never;
             path?: never;
             cookie?: {
@@ -13940,7 +14054,7 @@ export interface operations {
             };
         };
     };
-    referrals: {
+    referrals_1: {
         parameters: {
             query?: never;
             header?: never;
