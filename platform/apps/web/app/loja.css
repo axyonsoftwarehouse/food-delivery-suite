@@ -619,3 +619,12 @@
 @media (prefers-reduced-motion: reduce) {
   .customer-app *, .customer-app *::before, .customer-app *::after { animation: none !important; transition: none !important; }
 }
+
+/* Indique esta loja (indicação como cupom da loja, 08/10/2026) */
+.customer-referral { display: flex; align-items: center; gap: var(--space-4); margin-top: var(--space-6); padding: var(--space-4) var(--space-5); border-radius: var(--radius-xl); background: var(--surface); box-shadow: 0 0 0 1px var(--border); }
+.customer-referral-icon { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: var(--radius-pill); background: var(--brand-050); color: var(--brand-600); }
+.customer-referral > div { flex: 1; min-width: 0; }
+.customer-referral > button { flex: none; width: auto; }
+.customer-referral strong { font-weight: var(--weight-semibold); }
+.customer-referral p { margin: 2px 0 0; color: var(--text-muted); font-size: var(--text-sm); line-height: 1.5; }
+@media (max-width: 640px) { .customer-referral { flex-wrap: wrap; } .customer-referral > button { width: 100%; } }
