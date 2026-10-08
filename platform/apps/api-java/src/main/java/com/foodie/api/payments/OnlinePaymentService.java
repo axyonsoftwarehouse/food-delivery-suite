@@ -201,7 +201,7 @@ public class OnlinePaymentService {
             if (!"refunded".equals(charge.status())) return Map.of("ok", true, "already", current);
             jdbc.update("UPDATE order_payments SET status = 'refunded', raw_status = ?, note = ?, refunded_at = NOW() WHERE order_id = ? AND status = 'paid'",
                 charge.rawStatus(), "Estornado no Mercado Pago", orderId);
-            ledger.reverseOrder(orderId);
+            orderPayments.reverseOrderValues(orderId);
             return Map.of("ok", true, "orderId", orderId, "status", "refunded");
         }
 

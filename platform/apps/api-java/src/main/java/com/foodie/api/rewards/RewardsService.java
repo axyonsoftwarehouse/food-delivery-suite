@@ -33,7 +33,7 @@ public class RewardsService {
     @Transactional
     public void onOrderCompleted(long orderId) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT o.customer_id, o.restaurant_id, o.total_cents, o.status, p.status AS payment_status "
+            "SELECT o.customer_id, o.restaurant_id, o.subtotal_cents, o.discount_cents, o.total_cents, o.status, p.status AS payment_status "
                 + "FROM orders o LEFT JOIN order_payments p ON p.order_id = o.id WHERE o.id = ?", orderId);
         if (rows.isEmpty()) return;
         Map<String, Object> order = rows.getFirst();
@@ -54,9 +54,12 @@ public class RewardsService {
         }
 
         if (settings.bool(SettingsCatalog.CASHBACK_ENABLED) && !cashbackPosted(orderId)) {
-            BigDecimal percent = cashbackPercent(restaurantId, total);
+            // Decisão de 08/10/2026: a base é o subtotal menos os descontos (cupom e campanha) — sem gorjeta,
+            // frete e taxa de serviço. Só há cashback quando a loja tem regra.
+            long base = Math.max(0, number(order, "subtotal_cents") - number(order, "discount_cents"));
+            BigDecimal percent = cashbackPercent(restaurantId, base);
             if (percent != null && percent.signum() > 0) {
-                long amount = Math.round(total * percent.doubleValue() / 100.0);
+                long amount = Math.round(base * percent.doubleValue() / 100.0);
                 if (amount > 0) ledger.insert("customer", customerId, orderId, "cashback", amount, "Cashback do pedido #" + orderId);
             }
         }
@@ -73,6 +76,24 @@ public class RewardsService {
                 jdbc.update("UPDATE referrals SET status = 'rewarded', reward_cents = ?, rewarded_at = NOW() WHERE id = ?",
                     reward, number(referral, "id"));
             }
+        }
+    }
+
+    /**
+     * Pedido estornado devolve os pontos de fidelidade ganhos com ele (revisão de 08/10/2026: o estorno revertia
+     * o razão, mas os pontos ficavam com o cliente). Idempotente: só reverte o que ainda não foi revertido.
+     */
+    @Transactional
+    public void reverseOrder(long orderId) {
+        List<Map<String, Object>> earned = jdbc.query(
+            "SELECT t.user_id, SUM(t.points) AS points FROM loyalty_transactions t WHERE t.order_id = ? AND t.kind = 'earn' "
+                + "AND NOT EXISTS (SELECT 1 FROM loyalty_transactions r WHERE r.order_id = t.order_id AND r.kind = 'reversal') GROUP BY t.user_id",
+            (rs, row) -> Map.<String, Object>of("user_id", rs.getLong("user_id"), "points", rs.getLong("points")), orderId);
+        for (Map<String, Object> entry : earned) {
+            long points = number(entry, "points");
+            if (points <= 0) continue;
+            jdbc.update("INSERT INTO loyalty_transactions (user_id, order_id, points, kind, description) VALUES (?, ?, ?, 'reversal', ?)",
+                number(entry, "user_id"), orderId, -points, "Estorno do pedido #" + orderId);
         }
     }
 

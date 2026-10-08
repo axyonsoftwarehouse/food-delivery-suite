@@ -281,7 +281,8 @@ class OnlinePaymentServiceTest {
 
         assertEquals("refunded", resposta.get("status"));
         verify(jdbc).update(argThat(sql -> sql != null && sql.contains("status = 'refunded'") && sql.contains("refunded_at = NOW()")), any(Object[].class));
-        verify(ledger).reverseOrder(1L);
+        // Mesmo desfazimento do estorno feito pelo Foodie: razão (cashback) e pontos de fidelidade.
+        verify(orderPayments).reverseOrderValues(1L);
     }
 
     @Test
@@ -291,7 +292,7 @@ class OnlinePaymentServiceTest {
 
         assertEquals("paid", service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("already"));
         verify(jdbc, never()).update(anyString(), any(Object[].class));
-        verify(ledger, never()).reverseOrder(org.mockito.ArgumentMatchers.anyLong());
+        verify(orderPayments, never()).reverseOrderValues(org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -301,7 +302,7 @@ class OnlinePaymentServiceTest {
         when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "refunded", "refunded", null, null, null, null));
 
         assertEquals("refunded", service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("already"));
-        verify(ledger, never()).reverseOrder(org.mockito.ArgumentMatchers.anyLong());
+        verify(orderPayments, never()).reverseOrderValues(org.mockito.ArgumentMatchers.anyLong());
     }
 
     private static final String LATE_PAID_NOTE = "Estorno automático: pagamento aprovado após o cancelamento do pedido";

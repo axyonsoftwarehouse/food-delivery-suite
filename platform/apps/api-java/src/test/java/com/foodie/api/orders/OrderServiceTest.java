@@ -29,9 +29,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 class OrderServiceTest {
     private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
     private final PaymentService payments = mock(PaymentService.class);
+    private final CouponService coupons = mock(CouponService.class);
     private final OrderService orders = new OrderService(jdbc, mock(NamedParameterJdbcTemplate.class), mock(PostalCoverageService.class),
         mock(RestaurantHoursService.class), payments, mock(DeliveryService.class), mock(NotificationService.class),
-        mock(AddonService.class), mock(CouponService.class), mock(CampaignService.class), mock(LedgerService.class),
+        mock(AddonService.class), coupons, mock(CampaignService.class), mock(LedgerService.class),
         mock(RewardsService.class), mock(SupportActionService.class));
 
     private static final User ADMIN = new User(1, "Admin", "admin@demo.local", "admin", null);
@@ -72,10 +73,14 @@ class OrderServiceTest {
     }
 
     private void storedOrder(long id, String status, String orderType) {
+        storedOrder(id, status, orderType, null);
+    }
+
+    private void storedOrder(long id, String status, String orderType, String couponCode) {
         Map<String, Object> row = new java.util.HashMap<>();
         row.put("id", id); row.put("customer_id", 8L); row.put("restaurant_id", 3L); row.put("courier_id", 9L); row.put("status", status);
-        row.put("order_type", orderType);
-        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT id, customer_id, restaurant_id, courier_id, status, order_type FROM orders"), any(Object[].class)))
+        row.put("order_type", orderType); row.put("coupon_code", couponCode);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT id, customer_id, restaurant_id, courier_id, status, order_type"), any(Object[].class)))
             .thenReturn(List.of(row));
     }
 
@@ -159,6 +164,38 @@ class OrderServiceTest {
         assertThatThrownBy(() -> orders.changeStatus(RESTAURANT, 40, "assign", 12L, null))
             .isInstanceOf(ApiException.class)
             .hasMessage("Entregador não é da loja, não está aprovado ou está suspenso");
+    }
+
+    @Test
+    void deadOrderGivesTheCouponUseBack() {
+        for (String[] path : new String[][] { {"placed", "reject", "restaurant"}, {"placed", "cancel", "customer"}, {"accepted", "cancel", "restaurant"} }) {
+            org.mockito.Mockito.clearInvocations(coupons);
+            storedOrder(40, path[0], "delivery", "BEMVINDO");
+            User actor = switch (path[2]) { case "customer" -> CUSTOMER; default -> RESTAURANT; };
+            orders.changeStatus(actor, 40, path[1], null, "motivo do teste");
+            verify(coupons).release("BEMVINDO");
+        }
+    }
+
+    @Test
+    void expiredOrderGivesTheCouponUseBack() {
+        staleOrders(41L);
+        lockedReread("placed", 1L);
+        when(jdbc.update(org.mockito.ArgumentMatchers.contains("SET status = 'expired'"), any(Object[].class))).thenReturn(1);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT coupon_code FROM orders"), eq(String.class), eq(41L))).thenReturn(List.of("BEMVINDO"));
+
+        orders.expireStale();
+
+        verify(coupons).release("BEMVINDO");
+    }
+
+    @Test
+    void liveOrDeliveredOrderKeepsTheCouponUse() {
+        storedOrder(40, "placed", "delivery", "BEMVINDO");
+        orders.changeStatus(RESTAURANT, 40, "accept", null, null);
+        storedOrder(41, "picked_up", "delivery", "BEMVINDO");
+        orders.changeStatus(COURIER, 41, "fail", null, "cliente ausente");
+        verify(coupons, org.mockito.Mockito.never()).release(anyString());
     }
 
     @Test
