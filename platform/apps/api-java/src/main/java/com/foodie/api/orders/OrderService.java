@@ -447,7 +447,7 @@ public class OrderService {
 
     @Transactional
     public Map<String, Object> changeStatus(User user, long orderId, String action, Long courierId, String reason) {
-        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, courier_id, status, order_type FROM orders WHERE id = ? FOR UPDATE", orderId);
+        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, courier_id, status, order_type, coupon_code FROM orders WHERE id = ? FOR UPDATE", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);
@@ -475,6 +475,8 @@ public class OrderService {
             jdbc.update("UPDATE orders SET status = ? WHERE id = ?", next, orderId);
         }
         if (Set.of("rejected", "cancelled", "expired", "failed").contains(next)) payments.cancelPending(orderId);
+        // Pedido morto devolve o uso do cupom (falha na entrega não: segue para o reembolso decidido pela loja).
+        if (Set.of("rejected", "cancelled").contains(next) && order.get("coupon_code") instanceof String code) couponService.release(code);
         // Estoque volta só se o pedido morreu antes do preparo (ainda aguardando aceite).
         if ("placed".equals(current) && Set.of("rejected", "cancelled").contains(next)) restoreStock(orderId);
         jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, ?, ?, ?, ?)", orderId, user.id(), current, next, trimmed);
@@ -628,10 +630,16 @@ public class OrderService {
         if (jdbc.update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", id) == 1) {
             payments.cancelPending(id);
             restoreStock(id);
+            releaseCoupon(id);
             jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
             // Pago online e sem aceite: estorna por último, na mesma transação (falha desfaz a expiração).
             payments.refundIfPaidOnline(null, id, "Estorno automático: pedido expirado sem aceite");
         }
+    }
+
+    private void releaseCoupon(long orderId) {
+        List<String> code = jdbc.queryForList("SELECT coupon_code FROM orders WHERE id = ? AND coupon_code IS NOT NULL", String.class, orderId);
+        if (!code.isEmpty()) couponService.release(code.getFirst());
     }
 
     private static boolean truthy(Object value) {

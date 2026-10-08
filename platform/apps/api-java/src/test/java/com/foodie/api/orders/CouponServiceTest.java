@@ -102,4 +102,13 @@ class CouponServiceTest {
         row.put("expires_at", null);
         when(jdbc.queryForList(anyString(), eq("CANTINA15"))).thenReturn(List.of(row));
     }
+
+    @Test
+    void releaseGivesTheUseBackToTheCoupon() {
+        // Revisão de 08/10/2026: pedido morto (recusado, cancelado, expirado) já não contava no limite por
+        // cliente, mas continuava gastando o limite total do cupom.
+        org.springframework.jdbc.core.JdbcTemplate db = org.mockito.Mockito.mock(org.springframework.jdbc.core.JdbcTemplate.class);
+        new CouponService(db).release("BEMVINDO");
+        org.mockito.Mockito.verify(db).update("UPDATE coupons SET used_count = used_count - 1 WHERE code = ? AND used_count > 0", "BEMVINDO");
+    }
 }

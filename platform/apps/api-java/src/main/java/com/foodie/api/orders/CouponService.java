@@ -58,6 +58,14 @@ public class CouponService {
     }
 
     /**
+     * Devolve o uso de um pedido que morreu (recusado, cancelado, expirado) — o mesmo critério do limite por
+     * cliente. Revisão de 08/10/2026: antes o pedido morto continuava gastando o limite total do cupom.
+     */
+    public void release(String code) {
+        jdbc.update("UPDATE coupons SET used_count = used_count - 1 WHERE code = ? AND used_count > 0", code);
+    }
+
+    /**
      * Pedidos do cliente com o cupom que não morreram (cancelados, recusados e expirados não contam).
      * O checkout trava a linha do cliente (CartService.lock), então dois pedidos dele não passam juntos.
      */
