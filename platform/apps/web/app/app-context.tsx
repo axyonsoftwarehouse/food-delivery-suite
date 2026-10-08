@@ -11,7 +11,7 @@ export type Catalog = { restaurants: Restaurant[]; categories: Category[]; produ
 export type Zone = { id: number; name: string; city: string; state: string; delivery_fee_cents: number; minimum_order_cents: number };
 export type Address = { id: number; zone_id: number; postal_code: string | null; label: string; street: string; number: string; neighborhood: string; complement: string; zone_name: string; city: string; state: string };
 export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; customer_name?: string | null; created_at: string; scheduled_at?: string | null; payment_method: string | null; payment_status: string | null; payment_due_cents: number | null; order_type?: string | null; table_id?: number | null; table_number?: string | null; party_size?: number | null };
-export type Courier = { id: number; name: string; email: string; suspended: boolean; approved: boolean };
+export type Courier = { id: number; name: string; email: string; suspended: boolean; approved: boolean; restaurant_id?: number | null; restaurant_name?: string | null };
 export type PostalRange = { id: number; zone_id: number; zone_name: string; postal_start: string; postal_end: string };
 
 export const POLL_INTERVAL_MS = 8000;
@@ -160,7 +160,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const [catalogData, orderData, courierData, zoneData, addressData, postalRangeData, permissionData, moduleData] = await Promise.all([
         api<Catalog>(me?.role === 'customer' ? '/catalog/meta' : '/catalog'),
         me ? api<Order[]>('/orders') : Promise.resolve([]),
-        me?.role === 'admin' ? api<Courier[]>('/admin/couriers') : Promise.resolve([]),
+        // O entregador é da loja (decisão de 08/10/2026): a loja vê os dela; sem permissão de despacho a lista fica vazia.
+        me?.role === 'admin' ? api<Courier[]>('/admin/couriers')
+          : me?.role === 'restaurant' || me?.role === 'kitchen' ? api<Courier[]>('/restaurant/couriers').catch(() => [] as Courier[]) : Promise.resolve([] as Courier[]),
         api<Zone[]>('/zones'),
         me?.role === 'customer' ? api<Address[]>('/addresses') : Promise.resolve([]),
         me?.role === 'admin' ? api<PostalRange[]>('/admin/postal-ranges') : Promise.resolve([]),

@@ -7,6 +7,8 @@ public final class OrderWorkflow {
     private OrderWorkflow() {}
 
     private static final Set<String> ACTIVE = Set.of("placed", "accepted", "ready", "assigned", "picked_up");
+    /** Depois do aceite: antes dele a loja recusa (`reject`), não cancela. */
+    private static final Set<String> ACCEPTED_ACTIVE = Set.of("accepted", "ready", "assigned", "picked_up");
     private static final Set<String> RESTAURANT_SIDE = Set.of("restaurant", "kitchen");
 
     public record Transition(String nextStatus, boolean requiresReason, boolean clearsCourier) {}
@@ -36,12 +38,14 @@ public final class OrderWorkflow {
             case "serve" -> RESTAURANT_SIDE.contains(role) && "ready".equals(current);
             case "complete" -> RESTAURANT_SIDE.contains(role) && ("ready".equals(current) || "served".equals(current));
             case "reject" -> RESTAURANT_SIDE.contains(role) && "placed".equals(current);
-            case "assign" -> "admin".equals(role) && ("ready".equals(current) || "assigned".equals(current));
-            case "unassign" -> "admin".equals(role) && "assigned".equals(current);
+            // O entregador é da loja (decisão de 08/10/2026): ela despacha; o admin só como suporte.
+            case "assign" -> (RESTAURANT_SIDE.contains(role) || "admin".equals(role)) && ("ready".equals(current) || "assigned".equals(current));
+            case "unassign" -> (RESTAURANT_SIDE.contains(role) || "admin".equals(role)) && "assigned".equals(current);
             case "pickup" -> "courier".equals(role) && "assigned".equals(current);
             case "deliver" -> "courier".equals(role) && "picked_up".equals(current);
             case "fail" -> "courier".equals(role) && ("assigned".equals(current) || "picked_up".equals(current));
             case "cancel" -> ("customer".equals(role) && "placed".equals(current))
+                || (RESTAURANT_SIDE.contains(role) && ACCEPTED_ACTIVE.contains(current))
                 || ("admin".equals(role) && ACTIVE.contains(current));
             default -> false;
         };

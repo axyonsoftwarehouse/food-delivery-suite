@@ -151,7 +151,7 @@ try {
     ['Restaurante Demo', 'restaurante@demo.local', 'restaurant', cozinha],
     ['Restaurante Cantina', 'restaurante2@demo.local', 'restaurant', cantina],
     ['Doceria Estrela', 'doceria@demo.local', 'restaurant', doceria],
-    ['Entregador Demo', 'entregador@demo.local', 'courier', null],
+    ['Entregador Demo', 'entregador@demo.local', 'courier', cozinha],
     ['Cliente Demo', 'cliente@demo.local', 'customer', null],
   ] as const;
   for (const [name, email, role, restaurantId] of users) {
@@ -159,6 +159,8 @@ try {
   }
   await db.query("UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE email LIKE '%@demo.local'");
   await db.query("UPDATE users SET courier_approved_at = COALESCE(courier_approved_at, NOW()) WHERE email = 'entregador@demo.local' AND role = 'courier'");
+  // O entregador é exclusivo de uma loja (decisão de 08/10/2026); o UPDATE cobre bancos semeados antes disso.
+  await db.query("UPDATE users SET restaurant_id = ? WHERE email = 'entregador@demo.local' AND role = 'courier' AND restaurant_id IS NULL", [cozinha]);
 
   // ---- Cozinha Demo ----
   const pratos = await category(cozinha, 'Pratos');
@@ -412,9 +414,10 @@ try {
 
   // Entregas de demonstração para o extrato informativo do entregador.
   // A plataforma não lança frete/gorjeta no razão: esses valores são da loja (decisão de 05/10/2026).
+  // O entregador demo é da Cozinha Demo: só as entregas dela ficam com ele.
   const ids = newDemoOrderIds.map(() => '?').join(', ');
   if (newDemoOrderIds.length) {
-    await db.query(`UPDATE orders SET courier_id = ? WHERE id IN (${ids})`, [courierId, ...newDemoOrderIds]);
+    await db.query(`UPDATE orders SET courier_id = ? WHERE restaurant_id = ? AND id IN (${ids})`, [courierId, cozinha, ...newDemoOrderIds]);
   }
 
   // Fidelidade e cashback do cliente

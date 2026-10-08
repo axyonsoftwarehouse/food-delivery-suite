@@ -68,6 +68,23 @@ class OrderControllerTest {
     }
 
     @Test
+    void storeNeedsDispatchAndCancelPermissions() throws Exception {
+        // Decisão de 08/10/2026: a loja despacha os próprios entregadores e cancela depois do aceite,
+        // cada um com permissão própria (fora do padrão da cozinha).
+        User restaurant = new User(9, "Loja", "loja@demo.local", "restaurant", 3L);
+        when(auth.requireUser("session")).thenReturn(restaurant);
+        doThrow(new ApiException(403, "Sem permissão")).when(permissions).require(restaurant, com.foodie.api.permissions.Permissions.ORDERS_DISPATCH);
+        doThrow(new ApiException(403, "Sem permissão")).when(permissions).require(restaurant, com.foodie.api.permissions.Permissions.ORDERS_CANCEL);
+
+        for (String body : new String[] {"{\"action\":\"assign\",\"courierId\":5}", "{\"action\":\"unassign\"}", "{\"action\":\"cancel\",\"reason\":\"sem insumo\"}"}) {
+            mvc.perform(patch("/orders/12/status").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                    .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+        }
+        org.mockito.Mockito.verifyNoInteractions(orders);
+    }
+
+    @Test
     void lookupFindsOrderByNumberWithViewerScope() throws Exception {
         User restaurant = new User(9, "Loja", "loja@demo.local", "restaurant", 3L);
         when(auth.requireUser("session")).thenReturn(restaurant);

@@ -15,6 +15,9 @@ public final class Permissions {
     public static final String ORDERS_ACCEPT = "orders.accept";
     public static final String ORDERS_READY = "orders.ready";
     public static final String ORDERS_REJECT = "orders.reject";
+    public static final String ORDERS_DISPATCH = "orders.dispatch";
+    public static final String ORDERS_CANCEL = "orders.cancel";
+    public static final String COURIERS_MANAGE = "couriers.manage";
     public static final String CATALOG_MANAGE = "catalog.manage";
     public static final String HOURS_MANAGE = "hours.manage";
     public static final String TABLES_MANAGE = "tables.manage";
@@ -33,6 +36,9 @@ public final class Permissions {
         new Descriptor(ORDERS_ACCEPT, "Aceitar pedidos", "Pedidos"),
         new Descriptor(ORDERS_READY, "Marcar pronto", "Pedidos"),
         new Descriptor(ORDERS_REJECT, "Recusar pedidos", "Pedidos"),
+        new Descriptor(ORDERS_DISPATCH, "Atribuir entregador", "Pedidos"),
+        new Descriptor(ORDERS_CANCEL, "Cancelar pedido aceito", "Pedidos"),
+        new Descriptor(COURIERS_MANAGE, "Gerenciar entregadores", "Equipe"),
         new Descriptor(CATALOG_MANAGE, "Gerenciar catálogo", "Catálogo"),
         new Descriptor(HOURS_MANAGE, "Gerenciar horários", "Operação"),
         new Descriptor(TABLES_MANAGE, "Gerenciar mesas", "Operação"),

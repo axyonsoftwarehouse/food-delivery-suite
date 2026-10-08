@@ -39,6 +39,9 @@ class PermissionServiceTest {
         assertThat(service.has(kitchen, Permissions.ORDERS_READY)).isTrue();
         assertThat(service.has(kitchen, Permissions.CATALOG_MANAGE)).isFalse();
         assertThat(service.has(kitchen, Permissions.REPORTS_VIEW)).isFalse();
+        assertThat(service.has(kitchen, Permissions.ORDERS_DISPATCH)).isFalse();
+        assertThat(service.has(kitchen, Permissions.ORDERS_CANCEL)).isFalse();
+        assertThat(service.has(kitchen, Permissions.COURIERS_MANAGE)).isFalse();
     }
 
     @Test
