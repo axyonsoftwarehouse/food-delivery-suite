@@ -61,7 +61,7 @@ public class PaymentService {
     @Transactional
     public Map<String, Object> confirm(User actor, long orderId, long amountReceivedCents, String note) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT p.status, p.method, p.amount_due_cents, o.courier_id FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE",
+            "SELECT p.status, p.method, p.modality, p.amount_due_cents, o.courier_id, o.restaurant_id FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE",
             orderId
         );
         if (rows.isEmpty()) throw new ApiException(404, "Pagamento não encontrado");
@@ -69,8 +69,19 @@ public class PaymentService {
         if ("courier".equals(actor.role())) {
             Long courierId = row.get("courier_id") == null ? null : ((Number) row.get("courier_id")).longValue();
             if (courierId == null || courierId != actor.id()) throw new ApiException(403, "Acesso não autorizado");
+        } else if ("restaurant".equals(actor.role()) || "kitchen".equals(actor.role())) {
+            // A loja recebe o dinheiro (decisão de 05/10/2026): na retirada e no consumo no local não há entregador.
+            if (actor.restaurantId() == null || number(row, "restaurant_id") != actor.restaurantId()) throw new ApiException(404, "Pedido não encontrado");
         } else if (!"admin".equals(actor.role())) {
             throw new ApiException(403, "Acesso não autorizado");
+        }
+        // Revisão de 08/10/2026: confirmar à mão só vale para pagamento na entrega. Online é confirmado pelo
+        // provedor (marcar "pago" sem dinheiro no Mercado Pago quebrava o estorno); comprovante, pela verificação.
+        Object modality = row.get("modality");
+        if (modality != null && !"on_delivery".equals(modality)) {
+            throw new ApiException(409, "online".equals(modality)
+                ? "Pagamento online é confirmado pelo Mercado Pago, não manualmente"
+                : "Pagamento por comprovante é confirmado na verificação do comprovante");
         }
         if (!"pending".equals(row.get("status"))) throw new ApiException(409, "Pagamento já confirmado ou cancelado");
         long due = number(row, "amount_due_cents");

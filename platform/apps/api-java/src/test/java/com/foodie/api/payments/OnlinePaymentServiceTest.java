@@ -129,6 +129,25 @@ class OnlinePaymentServiceTest {
     }
 
     @Test
+    void rejectedOrExpiredChargeCanBeRetriedWithANewCharge() {
+        // Revisão de 08/10/2026: com external_id gravado o checkout devolvia sempre a cobrança antiga, e o
+        // "Tente outro cartão" da tela nunca cobrava de novo. A chave nova deriva da cobrança recusada: um
+        // clique duplo na mesma tentativa continua idempotente no provedor.
+        for (String dead : List.of("rejected", "expired", "cancelled")) {
+            org.mockito.Mockito.clearInvocations(gateway, jdbc);
+            payment.put("status", dead);
+            payment.put("external_id", "ORDOLD1");
+            when(gateway.create(any(), any())).thenReturn(pixCharge());
+
+            service(true).startIntent(customer, 1, "pix", null);
+
+            ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+            verify(gateway).create(eq(loja), request.capture());
+            assertEquals("order-1-11-retry-ORDOLD1", request.getValue().idempotencyKey(), dead);
+        }
+    }
+
+    @Test
     void reusesTheExistingQrWithoutChargingAgain() {
         payment.put("qr_code", "00020126...");
 
@@ -326,6 +345,37 @@ class OnlinePaymentServiceTest {
         when(orderPayments.refundIfPaidOnline(null, 1L, LATE_PAID_NOTE)).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
 
         assertThrows(ApiException.class, () -> service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200"));
+    }
+
+    @Test
+    void notificationOfAnOlderChargeDoesNotTouchTheCurrentOne() {
+        // Depois de uma nova tentativa, o aviso atrasado da cobrança recusada não pode sobrescrever a atual.
+        payment.put("external_id", "ORDNEW2");
+        when(gateway.fetch(any(), eq("ORDOLD1"))).thenReturn(new PaymentGateway.Charge("ORDOLD1", "1", 1000, "rejected", "rejected", null, null, null, null));
+
+        assertEquals(true, service(true).handleWebhook("mercadopago", "ORDOLD1", "3588446200").get("ignored"));
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void statusOtherThanPaidOnlyOverwritesPending() {
+        // Um "pending" atrasado não pode reabrir um pagamento cancelado (pedido morto) nem recusado.
+        for (String current : List.of("cancelled", "rejected", "expired")) {
+            payment.put("status", current);
+            when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "pending", "action_required", null, null, null, null));
+
+            assertEquals(current, service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("already"));
+        }
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void paidStillReachesARejectedPayment() {
+        // Aprovação depois de "em análise"/recusa provisória do provedor vale: o dinheiro entrou.
+        payment.put("status", "rejected");
+        when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        assertEquals("paid", service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("status"));
     }
 
     @Test
