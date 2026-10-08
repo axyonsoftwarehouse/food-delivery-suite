@@ -26,7 +26,6 @@ async function login(email: string): Promise<string> {
 }
 
 const admin = await login('admin@demo.local');
-const courier = await login('entregador@demo.local');
 const customer = await login('cliente@demo.local');
 const unique = Date.now().toString(36);
 const zone = await request<{ id: number }>('/admin/zones', admin, 'POST', { name: `Zona Teste ${unique}`, slug: `zona-${unique}`, city: 'Fortaleza', state: 'CE', deliveryFeeCents: 599, minimumOrderCents: 2000 }, 201);
@@ -86,14 +85,20 @@ assert.equal(order.totalCents, 3099);
 await request(`/orders/${order.id}/status`, customer, 'PATCH', { action: 'accept' }, 409);
 await request(`/orders/${order.id}/status`, restaurantSession, 'PATCH', { action: 'accept' });
 await request(`/orders/${order.id}/status`, restaurantSession, 'PATCH', { action: 'ready' });
-const couriers = await request<{ id: number; email: string; approved: boolean; suspended: boolean }[]>('/admin/couriers', admin);
-const demoCourier = couriers.find((item) => item.email === 'entregador@demo.local' && item.approved && !item.suspended);
-assert.ok(demoCourier, 'Entregador demo aprovado ausente; rode o seed');
-await request(`/orders/${order.id}/status`, admin, 'PATCH', { action: 'assign', courierId: demoCourier.id });
-await request(`/orders/${order.id}/status`, courier, 'PATCH', { action: 'pickup' });
-await request(`/orders/${order.id}/status`, courier, 'PATCH', { action: 'deliver' }, 409);
-await request(`/orders/${order.id}/payment`, courier, 'PATCH', { amountReceivedCents: order.totalCents });
-await request(`/orders/${order.id}/status`, courier, 'PATCH', { action: 'deliver' });
+// O entregador é exclusivo da loja (decisão de 08/10/2026): a loja de teste cadastra o dela e despacha.
+const demoCourier = (await request<{ id: number; email: string }[]>('/admin/couriers', admin)).find((item) => item.email === 'entregador@demo.local');
+assert.ok(demoCourier, 'Entregador demo ausente; rode o seed');
+await request(`/orders/${order.id}/status`, restaurantSession, 'PATCH', { action: 'assign', courierId: demoCourier.id }, 400);
+const courierEmail = `entregador-${unique}@demo.local`;
+const storeCourier = await request<{ id: number; approved: boolean }>('/restaurant/couriers', restaurantSession, 'POST', { name: 'Entregador Teste', email: courierEmail, password }, 201);
+assert.equal(storeCourier.approved, true, 'entregador cadastrado pela loja já sai aprovado');
+assert.ok((await request<{ id: number }[]>('/restaurant/couriers', restaurantSession)).some((item) => item.id === storeCourier.id));
+await request(`/orders/${order.id}/status`, restaurantSession, 'PATCH', { action: 'assign', courierId: storeCourier.id });
+const storeCourierSession = await login(courierEmail);
+await request(`/orders/${order.id}/status`, storeCourierSession, 'PATCH', { action: 'pickup' });
+await request(`/orders/${order.id}/status`, storeCourierSession, 'PATCH', { action: 'deliver' }, 409);
+await request(`/orders/${order.id}/payment`, storeCourierSession, 'PATCH', { amountReceivedCents: order.totalCents });
+await request(`/orders/${order.id}/status`, storeCourierSession, 'PATCH', { action: 'deliver' });
 const detail = await request<{ status: string; history: { to_status: string }[]; payment: { status: string; method: string } }>(`/orders/${order.id}`, customer);
 assert.equal(detail.status, 'delivered');
 assert.equal(detail.payment.status, 'paid');

@@ -56,10 +56,11 @@ async function place() {
       paymentMethod: 'cash', idempotencyKey: `exceptions-${randomUUID()}` } });
 }
 
-let demoCourier = (await call('/admin/couriers', { cookie: admin })).find((item) => item.email === 'entregador@demo.local');
-assert.ok(demoCourier, 'Entregador demo ausente');
-if (!demoCourier.approved) await call(`/admin/couriers/${demoCourier.id}/approval`, { cookie: admin, method: 'PATCH' });
-if (demoCourier.suspended) await call(`/admin/couriers/${demoCourier.id}/suspension`, { cookie: admin, method: 'PATCH', body: { suspended: false } });
+// O entregador é da loja (decisão de 08/10/2026): a loja lista, reativa e despacha os dela.
+let demoCourier = (await call('/restaurant/couriers', { cookie: restaurant })).find((item) => item.email === 'entregador@demo.local');
+assert.ok(demoCourier, 'Entregador demo ausente na equipe da loja demo');
+assert.ok(demoCourier.approved, 'Entregador demo deveria estar aprovado');
+if (demoCourier.suspended) await call(`/restaurant/couriers/${demoCourier.id}/suspension`, { cookie: restaurant, method: 'PATCH', body: { suspended: false } });
 
 const rejected = await place();
 await call(`/orders/${rejected.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'reject' }, expected: 400 });
@@ -77,14 +78,21 @@ await call(`/orders/${accepted.id}/status`, { cookie: restaurant, method: 'PATCH
 await call(`/orders/${accepted.id}/status`, { cookie: customer, method: 'PATCH', body: { action: 'cancel', reason: 'Tarde demais' }, expected: 409 });
 await call(`/orders/${accepted.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'ready' } });
 
-await call(`/orders/${accepted.id}/status`, { cookie: admin, method: 'PATCH', body: { action: 'assign', courierId: demoCourier.id } });
-await call(`/orders/${accepted.id}/status`, { cookie: admin, method: 'PATCH', body: { action: 'unassign' } });
+await call(`/orders/${accepted.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'assign', courierId: demoCourier.id } });
+await call(`/orders/${accepted.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'unassign' } });
 assert.equal((await call(`/orders/${accepted.id}`, { cookie: admin })).status, 'ready');
-await call(`/orders/${accepted.id}/status`, { cookie: admin, method: 'PATCH', body: { action: 'assign', courierId: demoCourier.id } });
+await call(`/orders/${accepted.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'assign', courierId: demoCourier.id } });
 await call(`/orders/${accepted.id}/status`, { cookie: courier, method: 'PATCH', body: { action: 'fail', reason: 'Cliente ausente' } });
 const failed = await call(`/orders/${accepted.id}`, { cookie: admin });
 assert.equal(failed.status, 'failed');
 assert.equal(failed.history.at(-1).reason, 'Cliente ausente');
+
+const cancelledByStore = await place();
+await call(`/orders/${cancelledByStore.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'cancel', reason: 'Antes do aceite é recusa' }, expected: 409 });
+await call(`/orders/${cancelledByStore.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'accept' } });
+await call(`/orders/${cancelledByStore.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'cancel' }, expected: 400 });
+await call(`/orders/${cancelledByStore.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'cancel', reason: 'Acabou o ingrediente' } });
+assert.equal((await call(`/orders/${cancelledByStore.id}`, { cookie: customer })).status, 'cancelled');
 
 const cancelledByAdmin = await place();
 await call(`/orders/${cancelledByAdmin.id}/status`, { cookie: admin, method: 'PATCH', body: { action: 'cancel', reason: 'Loja fechou' } });
@@ -94,4 +102,4 @@ const trail = await call(`/admin/support/restaurants/${cancelledDetail.restauran
 assert.ok(trail.some((entry) => entry.action === 'order.cancel' && entry.entityId === cancelledByAdmin.id && entry.reason === 'Loja fechou'),
   'cancelamento do admin deveria aparecer na trilha de suporte da loja');
 
-console.log(`Exceções validadas: recusa #${rejected.id}, cancelamento do cliente #${cancelledByCustomer.id}, falha/reatribuição #${accepted.id}, cancelamento do admin #${cancelledByAdmin.id}.`);
+console.log(`Exceções validadas: recusa #${rejected.id}, cancelamento do cliente #${cancelledByCustomer.id}, falha/reatribuição #${accepted.id}, cancelamento da loja #${cancelledByStore.id}, cancelamento do admin #${cancelledByAdmin.id}.`);
