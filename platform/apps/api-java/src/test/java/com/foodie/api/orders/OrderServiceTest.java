@@ -246,12 +246,36 @@ class OrderServiceTest {
     }
 
     @Test
+    void readsNoLongerExpireOrders() {
+        // Revisão de 08/10/2026: a expiração rodava dentro das leituras. Sem ninguém abrir o painel, pedido
+        // pago não expirava nem era estornado; e a leitura de um cliente varria todas as lojas e podia chamar
+        // o Mercado Pago. Agora quem expira é a tarefa agendada (OrderExpiryRunner).
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(Map.of("id", 26L, "customer_id", 8L, "restaurant_id", 3L)));
+
+        orders.list(ADMIN);
+        orders.history(ADMIN, null, null, 20);
+        orders.lookup(ADMIN, 26);
+
+        verify(jdbc, org.mockito.Mockito.never()).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND created_at"), any(org.springframework.jdbc.core.RowMapper.class));
+    }
+
+    @Test
+    void scheduledOrderGetsFifteenMinutesAfterTheScheduledTime() {
+        // Antes o agendado expirava no minuto exato do horário marcado, sem os 15 minutos do pedido comum.
+        staleOrders();
+
+        orders.expireStale();
+
+        verify(jdbc).query(org.mockito.ArgumentMatchers.contains("scheduled_at <= (NOW() - INTERVAL 15 MINUTE)"), any(org.springframework.jdbc.core.RowMapper.class));
+    }
+
+    @Test
     void expiryRereadsTheLockedOrderAndSkipsOneAcceptedMeanwhile() {
         // A loja aceitou entre a busca dos vencidos e a trava: nem estorna nem expira.
         staleOrders(41L);
         lockedReread("accepted", 1L);
 
-        orders.list(ADMIN);
+        orders.expireStale();
 
         verify(jdbc).queryForList(org.mockito.ArgumentMatchers.endsWith("FROM orders WHERE id = ? FOR UPDATE SKIP LOCKED"), eq(41L));
         verify(payments, org.mockito.Mockito.never()).refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString());
@@ -265,7 +289,7 @@ class OrderServiceTest {
         staleOrders(41L);
         when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT status, created_at, scheduled_at"), any(Object[].class))).thenReturn(List.of());
 
-        orders.list(ADMIN);
+        orders.expireStale();
 
         verify(payments, org.mockito.Mockito.never()).refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString());
         verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.contains("'expired'"), any(Object[].class));
@@ -277,7 +301,7 @@ class OrderServiceTest {
         staleOrders(41L);
         lockedReread("placed", 0L);
 
-        orders.list(ADMIN);
+        orders.expireStale();
 
         verify(payments, org.mockito.Mockito.never()).refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString());
         verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.contains("'expired'"), any(Object[].class));
@@ -301,7 +325,7 @@ class OrderServiceTest {
         lockedReread("placed", true);
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
 
-        transactional.list(ADMIN);
+        transactional.expireStale();
 
         assertThat(transactions.get()).isEqualTo(2);
     }
@@ -312,7 +336,7 @@ class OrderServiceTest {
         lockedReread("placed", 1L);
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
 
-        orders.list(ADMIN);
+        orders.expireStale();
 
         org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(payments, jdbc);
         ordem.verify(jdbc).update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", 41L);
@@ -330,7 +354,7 @@ class OrderServiceTest {
             .thenThrow(new ApiException(409, "A loja desconectou o Mercado Pago. Estorne pelo painel do Mercado Pago ou reconecte a conta."));
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
 
-        orders.list(ADMIN);
+        orders.expireStale();
 
         verify(payments).refundIfPaidOnline(null, 42L, "Estorno automático: pedido expirado sem aceite");
         verify(jdbc).update("UPDATE orders SET status = 'expired' WHERE id = ? AND status = 'placed'", 42L);
@@ -360,7 +384,7 @@ class OrderServiceTest {
         lockedReread("placed", 1L);
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
 
-        orders.list(ADMIN);
+        orders.expireStale();
 
         verify(jdbc).update(org.mockito.ArgumentMatchers.startsWith("UPDATE products p JOIN"), eq(41L));
     }

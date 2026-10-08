@@ -374,7 +374,6 @@ public class OrderService {
     private static final int HISTORY_LIMIT = 100;
 
     public List<Map<String, Object>> list(User user) {
-        expireStale();
         Scope scope = scope(user);
         List<Map<String, Object>> active = jdbc.queryForList(ORDER_BASE + "WHERE " + scope.where() + " AND o.status NOT IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + ACTIVE_LIMIT, scope.args().toArray());
         List<Map<String, Object>> terminal = jdbc.queryForList(ORDER_BASE + "WHERE " + scope.where() + " AND o.status IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + HISTORY_LIMIT, scope.args().toArray());
@@ -385,7 +384,6 @@ public class OrderService {
     }
 
     public Map<String, Object> history(User user, String status, Long after, int limit) {
-        expireStale();
         Scope scope = scope(user);
         StringBuilder sql = new StringBuilder(ORDER_BASE + "WHERE " + scope.where() + " AND o.status IN (" + TERMINAL + ")");
         List<Object> args = new ArrayList<>(scope.args());
@@ -412,7 +410,6 @@ public class OrderService {
     // (ACTIVE_LIMIT/HISTORY_LIMIT). Mesmo formato de linha e mesmo escopo do `list`: fora do
     // escopo do papel responde 404, sem revelar que o pedido existe.
     public Map<String, Object> lookup(User user, long orderId) {
-        expireStale();
         Scope scope = scope(user);
         List<Object> args = new ArrayList<>(scope.args());
         args.add(orderId);
@@ -433,7 +430,6 @@ public class OrderService {
     }
 
     public Map<String, Object> detail(User user, long orderId) {
-        expireStale();
         List<Map<String, Object>> orders = jdbc.queryForList(
             "SELECT o.*, r.name AS restaurant_name FROM orders o JOIN restaurants r ON r.id = o.restaurant_id WHERE o.id = ?", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
@@ -562,7 +558,7 @@ public class OrderService {
 
     /**
      * Cada pedido vencido expira na sua PRÓPRIA transação (REQUIRES_NEW): a falha no estorno de um pedido
-     * desfaz só ele, e nada marca como rollback-only uma transação de quem chamou a leitura.
+     * desfaz só ele, e nada marca como rollback-only a transação da tarefa agendada.
      */
     static TransactionTemplate expiryTransaction(PlatformTransactionManager transactions) {
         TransactionTemplate template = new TransactionTemplate(transactions);
@@ -593,30 +589,39 @@ public class OrderService {
         }
     }
 
-    private void expireStale() {
-        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())", (rs, row) -> rs.getLong(1));
+    /**
+     * Expira os pedidos sem aceite: 15 minutos depois de criados, ou 15 minutos depois do horário marcado
+     * quando agendados. Roda na tarefa agendada (OrderExpiryRunner), não nas leituras — revisão de 08/10/2026:
+     * dentro das leituras, sem ninguém abrir o painel o pedido pago não expirava nem era estornado, e a leitura
+     * de um cliente varria todas as lojas e podia chamar o Mercado Pago.
+     */
+    public void expireStale() {
+        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE) " + DUE_SCHEDULE, (rs, row) -> rs.getLong(1));
         for (Long id : stale) {
             try {
                 expiryTx.executeWithoutResult(status -> expireOne(id));
             } catch (RuntimeException error) {
                 // Estorno falhou: a transação deste pedido foi desfeita, ele continua `placed` e a próxima
-                // leitura tenta de novo — a chave `refund-order-<id>` no provedor torna a repetição segura.
+                // rodada tenta de novo — a chave `refund-order-<id>` no provedor torna a repetição segura.
                 // Um pedido com problema não trava a expiração dos outros.
                 log.warn("Pedido #{} não expirou: estorno automático falhou ({})", id, error.getMessage());
             }
         }
     }
 
+    /** Agendado ganha os mesmos 15 minutos do pedido comum, contados do horário marcado. */
+    private static final String DUE_SCHEDULE = "AND (scheduled_at IS NULL OR scheduled_at <= (NOW() - INTERVAL 15 MINUTE))";
+
     private void expireOne(long id) {
         // Trava a linha do pedido e relê: entre a busca dos vencidos e aqui a loja pode ter aceitado. Como
         // `changeStatus` também trava a linha com FOR UPDATE, aceitar e expirar não se intercalam mais —
         // nunca fica pedido aceito com o pagamento estornado. O prazo é recalculado pelo relógio do banco,
         // o mesmo da busca acima.
-        // SKIP LOCKED: a expiração roda dentro das leituras (lista, histórico, detalhe) e quem segura a linha
-        // pode estar no meio da chamada ao Mercado Pago (cancelamento com estorno). Esperar a trava empilharia
-        // leituras no pool de 8 conexões; linha travada volta vazia e fica para a próxima leitura.
+        // SKIP LOCKED: quem segura a linha pode estar no meio da chamada ao Mercado Pago (cancelamento com
+        // estorno). Esperar a trava prenderia a tarefa e uma conexão do pool de 8; linha travada volta vazia e
+        // fica para a próxima rodada.
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT status, created_at, scheduled_at, (created_at < (NOW() - INTERVAL 15 MINUTE) AND (scheduled_at IS NULL OR scheduled_at <= NOW())) AS due FROM orders WHERE id = ? FOR UPDATE SKIP LOCKED", id);
+            "SELECT status, created_at, scheduled_at, (created_at < (NOW() - INTERVAL 15 MINUTE) " + DUE_SCHEDULE + ") AS due FROM orders WHERE id = ? FOR UPDATE SKIP LOCKED", id);
         if (rows.isEmpty()) return;
         Map<String, Object> order = rows.getFirst();
         if (!"placed".equals(order.get("status")) || !truthy(order.get("due"))) return;
