@@ -43,6 +43,8 @@ export function roleHome(role: Role) {
   if (role === 'customer') return '/loja';
   // A cozinha tem tela própria, em tela cheia (KDS), fora do painel.
   if (role === 'kitchen') return '/cozinha';
+  // O entregador tem área própria para o celular (área do entregador, parte A).
+  if (role === 'courier') return '/entregas';
   return '/painel';
 }
 function beep() {
