@@ -76,6 +76,8 @@ type CustomerValue = {
   setOrderType: (value: 'delivery' | 'take_away' | 'dine_in') => void;
   tip: string;
   setTip: (value: string) => void;
+  contactPhone: string;
+  setContactPhone: (value: string) => void;
   tables: { id: number; number: string; capacity: number }[];
   tableId: number | null;
   setTableId: (value: number | null) => void;
@@ -211,6 +213,9 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [scheduledFor, setScheduledFor] = useState('');
   const [orderType, setOrderType] = useState<'delivery' | 'take_away' | 'dine_in'>('delivery');
   const [tip, setTip] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  // Telefone de contato da entrega: sugere o do último pedido ou o do cadastro (área do entregador, parte A).
+  useEffect(() => { request<{ phone: string | null }>('/cart/contact-phone').then((data) => { if (data.phone) setContactPhone(data.phone); }).catch(() => {}); }, []);
   const [tables, setTables] = useState<{ id: number; number: string; capacity: number }[]>([]);
   const [tableId, setTableId] = useState<number | null>(null);
   const [partySize, setPartySize] = useState(2);
@@ -499,7 +504,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
         orderType,
         tipCents,
       };
-      if (orderType === 'delivery') body.addressId = selectedAddress?.id;
+      if (orderType === 'delivery') { body.addressId = selectedAddress?.id; body.contactPhone = contactPhone; }
       if (orderType === 'dine_in') { body.tableId = tableId; body.partySize = partySize; }
       const order = await request<{ id: number }>('/cart/checkout', { method: 'POST', body: JSON.stringify(body) });
       checkoutKey.current = '';
@@ -598,7 +603,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
     cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
     tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor,
-    orderType, setOrderType, tip, setTip, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
+    orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
     manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, submitReview, loadHistory,
     localMessage, showAddressForm, setShowAddressForm, addressForm, setAddressForm,
     postalZone, postalMessage, postalLoading, saveAddress, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode,
