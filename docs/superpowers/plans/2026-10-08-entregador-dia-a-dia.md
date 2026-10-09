@@ -1027,7 +1027,7 @@ export default function EntregasLayout({ children }: { children: React.ReactNode
 **Interfaces:**
 - Consome: `POST /courier/location` (Tarefa 3).
 - Produz: `LocationProvider` (contexto); `useLocationStatus(): 'sharing' | 'idle' | 'blocked' | 'unsupported'`;
-  `useLocationSharing(active: boolean): void` (liga o envio quando `active` é verdadeiro).
+  `useLocationSharing(activeDeliveryId: number | null): void` (liga o envio com a entrega da vez; religa a cada entrega nova).
 
 - [ ] **Passo 1: implementar**
 
@@ -1277,7 +1277,7 @@ export default function AgoraPage() {
   useEffect(() => { setAskNotifications(typeof Notification !== 'undefined' && Notification.permission === 'default'); }, []);
 
   const current = deliveries ? currentDelivery(deliveries) : null;
-  useLocationSharing(!!current);
+  useLocationSharing(current?.id ?? null);
 
   if (deliveries === null) return <p className="courier-empty">{'Carregando suas entregas…'}</p>;
   return <>
