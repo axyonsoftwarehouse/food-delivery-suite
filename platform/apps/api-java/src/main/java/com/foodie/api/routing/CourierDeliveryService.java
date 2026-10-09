@@ -1,6 +1,7 @@
 package com.foodie.api.routing;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.orders.DeliveryCode;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,7 +14,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class CourierDeliveryService {
-    private static final String ACTIVE = "SELECT o.id, o.status, o.created_at, o.distance_meters, o.delivery_address_text, o.contact_phone, o.total_cents, "
+    static final String ACTIVE_SQL = "SELECT o.id, o.status, o.created_at, o.distance_meters, o.delivery_address_text, o.contact_phone, o.total_cents, "
+        + "o.delivery_code IS NOT NULL AS requires_delivery_code, o.delivery_code_attempts, "
         + "c.name AS customer_name, a.complement, a.latitude AS customer_latitude, a.longitude AS customer_longitude, "
         + "r.name AS restaurant_name, r.address_text AS restaurant_address, r.latitude AS restaurant_latitude, r.longitude AS restaurant_longitude, "
         + "r.phone AS restaurant_phone, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, "
@@ -29,9 +31,15 @@ public class CourierDeliveryService {
     }
 
     public List<Map<String, Object>> active(long courierId) {
-        List<Map<String, Object>> rows = jdbc.queryForList(ACTIVE, courierId);
+        List<Map<String, Object>> rows = jdbc.queryForList(ACTIVE_SQL, courierId);
         return rows.stream().map(row -> {
             Map<String, Object> delivery = new LinkedHashMap<>(row);
+            boolean needsCode = row.get("requires_delivery_code") instanceof Boolean b ? b
+                : (row.get("requires_delivery_code") instanceof Number n && n.intValue() != 0);
+            int attempts = row.get("delivery_code_attempts") instanceof Number n ? n.intValue() : 0;
+            delivery.put("requires_delivery_code", needsCode);
+            delivery.put("code_attempts_left", DeliveryCode.attemptsLeft(attempts));
+            delivery.remove("delivery_code_attempts");
             delivery.put("items", jdbc.queryForList(
                 "SELECT name, variation_name, quantity FROM order_items WHERE order_id = ? ORDER BY id", ((Number) row.get("id")).longValue()));
             return delivery;

@@ -118,4 +118,45 @@ class OrderControllerTest {
             .andExpect(status().isForbidden());
         org.mockito.Mockito.verifyNoInteractions(orders);
     }
+
+    @Test
+    void deliveryCodeMustBeFourDigitsAndIsPassedToTheService() throws Exception {
+        when(auth.requireUser("session")).thenReturn(new User(9, "Moto", "moto@demo.local", "courier", null));
+        mvc.perform(patch("/orders/40/status").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"action\":\"deliver\",\"deliveryCode\":\"12a4\"}"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(patch("/orders/40/status").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"action\":\"deliver\",\"deliveryCode\":\"1234\"}"))
+            .andExpect(status().isOk());
+        org.mockito.Mockito.verify(orders).changeStatus(any(User.class), eq(40L), eq("deliver"), eq(null), eq(null), eq("1234"), eq(null));
+    }
+
+    @Test
+    void failureNoteBecomesTheReasonWhenAStandardReasonIsGiven() throws Exception {
+        when(auth.requireUser("session")).thenReturn(new User(9, "Moto", "moto@demo.local", "courier", null));
+        mvc.perform(patch("/orders/40/status").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"action\":\"fail\",\"failureReason\":\"other\",\"note\":\"portão\"}"))
+            .andExpect(status().isOk());
+        org.mockito.Mockito.verify(orders).changeStatus(any(User.class), eq(40L), eq("fail"), eq(null), eq("portão"), eq(null), eq("other"));
+    }
+
+    @Test
+    void blankFailureReasonKeepsTheFreeTextReason() throws Exception {
+        when(auth.requireUser("session")).thenReturn(new User(9, "Moto", "moto@demo.local", "courier", null));
+        mvc.perform(patch("/orders/40/status").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"action\":\"fail\",\"failureReason\":\"\",\"reason\":\"cliente ausente\"}"))
+            .andExpect(status().isOk());
+        org.mockito.Mockito.verify(orders).changeStatus(any(User.class), eq(40L), eq("fail"), eq(null), eq("cliente ausente"), eq(null), eq(""));
+    }
+
+    @Test
+    void customerReadsTheDeliveryCode() throws Exception {
+        User customer = new User(8, "Ana", "ana@demo.local", "customer", null);
+        when(auth.requireUser("session")).thenReturn(customer);
+        when(orders.deliveryCodeFor(customer, 40)).thenReturn(Map.of("code", "0427"));
+
+        mvc.perform(get("/orders/40/delivery-code").cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code").value("0427"));
+    }
 }

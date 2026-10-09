@@ -68,6 +68,12 @@ public class OrderController {
         return orders.detail(viewer(token), id);
     }
 
+    @GetMapping("/orders/{id}/delivery-code")
+    public Map<String, Object> deliveryCode(@CookieValue(value = "foodie_session", required = false) String token,
+                                            @PathVariable @Positive long id) {
+        return orders.deliveryCodeFor(auth.requireUser(token), id);
+    }
+
     @PatchMapping("/orders/{id}/status")
     public Map<String, Object> changeStatus(@CookieValue(value = "foodie_session", required = false) String token,
                                             @PathVariable @Positive long id,
@@ -75,7 +81,8 @@ public class OrderController {
         User user = auth.requireUser(token);
         adminPermissions.requireIfAdmin(user, AdminPermissions.ORDERS_MANAGE);
         requireKitchenAction(user, request.action());
-        return orders.changeStatus(user, id, request.action(), request.courierId(), request.reason());
+        String reason = request.failureReason() != null && !request.failureReason().isBlank() ? request.note() : request.reason();
+        return orders.changeStatus(user, id, request.action(), request.courierId(), reason, request.deliveryCode(), request.failureReason());
     }
 
     private User viewer(String token) {
@@ -121,5 +128,11 @@ public class OrderController {
                                @Min(0) @Max(100_000) Integer tipCents,
                                @Size(max = 30) String contactPhone) {}
     public record Item(@Positive long productId, @Positive Long variationId, @Positive @Max(20) int quantity, @Size(max = 20) List<@Positive Long> addonIds) {}
-    public record StatusRequest(@NotBlank String action, @Positive Long courierId, @Size(max = 255) String reason) {}
+    public record StatusRequest(@NotBlank String action, @Positive Long courierId, @Size(max = 255) String reason,
+                                @Pattern(regexp = "\\d{4}") String deliveryCode, @Size(max = 30) String failureReason,
+                                @Size(max = 200) String note) {
+        public StatusRequest(String action, Long courierId, String reason) {
+            this(action, courierId, reason, null, null, null);
+        }
+    }
 }

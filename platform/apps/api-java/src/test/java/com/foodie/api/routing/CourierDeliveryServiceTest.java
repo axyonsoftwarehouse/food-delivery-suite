@@ -61,4 +61,32 @@ class CourierDeliveryServiceTest {
         when(jdbc.queryForObject(contains("status IN ('assigned','picked_up')"), eq(Integer.class), eq(9L))).thenReturn(0);
         assertThat(service.hasActiveDelivery(9)).isFalse();
     }
+
+    @Test
+    void activeTellsIfTheCodeIsNeededWithoutRevealingIt() {
+        assertThat(CourierDeliveryService.ACTIVE_SQL).contains("o.delivery_code IS NOT NULL AS requires_delivery_code");
+        // Tira o indicador; o que sobrar nao pode selecionar a coluna crua (o.delivery_code), so o contador de tentativas.
+        assertThat(CourierDeliveryService.ACTIVE_SQL.replace("o.delivery_code IS NOT NULL AS requires_delivery_code", ""))
+            .doesNotContainPattern("o\\.delivery_code(?!_attempts)");
+
+        Map<String, Object> row = new HashMap<>(Map.of("id", 40L, "status", "picked_up"));
+        row.put("requires_delivery_code", 1L); row.put("delivery_code_attempts", 2);
+        when(jdbc.queryForList(contains("o.courier_id = ?"), eq(9L))).thenReturn(List.of(row));
+        when(jdbc.queryForList(contains("FROM order_items"), eq(40L))).thenReturn(List.of());
+
+        Map<String, Object> delivery = service.active(9).getFirst();
+
+        assertThat(delivery).containsEntry("requires_delivery_code", true).containsEntry("code_attempts_left", 3)
+            .doesNotContainKey("delivery_code_attempts");
+    }
+
+    @Test
+    void activeAcceptsABooleanCodeFlag() {
+        Map<String, Object> row = new HashMap<>(Map.of("id", 41L, "status", "picked_up"));
+        row.put("requires_delivery_code", Boolean.TRUE); row.put("delivery_code_attempts", 0);
+        when(jdbc.queryForList(contains("o.courier_id = ?"), eq(9L))).thenReturn(List.of(row));
+        when(jdbc.queryForList(contains("FROM order_items"), eq(41L))).thenReturn(List.of());
+
+        assertThat(service.active(9).getFirst()).containsEntry("requires_delivery_code", true);
+    }
 }

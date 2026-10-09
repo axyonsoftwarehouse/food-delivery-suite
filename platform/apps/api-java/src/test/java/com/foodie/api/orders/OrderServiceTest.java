@@ -84,6 +84,89 @@ class OrderServiceTest {
             .thenReturn(List.of(row));
     }
 
+    private void storedDeliveryOrder(long id, String status, String code, int attempts) {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("id", id); row.put("customer_id", 8L); row.put("restaurant_id", 3L); row.put("courier_id", 9L); row.put("status", status);
+        row.put("order_type", "delivery"); row.put("coupon_code", null); row.put("delivery_code", code); row.put("delivery_code_attempts", attempts);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT id, customer_id, restaurant_id, courier_id, status, order_type"), any(Object[].class)))
+            .thenReturn(List.of(row));
+        when(payments.status(id)).thenReturn("paid");
+    }
+
+    @Test
+    void deliveryWithoutCodeWorksAsBefore() {
+        storedDeliveryOrder(40, "picked_up", null, 0);
+        assertThat(orders.changeStatus(COURIER, 40, "deliver", null, null, "9999", null)).containsEntry("status", "delivered");
+        verify(jdbc).update(org.mockito.ArgumentMatchers.startsWith("INSERT INTO order_events"), eq(40L), eq(9L), eq("picked_up"), eq("delivered"), eq("Entrega sem código"));
+    }
+
+    @Test
+    void rightCodeDelivers() {
+        storedDeliveryOrder(40, "picked_up", "0427", 2);
+        assertThat(orders.changeStatus(COURIER, 40, "deliver", null, null, "0427", null)).containsEntry("status", "delivered");
+        verify(jdbc).update(org.mockito.ArgumentMatchers.startsWith("INSERT INTO order_events"), eq(40L), eq(9L), eq("picked_up"), eq("delivered"), eq("Entrega confirmada por código"));
+    }
+
+    @Test
+    void wrongOrMissingCodeCountsTheAttemptAndRefuses() {
+        storedDeliveryOrder(40, "picked_up", "0427", 1);
+        assertThatThrownBy(() -> orders.changeStatus(COURIER, 40, "deliver", null, null, "1111", null))
+            .isInstanceOf(DeliveryCodeException.class).hasMessage("Código incorreto. Restam 3 tentativas.");
+        verify(jdbc).update("UPDATE orders SET delivery_code_attempts = delivery_code_attempts + 1 WHERE id = ?", 40L);
+        verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.startsWith("UPDATE orders SET status"), any(Object[].class));
+
+        assertThatThrownBy(() -> orders.changeStatus(COURIER, 40, "deliver", null, null, null, null))
+            .isInstanceOf(DeliveryCodeException.class);
+    }
+
+    @Test
+    void lastWrongAttemptSaysTheCodeIsBlocked() {
+        storedDeliveryOrder(40, "picked_up", "0427", 4);
+        assertThatThrownBy(() -> orders.changeStatus(COURIER, 40, "deliver", null, null, "1111", null))
+            .isInstanceOf(DeliveryCodeException.class).hasMessageContaining("bloqueada");
+    }
+
+    @Test
+    void afterFiveErrorsEvenTheRightCodeIsRefused() {
+        storedDeliveryOrder(40, "picked_up", "0427", 5);
+        assertThatThrownBy(() -> orders.changeStatus(COURIER, 40, "deliver", null, null, "0427", null))
+            .isInstanceOf(DeliveryCodeException.class).hasMessageContaining("bloqueada");
+        verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.startsWith("UPDATE orders SET status"), any(Object[].class));
+    }
+
+    @Test
+    void wrongCodeKeepsItsAttemptBecauseTheTransactionDoesNotRollBackForIt() throws Exception {
+        for (var method : java.util.Arrays.stream(OrderService.class.getMethods())
+                .filter(m -> m.getName().equals("changeStatus")).toList()) {
+            var tx = method.getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+            assertThat(tx.noRollbackFor()).contains(DeliveryCodeException.class);
+        }
+    }
+
+    @Test
+    void failureStoresTheStandardReason() {
+        storedDeliveryOrder(40, "picked_up", null, 0);
+        orders.changeStatus(COURIER, 40, "fail", null, null, null, "customer_absent");
+        verify(jdbc).update("UPDATE orders SET failure_reason = ? WHERE id = ?", "customer_absent", 40L);
+        verify(jdbc).update(org.mockito.ArgumentMatchers.startsWith("INSERT INTO order_events"), eq(40L), eq(9L), eq("picked_up"), eq("failed"), eq("Cliente ausente"));
+    }
+
+    @Test
+    void failureOtherNeedsTheNoteAndAnUnknownReasonIsRefused() {
+        storedDeliveryOrder(40, "picked_up", null, 0);
+        assertThatThrownBy(() -> orders.changeStatus(COURIER, 40, "fail", null, " ", null, "other"))
+            .isInstanceOf(ApiException.class).hasMessage("Descreva o motivo da falha");
+        assertThatThrownBy(() -> orders.changeStatus(COURIER, 40, "fail", null, "x", null, "sumiu"))
+            .isInstanceOf(ApiException.class).hasMessage("Motivo da falha inválido");
+    }
+
+    @Test
+    void failureWithOnlyTheOldFreeTextIsTreatedAsOther() {
+        storedDeliveryOrder(40, "picked_up", null, 0);
+        orders.changeStatus(COURIER, 40, "fail", null, "cliente ausente", null, null);
+        verify(jdbc).update("UPDATE orders SET failure_reason = ? WHERE id = ?", "other", 40L);
+    }
+
     @Test
     void customerCancellingAPaidOnlineOrderIsRefundedAsTheLastStep() {
         // Adendo 06/10/2026: cancelar só cancelava pagamento pendente; o pago ficava retido. O estorno no
@@ -484,5 +567,59 @@ class OrderServiceTest {
         assertThat(OrderService.contactPhoneFor(true, null)).isNull(); // pedido recorrente sem contato anterior
         assertThat(OrderService.contactPhoneFor(false, "85999990000")).isNull(); // retirada, local e PDV
         assertThat(OrderService.ORDER_INSERT).contains("tip_cents, contact_phone)").endsWith("?, ?)");
+    }
+
+    @Test
+    void listColumnsNeverCarryTheRawCode() {
+        // ORDER_BASE alimenta lista/busca de loja, entregador, admin e cliente: só o indicador pode sair.
+        assertThat(OrderService.ORDER_BASE_SQL).contains("o.delivery_code IS NOT NULL AS has_delivery_code");
+        assertThat(OrderService.ORDER_BASE_SQL.replace("o.delivery_code IS NOT NULL AS has_delivery_code", "")).doesNotContain("delivery_code");
+    }
+
+    @Test
+    void detailNeverCarriesTheCodeOrTheAttempts() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("id", 40L); row.put("customer_id", 8L); row.put("restaurant_id", 3L); row.put("courier_id", 9L);
+        row.put("status", "picked_up"); row.put("delivery_code", "0427"); row.put("delivery_code_attempts", 2);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT o.*"), any(Object[].class))).thenReturn(List.of(row));
+        when(payments.detail(40)).thenReturn(Map.of());
+
+        for (User viewer : List.of(CUSTOMER, RESTAURANT, COURIER, ADMIN)) {
+            Map<String, Object> detail = orders.detail(viewer, 40);
+            assertThat(detail).doesNotContainKeys("delivery_code", "delivery_code_attempts").containsEntry("has_delivery_code", true);
+        }
+    }
+
+    @Test
+    void deliveryOrderOfAStoreThatRequiresTheCodeGetsOne() {
+        assertThat(OrderService.wantsDeliveryCode(true, Map.of("require_delivery_code", true))).isTrue();
+        assertThat(OrderService.wantsDeliveryCode(true, Map.of("require_delivery_code", 1L))).isTrue();
+        assertThat(OrderService.wantsDeliveryCode(true, Map.of("require_delivery_code", false))).isFalse();
+        assertThat(OrderService.wantsDeliveryCode(true, Map.of())).isFalse();
+        assertThat(OrderService.wantsDeliveryCode(false, Map.of("require_delivery_code", true))).isFalse();
+    }
+
+    @Test
+    void customerReadsTheCodeOfAnActiveOrderOfHis() {
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT status, delivery_code"), eq(40L), eq(8L)))
+            .thenReturn(List.of(Map.of("status", "picked_up", "delivery_code", "0427")));
+        assertThat(orders.deliveryCodeFor(CUSTOMER, 40)).containsEntry("code", "0427");
+    }
+
+    @Test
+    void nobodyElseAndNothingFinishedGetsTheCode() {
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT status, delivery_code"), eq(40L), eq(8L)))
+            .thenReturn(List.of(Map.of("status", "delivered", "delivery_code", "0427")));
+        assertThatThrownBy(() -> orders.deliveryCodeFor(CUSTOMER, 40)).isInstanceOf(ApiException.class).hasMessage("Pedido não encontrado");
+        for (User other : List.of(RESTAURANT, COURIER, ADMIN)) {
+            assertThatThrownBy(() -> orders.deliveryCodeFor(other, 40)).isInstanceOf(ApiException.class).hasMessage("Acesso não autorizado");
+        }
+    }
+
+    @Test
+    void orderWithoutCodeHasNothingToShow() {
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT status, delivery_code"), eq(40L), eq(8L)))
+            .thenReturn(List.of());
+        assertThatThrownBy(() -> orders.deliveryCodeFor(CUSTOMER, 40)).isInstanceOf(ApiException.class).hasMessage("Pedido não encontrado");
     }
 }

@@ -8,7 +8,16 @@ export type Delivery = {
   restaurant_name: string; restaurant_address: string | null; restaurant_latitude: number | null; restaurant_longitude: number | null;
   restaurant_phone: string | null; payment_method: string | null; payment_modality: string | null; payment_status: string | null;
   amount_due_cents: number | null; change_for_cents: number | null; items: DeliveryItem[];
+  requires_delivery_code: boolean; code_attempts_left: number;
 };
+export const FAILURE_REASONS = [
+  { code: 'customer_absent', label: 'Cliente ausente' },
+  { code: 'address_not_found', label: 'Endereço não encontrado' },
+  { code: 'customer_refused', label: 'Cliente recusou o pedido' },
+  { code: 'no_answer', label: 'Não atende o telefone' },
+  { code: 'other', label: 'Outro' },
+] as const;
+export type FailureCode = (typeof FAILURE_REASONS)[number]['code'];
 export type HistoryEntry = { id: number; status: string; created_at: string; restaurant_name: string; delivery_address_text: string; delivery_fee_cents: number; tip_cents: number };
 
 /** A da vez: a que já está em rota; senão, a mais antiga atribuída (a API já ordena assim). */

@@ -19,6 +19,10 @@
 .orders-steps::after { right: auto; width: calc(75% * var(--progress)); background: linear-gradient(90deg, var(--brand-500), #8fe0ad); transform-origin: left; animation: m-progress 1.1s var(--ease-out) 0.3s both; }
 .orders-steps li { position: relative; z-index: 1; display: grid; justify-items: center; gap: 8px; color: var(--text-faint); font-size: var(--text-sm); font-weight: var(--weight-bold); text-align: center; }
 .orders-steps li > span { display: grid; place-items: center; width: 42px; height: 42px; border: 3px solid var(--surface); border-radius: 50%; background: var(--surface-muted); color: var(--text-faint); transition: background 0.3s ease, color 0.3s ease; }
+.orders-code { display: grid; justify-items: center; gap: 4px; margin: 14px 0 0; padding: 14px; border-radius: 18px; background: var(--brand-050); text-align: center; }
+.orders-code small { color: var(--text-muted); font-weight: var(--weight-bold); }
+.orders-code strong { padding-left: 0.4em; color: var(--brand-700); font: 800 34px var(--font-display); letter-spacing: 0.4em; }
+.orders-code span { color: var(--text-muted); font-size: var(--text-sm); }
 .orders-steps li.is-done { color: var(--text-muted); }
 .orders-steps li.is-done > span { background: var(--brand-500); color: #fff; }
 .orders-steps li.is-current { color: var(--brand-700); }

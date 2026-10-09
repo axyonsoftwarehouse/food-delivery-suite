@@ -40,6 +40,16 @@
 .courier-stats strong { display: block; font: 800 22px var(--font-display); color: var(--text); }
 .courier-banner { padding: 10px 14px; border-radius: var(--radius-lg); background: var(--brand-050); color: var(--brand-600); font-weight: var(--weight-semibold); }
 .courier-banner.is-warning { background: var(--warning-050, #fff7e6); color: var(--text); }
+.courier-code { display: grid; gap: 8px; }
+.courier-code label { font-weight: var(--weight-bold); }
+.courier-code input { width: 100%; min-height: 64px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--text); font: 800 1.75rem var(--font-display); letter-spacing: 0.4em; text-align: center; }
+.courier-code small { color: var(--text-muted); text-align: center; }
+.courier-fail { display: grid; gap: 8px; }
+.courier-fail fieldset { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; }
+.courier-fail legend { margin-bottom: 6px; padding: 0; font-weight: var(--weight-bold); }
+.courier-fail fieldset label { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--border); }
+.courier-fail textarea { width: 100%; min-height: 80px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--text); font: inherit; }
+.courier-back { width: 100%; min-height: 48px; border-radius: var(--radius-xl); background: transparent; color: var(--text-muted); font-weight: var(--weight-bold); }
 .courier-actions-muted { display: grid; place-items: center; padding: 12px 6px; border-radius: var(--radius-lg); background: var(--bg); color: var(--text-faint); font-size: var(--text-sm); }
 
 .courier-row-links { display: flex; gap: 14px; }

@@ -6,6 +6,7 @@ import OrderDetails from '../../OrderDetails';
 import { Order, money, useApp } from '../../app-context';
 import { useCustomer } from '../customer-context';
 import ReviewForm from '../ReviewForm';
+import DeliveryCodeCard from '../delivery-code-card';
 import { Icon, type IconName } from '../../icons';
 
 const statusLabels: Record<string, string> = {
@@ -51,6 +52,7 @@ function ActiveOrder({ order, index, expandedOrderId, setExpandedOrderId, cancel
     <ol className="orders-steps" style={{ '--progress': step / (STEPS.length - 1) } as React.CSSProperties}>
       {STEPS.map((item, position) => <li key={item.label} className={position < step ? 'is-done' : position === step ? 'is-current' : ''}><span><Icon name={item.icon} size={16} /></span>{item.label}</li>)}
     </ol>
+    {order.has_delivery_code ? <DeliveryCodeCard orderId={order.id} /> : null}
     <div className="orders-actions">
       <DetailsToggle order={order} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} />
       {order.status === 'placed' && <button className="orders-cancel" onClick={() => cancelOrder(order.id)} disabled={busy}>{'Cancelar pedido'}</button>}

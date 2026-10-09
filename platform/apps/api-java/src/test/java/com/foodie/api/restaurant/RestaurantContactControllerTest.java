@@ -54,4 +54,23 @@ class RestaurantContactControllerTest {
         mvc.perform(put("/restaurant/contact").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"8532221100\"}"))
             .andExpect(status().isForbidden());
     }
+
+    @Test
+    void storeTurnsTheDeliveryCodeOnAndOff() throws Exception {
+        when(auth.requireUser("s", "restaurant", "kitchen")).thenReturn(OWNER);
+        mvc.perform(put("/restaurant/contact/delivery-code").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"required\":true}"))
+            .andExpect(status().isOk());
+        verify(permissions).require(OWNER, Permissions.SETTINGS_MANAGE);
+        verify(jdbc).update("UPDATE restaurants SET require_delivery_code = ? WHERE id = ?", true, 3L);
+    }
+
+    @Test
+    void deliveryCodeSwitchNeedsAnExplicitValueAndThePermission() throws Exception {
+        when(auth.requireUser("s", "restaurant", "kitchen")).thenReturn(OWNER);
+        mvc.perform(put("/restaurant/contact/delivery-code").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(status().isBadRequest());
+        doThrow(new ApiException(403, "Acesso não autorizado")).when(permissions).require(eq(OWNER), eq(Permissions.SETTINGS_MANAGE));
+        mvc.perform(put("/restaurant/contact/delivery-code").cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{\"required\":true}"))
+            .andExpect(status().isForbidden());
+    }
 }
