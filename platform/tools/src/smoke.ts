@@ -95,10 +95,17 @@ assert.equal(storeCourier.approved, true, 'entregador cadastrado pela loja já s
 assert.ok((await request<{ id: number }[]>('/restaurant/couriers', restaurantSession)).some((item) => item.id === storeCourier.id));
 await request(`/orders/${order.id}/status`, restaurantSession, 'PATCH', { action: 'assign', courierId: storeCourier.id });
 const storeCourierSession = await login(courierEmail);
+const active = await request<{ id: number; contact_phone: string | null }[]>('/courier/deliveries/active', storeCourierSession);
+assert.equal(active.find((item) => item.id === order.id)?.contact_phone, '85999990000', 'telefone de contato durante a entrega');
+await request('/courier/location', storeCourierSession, 'POST', { latitude: -3.73, longitude: -38.52 });
 await request(`/orders/${order.id}/status`, storeCourierSession, 'PATCH', { action: 'pickup' });
 await request(`/orders/${order.id}/status`, storeCourierSession, 'PATCH', { action: 'deliver' }, 409);
 await request(`/orders/${order.id}/payment`, storeCourierSession, 'PATCH', { amountReceivedCents: order.totalCents });
 await request(`/orders/${order.id}/status`, storeCourierSession, 'PATCH', { action: 'deliver' });
+assert.ok(!(await request<{ id: number }[]>('/courier/deliveries/active', storeCourierSession)).some((item) => item.id === order.id));
+const history = await request<Record<string, unknown>[]>('/courier/deliveries/history?period=today', storeCourierSession);
+assert.ok(history.some((item) => item.id === order.id) && history.every((item) => !('contact_phone' in item)), 'histórico sem telefone');
+await request('/courier/location', storeCourierSession, 'POST', { latitude: -3.73, longitude: -38.52 }, 409);
 const detail = await request<{ status: string; history: { to_status: string }[]; payment: { status: string; method: string } }>(`/orders/${order.id}`, customer);
 assert.equal(detail.status, 'delivered');
 assert.equal(detail.payment.status, 'paid');

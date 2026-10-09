@@ -1,5 +1,6 @@
 package com.foodie.api.routing;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -8,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -21,6 +23,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -41,6 +44,9 @@ class TrackingControllerTest {
 
     @MockitoBean
     private AdminPermissionService adminPermissions;
+
+    @MockitoBean
+    private CourierDeliveryService deliveries;
 
     private void order(String status) {
         when(auth.requireUser("s")).thenReturn(new User(8, "Ana", "ana@demo.local", "customer", null));
@@ -66,5 +72,29 @@ class TrackingControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.courierLocation").doesNotExist());
         verify(jdbc, never()).queryForList(contains("FROM courier_locations"), anyLong());
+    }
+
+    private static final User COURIER = new User(9, "Bia", "bia@demo.local", "courier", 3L);
+    private static final String LOCATION = "{\"latitude\":-3.73,\"longitude\":-38.52}";
+
+    @Test
+    void locationIsAcceptedDuringADelivery() throws Exception {
+        when(auth.requireUser("s", "courier")).thenReturn(COURIER);
+        when(deliveries.hasActiveDelivery(9)).thenReturn(true);
+        mvc.perform(post("/courier/location").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON).content(LOCATION))
+            .andExpect(status().isOk());
+        verify(jdbc).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void locationWithoutDeliveryIsRefused() throws Exception {
+        // Decisão de 08/10/2026: localização só durante a entrega — a regra vale no servidor, não só na tela.
+        when(auth.requireUser("s", "courier")).thenReturn(COURIER);
+        when(deliveries.hasActiveDelivery(9)).thenReturn(false);
+        mvc.perform(post("/courier/location").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON).content(LOCATION))
+            .andExpect(status().isConflict());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
     }
 }
