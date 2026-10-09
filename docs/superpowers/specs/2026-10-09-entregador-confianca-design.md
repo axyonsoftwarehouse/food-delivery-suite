@@ -25,8 +25,8 @@ Origem: roteiro da área do entregador (parte A em `2026-10-08-entregador-dia-a-
 
 ## Código de confirmação
 
-- **Loja:** `restaurants.require_delivery_code` (booleano, padrão `false`), editado em Configurações → Loja,
-  pela mesma permissão que edita o telefone da loja. Texto da opção: "Exigir código de confirmação na
+- **Loja:** `restaurants.require_delivery_code` (booleano, padrão `false`), editado em Configurações → Loja
+  pelo endpoint `PUT /restaurant/contact/delivery-code`, com a mesma permissão que edita o telefone da loja. Texto da opção: "Exigir código de confirmação na
   entrega", com uma linha explicando que o cliente informa 4 dígitos ao entregador.
 - **Pedido:** `orders.delivery_code` (4 dígitos, `NULL` quando não se aplica) e `orders.delivery_code_attempts`
   (padrão 0). Gerado só em pedido do tipo **entrega**, com o interruptor ligado, por gerador seguro
@@ -39,8 +39,8 @@ Origem: roteiro da área do entregador (parte A em `2026-10-08-entregador-dia-a-
   - Pedido **sem** código: igual a hoje; um `deliveryCode` enviado é ignorado.
   - Pedido **com** código: obrigatório; comparação em tempo constante.
   - **Errado ou ausente:** 409 "Código incorreto" e a tentativa é contada (`delivery_code_attempts + 1`),
-    A contagem é gravada em **transação própria** (`REQUIRES_NEW`) ou por `UPDATE` atômico antes de lançar o
-    409; senão o rollback da exceção desfaria a tentativa e o limite nunca seria atingido.
+    A contagem é gravada pelo `UPDATE` feito antes de lançar `DeliveryCodeException`, que a transação **não desfaz**
+    (`noRollbackFor`); `REQUIRES_NEW` esperaria a trava do pedido.
   - **Depois de 5 erros** a confirmação por código trava: 409 orientando a registrar a falha com motivo. O
     código certo não destrava depois do limite.
 - **Auditoria:** o evento de entrega guarda como foi fechada — "confirmada por código" ou "sem código" — em
@@ -56,6 +56,7 @@ Origem: roteiro da área do entregador (parte A em `2026-10-08-entregador-dia-a-
   "Cliente recusou o pedido", `no_answer` "Não atende o telefone", `other` "Outro".
 - `fail` passa a aceitar `failureReason` (um dos códigos acima) e `note`. `other` exige `note` (texto não
   vazio); nos demais a observação é opcional. Motivo fora da lista: 400.
+- `fail` sem `failureReason` é aceito como `other` com o texto de `reason` (compatibilidade com o painel antigo).
 - Fica em `orders.failure_reason` (coluna própria, para a loja poder contar por motivo depois) e o texto
   legível continua em `order_events.reason`.
 - O comportamento posterior não muda: pedido `failed`, reembolso decidido pela loja.
