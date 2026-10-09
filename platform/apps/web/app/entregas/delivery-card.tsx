@@ -17,14 +17,17 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
   const primaryPhone = phoneLinks(pickup ? delivery.restaurant_phone : delivery.contact_phone);
   const otherPhone = phoneLinks(pickup ? delivery.contact_phone : delivery.restaurant_phone);
   const collect = amountToCollect(delivery);
+  const methodLabel = delivery.payment_method === 'cash' ? 'em dinheiro' : delivery.payment_method === 'pix' ? 'no Pix' : delivery.payment_method === 'card' ? 'no cartão' : 'na entrega';
 
   // `finished`: a entrega deixa a fila (entregue ou falha); a página precisa saber para não avisar que ela "saiu".
   async function act(run: () => Promise<unknown>, ok: string, finished = false) {
     if (acting) return;
     setActing(true);
-    try { await run(); setMessage(ok); }
+    // Só uma ação aceita pelo servidor tira a entrega da fila conhecida; se falhou, ela continua ativa e não é "nova".
+    let done = false;
+    try { await run(); done = true; setMessage(ok); }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível concluir.'); }
-    finally { await onChanged(finished ? delivery.id : undefined); setActing(false); }
+    finally { await onChanged(finished && done ? delivery.id : undefined); setActing(false); }
   }
 
   const status = (action: string, reason?: string) => api(`/orders/${delivery.id}/status`, { method: 'PATCH', body: JSON.stringify(reason ? { action, reason } : { action }) });
@@ -41,7 +44,7 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
         if (!/^\d+(\.\d{1,2})?$/.test(normalized) || Number(normalized) <= 0) { setMessage('Valor inválido.'); return; }
         received = Math.round(Number(normalized) * 100);
         if (received < collect) { setMessage('Valor recebido menor que o total do pedido.'); return; }
-      } else if (!window.confirm(`Confirma que recebeu ${money(collect)} ${delivery.payment_method === 'pix' ? 'no Pix' : 'no cartão'}?`)) return;
+      } else if (!window.confirm(`Confirma que recebeu ${money(collect)} ${methodLabel}?`)) return;
       void act(async () => {
         await api(`/orders/${delivery.id}/payment`, { method: 'PATCH', body: JSON.stringify({ amountReceivedCents: received }) });
         await status('deliver');
@@ -70,9 +73,9 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
     </div>
     {primaryPhone && <a className="courier-banner" href={primaryPhone.whatsapp} target="_blank" rel="noreferrer">{pickup ? 'WhatsApp da loja' : 'WhatsApp do cliente'}</a>}
     {otherPhone && <div className="courier-row"><span>{pickup ? `Cliente (${delivery.customer_name ?? 'sem nome'})` : `Loja (${delivery.restaurant_name})`}</span><span className="courier-row-links"><a href={otherPhone.tel}><Icon name="phone" />{'Ligar'}</a><a href={otherPhone.whatsapp} target="_blank" rel="noreferrer">{'WhatsApp'}</a></span></div>}
-        <div className={`courier-pay${collect > 0 ? '' : ' is-paid'}`}>
+    <div className={`courier-pay${collect > 0 ? '' : ' is-paid'}`}>
       {collect > 0
-        ? `Receber ${money(collect)} ${delivery.payment_method === 'cash' ? 'em dinheiro' : delivery.payment_method === 'pix' ? 'no Pix' : 'no cartão'}${delivery.change_for_cents ? ` · troco para ${money(delivery.change_for_cents)}` : ''}`
+        ? `Receber ${money(collect)} ${methodLabel}${delivery.change_for_cents ? ` · troco para ${money(delivery.change_for_cents)}` : ''}`
         : delivery.payment_modality === 'online' ? 'Já pago online' : 'Já pago — não cobre nada na entrega'}
     </div>
     <details><summary>{`${delivery.items.length} ${delivery.items.length === 1 ? 'item' : 'itens'}`}</summary>

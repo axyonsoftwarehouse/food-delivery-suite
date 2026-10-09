@@ -32,6 +32,8 @@ export default function AgoraPage() {
   const [deliveries, setDeliveries] = useState<Delivery[] | null>(null);
   const [day, setDay] = useState<{ count: number; cents: number }>({ count: 0, cents: 0 });
   const [offline, setOffline] = useState(false);
+  // Só a resposta da última chamada de load() é aplicada (timer, volta à aba e ação podem se sobrepor).
+  const requestId = useRef(0);
   const known = useRef<Set<number> | null>(null);
   // Permissão de notificação: a faixa some assim que deixa de ser "default" (conferida a cada carga e ao voltar à aba).
   const [askNotifications, setAskNotifications] = useState(false);
@@ -39,8 +41,10 @@ export default function AgoraPage() {
 
   const load = useCallback(async () => {
     checkNotifications();
+    const mine = ++requestId.current;
     try {
       const list = await api<Delivery[]>('/courier/deliveries/active');
+      if (mine !== requestId.current) return;
       const ids = new Set(list.map((item) => item.id));
       if (known.current) {
         const arrived = list.find((item) => !known.current!.has(item.id));
@@ -51,7 +55,7 @@ export default function AgoraPage() {
       known.current = ids;
       setDeliveries(list);
       setOffline(false);
-    } catch { setOffline(true); }
+    } catch { if (mine === requestId.current) setOffline(true); }
   }, [setMessage, checkNotifications]);
 
   const idsKey = deliveries ? deliveries.map((item) => item.id).join(',') : null;
