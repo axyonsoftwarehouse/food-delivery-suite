@@ -77,7 +77,7 @@ com o caminho para liberar; **Instalar na tela inicial**.
   - Pedido recorrente: copia o `contact_phone` do último pedido de entrega do cliente (pode ficar nulo).
   - Retirada, consumo no local e PDV: não pedem.
 - **`restaurants.phone`** (`VARCHAR(20)`, nulo): telefone da loja, editado pela própria loja em
-  **Minha página**, com a mesma validação. Sem ele, o botão "Ligar para a loja" não aparece.
+  **Configurações → Loja** (fora do módulo "Minha página", para existir mesmo com ele desligado), com a mesma validação. Sem ele, o botão "Ligar para a loja" não aparece.
 
 ## API
 
@@ -96,7 +96,7 @@ com o caminho para liberar; **Instalar na tela inicial**.
 - Resumo do dia e ganhos: `/me/earnings` e `/me/earnings/ledger` com filtro de data.
 - **Localização:** `POST /courier/location` passa a aceitar só quando o entregador tem entrega ativa; fora
   disso, **409**.
-- Telefone da loja: na rota da loja que edita **Minha página** (`StorefrontController`).
+- Telefone da loja: `GET/PUT /restaurant/contact` (`settings.manage`).
 - Checkout: `POST /cart/checkout` ganha `contactPhone`.
 
 **Links de rota** (montados na tela, sem API):

@@ -23,6 +23,7 @@ const CONFIG_CHILDREN: Record<'admin' | 'restaurant', SubItem[]> = {
   ],
   restaurant: [
     { href: '/painel/configuracoes/conta', label: 'Conta' },
+    { href: '/painel/configuracoes/loja', label: 'Loja', permission: 'settings.manage' },
     { href: '/painel/configuracoes/pagamentos', label: 'Pagamentos', permission: 'payments.manage' },
   ],
 };
