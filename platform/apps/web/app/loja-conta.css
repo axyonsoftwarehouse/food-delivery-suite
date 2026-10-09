@@ -60,6 +60,11 @@
 .customer-app .review-stars button.on { color: #ffb020; animation: m-pop 0.35s var(--ease-spring); }
 .customer-app .review-row input { flex: 1; min-width: 160px; height: 38px; padding: 0 14px; border-radius: var(--radius-pill); animation: m-fade-up 0.3s var(--ease-out); }
 .customer-app .review-row .ui-btn { border-radius: var(--radius-pill); animation: m-fade-up 0.3s var(--ease-out); }
+.customer-app .courier-review { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.customer-app .courier-review-thanks { margin: 0; color: var(--text-muted); font-size: var(--text-sm); }
+.customer-app .courier-review .review-stars { gap: 0; }
+.customer-app .courier-review .review-stars button { padding: 10px; min-width: 44px; min-height: 44px; }
+.customer-app .courier-review-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; width: 100%; margin: 0; }
 .review-done { display: inline-flex; gap: 2px; color: #ffb020; }
 
 /* Detalhes do pedido (dentro da loja) */
