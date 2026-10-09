@@ -71,7 +71,7 @@ assert.ok(catalog.products.some((item) => item.id === product.id));
 await request('/cart', customer, 'DELETE');
 await request(`/cart/items/${product.id}`, customer, 'PATCH', { delta: 1 });
 const cart = await request<{ version: string }>('/cart', customer);
-const checkoutBody = { addressId: address.id, expectedTotalCents: 3099, expectedVersion: cart.version, paymentMethod: 'cash', idempotencyKey: `smoke-${unique}` };
+const checkoutBody = { addressId: address.id, expectedTotalCents: 3099, expectedVersion: cart.version, paymentMethod: 'cash', contactPhone: '85999990000', idempotencyKey: `smoke-${unique}` };
 await request('/cart/checkout', customer, 'POST', { ...checkoutBody, expectedVersion: 'deadbeef' }, 409);
 await request('/cart/checkout', customer, 'POST', checkoutBody, 400);
 await request('/admin/coverage', admin, 'POST', { restaurantId: restaurant.id, zoneId: zone.id }, 201);
@@ -130,7 +130,7 @@ await request(`/cart/items/${product.id}`, referred, 'PATCH', { delta: 1 });
 const referredCart = await request<{ version: string }>('/cart', referred);
 const referredOrder = await request<{ id: number; discountCents: number; totalCents: number }>('/cart/checkout', referred, 'POST', {
   addressId: referredAddress.id, expectedTotalCents: 2500 + 599 - 300, expectedVersion: referredCart.version, paymentMethod: 'cash',
-  couponCode: welcome.couponCode, idempotencyKey: `smoke-indicacao-${unique}` }, 201);
+  couponCode: welcome.couponCode, contactPhone: '85999990000', idempotencyKey: `smoke-indicacao-${unique}` }, 201);
 assert.equal(referredOrder.discountCents, 300);
 await request(`/orders/${referredOrder.id}/status`, restaurantSession, 'PATCH', { action: 'accept' });
 await request(`/orders/${referredOrder.id}/status`, restaurantSession, 'PATCH', { action: 'ready' });

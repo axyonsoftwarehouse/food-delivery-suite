@@ -118,7 +118,8 @@ public class OrderController {
                                @Pattern(regexp = "delivery|take_away|dine_in") String orderType,
                                @Positive Long tableId,
                                @Min(1) @Max(50) Integer partySize,
-                               @Min(0) @Max(100_000) Integer tipCents) {}
+                               @Min(0) @Max(100_000) Integer tipCents,
+                               @Size(max = 30) String contactPhone) {}
     public record Item(@Positive long productId, @Positive Long variationId, @Positive @Max(20) int quantity, @Size(max = 20) List<@Positive Long> addonIds) {}
     public record StatusRequest(@NotBlank String action, @Positive Long courierId, @Size(max = 255) String reason) {}
 }

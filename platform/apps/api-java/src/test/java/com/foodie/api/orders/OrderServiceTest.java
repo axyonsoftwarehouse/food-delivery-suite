@@ -477,4 +477,12 @@ class OrderServiceTest {
         assertThatThrownBy(() -> OrderService.scheduleDelaySeconds(java.time.LocalDateTime.parse("2026-10-13T18:30"), fortaleza, now))
             .isInstanceOf(ApiException.class).hasMessageContaining("7 dias");
     }
+
+    @Test
+    void deliveryOrderStoresTheNormalizedContactPhoneAndOtherTypesStoreNothing() {
+        assertThat(OrderService.contactPhoneFor(true, "(85) 99999-0000")).isEqualTo("85999990000");
+        assertThat(OrderService.contactPhoneFor(true, null)).isNull(); // pedido recorrente sem contato anterior
+        assertThat(OrderService.contactPhoneFor(false, "85999990000")).isNull(); // retirada, local e PDV
+        assertThat(OrderService.ORDER_INSERT).contains("tip_cents, contact_phone)").endsWith("?, ?)");
+    }
 }

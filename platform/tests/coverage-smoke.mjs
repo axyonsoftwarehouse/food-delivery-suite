@@ -71,7 +71,7 @@ async function checkout(expected = 201) {
   return call('/cart/checkout', { cookie: customer, method: 'POST', expected,
     body: { addressId: address.id, expectedVersion: cart.version,
       expectedTotalCents: product.price_cents + zone.delivery_fee_cents,
-      paymentMethod: 'cash', idempotencyKey: `coverage-${randomUUID()}` } });
+      paymentMethod: 'cash', contactPhone: '85999990000', idempotencyKey: `coverage-${randomUUID()}` } });
 }
 
 // 4) com a faixa cadastrada, o checkout passa

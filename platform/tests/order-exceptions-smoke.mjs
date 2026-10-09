@@ -53,7 +53,7 @@ async function place() {
   return call('/cart/checkout', { cookie: customer, method: 'POST', expected: 201,
     body: { addressId: address.id, expectedVersion: cart.version,
       expectedTotalCents: product.price_cents + zone.delivery_fee_cents,
-      paymentMethod: 'cash', idempotencyKey: `exceptions-${randomUUID()}` } });
+      paymentMethod: 'cash', contactPhone: '85999990000', idempotencyKey: `exceptions-${randomUUID()}` } });
 }
 
 // O entregador é da loja (decisão de 08/10/2026): a loja lista, reativa e despacha os dela.

@@ -73,11 +73,11 @@ const address = (await call('/addresses', { cookie: first, method: 'POST', expec
 assert.equal(address.zoneId, zone.id);
 const ordersBeforeMismatch = (await call('/orders', { cookie: first })).data.length;
 await call('/cart/checkout', { cookie: first, method: 'POST', expected: 409,
-  body: { addressId: address.id, expectedTotalCents: 1, paymentMethod: 'cash' } });
+  body: { addressId: address.id, expectedTotalCents: 1, paymentMethod: 'cash', contactPhone: '85999990000' } });
 assert.equal((await call('/cart', { cookie: first })).data.items[0].quantity, 5);
 assert.equal((await call('/orders', { cookie: first })).data.length, ordersBeforeMismatch);
 const order = (await call('/cart/checkout', { cookie: first, method: 'POST', expected: 201,
-  body: { addressId: address.id, expectedTotalCents: 5 * product.price_cents + zone.delivery_fee_cents, paymentMethod: 'cash' } })).data;
+  body: { addressId: address.id, expectedTotalCents: 5 * product.price_cents + zone.delivery_fee_cents, paymentMethod: 'cash', contactPhone: '85999990000' } })).data;
 assert.equal(order.status, 'placed');
 assert.equal(order.subtotalCents, 5 * product.price_cents);
 assert.equal(order.totalCents, order.subtotalCents + zone.delivery_fee_cents);
@@ -118,7 +118,7 @@ try {
   assert.deepEqual((await call(`/me/subscriptions/${recurring.id}/runs`, { cookie: first })).data, []);
   await call(`/me/subscriptions/${recurring.id}/status`, { cookie: first, method: 'PATCH', body: { status: 'cancelled' } });
   const discounted = (await call('/cart/checkout', { cookie: first, method: 'POST', expected: 201,
-    body: { addressId: address.id, expectedTotalCents: product.price_cents + zone.delivery_fee_cents - quote.discountCents, paymentMethod: 'cash' } })).data;
+    body: { addressId: address.id, expectedTotalCents: product.price_cents + zone.delivery_fee_cents - quote.discountCents, paymentMethod: 'cash', contactPhone: '85999990000' } })).data;
   assert.equal(discounted.campaignId, campaign.id);
   assert.equal(discounted.discountCents, quote.discountCents);
   console.log(`Campanha aplicada ao pedido #${discounted.id}; recorrência #${recurring.id} cadastrada e gerenciada.`);

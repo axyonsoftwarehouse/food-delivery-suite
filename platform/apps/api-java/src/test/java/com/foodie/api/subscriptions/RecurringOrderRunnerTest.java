@@ -50,10 +50,14 @@ class RecurringOrderRunnerTest {
             .thenReturn(List.of(new OrderController.Item(4L, null, 2, null)));
         when(orders.create(any(User.class), any(OrderController.OrderRequest.class)))
             .thenReturn(Map.of("id", 18L));
+        when(jdbc.queryForList(startsWith("SELECT contact_phone FROM orders"), eq(String.class), eq(3L)))
+            .thenReturn(List.of("85999990000"));
 
         new RecurringOrderRunner(jdbc, orders, notifications, providers).runDue();
 
-        verify(orders, times(1)).create(any(User.class), any(OrderController.OrderRequest.class));
+        org.mockito.ArgumentCaptor<OrderController.OrderRequest> request = org.mockito.ArgumentCaptor.forClass(OrderController.OrderRequest.class);
+        verify(orders, times(1)).create(any(User.class), request.capture());
+        org.assertj.core.api.Assertions.assertThat(request.getValue().contactPhone()).isEqualTo("85999990000");
         verify(jdbc).update(startsWith("INSERT INTO subscription_order_runs"), eq(7L), eq(due), eq(18L));
         verify(notifications).notifyUser(eq(3L), eq("recurring_order"), anyString(), anyString(), eq(18L));
     }

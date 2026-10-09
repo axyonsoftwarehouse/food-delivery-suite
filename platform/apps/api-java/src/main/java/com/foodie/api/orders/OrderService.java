@@ -43,6 +43,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class OrderService {
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+    static final String ORDER_INSERT = "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, discount_cents, coupon_code, total_cents, distance_meters, duration_seconds, scheduled_at, order_type, table_id, party_size, service_fee_cents, table_session_id, tip_cents, contact_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+    /** Telefone de contato gravado no pedido: só na entrega, só dígitos (área do entregador, parte A). */
+    static String contactPhoneFor(boolean deliveryOrder, String raw) {
+        return deliveryOrder ? ContactPhone.normalize(raw) : null;
+    }
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
     private final PostalCoverageService postalCoverage;
@@ -277,7 +283,7 @@ public class OrderService {
         final Long orderScheduledInSeconds = scheduledInSeconds;
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO orders (customer_id, restaurant_id, zone_id, address_id, delivery_address_text, subtotal_cents, delivery_fee_cents, discount_cents, coupon_code, total_cents, distance_meters, duration_seconds, scheduled_at, order_type, table_id, party_size, service_fee_cents, table_session_id, tip_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ORDER_INSERT,
                 Statement.RETURN_GENERATED_KEYS
             );
             statement.setLong(1, customer.id());
@@ -299,6 +305,8 @@ public class OrderService {
             statement.setLong(17, serviceFee);
             if (sessionIdForOrder == null) statement.setNull(18, java.sql.Types.BIGINT); else statement.setLong(18, sessionIdForOrder);
             statement.setLong(19, tip);
+            String contact = contactPhoneFor(deliveryOrder, request.contactPhone());
+            if (contact == null) statement.setNull(20, java.sql.Types.VARCHAR); else statement.setString(20, contact);
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
