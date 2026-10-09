@@ -82,10 +82,11 @@ await call(`/orders/${accepted.id}/status`, { cookie: restaurant, method: 'PATCH
 await call(`/orders/${accepted.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'unassign' } });
 assert.equal((await call(`/orders/${accepted.id}`, { cookie: admin })).status, 'ready');
 await call(`/orders/${accepted.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'assign', courierId: demoCourier.id } });
-await call(`/orders/${accepted.id}/status`, { cookie: courier, method: 'PATCH', body: { action: 'fail', reason: 'Cliente ausente' } });
+await call(`/orders/${accepted.id}/status`, { cookie: courier, method: 'PATCH', body: { action: 'fail', failureReason: 'customer_absent' } });
 const failed = await call(`/orders/${accepted.id}`, { cookie: admin });
 assert.equal(failed.status, 'failed');
 assert.equal(failed.history.at(-1).reason, 'Cliente ausente');
+assert.equal(failed.failure_reason, 'customer_absent');
 
 const cancelledByStore = await place();
 await call(`/orders/${cancelledByStore.id}/status`, { cookie: restaurant, method: 'PATCH', body: { action: 'cancel', reason: 'Antes do aceite é recusa' }, expected: 409 });
