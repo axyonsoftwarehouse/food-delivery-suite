@@ -3,12 +3,17 @@
 import { useState } from 'react';
 import { api, money, useApp } from '../app-context';
 import { Icon } from '../icons';
-import { amountToCollect, distanceLabel, phoneLinks, routeLinks, type Delivery } from './deliveries';
+import { FAILURE_REASONS, amountToCollect, distanceLabel, phoneLinks, routeLinks, type Delivery, type FailureCode } from './deliveries';
 
 /** Entrega da vez: etapa, destino, rota, contatos, pagamento e a ação principal. */
 export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Delivery; onChanged: (finishedId?: number) => Promise<void>; offline: boolean }) {
   const { setMessage } = useApp();
   const [acting, setActing] = useState(false);
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [failOpen, setFailOpen] = useState(false);
+  const [failReason, setFailReason] = useState<FailureCode | ''>('');
+  const [failNote, setFailNote] = useState('');
   const pickup = delivery.status === 'assigned';
   const target = pickup
     ? { title: 'Retirar na loja', name: delivery.restaurant_name, address: delivery.restaurant_address ?? 'Endereço da loja não informado', routeText: delivery.restaurant_address ?? delivery.restaurant_name, lat: delivery.restaurant_latitude, lng: delivery.restaurant_longitude }
@@ -30,9 +35,16 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
     finally { await onChanged(finished && done ? delivery.id : undefined); setActing(false); }
   }
 
-  const status = (action: string, reason?: string) => api(`/orders/${delivery.id}/status`, { method: 'PATCH', body: JSON.stringify(reason ? { action, reason } : { action }) });
+  const status = (action: string, extra: Record<string, unknown> = {}) => api(`/orders/${delivery.id}/status`, { method: 'PATCH', body: JSON.stringify({ action, ...extra }) });
 
-  function deliver() {
+  // O código vem primeiro (formulário na tela); só depois os avisos de dinheiro e o envio de `deliver`.
+  function deliver(typedCode?: string) {
+    if (delivery.requires_delivery_code && !typedCode) { setCodeOpen(true); return; }
+    // Código errado mantém o formulário aberto (o servidor informa as tentativas restantes); sucesso fecha.
+    const sendDeliver = async () => {
+      try { await status('deliver', typedCode ? { deliveryCode: typedCode } : {}); setCodeOpen(false); }
+      finally { setCode(''); }
+    };
     if (collect > 0) {
       const cash = delivery.payment_method === 'cash';
       let received = collect;
@@ -47,17 +59,15 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
       } else if (!window.confirm(`Confirma que recebeu ${money(collect)} ${methodLabel}?`)) return;
       void act(async () => {
         await api(`/orders/${delivery.id}/payment`, { method: 'PATCH', body: JSON.stringify({ amountReceivedCents: received }) });
-        await status('deliver');
+        await sendDeliver();
       }, cash && received > collect ? `Entrega concluída. Troco de ${money(received - collect)}.` : 'Entrega concluída.', true);
       return;
     }
-    void act(() => status('deliver'), 'Entrega concluída.', true);
+    void act(sendDeliver, 'Entrega concluída.', true);
   }
 
   function fail() {
-    const reason = window.prompt('Por que não foi possível entregar?');
-    if (!reason || reason.trim().length < 3) return;
-    void act(() => status('fail', reason.trim()), 'Falha registrada.', true);
+    setFailOpen(true);
   }
 
   return <article className="courier-card" aria-label={`Pedido #${delivery.id}`}>
@@ -82,7 +92,31 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
       <ul>{delivery.items.map((item, index) => <li key={index}>{item.quantity}× {item.name}{item.variation_name ? ` (${item.variation_name})` : ''}</li>)}</ul></details>
     {pickup
       ? <button className="courier-primary" disabled={acting || offline} onClick={() => void act(() => status('pickup'), 'Pedido retirado. Boa entrega!')}>{'Retirei o pedido'}</button>
-      : <button className="courier-primary" disabled={acting || offline} onClick={deliver}>{collect > 0 ? `Recebi ${money(collect)} e entreguei` : 'Entreguei'}</button>}
-    <button className="courier-secondary" disabled={acting || offline} onClick={fail}>{'Não consegui entregar'}</button>
+      : codeOpen && delivery.code_attempts_left > 0
+        ? <form className="courier-code" onSubmit={(event) => { event.preventDefault(); if (code.length === 4) deliver(code); }}>
+            <label htmlFor={`code-${delivery.id}`}>{'Código que o cliente informou'}</label>
+            <input id={`code-${delivery.id}`} inputMode="numeric" autoComplete="one-time-code" pattern="\d{4}" maxLength={4}
+              value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 4))} autoFocus />
+            <small>{`${delivery.code_attempts_left} ${delivery.code_attempts_left === 1 ? 'tentativa restante' : 'tentativas restantes'}`}</small>
+            <button className="courier-primary" type="submit" disabled={acting || offline || code.length !== 4}>{'Confirmar entrega'}</button>
+          </form>
+        : delivery.requires_delivery_code && delivery.code_attempts_left === 0
+          ? <p className="courier-banner is-warning">{'Código bloqueado. Registre a falha da entrega com o motivo.'}</p>
+          : <button className="courier-primary" disabled={acting || offline} onClick={() => deliver()}>{collect > 0 ? `Recebi ${money(collect)} e entreguei` : 'Entreguei'}</button>}
+    {failOpen
+      ? <form className="courier-fail" onSubmit={(event) => {
+          event.preventDefault();
+          if (!failReason) return;
+          void act(() => status('fail', { failureReason: failReason, note: failNote.trim() || undefined }), 'Falha registrada.', true);
+        }}>
+        <fieldset><legend>{'Por que não foi possível entregar?'}</legend>
+          {FAILURE_REASONS.map((item) => <label key={item.code}><input type="radio" name={`fail-${delivery.id}`} value={item.code} checked={failReason === item.code} onChange={() => setFailReason(item.code)} />{item.label}</label>)}
+        </fieldset>
+        <textarea maxLength={200} value={failNote} onChange={(event) => setFailNote(event.target.value)}
+          placeholder={failReason === 'other' ? 'Descreva o que aconteceu (obrigatório)' : 'Observação (opcional)'} />
+        <button className="courier-secondary" type="submit" disabled={acting || offline || !failReason || (failReason === 'other' && failNote.trim().length < 3)}>{'Registrar falha'}</button>
+        <button type="button" className="courier-back" onClick={() => setFailOpen(false)}>{'Voltar'}</button>
+      </form>
+      : <button className="courier-secondary" disabled={acting || offline} onClick={fail}>{'Não consegui entregar'}</button>}
   </article>;
 }
