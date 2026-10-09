@@ -71,7 +71,7 @@ assert.ok(catalog.products.some((item) => item.id === product.id));
 await request('/cart', customer, 'DELETE');
 await request(`/cart/items/${product.id}`, customer, 'PATCH', { delta: 1 });
 const cart = await request<{ version: string }>('/cart', customer);
-const checkoutBody = { addressId: address.id, expectedTotalCents: 3099, expectedVersion: cart.version, paymentMethod: 'cash', idempotencyKey: `smoke-${unique}` };
+const checkoutBody = { addressId: address.id, expectedTotalCents: 3099, expectedVersion: cart.version, paymentMethod: 'cash', contactPhone: '85999990000', idempotencyKey: `smoke-${unique}` };
 await request('/cart/checkout', customer, 'POST', { ...checkoutBody, expectedVersion: 'deadbeef' }, 409);
 await request('/cart/checkout', customer, 'POST', checkoutBody, 400);
 await request('/admin/coverage', admin, 'POST', { restaurantId: restaurant.id, zoneId: zone.id }, 201);
@@ -95,10 +95,17 @@ assert.equal(storeCourier.approved, true, 'entregador cadastrado pela loja já s
 assert.ok((await request<{ id: number }[]>('/restaurant/couriers', restaurantSession)).some((item) => item.id === storeCourier.id));
 await request(`/orders/${order.id}/status`, restaurantSession, 'PATCH', { action: 'assign', courierId: storeCourier.id });
 const storeCourierSession = await login(courierEmail);
+const active = await request<{ id: number; contact_phone: string | null }[]>('/courier/deliveries/active', storeCourierSession);
+assert.equal(active.find((item) => item.id === order.id)?.contact_phone, '85999990000', 'telefone de contato durante a entrega');
+await request('/courier/location', storeCourierSession, 'POST', { latitude: -3.73, longitude: -38.52 });
 await request(`/orders/${order.id}/status`, storeCourierSession, 'PATCH', { action: 'pickup' });
 await request(`/orders/${order.id}/status`, storeCourierSession, 'PATCH', { action: 'deliver' }, 409);
 await request(`/orders/${order.id}/payment`, storeCourierSession, 'PATCH', { amountReceivedCents: order.totalCents });
 await request(`/orders/${order.id}/status`, storeCourierSession, 'PATCH', { action: 'deliver' });
+assert.ok(!(await request<{ id: number }[]>('/courier/deliveries/active', storeCourierSession)).some((item) => item.id === order.id));
+const history = await request<Record<string, unknown>[]>('/courier/deliveries/history?period=today', storeCourierSession);
+assert.ok(history.some((item) => item.id === order.id) && history.every((item) => !('contact_phone' in item)), 'histórico sem telefone');
+await request('/courier/location', storeCourierSession, 'POST', { latitude: -3.73, longitude: -38.52 }, 409);
 const detail = await request<{ status: string; history: { to_status: string }[]; payment: { status: string; method: string } }>(`/orders/${order.id}`, customer);
 assert.equal(detail.status, 'delivered');
 assert.equal(detail.payment.status, 'paid');
@@ -130,7 +137,7 @@ await request(`/cart/items/${product.id}`, referred, 'PATCH', { delta: 1 });
 const referredCart = await request<{ version: string }>('/cart', referred);
 const referredOrder = await request<{ id: number; discountCents: number; totalCents: number }>('/cart/checkout', referred, 'POST', {
   addressId: referredAddress.id, expectedTotalCents: 2500 + 599 - 300, expectedVersion: referredCart.version, paymentMethod: 'cash',
-  couponCode: welcome.couponCode, idempotencyKey: `smoke-indicacao-${unique}` }, 201);
+  couponCode: welcome.couponCode, contactPhone: '85999990000', idempotencyKey: `smoke-indicacao-${unique}` }, 201);
 assert.equal(referredOrder.discountCents, 300);
 await request(`/orders/${referredOrder.id}/status`, restaurantSession, 'PATCH', { action: 'accept' });
 await request(`/orders/${referredOrder.id}/status`, restaurantSession, 'PATCH', { action: 'ready' });

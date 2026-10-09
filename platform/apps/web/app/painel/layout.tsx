@@ -23,6 +23,7 @@ const CONFIG_CHILDREN: Record<'admin' | 'restaurant', SubItem[]> = {
   ],
   restaurant: [
     { href: '/painel/configuracoes/conta', label: 'Conta' },
+    { href: '/painel/configuracoes/loja', label: 'Loja', permission: 'settings.manage' },
     { href: '/painel/configuracoes/pagamentos', label: 'Pagamentos', permission: 'payments.manage' },
   ],
 };
@@ -56,12 +57,6 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/minha-pagina', label: 'Minha página', icon: 'store', module: 'storefront' },
     { href: '/painel/configuracoes', label: 'Configurações', icon: 'settings', children: CONFIG_CHILDREN.restaurant },
   ],
-  courier: [
-    { href: '/painel', label: 'Visão geral', icon: 'home' },
-    { href: '/painel/pedidos', label: 'Minhas entregas', icon: 'bike' },
-    { href: '/painel/ganhos', label: 'Ganhos', icon: 'wallet' },
-    { href: '/painel/configuracoes', label: 'Configurações', icon: 'settings' },
-  ],
 };
 
 export default function PainelLayout({ children }: { children: React.ReactNode }) {
@@ -90,9 +85,10 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
     if (!user) router.replace('/entrar');
     else if (user.role === 'customer') router.replace('/loja');
     else if (user.role === 'kitchen') router.replace('/cozinha');
+    else if (user.role === 'courier') router.replace('/entregas');
   }, [initializing, user, router]);
 
-  if (initializing || !user || user.role === 'customer' || user.role === 'kitchen') {
+  if (initializing || !user || user.role === 'customer' || user.role === 'kitchen' || user.role === 'courier') {
     return <main className="app-loading" role="status"><span className="app-loading-brand"><span className="app-loading-mark"><Icon name="sparkle" /></span>foodie<span>.</span></span><p>{'Carregando painel...'}</p></main>;
   }
 

@@ -45,6 +45,12 @@ public class CartController {
         return cart.campaign(customer(token));
     }
 
+    /** Telefone sugerido no checkout: o do último pedido de entrega ou o do cadastro. */
+    @GetMapping("/contact-phone")
+    public Map<String, Object> contactPhone(@CookieValue(value = "foodie_session", required = false) String token) {
+        return java.util.Collections.singletonMap("phone", cart.suggestedContactPhone(customer(token).id()));
+    }
+
     @PatchMapping("/items/{productId}")
     public CartService.CartSnapshot change(@CookieValue(value = "foodie_session", required = false) String token,
                                            @PathVariable @Positive long productId,
@@ -69,7 +75,7 @@ public class CartController {
                                                         @Valid @RequestBody CheckoutRequest request) {
         User customer = customer(token);
         verification.requireVerified(customer);
-        return ResponseEntity.status(201).body(cart.checkout(customer, request.addressId(), request.expectedTotalCents(), request.expectedVersion(), request.idempotencyKey(), request.paymentMethod(), request.changeForCents(), request.modality(), request.couponCode(), request.scheduledFor(), request.orderType(), request.tableId(), request.partySize(), request.tipCents()));
+        return ResponseEntity.status(201).body(cart.checkout(customer, request.addressId(), request.expectedTotalCents(), request.expectedVersion(), request.idempotencyKey(), request.paymentMethod(), request.changeForCents(), request.modality(), request.couponCode(), request.scheduledFor(), request.orderType(), request.tableId(), request.partySize(), request.tipCents(), request.contactPhone()));
     }
 
     private User customer(String token) {
@@ -90,5 +96,6 @@ public class CartController {
                                   @jakarta.validation.constraints.Pattern(regexp = "delivery|take_away|dine_in") String orderType,
                                   @Positive Long tableId,
                                   @jakarta.validation.constraints.Min(1) @Max(50) Integer partySize,
-                                  @jakarta.validation.constraints.Min(0) @Max(100_000) Integer tipCents) {}
+                                  @jakarta.validation.constraints.Min(0) @Max(100_000) Integer tipCents,
+                                  @Size(max = 30) String contactPhone) {}
 }

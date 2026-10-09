@@ -29,8 +29,11 @@ public class TrackingController {
     private final AuthService auth;
     private final OrderService orders;
     private final JdbcTemplate jdbc;
+    private final CourierDeliveryService deliveries;
 
-    public TrackingController(AuthService auth, OrderService orders, JdbcTemplate jdbc, AdminPermissionService adminPermissions) {
+    public TrackingController(AuthService auth, OrderService orders, JdbcTemplate jdbc, AdminPermissionService adminPermissions,
+                              CourierDeliveryService deliveries) {
+        this.deliveries = deliveries;
         this.adminPermissions = adminPermissions;
         this.auth = auth;
         this.orders = orders;
@@ -41,6 +44,8 @@ public class TrackingController {
     public Map<String, Boolean> updateLocation(@CookieValue(value = "foodie_session", required = false) String token,
                                                @Valid @RequestBody LocationRequest body) {
         User courier = auth.requireUser(token, "courier");
+        // Só durante a entrega (área do entregador, parte A): sem entrega em andamento, a posição não é guardada.
+        if (!deliveries.hasActiveDelivery(courier.id())) throw new ApiException(409, "Sem entrega em andamento: a localização não é compartilhada");
         jdbc.update("INSERT INTO courier_locations (courier_id, latitude, longitude) VALUES (?, ?, ?) "
                 + "ON DUPLICATE KEY UPDATE latitude = VALUES(latitude), longitude = VALUES(longitude), updated_at = NOW()",
             courier.id(), body.latitude(), body.longitude());

@@ -29,14 +29,14 @@ export default function CarrinhoPage() {
   const [firstRunAt, setFirstRunAt] = useState('');
   const [recurringBusy, setRecurringBusy] = useState(false);
   const [recurringMessage, setRecurringMessage] = useState('');
-  const { cartEntries, cartCount, subtotal, fee, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, publicKey, cardOrder, chargeCardOrder, restaurantById } = useCustomer();
+  const { cartEntries, cartCount, subtotal, fee, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, publicKey, cardOrder, chargeCardOrder, restaurantById } = useCustomer();
   const parsedTip = Number(tip.replace(',', '.'));
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
   const total = subtotal + orderFee - discount + serviceFee + tipCents;
   const cartRestaurant = cartEntries.length ? restaurantById.get(cartEntries[0].product.restaurant_id) : undefined;
   const minimum = selectedZone?.minimum_order_cents ?? 0;
   const minimumProgress = minimum > 0 ? Math.min(1, subtotal / minimum) : 1;
-  const checkoutDisabled = busy || placing || cartBusy || (orderType === 'delivery' && (!selectedAddress?.postal_code || !meetsMinimum || !cartCovered)) || (orderType === 'dine_in' && tableId === null) || (manual && (!manualMethodId || (offlineMethods.find((method) => method.id === manualMethodId)?.requires_proof && !proofUrl.trim()))) || (cartRestaurantClosed && !scheduledFor);
+  const checkoutDisabled = busy || placing || cartBusy || (orderType === 'delivery' && (!selectedAddress?.postal_code || !meetsMinimum || !cartCovered)) || (orderType === 'dine_in' && tableId === null) || (manual && (!manualMethodId || (offlineMethods.find((method) => method.id === manualMethodId)?.requires_proof && !proofUrl.trim()))) || (orderType === 'delivery' && contactPhone.replace(/\D/g, '').length < 10) || (cartRestaurantClosed && !scheduledFor);
   const checkoutLabel = placing ? 'Processando...' : !manual && modality === 'online' ? (paymentMethod === 'card' ? 'Fazer pedido e informar o cartão' : 'Fazer pedido e pagar com Pix') : 'Fazer pedido';
 
   async function createRecurring() {
@@ -120,7 +120,11 @@ export default function CarrinhoPage() {
             : <div className="coupon-row"><input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Código do cupom" aria-label="Código do cupom" /><button type="button" className="customer-solid-button" onClick={() => void applyCoupon()} disabled={couponBusy || !couponCode.trim() || cartBusy}>{couponBusy ? '...' : 'Aplicar'}</button></div>}
         </Block>
 
-        {orderType === 'delivery' && <Block icon="heart" title="Gorjeta" index={5}>
+        {orderType === 'delivery' && <Block icon="phone" title="Telefone para a entrega" index={5}>
+          <label className="customer-change">{'O entregador liga ou chama no WhatsApp se precisar'}<input inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="(85) 99999-0000" required /></label>
+        </Block>}
+
+        {orderType === 'delivery' && <Block icon="heart" title="Gorjeta" index={6}>
           <div className="cart-tips" role="group" aria-label="Valores sugeridos">
             {['2', '5', '10'].map((value) => <button type="button" key={value} className={tip === value ? 'selected' : ''} onClick={() => setTip(tip === value ? '' : value)}>{`R$ ${value}`}</button>)}
             <label className="cart-tip-other"><span className="sr-only">{'Outro valor de gorjeta'}</span><input inputMode="decimal" value={['2', '5', '10'].includes(tip) ? '' : tip} onChange={(event) => setTip(event.target.value)} placeholder="Outro valor" /></label>

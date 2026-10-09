@@ -43,6 +43,8 @@ export function roleHome(role: Role) {
   if (role === 'customer') return '/loja';
   // A cozinha tem tela própria, em tela cheia (KDS), fora do painel.
   if (role === 'kitchen') return '/cozinha';
+  // O entregador tem área própria para o celular (área do entregador, parte A).
+  if (role === 'courier') return '/entregas';
   return '/painel';
 }
 function beep() {
@@ -59,6 +61,13 @@ function beep() {
   } catch { /* som opcional */ }
 }
 
+/** Erro da API com o código HTTP, para quem precisa distinguir (ex.: 409) sem depender do texto da mensagem. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`/backend${path}`, {
     credentials: 'same-origin',
@@ -66,7 +75,7 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? 'Não foi possível concluir a operação');
+  if (!response.ok) throw new ApiError(result.error ?? 'Não foi possível concluir a operação', response.status);
   return result as T;
 }
 

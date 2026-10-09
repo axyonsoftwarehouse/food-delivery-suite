@@ -62,7 +62,7 @@ public class PosService {
             .map(item -> new OrderController.Item(item.productId(), item.variationId(), item.quantity(), item.addonIds()))
             .toList();
         Map<String, Object> created = orders.create(customer, new OrderController.OrderRequest(
-            restaurantId, null, items, request.paymentMethod(), request.changeForCents(), "on_delivery", null, null, orderType, request.tableId(), request.partySize(), null));
+            restaurantId, null, items, request.paymentMethod(), request.changeForCents(), "on_delivery", null, null, orderType, request.tableId(), request.partySize(), null, null));
         long orderId = ((Number) created.get("id")).longValue();
         long total = ((Number) created.get("totalCents")).longValue();
         long received = ("cash".equals(request.paymentMethod()) && request.changeForCents() != null) ? request.changeForCents() : total;

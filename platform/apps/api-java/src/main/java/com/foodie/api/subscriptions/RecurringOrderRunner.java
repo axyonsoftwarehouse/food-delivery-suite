@@ -92,13 +92,21 @@ public class RecurringOrderRunner {
             ((Number) subscription.get("restaurant_id")).longValue(),
             ((Number) subscription.get("address_id")).longValue(), items,
             (String) subscription.get("payment_method"), null, "on_delivery", null,
-            null, "delivery", null, null, null));
+            null, "delivery", null, null, null, lastContactPhone(customerId)));
         long orderId = ((Number) order.get("id")).longValue();
         jdbc.update("INSERT INTO subscription_order_runs (subscription_id, scheduled_for, order_id, status) VALUES (?, ?, ?, 'created')",
             id, Timestamp.valueOf(scheduled), orderId);
         jdbc.update("UPDATE subscriptions SET next_run_at = ?, last_error = NULL WHERE id = ?", Timestamp.valueOf(next), id);
         notifications.notifyUser(customerId, "recurring_order", "Pedido recorrente #" + orderId,
             "Seu pedido recorrente foi criado e aguarda aceite do restaurante.", orderId);
+    }
+
+    /** Pedido recorrente usa o contato do último pedido de entrega do cliente (pode não haver). */
+    private String lastContactPhone(long customerId) {
+        List<String> phones = jdbc.queryForList(
+            "SELECT contact_phone FROM orders WHERE customer_id = ? AND order_type = 'delivery' AND contact_phone IS NOT NULL ORDER BY id DESC LIMIT 1",
+            String.class, customerId);
+        return phones.isEmpty() ? null : phones.getFirst();
     }
 
     private void failOne(long id, RuntimeException error) {
