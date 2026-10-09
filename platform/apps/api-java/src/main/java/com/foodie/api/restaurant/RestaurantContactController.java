@@ -40,7 +40,19 @@ public class RestaurantContactController {
     public Map<String, Object> contact(@CookieValue(value = "foodie_session", required = false) String token) {
         long restaurantId = manager(token);
         List<String> phone = jdbc.queryForList("SELECT phone FROM restaurants WHERE id = ? AND phone IS NOT NULL", String.class, restaurantId);
-        return Collections.singletonMap("phone", phone.isEmpty() ? null : phone.getFirst());
+        Boolean required = jdbc.queryForObject("SELECT require_delivery_code FROM restaurants WHERE id = ?", Boolean.class, restaurantId);
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("phone", phone.isEmpty() ? null : phone.getFirst());
+        result.put("requireDeliveryCode", Boolean.TRUE.equals(required));
+        return result;
+    }
+
+    @PutMapping("/delivery-code")
+    public Map<String, Object> deliveryCode(@CookieValue(value = "foodie_session", required = false) String token,
+                                            @Valid @RequestBody DeliveryCodeRequest body) {
+        long restaurantId = manager(token);
+        jdbc.update("UPDATE restaurants SET require_delivery_code = ? WHERE id = ?", body.required(), restaurantId);
+        return Collections.singletonMap("requireDeliveryCode", body.required());
     }
 
     @PutMapping
@@ -60,4 +72,6 @@ public class RestaurantContactController {
     }
 
     public record ContactRequest(@Size(max = 30) String phone) {}
+
+    public record DeliveryCodeRequest(@jakarta.validation.constraints.NotNull Boolean required) {}
 }

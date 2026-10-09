@@ -49,6 +49,11 @@ public class OrderService {
     static String contactPhoneFor(boolean deliveryOrder, String raw) {
         return deliveryOrder ? ContactPhone.normalize(raw) : null;
     }
+    /** Pedido de entrega de loja que exige o código ganha um (entregador, parte B). Linha sem a coluna => não. */
+    static boolean wantsDeliveryCode(boolean deliveryOrder, Map<String, Object> restaurant) {
+        return deliveryOrder && truthy(restaurant.get("require_delivery_code"));
+    }
+
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
     private final PostalCoverageService postalCoverage;
@@ -123,7 +128,7 @@ public class OrderService {
             if (address.get("postal_code") == null) throw new ApiException(409, "Recadastre o endereço com CEP antes de pedir");
             postalCoverage.requireAddressZone((String) address.get("postal_code"), zoneId);
             restaurants = jdbc.queryForList(
-                "SELECT r.timezone, r.latitude, r.longitude, r.service_fee_percent FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
+                "SELECT r.timezone, r.latitude, r.longitude, r.service_fee_percent, r.require_delivery_code FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
                 request.restaurantId(), zoneId
             );
             if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante não atende este endereço ou está fechado");
@@ -310,6 +315,9 @@ public class OrderService {
             return statement;
         }, key);
         long orderId = key.getKey().longValue();
+        if (wantsDeliveryCode(deliveryOrder, restaurants.getFirst())) {
+            jdbc.update("UPDATE orders SET delivery_code = ? WHERE id = ?", DeliveryCode.generate(), orderId);
+        }
         if (orderScheduledInSeconds != null) {
             jdbc.update("UPDATE orders SET scheduled_at = DATE_ADD(NOW(), INTERVAL ? SECOND) WHERE id = ?", orderScheduledInSeconds, orderId);
         }
@@ -376,15 +384,15 @@ public class OrderService {
         return created;
     }
 
-    private static final String ORDER_BASE = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN users c ON c.id = o.customer_id LEFT JOIN order_payments p ON p.order_id = o.id LEFT JOIN restaurant_tables t ON t.id = o.table_id ";
+    static final String ORDER_BASE_SQL = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, o.delivery_code IS NOT NULL AS has_delivery_code, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN users c ON c.id = o.customer_id LEFT JOIN order_payments p ON p.order_id = o.id LEFT JOIN restaurant_tables t ON t.id = o.table_id ";
     private static final String TERMINAL = "'delivered','rejected','cancelled','expired','failed','completed'";
     private static final int ACTIVE_LIMIT = 200;
     private static final int HISTORY_LIMIT = 100;
 
     public List<Map<String, Object>> list(User user) {
         Scope scope = scope(user);
-        List<Map<String, Object>> active = jdbc.queryForList(ORDER_BASE + "WHERE " + scope.where() + " AND o.status NOT IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + ACTIVE_LIMIT, scope.args().toArray());
-        List<Map<String, Object>> terminal = jdbc.queryForList(ORDER_BASE + "WHERE " + scope.where() + " AND o.status IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + HISTORY_LIMIT, scope.args().toArray());
+        List<Map<String, Object>> active = jdbc.queryForList(ORDER_BASE_SQL + "WHERE " + scope.where() + " AND o.status NOT IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + ACTIVE_LIMIT, scope.args().toArray());
+        List<Map<String, Object>> terminal = jdbc.queryForList(ORDER_BASE_SQL + "WHERE " + scope.where() + " AND o.status IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + HISTORY_LIMIT, scope.args().toArray());
         List<Map<String, Object>> merged = new ArrayList<>(active);
         merged.addAll(terminal);
         merged.sort((a, b) -> Long.compare(((Number) b.get("id")).longValue(), ((Number) a.get("id")).longValue()));
@@ -393,7 +401,7 @@ public class OrderService {
 
     public Map<String, Object> history(User user, String status, Long after, int limit) {
         Scope scope = scope(user);
-        StringBuilder sql = new StringBuilder(ORDER_BASE + "WHERE " + scope.where() + " AND o.status IN (" + TERMINAL + ")");
+        StringBuilder sql = new StringBuilder(ORDER_BASE_SQL + "WHERE " + scope.where() + " AND o.status IN (" + TERMINAL + ")");
         List<Object> args = new ArrayList<>(scope.args());
         if (status != null && !status.isBlank()) {
             if (!TERMINAL.contains("'" + status + "'")) throw new ApiException(400, "Filtro de status inválido");
@@ -421,7 +429,7 @@ public class OrderService {
         Scope scope = scope(user);
         List<Object> args = new ArrayList<>(scope.args());
         args.add(orderId);
-        List<Map<String, Object>> rows = jdbc.queryForList(ORDER_BASE + "WHERE " + scope.where() + " AND o.id = ?", args.toArray());
+        List<Map<String, Object>> rows = jdbc.queryForList(ORDER_BASE_SQL + "WHERE " + scope.where() + " AND o.id = ?", args.toArray());
         if (rows.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         return rows.getFirst();
     }
@@ -444,6 +452,10 @@ public class OrderService {
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);
         Map<String, Object> result = new LinkedHashMap<>(order);
+        // O código só sai pelo endpoint do cliente; `has_delivery_code` basta para as telas saberem que existe.
+        result.put("has_delivery_code", order.get("delivery_code") != null);
+        result.remove("delivery_code");
+        result.remove("delivery_code_attempts");
         result.put("items", jdbc.queryForList(
             "SELECT oi.id, oi.name, oi.variation_name, oi.quantity, oi.unit_price_cents, "
                 + "(SELECT GROUP_CONCAT(oia.name SEPARATOR ', ') FROM order_item_addons oia WHERE oia.order_item_id = oi.id) AS addons "
@@ -453,9 +465,27 @@ public class OrderService {
         return result;
     }
 
-    @Transactional
+    private static final Set<String> CODE_VISIBLE = Set.of("placed", "accepted", "ready", "assigned", "picked_up");
+
+    /** O cliente dono do pedido lê o código enquanto o pedido está ativo; ninguém mais, nunca (entregador, parte B). */
+    public Map<String, Object> deliveryCodeFor(User viewer, long orderId) {
+        if (!"customer".equals(viewer.role())) throw new ApiException(403, "Acesso não autorizado");
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT status, delivery_code FROM orders WHERE id = ? AND customer_id = ? AND delivery_code IS NOT NULL", orderId, viewer.id());
+        if (rows.isEmpty() || !CODE_VISIBLE.contains((String) rows.getFirst().get("status"))) throw new ApiException(404, "Pedido não encontrado");
+        return Map.of("code", rows.getFirst().get("delivery_code"));
+    }
+
+    @Transactional(noRollbackFor = DeliveryCodeException.class)
     public Map<String, Object> changeStatus(User user, long orderId, String action, Long courierId, String reason) {
-        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, courier_id, status, order_type, coupon_code FROM orders WHERE id = ? FOR UPDATE", orderId);
+        return changeStatus(user, orderId, action, courierId, reason, null, null);
+    }
+
+    // A tentativa de código errada é gravada antes do 409 e a transação NÃO a desfaz (noRollbackFor).
+    @Transactional(noRollbackFor = DeliveryCodeException.class)
+    public Map<String, Object> changeStatus(User user, long orderId, String action, Long courierId, String reason,
+                                            String deliveryCode, String failureReason) {
+        List<Map<String, Object>> orders = jdbc.queryForList("SELECT id, customer_id, restaurant_id, courier_id, status, order_type, coupon_code, delivery_code, delivery_code_attempts FROM orders WHERE id = ? FOR UPDATE", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         checkAccess(user, order);
@@ -463,12 +493,38 @@ public class OrderService {
         OrderWorkflow.Transition transition = OrderWorkflow.resolve(current, action, user.role());
         requireOrderTypeAllows(action, (String) order.get("order_type"));
         String trimmed = reason == null ? null : reason.strip();
+        String failureCode = null;
+        if ("fail".equals(action) && "courier".equals(user.role())) {
+            DeliveryFailureReason failure = failureReason == null || failureReason.isBlank()
+                ? DeliveryFailureReason.OTHER : DeliveryFailureReason.fromCode(failureReason);
+            trimmed = DeliveryFailureReason.compose(failure, reason);
+            failureCode = failure.code();
+        }
         if (transition.requiresReason() && (trimmed == null || trimmed.length() < 3)) {
             throw new ApiException(400, "Informe o motivo (3 a 255 caracteres)");
         }
         String next = transition.nextStatus();
         if ("deliver".equals(action) && !"paid".equals(payments.status(orderId))) {
             throw new ApiException(409, "Confirme o recebimento do pagamento antes de concluir a entrega");
+        }
+        String deliveryProof = null;
+        if ("deliver".equals(action)) {
+            if (order.get("delivery_code") instanceof String expected) {
+                int attempts = ((Number) order.get("delivery_code_attempts")).intValue();
+                if (attempts >= DeliveryCode.MAX_ATTEMPTS) {
+                    throw new DeliveryCodeException("Confirmação por código bloqueada. Registre a falha da entrega com o motivo.");
+                }
+                if (!DeliveryCode.matches(expected, deliveryCode)) {
+                    jdbc.update("UPDATE orders SET delivery_code_attempts = delivery_code_attempts + 1 WHERE id = ?", orderId);
+                    int left = DeliveryCode.attemptsLeft(attempts + 1);
+                    throw new DeliveryCodeException(left == 0
+                        ? "Código incorreto. Confirmação por código bloqueada. Registre a falha da entrega com o motivo."
+                        : "Código incorreto. Restam " + left + (left == 1 ? " tentativa." : " tentativas."));
+                }
+                deliveryProof = "Entrega confirmada por código";
+            } else {
+                deliveryProof = "Entrega sem código";
+            }
         }
         if ("assign".equals(action)) {
             if (courierId == null || courierId < 1) throw new ApiException(400, "Selecione um entregador");
@@ -482,12 +538,13 @@ public class OrderService {
         } else {
             jdbc.update("UPDATE orders SET status = ? WHERE id = ?", next, orderId);
         }
+        if (failureCode != null) jdbc.update("UPDATE orders SET failure_reason = ? WHERE id = ?", failureCode, orderId);
         if (Set.of("rejected", "cancelled", "expired", "failed").contains(next)) payments.cancelPending(orderId);
         // Pedido morto devolve o uso do cupom (falha na entrega não: segue para o reembolso decidido pela loja).
         if (Set.of("rejected", "cancelled").contains(next) && order.get("coupon_code") instanceof String code) couponService.release(code);
         // Estoque volta só se o pedido morreu antes do preparo (ainda aguardando aceite).
         if ("placed".equals(current) && Set.of("rejected", "cancelled").contains(next)) restoreStock(orderId);
-        jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, ?, ?, ?, ?)", orderId, user.id(), current, next, trimmed);
+        jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, ?, ?, ?, ?)", orderId, user.id(), current, next, deliveryProof != null ? deliveryProof : trimmed);
         if ("admin".equals(user.role()) && Set.of("cancel", "assign", "unassign").contains(action)) {
             support.recordOrderAction(user, number(order, "restaurant_id"), orderId, action, trimmed);
         }
