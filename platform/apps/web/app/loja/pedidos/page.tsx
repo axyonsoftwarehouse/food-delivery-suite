@@ -6,6 +6,7 @@ import OrderDetails from '../../OrderDetails';
 import { Order, money, useApp } from '../../app-context';
 import { useCustomer } from '../customer-context';
 import ReviewForm from '../ReviewForm';
+import CourierReviewForm from '../courier-review-form';
 import DeliveryCodeCard from '../delivery-code-card';
 import { Icon, type IconName } from '../../icons';
 
@@ -21,6 +22,8 @@ function paymentLabel(order: Order) {
   return `${payMethods[order.payment_method] ?? order.payment_method} · ${payStatuses[order.payment_status ?? 'pending'] ?? order.payment_status}`;
 }
 
+/** Janela de avaliação do entregador: 7 dias após a entrega; 8 dias de created_at evitam GET em pedidos antigos. */
+const COURIER_REVIEW_WINDOW_MS = 8 * 24 * 60 * 60 * 1000;
 const FINISHED = ['delivered', 'completed', 'served'];
 const FAILED = ['rejected', 'cancelled', 'expired', 'failed'];
 const STEPS: { label: string; icon: IconName; statuses: string[] }[] = [
@@ -71,6 +74,7 @@ function PastOrder({ order, index, expandedOrderId, setExpandedOrderId }: RowPro
     </div>
     <div className="orders-row-foot">
       {FINISHED.includes(order.status) && <ReviewForm orderId={order.id} />}
+      {order.status === 'delivered' && Date.now() - new Date(order.created_at).getTime() < COURIER_REVIEW_WINDOW_MS && <CourierReviewForm orderId={order.id} />}
       <DetailsToggle order={order} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} />
     </div>
     {expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}

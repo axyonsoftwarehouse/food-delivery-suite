@@ -4,6 +4,7 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.PasswordVerifier;
 import com.foodie.api.auth.User;
+import com.foodie.api.courier.Reputation;
 import com.foodie.api.permissions.PermissionService;
 import com.foodie.api.permissions.Permissions;
 import jakarta.validation.Valid;
@@ -50,9 +51,21 @@ public class RestaurantCourierController {
     public List<Map<String, Object>> list(@CookieValue(value = "foodie_session", required = false) String token) {
         // Quem despacha precisa da lista para escolher o entregador; quem gerencia, para cadastrar.
         long restaurantId = store(token, Permissions.COURIERS_MANAGE, Permissions.ORDERS_DISPATCH);
-        return jdbc.queryForList(
-            "SELECT id, name, email, suspended_at IS NOT NULL AS suspended, courier_approved_at IS NOT NULL AS approved "
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT id, name, email, suspended_at IS NOT NULL AS suspended, courier_approved_at IS NOT NULL AS approved, "
+                + "(SELECT COUNT(*) FROM courier_reviews cr WHERE cr.courier_id = users.id) AS rating_count, "
+                + "(SELECT COALESCE(SUM(cr.rating), 0) FROM courier_reviews cr WHERE cr.courier_id = users.id) AS rating_sum "
                 + "FROM users WHERE role = 'courier' AND restaurant_id = ? ORDER BY name", restaurantId);
+        return rows.stream().map(row -> {
+            Map<String, Object> item = new LinkedHashMap<>(row);
+            Object count = item.remove("rating_count");
+            Object sum = item.remove("rating_sum");
+            long ratingCount = count instanceof Number n ? n.longValue() : 0L;
+            long ratingSum = sum instanceof Number n ? n.longValue() : 0L;
+            item.put("ratingCount", ratingCount);
+            item.put("ratingAverage", Reputation.average(ratingSum, ratingCount));
+            return item;
+        }).toList();
     }
 
     @PostMapping

@@ -136,6 +136,29 @@ await request(`/orders/${codeOrder.id}/status`, storeCourierSession, 'PATCH', { 
 await request(`/orders/${codeOrder.id}/delivery-code`, customer, 'GET', undefined, 404);
 await request('/restaurant/contact/delivery-code', restaurantSession, 'PUT', { required: false });
 
+// Parte C: avaliação da entrega, reputação, meta e ganhos por dia.
+const canReview = await request<{ canReview: boolean; courierName: string | null }>(`/orders/${codeOrder.id}/courier-review`, customer);
+assert.equal(canReview.canReview, true);
+await request(`/orders/${codeOrder.id}/courier-review`, customer, 'POST', { rating: 6 }, 400);
+await request(`/orders/${codeOrder.id}/courier-review`, customer, 'POST', { rating: 5, comment: 'Entrega rápida' }, 201);
+await request(`/orders/${codeOrder.id}/courier-review`, customer, 'POST', { rating: 4 }, 409);
+const mine = await request<{ average: number | null; count: number; recent: { comment: string }[] }>('/courier/reputation', storeCourierSession);
+assert.equal(mine.count, 1);
+assert.equal(mine.average, null, 'com 1 avaliação a média não aparece');
+assert.ok(mine.recent.some((item) => item.comment === 'Entrega rápida'));
+assert.ok(!JSON.stringify(mine).includes('customer'), 'a reputação não traz o cliente');
+const ofStore = await request<{ count: number }>(`/restaurant/couriers/${storeCourier.id}/reputation`, restaurantSession);
+assert.equal(ofStore.count, 1);
+await request('/restaurant/couriers/999999999/reputation', restaurantSession, 'GET', undefined, 404);
+await request('/courier/goal', storeCourierSession, 'PUT', { weeklyDeliveries: 0 }, 400);
+const goal = await request<{ weeklyDeliveries: number | null; doneThisWeek: number }>('/courier/goal', storeCourierSession, 'PUT', { weeklyDeliveries: 20 });
+assert.equal(goal.weeklyDeliveries, 20);
+assert.ok(goal.doneThisWeek >= 2, 'os dois pedidos entregues contam na semana');
+const daily = await request<{ date: string; count: number }[]>('/me/earnings/daily?days=7', storeCourierSession);
+assert.equal(daily.length, 7);
+assert.ok(daily.reduce((sum, day) => sum + day.count, 0) >= 2);
+await request('/me/earnings/daily?days=15', storeCourierSession, 'GET', undefined, 400);
+
 await request(`/restaurant/products/${product.id}`, restaurantSession, 'PATCH', { description: 'Receita da casa' });
 await request(`${support}/products/${product.id}`, admin, 'DELETE', { reason: 'Tentativa de exclusão de produto usado' }, 409);
 const extra = await request<{ id: number }>(`${support}/products`, admin, 'POST', { reason, data: { categoryId: category.id, name: 'Prato extra', priceCents: 1000 } }, 201);

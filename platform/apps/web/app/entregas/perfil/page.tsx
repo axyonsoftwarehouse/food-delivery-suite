@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../app-context';
 import { useLocationStatus } from '../use-location-sharing';
+import ReputationCard from '../reputation-card';
 
 type InstallEvent = Event & { prompt: () => Promise<void> };
 type Profile = { name: string; email: string; restaurant_name: string | null; vehicle_type: string | null; vehicle_plate: string | null };
@@ -36,6 +37,7 @@ export default function PerfilPage() {
       <div className="courier-row"><div><strong>{'Veículo'}</strong><small>{profile?.vehicle_type ? `${VEHICLE[profile.vehicle_type] ?? profile.vehicle_type}${profile.vehicle_plate ? ` · ${profile.vehicle_plate}` : ''}` : 'Não informado'}</small></div></div>
       <div className="courier-row"><div><strong>{'E-mail'}</strong><small>{profile?.email}</small></div></div>
       </>}
+      <ReputationCard />
       <div className="courier-row"><div><strong>{'Localização'}</strong><small>{status === 'blocked'
         ? 'Bloqueada. No Chrome: cadeado na barra de endereço → Permissões → Localização → Permitir. No Safari: Ajustes → Safari → Localização → Permitir.'
         : status === 'unsupported' ? 'Este navegador não oferece localização; o cliente não verá o rastreio.'
