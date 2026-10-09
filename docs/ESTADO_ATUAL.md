@@ -1,6 +1,6 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 08/10/2026.
+Documento vivo. Última atualização: 09/10/2026.
 Base: `PLANO_EPICOS.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -15,17 +15,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `main` local | `b7fe4bf` — PRs #1 a #48 mescladas (a #48, estorno pelo Mercado Pago, em 05/10) |
-| E48 | mesclado em 01/10 (`5564966`) e **publicado** no staging; teste manual local OK |
-| `origin/main` | sincronizado com a `main` local (nada pendente de push) |
-| **Código na VPS** | **`b7fe4bf`** — o `main` inteiro (PRs #1–#48), publicado pelo `release.ps1` em 05/10 (registro em `/home/deploy/foodie-platform/.deployed`) |
-| Schema (`/ready`) | `056` (`V056__store_owned_discounts.sql`), na VPS e no `HEAD` — `/ready` e `/health` públicos em **200** |
-| Distância | **nenhuma**: a VPS roda o mesmo commit que a `main` local |
+| `origin/main` | **`e416ac9`** — merge da PR #22 (`feat/entregador-confianca`). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #22** são os do `axyonsoftwarehouse` |
+| Em revisão | **PR #23** (`feat/entregador-motivacao`) — parte C do entregador, migration `V066`; aberto em 09/10 |
+| `main` local | **atrás** do `origin/main`: parada em `aeb7cc1` (81 commits atrás em 09/10); o trabalho é feito nas branches |
+| **Código na VPS** | **`e416ac9`** — o `main` inteiro, publicado pelo **botão do GitHub** (09/10 17:35 UTC, execução verde); registro em `/home/deploy/foodie-platform/.deployed` |
+| Schema (`/ready`) | **`065`** na VPS (conferido em 09/10: `/ready` e `/health` públicos em **200**); `066` só na branch do PR #23 |
+| Distância | **nenhuma** em relação ao `origin/main`; o PR #23 ainda não foi mesclado |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `mvn test` completo sem falha em 05/10 (com a PR #42) |
+| Testes Java | `mvn test` com **634 execuções** sem falha na branch do PR #23 (09/10); `VERIFY_INTEGRATION=1 pnpm verify` verde nas PRs #16 a #19 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
-| Disco da VPS | **21%** (7,3 GB de 38 GB, 29 GB livres) — limpeza de 03/10; era 83% |
-| Árvore de trabalho | limpa, exceto `platform/deploy/gravar-segredo-webhook.bat` (não versionado) |
+| Disco da VPS | **66%** (24 GB de 38 GB, 13 GB livres) em 08/10 — era 21% em 03/10; a limpeza automática dispara em 70%. Depois dos deploys de 08/10 (noite) e 09/10: **(a confirmar)** — `df -h /` na VPS |
+| Árvore de trabalho | limpa na branch `feat/entregador-motivacao` (`.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -36,9 +36,10 @@ repositório — foi assim que se descobriu, em 01/10, que a VPS rodava `bf8a6a3
 novo em 03/10, quando a `main` e a ficha diziam `dd7e2c8`/PR #20 e a VPS já
 estava em `df503c0`/PR #35.
 
-Como publicar: `.\platform\deploy\release.ps1` (no PC). O script empacota o
-commit, envia e aplica com backup, verificação e rollback — ver
-`RUNBOOK_VPS.md` §4.
+Como publicar: pelo **botão do GitHub** (`Actions → Deploy - Foodie → Run workflow`, exige digitar
+`PUBLICAR`) — desde 07/10 é o caminho normal, e o `.deployed` identifica a origem pelo `package`
+(`ci-incoming/…`). Alternativa no PC: `.\platform\deploy\release.ps1`, que empacota o commit, envia e
+aplica com backup, verificação e rollback — ver `RUNBOOK_VPS.md` §4.
 
 ## 1. O que é o Foodie hoje
 
@@ -110,11 +111,10 @@ pendente** — não há código Apple no backend).
 
 ## 3. O que está no limbo (feito, mas precisa confirmar)
 
-- **Descontos são da loja** — implementado em 03/10/2026 (branch, ainda não publicado): o campo
-  `restaurants.discount_percent` saiu (migration `V056`) e o admin passou a **só ler** campanhas e
-  cupons, que agora pertencem sempre a uma loja. **Publicação pendente** e com efeito colateral
-  esperado: a `V056` apaga `BEMVINDO` e `FRETE10` (cupons globais) do staging; o `deploy.sh` faz
-  backup antes.
+- **Descontos são da loja** — implementado em 03/10 e **publicado em 05/10** (`c910409`, PR #39,
+  schema `056`): o campo `restaurants.discount_percent` saiu (migration `V056`) e o admin passou a
+  **só ler** campanhas e cupons, que agora pertencem sempre a uma loja. Efeito conferido no banco do
+  staging: `BEMVINDO` e `FRETE10` (globais) foram apagados e sobrou só o `CANTINA15`, da loja.
 - **Apple Sign In** (E47) — pendente (confirmado: sem código Apple)
 - **S3 storage** (E03/E37) — abstração pronta (`StorageProvider`), driver S3 não
   implementado; driver não configurado responde **503**
@@ -232,7 +232,8 @@ recusa e assim por diante.
 - **Pix/cartão online direto para a loja**: a cobrança, o webhook e o estorno foram provados no staging
   em 05/10 (ver "Pagamentos online"), mas com uma conta só, a da plataforma. A **conta de recebimento
   por loja está implementada** (vinculação OAuth da conta Mercado Pago de cada restaurante, usada na
-  cobrança, na consulta, no webhook, no estorno e no checkout): parte 1 na PR #53, parte 2 (este PR).
+  cobrança, na consulta, no webhook, no estorno e no checkout) desde 06/10 — **antes da migração do
+  repositório**, então os PRs daquela numeração não existem mais; o código está no `main` desde `aeb7cc1`.
   **Pendente: o teste de ponta a ponta no staging** (Pix, cartão e estorno com a conta da loja
   conectada, e webhook sem reenvio manual); até lá, não está provado. A flag
   `PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES` está **ligada no staging** e desligada por padrão no código.
@@ -261,7 +262,7 @@ recusa e assim por diante.
   (migration `V060`) e o fallback global saiu do cálculo; só a loja cria regras e o admin só lê
   (`/admin/rewards/cashback-rules`). Fora de escopo: a contrapartida contábil do cashback no razão.
 - **Entregador da loja e despacho pela loja** (decisão de 08/10/2026): o entregador é **exclusivo de uma loja**
-  (`users.restaurant_id`). **Implementado em 08/10/2026 (branch `feat/entregador-da-loja`, não publicado)**: a loja
+  (`users.restaurant_id`). **Implementado e publicado em 08/10/2026 (PR #16, `57edf31`, migration `V061`)**: a loja
   cadastra, aprova e suspende os entregadores em **Equipe** (`/restaurant/couriers`, permissão `couriers.manage`),
   atribui/troca/remove o entregador do pedido (`orders.dispatch`) e cancela o pedido depois do aceite, com motivo e
   estorno automático (`orders.cancel`). O admin não cadastra nem aprova mais; como suporte, atribui só entregador da
@@ -269,12 +270,36 @@ recusa e assim por diante.
   A migração `V061` liga cada entregador antigo à loja de **todas** as entregas dele; quem entregou para mais de
   uma loja (ou nunca entregou) fica sem loja até o suporte ligá-lo. Quantos ficam assim no staging: **(a confirmar)**
   — `SELECT id, name FROM users WHERE role = 'courier' AND restaurant_id IS NULL;` depois do deploy.
-- **Revisão de lógica do backend (08/10/2026) — próximas PRs:** B) pagamento online (nova tentativa depois de recusa,
-  sem confirmação manual de pagamento online, sem troca para comprovante com cobrança viva, webhook sem regressão de
-  status, loja confirma dinheiro na retirada/local; a loja vê e pode aceitar o pedido antes do pagamento);
-  C) expiração por agendamento, não nas leituras; D) cashback sobre **subtotal menos descontos** (sem gorjeta, frete e
-  taxa de serviço; só se a loja tiver regra), pontos revertidos no estorno, cupom recupera o uso de pedido morto;
-  E) **indicação vira cupom de desconto da loja**, com valores definidos por ela (precisa de especificação).
+- **Revisão de lógica do backend (08/10/2026) — os cinco itens estão mesclados e publicados.**
+  - **A) entrega, gorjeta e cashback são da loja** — PR #15 (`6a81d74`, 07/10).
+  - **B) pagamento online** (nova tentativa depois de recusa, sem confirmação manual de pagamento online, sem troca
+    para comprovante com cobrança viva, webhook sem regressão de status, loja confirma dinheiro na retirada e no
+    local; a loja vê e pode aceitar o pedido antes do pagamento) — PR #17 (`823bbe7`, 08/10).
+    **Pendente de prova:** a nova tentativa com o Mercado Pago de verdade — cartão `OTHE` recusado e, em seguida,
+    `APRO` no mesmo pedido (o próprio PR registra que isso não foi testado).
+  - **C) expiração por tarefa agendada**, não dentro das leituras; o pedido agendado expira 15 min depois do
+    horário marcado — PR #18 (`58105f7`, 08/10). Efeito colateral aceito: até 1 minuto de atraso para aparecer
+    expirado (antes era imediato na primeira leitura).
+  - **D) cashback sobre subtotal menos descontos** (sem gorjeta, frete e taxa de serviço; só se a loja tiver regra),
+    **pontos revertidos no estorno** e **cupom recuperando o uso** de pedido morto — PR #19 (`fe49bf9`, 08/10),
+    migration `V062`. A base dos **pontos** de fidelidade continua sendo o total: a decisão de 08/10 foi só sobre o
+    cashback.
+  - **E) indicação vira cupom de desconto da loja**, com valores definidos por ela — PR #20 (`5614257`, 08/10),
+    migration `V063`, spec `docs/superpowers/specs/2026-10-08-indicacao-cupom-da-loja-design.md`. O programa é
+    **da loja e opcional**: quem indica e quem é indicado ganham cupons pessoais, válidos só naquela loja; o crédito
+    em dinheiro da plataforma deixou de existir.
+- **Área do entregador (roteiro de 08/10, partes A a D, nessa ordem):**
+  - **A) dia a dia na rua** — PR #21 (`a2ce5a9`, 09/10), migration `V064`: área `/entregas` pensada para o
+    celular, rota por link do Maps/Waze, Ligar e WhatsApp, localização só durante a entrega (409 fora dela) e
+    telefone de contato obrigatório no checkout de entrega.
+  - **B) confiança na entrega** — PR #22 (`e416ac9`, 09/10), migration `V065`: código de confirmação opcional por
+    loja (padrão desligado, só o cliente vê, 5 erros travam) e falha de entrega com motivo padronizado.
+  - **C) motivação** — **PR #23, em revisão** (migration `V066`): o cliente avalia o entregador de 1 a 5 depois
+    da entrega; o entregador vê a própria reputação (média só a partir de 5 avaliações, sem dados do cliente); a
+    loja vê a nota na Equipe; meta semanal de entregas e gráfico de ganhos por dia (7 ou 30 dias). Não
+    verificado localmente: o smoke novo e a `V066` em banco real (`VERIFY_INTEGRATION=1 pnpm verify`) e as telas
+    no celular — conta com o CI.
+  - **D) gestão pela loja** (mapa, "Estou disponível", turnos, despacho pelo mais próximo) — não começou.
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
@@ -329,12 +354,32 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**E48 — "modo suporte" do admin: entregue e publicado em 01/10** (`4760fd3`, schema `054`).
-Conferido antes do deploy: `admin_audit_log` vazia na VPS e nenhum papel de admin restrito (todos os
-admins recebem `support.*`). Teste manual local: busca, ficha, pausa, diálogo de motivo, cardápio,
-trilha e visão da loja.
+**O que está no ar é o `origin/main` inteiro** (`e416ac9`, schema `065`); fora dele só o **PR #23** (parte C
+do entregador), em revisão. O staging é publicado pelo **botão do GitHub** desde 07/10 — depois do merge do
+#23, publicar e conferir `/ready` em `066`.
 
-**Follow-ups do E48 — resolvidos em 01/10 (ainda não publicados):**
+**Próximo passo único: fechar o pagamento real com a conta por loja** (cartão `1nguT9bv`, em TESTING).
+O código está pronto e no ar; o que falta é prova no ambiente publicado:
+1. a **nova tentativa** de cobrança depois de recusa (PR #17) — cartão `OTHE` recusado e, depois, `APRO`
+   no mesmo pedido, com a **conta da loja** conectada;
+2. **prints** das telas (Pix, cartão e estorno) para o cartão — o professor exige print no comentário;
+3. a **decisão comercial** que nenhum código resolve: de quem é a conta que recebe e quem assume o
+   estorno/chargeback (cartão `FWyJELEC`);
+4. trocar a **credencial de teste exposta** em 02/10 e conferir se a conta tem **chave Pix registrada**;
+5. decidir o **3DS** (status `CALL` não tratado — cartão `PCLXrYCa`).
+
+**Em paralelo, no produto:** mesclar o PR #23 (parte C do entregador) e seguir para a **parte D** (gestão pela
+loja).
+
+**Depois:** a **cobrança real da assinatura** (hoje cria a transação e não cobra o provedor) e a
+prontidão de produção (SMTP real, backup externo com ensaio de restauração, revisão de CSRF/origem).
+
+**Histórico do E48 (encerrado em 01/10):** entregue e publicado (`4760fd3`, schema `054`), com
+`admin_audit_log` vazia na VPS e nenhum papel de admin restrito — todos os admins recebem `support.*`.
+Teste manual local: busca, ficha, pausa, diálogo de motivo, cardápio, trilha e visão da loja.
+
+**Follow-ups do E48 — resolvidos em 01/10 e no ar desde então** (a numeração de PR abaixo é a do
+repositório **antigo**, que foi apagado na migração; os commits identificam):
 - **Reload de `/painel/suporte` caía em `/painel`** (PR #1, `6642f0e`). Causa: no StrictMode o
   efeito de montagem do `AppProvider` roda duas vezes; a chamada de `refresh()` descartada liberava
   o `initializing` com `user=null`, o painel mandava para `/entrar` e este devolvia para `/painel`.
@@ -346,11 +391,10 @@ trilha e visão da loja.
   **Sem efeito desde 01/10/2026:** a camada de tradução toda saiu — a plataforma é só em português,
   então não existe mais texto "de fora".
 
-**Ambiente local:** a imagem Docker da API não se atualiza sozinha — em 01/10 ela estava em 27/09 e o
-banco local na migration 049 (o container do banco também estava parado). Depois de cada merge:
-`docker compose --profile java up -d --build api-java` no `platform/` do checkout principal.
-
-Próximo passo: **fila de infraestrutura abaixo** (escolhida em 01/10); depois, pendências comerciais.
+**Ambiente local:** a imagem Docker da API não se atualiza sozinha — depois de cada merge:
+`docker compose --profile java up -d --build api-java` no `platform/` do checkout principal. **A `main`
+local está atrás:** continua em `aeb7cc1` (o trabalho é feito nas branches) — vale um
+`git checkout main && git pull` na próxima sessão em que o Docker for subido.
 
 O admin compartilhava 4 abas operacionais com o restaurante (`pedidos`,
 `catalogo`, `horarios`, `operacao`); elas saíram do menu, mas a API ainda
@@ -388,14 +432,15 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. As PRs #1–#42 estão publicadas (`38d5492`, schema `056`), e o
-staging roda o mesmo commit que a `main`.
+A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #22** estão mesclados e
+publicados (`e416ac9`, schema `065`), e o staging roda o mesmo commit do `origin/main`.
 
-**O próximo passo é um só: fechar o cartão `1nguT9bv` (pagamento real), que está em TESTING.** Pix,
-cartão e estorno foram provados de ponta a ponta em 05/10 (pedidos #23 e #26); faltam os prints. A
-decisão comercial foi tomada em 05/10: a Foodie só trabalha com assinatura e suporte, e os valores são da
-loja. A **conta de recebimento por loja** foi implementada (PR #53 e parte 2); falta o teste de ponta a ponta
-no staging. As outras decorrências dessa decisão seguem em §4.
+**O que já foi provado no pagamento (com a conta global da plataforma, em 05/10):** Pix (#23) e cartão
+(#26) de ponta a ponta com notificação automática, o estorno pelo admin (#26 ficou `refunded` no Foodie e
+no Mercado Pago), o estorno automático no cancelamento/recusa/expiração (06/10) e o estorno feito no painel
+do Mercado Pago chegando pelo webhook. **O que não foi provado:** a rodada nova com a **conta da loja
+conectada** (Pix, cartão e estorno), que é justamente o próximo passo acima — e a nova tentativa de cobrança
+depois de recusa (PR #17). As demais decorrências da decisão de 05/10 seguem em §4.
 
 ## 5.1 Higiene da VPS — 03/10/2026
 
@@ -413,33 +458,52 @@ em `/home/deploy/releases/<sha>/`), então as imagens em uso foram **re-tagadas*
 `pre-df503c0` — rollback instantâneo para o release atual sem custo de build. Os backups de banco
 seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar de ~70%.
 
-## 6. Estado da árvore de trabalho (05/10)
+## 6. Estado da árvore de trabalho (09/10)
 
-`main` = `origin/main` = **`38d5492`** (PR #42). A árvore está limpa, exceto o
-`platform/deploy/gravar-segredo-webhook.bat`, que não é versionado. A partir de
-01/10 as mudanças entram por PR (branch → PR → merge no GitHub). Os PRs #24–#35 (madrugada de 03/10)
-foram o checkout transparente, o webhook e o endurecimento dele:
+`origin/main` = **`e416ac9`** (PR #22). O checkout está na branch `feat/entregador-motivacao` (PR #23, em
+revisão), limpa (o `.claude/` não é versionado). A **`main` local está atrás** (`aeb7cc1`) — vale um
+`git checkout main && git pull`. Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
+verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
+conserto no PR #13).
 
-| Commit | O que é |
-| --- | --- |
-| `0257ef9` / `06932a3` | `feat`: cartão no checkout transparente e as telas do pagamento — PRs #24 e #26 |
-| `364a01b` | `fix`: cobrar na API de Orders, não na Payments API legacy — PR #25 |
-| `3e8f6cd` | `fix`: retirada sem 500 e Pix sem campo recusado — PR #27 |
-| `64c4dfb` | `fix`: cobrança que falhou não trava o pedido (idempotência) — PR #28 |
-| `a269688` … `1bcbff7` | `fix(webhook)`: log do motivo, 200 para notificação alheia, 4xx sem 502, manifesto pela query e id em minúsculas — PRs #29 a #33, #35 |
-| `d98219d` | `fix(webhook)`: log da recusa com o id do evento — PR #34 |
-| `df503c0` | merge final (16:20 de 02/10) |
-| `7451939` | `chore(pagamentos)`: remover a configuração de pagamento sem leitor — PR #36 |
-| `2d94d43` | `fix(webhook)`: assinatura confere o id da order na caixa original (desfaz o erro da #35) — PR #37 |
-| `8ab5d33` | merge da #37 (04/10) |
-| `2118849` | `fix(deploy)`: links de email do staging apontam para o host da loja — PR #38 |
-| `de54b6a` … `9b21cdc` | `feat(descontos)`: promoção só da própria loja (V056) — PR #39 |
-| `4677304` | `fix(pagamentos)`: webhook recusa quando o segredo não está configurado — PR #40 |
-| `75259f0` | `feat(fatura)`: E27 gera a fatura do pedido em PDF — PR #41 |
-| `38d5492` | merge da #42: vários segredos de webhook (05/10) — **é o que está na VPS** |
+Os **PRs #1 a #22** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
+os últimos publicados **pelo botão do GitHub**. O **#23** está aberto:
 
-Commits anteriores (01/10 e 02/10) — PRs #1 a #23 — estão registrados nas entradas do diário e nas
-tabelas das versões anteriores deste documento.
+| Commit | PR | O que é |
+| --- | --- | --- |
+| `c372a28` | #1 | `docs`: README sem o nome do pacote legado |
+| `c31d8eb` | #2 | `docs`: sem nomes comerciais do pacote legado |
+| `e73f04e` | #3 | `feat(web)`: novo visual do login e do funil de compra da loja |
+| `e6e77ff` | #4 | `fix(api)`: login social e OTP só para clientes; arquivos privados por padrão |
+| `aeb7cc1` | #5 | `fix(api)`: PDV, fuso horário, cupons e permissões de admin restrito |
+| `10c45c6` | #6 | `fix(api)`: push, rastreio, chat, tipo de pedido, estoque, estorno e vinculação do Mercado Pago |
+| `3f49fb4` | #7 | `chore(ci)`: verificação automática no PR e na `main` |
+| `91c12cc` | #8 | `chore(deploy)`: trava de espaço em disco e limpeza de tags antigas |
+| `077baee` | #9 | `docs(mobile)`: cozinha e entregador como PWA — o Firebase sai do projeto |
+| `47cf268` | #10 | `feat(cozinha)`: quadro da cozinha (KDS) no site |
+| `99e8c69` | #11 | `ci(deploy)`: botão de publicar no staging pelo GitHub |
+| `ba0c1a1` | #12 | `feat(web)`: redesign completo com movimento, telas enxutas e nova cor da marca |
+| `19e9986` | #13 | `fix(web)`: destravar a `main` — conflito mal resolvido em `painel/layout.tsx` |
+| `60b715b` | #14 | `feat(painel)`: Configurações em seções, gate de CI e avaliação de QA |
+| `6a81d74` | #15 | `fix(api,web)`: entrega/gorjeta e cashback passam a ser da loja (`V060`) |
+| `57edf31` | #16 | `feat`: entregador exclusivo da loja e despacho pela loja (`V061`) |
+| `823bbe7` | #17 | `fix`: pagamento online consistente e recebimento pela loja |
+| `58105f7` | #18 | `fix`: expiração de pedidos por tarefa agendada |
+| `fe49bf9` | #19 | `fix`: cashback sobre subtotal, pontos no estorno e cupom de pedido morto (`V062`) |
+| `5614257` | #20 | `feat`: indicação como cupom da loja (`V063`) |
+| `a2ce5a9` | #21 | `feat`: área do entregador — dia a dia na rua, parte A (`V064`) |
+| `e416ac9` | #22 | `feat`: área do entregador — confiança na entrega, parte B (`V065`) — **é o que está na VPS** |
+| — | #23 | `feat`: área do entregador — motivação, parte C (`V066`) — **em revisão** |
+
+**Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
+commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,
+o webhook e o endurecimento dele** (PRs #24 a #35), a **remoção da configuração morta de pagamento** (#36), a
+**assinatura do webhook na caixa original** (#37), o `PUBLIC_BASE_URL` no staging (#38), **"descontos são da
+loja"** (`V056`, #39), o webhook **falhando fechado** (#40), a **fatura em PDF** (#41) e os **vários segredos
+de webhook** (#42, `38d5492` — o último release pelo `release.ps1`, em 05/10).
+
+Os commits de 01/10 a 06/10 (numeração de PR do **repositório antigo**, apagada na migração) estão
+registrados nas entradas do diário e nas tabelas das versões anteriores deste documento.
 
 Commits de 30/09:
 
@@ -507,8 +571,8 @@ Ver `docs/RUNBOOK_VPS.md`. Dois pontos que já custaram tempo:
 - O código implantado é o **conteúdo de `platform/`**, então o deploy fica em
   `/home/deploy/foodie-platform/deploy` — **não** em `.../platform/deploy`.
 - A VPS **não é um clone** (sem `.git`): não há `git rev-parse` para descobrir
-  o commit no ar. Consulte `/home/deploy/foodie-platform/.deployed` (hoje:
-  `df503c0`, schema `055`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
+  o commit no ar. Consulte `/home/deploy/foodie-platform/.deployed` (em 09/10:
+  `e416ac9`, schema `065`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
 
 ## 8. Referências
 
