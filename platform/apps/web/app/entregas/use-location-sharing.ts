@@ -5,7 +5,8 @@ import { api, ApiError } from '../app-context';
 
 /**
  * Localização só durante a entrega (área do entregador, parte A): envio a cada 15 s ou após 30 m, só com
- * entrega ativa e a tela aberta. Sem sinal, guarda só a última posição. O servidor também recusa (409) sem
+ * entrega ativa e a tela aberta. O id da entrega é a dependência do efeito: cada entrega nova religa o envio do
+ * zero (inclusive depois de um 409 na anterior). Sem sinal, guarda só a última posição. O servidor também recusa (409) sem
  * entrega, então esta tela não é a única barreira.
  */
 type Status = 'sharing' | 'idle' | 'blocked' | 'unsupported';
@@ -31,7 +32,7 @@ function meters(a: GeolocationCoordinates, b: GeolocationCoordinates) {
   return 2 * r * Math.asin(Math.sqrt(h));
 }
 
-export function useLocationSharing(active: boolean) {
+export function useLocationSharing(activeDeliveryId: number | null) {
   const { setStatus } = useContext(StatusContext);
   const lastSent = useRef<{ at: number; coords: GeolocationCoordinates } | null>(null);
   const pending = useRef<GeolocationCoordinates | null>(null);
@@ -39,15 +40,20 @@ export function useLocationSharing(active: boolean) {
   const inFlight = useRef(false);
 
   useEffect(() => {
-    if (!active) { setStatus('idle'); return; }
+    // Cada entrega nova começa do zero: nada da anterior (posição, regra de 15 s / 30 m) vale para ela.
+    pending.current = null;
+    lastSent.current = null;
+    if (activeDeliveryId === null) { setStatus('idle'); return; }
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) { setStatus('unsupported'); return; }
     let cancelled = false;
     // Depois de um 409 o servidor diz que não há entrega: para de enviar até a tela desligar o hook.
     let rejected = false;
-    let lock: { release: () => Promise<void> } | null = null;
+    let lock: { released: boolean; release: () => Promise<void> } | null = null;
     // Tela acesa durante a entrega, quando o navegador oferece (evita pausar o rastreio no suporte da moto).
-    const wake = (navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+    const wake = (navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ released: boolean; release: () => Promise<void> }> } }).wakeLock;
     const keepAwake = () => {
+      // Já existe um sentinel ativo: não pede outro.
+      if (lock && !lock.released) return;
       wake?.request('screen').then((sentinel) => {
         // A limpeza pode ter rodado antes de o pedido resolver: sem isto o sentinel ficaria preso para sempre.
         if (cancelled) { void sentinel.release().catch(() => {}); return; }
@@ -108,5 +114,5 @@ export function useLocationSharing(active: boolean) {
       void lock?.release().catch(() => {});
       setStatus('idle');
     };
-  }, [active, setStatus]);
+  }, [activeDeliveryId, setStatus]);
 }
