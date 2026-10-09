@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, createElement, useContext, useEffect, useRef, useState } from 'react';
-import { api } from '../app-context';
+import { createContext, createElement, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { api, ApiError } from '../app-context';
 
 /**
  * Localização só durante a entrega (área do entregador, parte A): envio a cada 15 s ou após 30 m, só com
@@ -13,7 +13,8 @@ const StatusContext = createContext<{ status: Status; setStatus: (status: Status
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<Status>('idle');
-  return createElement(StatusContext.Provider, { value: { status, setStatus } }, children);
+  const value = useMemo(() => ({ status, setStatus }), [status]);
+  return createElement(StatusContext.Provider, { value }, children);
 }
 
 export function useLocationStatus() {
@@ -34,38 +35,76 @@ export function useLocationSharing(active: boolean) {
   const { setStatus } = useContext(StatusContext);
   const lastSent = useRef<{ at: number; coords: GeolocationCoordinates } | null>(null);
   const pending = useRef<GeolocationCoordinates | null>(null);
+  // Trava contra POSTs simultâneos (leitura do GPS, intervalo e "online" podem coincidir).
+  const inFlight = useRef(false);
 
   useEffect(() => {
     if (!active) { setStatus('idle'); return; }
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) { setStatus('unsupported'); return; }
+    let cancelled = false;
+    // Depois de um 409 o servidor diz que não há entrega: para de enviar até a tela desligar o hook.
+    let rejected = false;
     let lock: { release: () => Promise<void> } | null = null;
     // Tela acesa durante a entrega, quando o navegador oferece (evita pausar o rastreio no suporte da moto).
     const wake = (navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock;
-    wake?.request('screen').then((sentinel) => { lock = sentinel; }).catch(() => {});
+    const keepAwake = () => {
+      wake?.request('screen').then((sentinel) => {
+        // A limpeza pode ter rodado antes de o pedido resolver: sem isto o sentinel ficaria preso para sempre.
+        if (cancelled) { void sentinel.release().catch(() => {}); return; }
+        lock = sentinel;
+      }).catch(() => {});
+    };
+    keepAwake();
 
     const send = (coords: GeolocationCoordinates) => {
+      if (rejected || inFlight.current) { pending.current = rejected ? null : coords; return; }
       pending.current = coords;
+      inFlight.current = true;
       api('/courier/location', { method: 'POST', body: JSON.stringify({ latitude: coords.latitude, longitude: coords.longitude }) })
-        .then(() => { lastSent.current = { at: Date.now(), coords }; pending.current = null; setStatus('sharing'); })
-        .catch(() => { /* sem sinal ou entrega encerrada: a última posição fica em `pending` e vai na próxima */ });
+        .then(() => {
+          lastSent.current = { at: Date.now(), coords };
+          // Se chegou uma posição mais nova durante o envio, ela continua pendente.
+          if (pending.current === coords) pending.current = null;
+          if (!cancelled) setStatus('sharing');
+        })
+        .catch((error) => {
+          if (error instanceof ApiError && error.status === 409) {
+            rejected = true;
+            pending.current = null;
+            if (!cancelled) setStatus('idle');
+          }
+          /* demais erros (sem sinal): a última posição fica em `pending` e vai na próxima */
+        })
+        .finally(() => { inFlight.current = false; });
     };
+    const flush = () => { if (pending.current) send(pending.current); };
+
     const watch = navigator.geolocation.watchPosition(
       (position) => {
-        setStatus('sharing');
+        if (rejected) return;
         const last = lastSent.current;
         if (!last || Date.now() - last.at >= INTERVAL_MS || meters(last.coords, position.coords) >= MIN_METERS) send(position.coords);
         else pending.current = position.coords;
       },
-      (error) => setStatus(error.code === error.PERMISSION_DENIED ? 'blocked' : 'sharing'),
+      // Só a permissão negada muda o indicador; sinal fraco/timeout mantém o status anterior.
+      (error) => { if (error.code === error.PERMISSION_DENIED) setStatus('blocked'); },
       { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 },
     );
-    const timer = window.setInterval(() => { if (pending.current) send(pending.current); }, INTERVAL_MS);
-    const online = () => { if (pending.current) send(pending.current); };
-    window.addEventListener('online', online);
+    const timer = window.setInterval(flush, INTERVAL_MS);
+    // O navegador solta o Wake Lock quando a página fica oculta (ex.: ao abrir o Maps/Waze): pede de novo ao voltar.
+    const visibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      keepAwake();
+      flush();
+    };
+    window.addEventListener('online', flush);
+    document.addEventListener('visibilitychange', visibility);
     return () => {
+      cancelled = true;
       navigator.geolocation.clearWatch(watch);
       window.clearInterval(timer);
-      window.removeEventListener('online', online);
+      window.removeEventListener('online', flush);
+      document.removeEventListener('visibilitychange', visibility);
       void lock?.release().catch(() => {});
       setStatus('idle');
     };

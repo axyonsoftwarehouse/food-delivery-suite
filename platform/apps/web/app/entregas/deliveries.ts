@@ -26,8 +26,10 @@ export function routeLinks(lat: number | null, lng: number | null, address: stri
 
 /** Telefone guardado só com dígitos (DDD + número); WhatsApp usa o código do país 55. */
 export function phoneLinks(phone: string | null) {
-  if (!phone) return null;
-  return { tel: `tel:+55${phone}`, whatsapp: `https://wa.me/55${phone}` };
+  // Tira máscara/espaços que possam ter vindo no cadastro; sem dígitos não há o que ligar.
+  const digits = (phone ?? '').replace(/\D/g, '');
+  if (!digits) return null;
+  return { tel: `tel:+55${digits}`, whatsapp: `https://wa.me/55${digits}` };
 }
 
 /** Quanto o entregador recebe na porta: nada se já foi pago ou se é online/comprovante. */
@@ -38,5 +40,5 @@ export function amountToCollect(delivery: Delivery) {
 
 export function distanceLabel(meters: number | null) {
   if (meters == null) return null;
-  return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1).replace('.', ',')} km`;
+  return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1).replace('.', ',')} km`;
 }
