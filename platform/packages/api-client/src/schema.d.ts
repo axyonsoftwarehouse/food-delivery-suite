@@ -132,6 +132,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/contact/delivery-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["deliveryCode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/interests": {
         parameters: {
             query?: never;
@@ -3204,6 +3220,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orders/{id}/delivery-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["deliveryCode_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orders/lookup": {
         parameters: {
             query?: never;
@@ -4553,6 +4585,9 @@ export interface components {
         ContactRequest: {
             phone?: string;
         };
+        DeliveryCodeRequest: {
+            required: boolean;
+        };
         InterestsRequest: {
             cuisineIds: number[];
         };
@@ -5189,6 +5224,9 @@ export interface components {
             /** Format: int64 */
             courierId?: number;
             reason?: string;
+            deliveryCode?: string;
+            failureReason?: string;
+            note?: string;
         };
         DeltaRequest: {
             /** Format: int32 */
@@ -5732,6 +5770,34 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ContactRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    deliveryCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryCodeRequest"];
             };
         };
         responses: {
@@ -13221,6 +13287,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": string;
+                };
+            };
+        };
+    };
+    deliveryCode_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

@@ -111,6 +111,31 @@ assert.equal(detail.status, 'delivered');
 assert.equal(detail.payment.status, 'paid');
 assert.equal(detail.payment.method, 'cash');
 assert.deepEqual(detail.history.map((event) => event.to_status), ['placed', 'accepted', 'ready', 'assigned', 'picked_up', 'delivered']);
+
+// Código de confirmação (entregador, parte B): a loja liga, o cliente vê, o entregador digita.
+await request('/restaurant/contact/delivery-code', restaurantSession, 'PUT', { required: true });
+await request('/cart/items/' + product.id, customer, 'PATCH', { delta: 1 });
+const codeCart = await request<{ version: string }>('/cart', customer);
+const codeOrder = await request<{ id: number; totalCents: number }>('/cart/checkout', customer, 'POST',
+  { ...checkoutBody, expectedVersion: codeCart.version, idempotencyKey: `smoke-code-${unique}` }, 201);
+await request(`/orders/${codeOrder.id}/status`, restaurantSession, 'PATCH', { action: 'accept' });
+await request(`/orders/${codeOrder.id}/status`, restaurantSession, 'PATCH', { action: 'ready' });
+await request(`/orders/${codeOrder.id}/status`, restaurantSession, 'PATCH', { action: 'assign', courierId: storeCourier.id });
+const codeActive = await request<{ id: number; requires_delivery_code: boolean }[]>('/courier/deliveries/active', storeCourierSession);
+assert.equal(codeActive.find((item) => item.id === codeOrder.id)?.requires_delivery_code, true, 'entrega marcada como exigindo código');
+await request('/orders/' + codeOrder.id + '/delivery-code', storeCourierSession, 'GET', undefined, 403);
+const myCode = await request<{ code: string }>(`/orders/${codeOrder.id}/delivery-code`, customer);
+assert.match(myCode.code, /^\d{4}$/);
+const codeDetail = await request<Record<string, unknown>>(`/orders/${codeOrder.id}`, restaurantSession);
+assert.ok(!('delivery_code' in codeDetail) && codeDetail.has_delivery_code === true, 'a loja não vê o código');
+await request(`/orders/${codeOrder.id}/status`, storeCourierSession, 'PATCH', { action: 'pickup' });
+await request(`/orders/${codeOrder.id}/payment`, storeCourierSession, 'PATCH', { amountReceivedCents: codeOrder.totalCents });
+const wrong = myCode.code === '0000' ? '1111' : '0000';
+await request(`/orders/${codeOrder.id}/status`, storeCourierSession, 'PATCH', { action: 'deliver', deliveryCode: wrong }, 409);
+await request(`/orders/${codeOrder.id}/status`, storeCourierSession, 'PATCH', { action: 'deliver', deliveryCode: myCode.code });
+await request(`/orders/${codeOrder.id}/delivery-code`, customer, 'GET', undefined, 404);
+await request('/restaurant/contact/delivery-code', restaurantSession, 'PUT', { required: false });
+
 await request(`/restaurant/products/${product.id}`, restaurantSession, 'PATCH', { description: 'Receita da casa' });
 await request(`${support}/products/${product.id}`, admin, 'DELETE', { reason: 'Tentativa de exclusão de produto usado' }, 409);
 const extra = await request<{ id: number }>(`${support}/products`, admin, 'POST', { reason, data: { categoryId: category.id, name: 'Prato extra', priceCents: 1000 } }, 201);
