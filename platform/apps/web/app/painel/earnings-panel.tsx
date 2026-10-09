@@ -27,7 +27,7 @@ export default function EarningsPanel() {
   return <>
     <section className="panel">
       <div className="panel-heading"><div><span className="eyebrow">ENTREGAS</span><h2>Ganhos de entrega</h2></div><p>Quanto cada entrega rendeu. Frete e gorjeta são pagos pela loja, fora da plataforma — aqui é só o extrato informativo.</p></div>
-      <section className="dash-cards" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
+      <section className="dash-cards earnings-cards">
         <div className="dash-card accent"><span>Total</span><strong>{money(summary?.totalCents ?? 0)}</strong><small>{summary?.count ?? 0} entrega(s)</small></div>
         <div className="dash-card"><span>Taxas de entrega</span><strong>{money(summary?.deliveryFeeCents ?? 0)}</strong><small>frete das entregas</small></div>
         <div className="dash-card"><span>Gorjetas</span><strong>{money(summary?.tipCents ?? 0)}</strong><small>gorjeta recebida</small></div>

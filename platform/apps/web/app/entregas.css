@@ -44,3 +44,8 @@
 
 .courier-row-links { display: flex; gap: 14px; }
 .courier-row-links a { display: inline-flex; align-items: center; gap: 4px; color: var(--brand-600); font-weight: var(--weight-bold); text-decoration: none; }
+
+/* Cards de ganhos: 3 colunas no painel; no app do entregador, 1 coluna no celular e 3 acima de ~560px */
+.earnings-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.courier-app .earnings-cards { grid-template-columns: 1fr; }
+@media (min-width: 561px) { .courier-app .earnings-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
