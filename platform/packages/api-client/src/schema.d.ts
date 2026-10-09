@@ -116,6 +116,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["contact"];
+        put: operations["save_1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/interests": {
         parameters: {
             query?: never;
@@ -124,7 +140,7 @@ export interface paths {
             cookie?: never;
         };
         get: operations["list"];
-        put: operations["save_1"];
+        put: operations["save_2"];
         post?: never;
         delete?: never;
         options?: never;
@@ -3524,6 +3540,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courier/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["profile_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courier/deliveries/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["history_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courier/deliveries/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["active"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat/unread": {
         parameters: {
             query?: never;
@@ -3652,6 +3716,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cart/contact-phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["contactPhone"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cart/campaign": {
         parameters: {
             query?: never;
@@ -3723,7 +3803,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["profile_1"];
+        get: operations["profile_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4470,6 +4550,9 @@ export interface components {
             /** Format: int32 */
             validDays?: number;
         };
+        ContactRequest: {
+            phone?: string;
+        };
         InterestsRequest: {
             cuisineIds: number[];
         };
@@ -4822,6 +4905,7 @@ export interface components {
             partySize?: number;
             /** Format: int32 */
             tipCents?: number;
+            contactPhone?: string;
         };
         GoogleRequest: {
             idToken: string;
@@ -5612,7 +5696,7 @@ export interface operations {
             };
         };
     };
-    list: {
+    contact: {
         parameters: {
             query?: never;
             header?: never;
@@ -5637,6 +5721,58 @@ export interface operations {
         };
     };
     save_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    save_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -13634,6 +13770,80 @@ export interface operations {
             };
         };
     };
+    profile_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    history_1: {
+        parameters: {
+            query?: {
+                period?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    active: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
     unread: {
         parameters: {
             query?: never;
@@ -13847,6 +14057,30 @@ export interface operations {
             };
         };
     };
+    contactPhone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     campaign: {
         parameters: {
             query?: never;
@@ -13949,7 +14183,7 @@ export interface operations {
             };
         };
     };
-    profile_1: {
+    profile_2: {
         parameters: {
             query?: never;
             header?: never;
