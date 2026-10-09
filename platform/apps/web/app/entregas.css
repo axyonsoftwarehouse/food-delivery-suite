@@ -40,3 +40,4 @@
 .courier-stats strong { display: block; font: 800 22px var(--font-display); color: var(--text); }
 .courier-banner { padding: 10px 14px; border-radius: var(--radius-lg); background: var(--brand-050); color: var(--brand-600); font-weight: var(--weight-semibold); }
 .courier-banner.is-warning { background: var(--warning-050, #fff7e6); color: var(--text); }
+.courier-actions-muted { display: grid; place-items: center; padding: 12px 6px; border-radius: var(--radius-lg); background: var(--bg); color: var(--text-faint); font-size: var(--text-sm); }
