@@ -67,6 +67,22 @@ class RestaurantCourierControllerTest {
     }
 
     @Test
+    void listCarriesTheRatingAndHidesTheAverageBelowFiveReviews() throws Exception {
+        when(auth.requireUser("s", "restaurant", "kitchen")).thenReturn(OWNER);
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(
+            Map.of("id", 12, "name", "Bia", "rating_count", 5L, "rating_sum", 24L),
+            Map.of("id", 13, "name", "Caio", "rating_count", 2L, "rating_sum", 9L)));
+
+        mvc.perform(get("/restaurant/couriers").cookie(SESSION))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].ratingCount").value(5))
+            .andExpect(jsonPath("$[0].ratingAverage").value(4.8))
+            .andExpect(jsonPath("$[0].rating_sum").doesNotExist())
+            .andExpect(jsonPath("$[1].ratingCount").value(2))
+            .andExpect(jsonPath("$[1].ratingAverage").doesNotExist());
+    }
+
+    @Test
     void createsAnApprovedCourierBoundToTheStore() throws Exception {
         when(auth.requireUser("s", "restaurant", "kitchen")).thenReturn(OWNER);
         when(passwords.hash("senha-forte-123")).thenReturn("hash");
