@@ -1,8 +1,17 @@
 package com.foodie.api.finance;
 
+import com.foodie.api.ApiException;
+import com.foodie.api.courier.DailySeries;
+import com.foodie.api.hours.RestaurantHoursService;
+import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -16,9 +25,34 @@ public class CourierEarningsService {
     private static final String COMPLETED = "('delivered','completed','served')";
 
     private final JdbcTemplate jdbc;
+    private final Clock clock;
 
+    @Autowired
     public CourierEarningsService(JdbcTemplate jdbc) {
+        this(jdbc, Clock.systemUTC());
+    }
+
+    CourierEarningsService(JdbcTemplate jdbc, Clock clock) {
         this.jdbc = jdbc;
+        this.clock = clock;
+    }
+
+    /** Série diária (7 ou 30 dias) de frete e gorjeta de entregas pagas, agrupada pelo dia local da loja. */
+    public List<Map<String, Object>> daily(long courierId, int days) {
+        if (days != 7 && days != 30) throw new ApiException(400, "Período inválido");
+        String timezone = jdbc.query("SELECT r.timezone FROM users u LEFT JOIN restaurants r ON r.id = u.restaurant_id WHERE u.id = ?",
+            rs -> rs.next() ? rs.getString(1) : null, courierId);
+        ZoneId zone = RestaurantHoursService.zone(timezone);
+        LocalDate today = Instant.now(clock).atZone(zone).toLocalDate();
+        Instant from = DailySeries.windowStart(today, days, zone);
+        List<DailySeries.Row> rows = jdbc.query(
+            "SELECT o.id, o.delivery_fee_cents, o.tip_cents, MAX(e.created_at) AS delivered_at FROM orders o "
+                + "JOIN order_events e ON e.order_id = o.id AND e.to_status = 'delivered' JOIN order_payments p ON p.order_id = o.id "
+                + "WHERE o.courier_id = ? AND o.status = 'delivered' AND p.status = 'paid' AND e.created_at >= ? "
+                + "GROUP BY o.id, o.delivery_fee_cents, o.tip_cents",
+            (rs, index) -> new DailySeries.Row(rs.getTimestamp("delivered_at").toInstant(), rs.getLong("delivery_fee_cents"), rs.getLong("tip_cents")),
+            courierId, Timestamp.from(from));
+        return DailySeries.build(rows, today, days, zone);
     }
 
     public Map<String, Object> summary(long courierId) {

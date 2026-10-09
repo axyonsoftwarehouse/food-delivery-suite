@@ -30,6 +30,12 @@ public class CourierEarningsController {
         return earnings.summary(courier(token).id());
     }
 
+    @GetMapping("/me/earnings/daily")
+    public List<Map<String, Object>> daily(@CookieValue(value = "foodie_session", required = false) String token,
+                                           @RequestParam(defaultValue = "7") int days) {
+        return earnings.daily(courier(token).id(), days);
+    }
+
     @GetMapping("/me/earnings/ledger")
     public List<Map<String, Object>> statement(@CookieValue(value = "foodie_session", required = false) String token,
                                                @RequestParam(required = false) String from,
