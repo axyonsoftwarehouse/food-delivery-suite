@@ -25,7 +25,7 @@ Mantenha curto. Se crescer, corte.
 | Testes Java | `mvn test` com **665 execuções** sem falha na branch da parte D (10/10, local); eram 635 na PR #24. `VERIFY_INTEGRATION=1 pnpm verify` verde nas PRs #16 a #19; na parte D o smoke e a `V067` em banco real ficam com o CI (sem Docker no PC) |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **40%** depois do deploy de 09/10 22:46 UTC (24 GB livres antes dele), pelo log do deploy — era 66% em 08/10; a limpeza automática dispara em 70% |
-| Árvore de trabalho | limpa na branch `feat/entregador-motivacao` (`.claude/` não versionado) |
+| Árvore de trabalho | limpa na branch `feat/entregador-gestao-loja` (commits locais, sem push; `.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
