@@ -1,6 +1,6 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 09/10/2026.
+Documento vivo. Última atualização: 10/10/2026.
 Base: `PLANO_EPICOS.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -15,16 +15,16 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`e416ac9`** — merge da PR #22 (`feat/entregador-confianca`). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #22** são os do `axyonsoftwarehouse` |
-| Em revisão | **PR #23** (`feat/entregador-motivacao`) — parte C do entregador, migration `V066`; aberto em 09/10 |
+| `origin/main` | **`a3cf53f`** — merge da PR #23 (`feat/entregador-motivacao`). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #23** são os do `axyonsoftwarehouse` |
+| Em revisão | `fix/entregador-ajustes-roteiro` — ajustes achados no roteiro de telas da parte C (10/10); sem migration |
 | `main` local | **atrás** do `origin/main`: parada em `aeb7cc1` (81 commits atrás em 09/10); o trabalho é feito nas branches |
-| **Código na VPS** | **`e416ac9`** — o `main` inteiro, publicado pelo **botão do GitHub** (09/10 17:35 UTC, execução verde); registro em `/home/deploy/foodie-platform/.deployed` |
-| Schema (`/ready`) | **`065`** na VPS (conferido em 09/10: `/ready` e `/health` públicos em **200**); `066` só na branch do PR #23 |
-| Distância | **nenhuma** em relação ao `origin/main`; o PR #23 ainda não foi mesclado |
+| **Código na VPS** | **`a3cf53f`** — o `main` inteiro, publicado pelo **botão do GitHub** (09/10 22:46 UTC, execução verde, sem rollback); registro em `/home/deploy/foodie-platform/.deployed` |
+| Schema (`/ready`) | **`066`** na VPS e no `HEAD` (conferido em 10/10: `/ready` e `/health` públicos em **200**) |
+| Distância | **nenhuma** em relação ao `origin/main` |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `mvn test` com **634 execuções** sem falha na branch do PR #23 (09/10); `VERIFY_INTEGRATION=1 pnpm verify` verde nas PRs #16 a #19 |
+| Testes Java | `mvn test` com **635 execuções** sem falha na branch `fix/entregador-ajustes-roteiro` (10/10); `VERIFY_INTEGRATION=1 pnpm verify` verde nas PRs #16 a #19 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
-| Disco da VPS | **66%** (24 GB de 38 GB, 13 GB livres) em 08/10 — era 21% em 03/10; a limpeza automática dispara em 70%. Depois dos deploys de 08/10 (noite) e 09/10: **(a confirmar)** — `df -h /` na VPS |
+| Disco da VPS | **40%** depois do deploy de 09/10 22:46 UTC (24 GB livres antes dele), pelo log do deploy — era 66% em 08/10; a limpeza automática dispara em 70% |
 | Árvore de trabalho | limpa na branch `feat/entregador-motivacao` (`.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
@@ -268,8 +268,9 @@ recusa e assim por diante.
   estorno automático (`orders.cancel`). O admin não cadastra nem aprova mais; como suporte, atribui só entregador da
   loja do pedido e liga a uma loja quem ficou sem loja (`PATCH /admin/couriers/{id}/restaurant`, com motivo).
   A migração `V061` liga cada entregador antigo à loja de **todas** as entregas dele; quem entregou para mais de
-  uma loja (ou nunca entregou) fica sem loja até o suporte ligá-lo. Quantos ficam assim no staging: **(a confirmar)**
-  — `SELECT id, name FROM users WHERE role = 'courier' AND restaurant_id IS NULL;` depois do deploy.
+  uma loja (ou nunca entregou) fica sem loja até o suporte ligá-lo. No staging havia **um** entregador, o Entregador
+  Demo (#3), e ele estava sem loja (entregou para três); em **10/10** o suporte o ligou à Cozinha Demo, com motivo,
+  para o roteiro de telas da parte C.
 - **Revisão de lógica do backend (08/10/2026) — os cinco itens estão mesclados e publicados.**
   - **A) entrega, gorjeta e cashback são da loja** — PR #15 (`6a81d74`, 07/10).
   - **B) pagamento online** (nova tentativa depois de recusa, sem confirmação manual de pagamento online, sem troca
@@ -294,11 +295,12 @@ recusa e assim por diante.
     telefone de contato obrigatório no checkout de entrega.
   - **B) confiança na entrega** — PR #22 (`e416ac9`, 09/10), migration `V065`: código de confirmação opcional por
     loja (padrão desligado, só o cliente vê, 5 erros travam) e falha de entrega com motivo padronizado.
-  - **C) motivação** — **PR #23, em revisão** (migration `V066`): o cliente avalia o entregador de 1 a 5 depois
-    da entrega; o entregador vê a própria reputação (média só a partir de 5 avaliações, sem dados do cliente); a
-    loja vê a nota na Equipe; meta semanal de entregas e gráfico de ganhos por dia (7 ou 30 dias). Não
-    verificado localmente: o smoke novo e a `V066` em banco real (`VERIFY_INTEGRATION=1 pnpm verify`) e as telas
-    no celular — conta com o CI.
+  - **C) motivação** — PR #23 (`a3cf53f`, 09/10), migration `V066`, **publicada**: o cliente avalia o entregador de
+    1 a 5 depois da entrega; o entregador vê a própria reputação (média só a partir de 5 avaliações, sem dados do
+    cliente); a loja vê a nota na Equipe; meta semanal de entregas e gráfico de ganhos por dia (7 ou 30 dias).
+    **Roteiro de telas no staging em 10/10** (celular, claro e escuro): passou de ponta a ponta com o pedido #35.
+    Os ajustes achados (contraste no escuro, Perfil centralizado, "Entregas hoje" pela data de criação, pedido
+    entregue escondido na lista do cliente, prazo de avaliação na tela) estão na branch `fix/entregador-ajustes-roteiro`.
   - **D) gestão pela loja** (mapa, "Estou disponível", turnos, despacho pelo mais próximo) — não começou.
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
@@ -354,9 +356,8 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`e416ac9`, schema `065`); fora dele só o **PR #23** (parte C
-do entregador), em revisão. O staging é publicado pelo **botão do GitHub** desde 07/10 — depois do merge do
-#23, publicar e conferir `/ready` em `066`.
+**O que está no ar é o `origin/main` inteiro** (`a3cf53f`, schema `066`); fora dele só os **ajustes do roteiro da
+parte C** (`fix/entregador-ajustes-roteiro`), em revisão. O staging é publicado pelo **botão do GitHub** desde 07/10.
 
 **Próximo passo único: fechar o pagamento real com a conta por loja** (cartão `1nguT9bv`, em TESTING).
 O código está pronto e no ar; o que falta é prova no ambiente publicado:
@@ -368,8 +369,8 @@ O código está pronto e no ar; o que falta é prova no ambiente publicado:
 4. trocar a **credencial de teste exposta** em 02/10 e conferir se a conta tem **chave Pix registrada**;
 5. decidir o **3DS** (status `CALL` não tratado — cartão `PCLXrYCa`).
 
-**Em paralelo, no produto:** mesclar o PR #23 (parte C do entregador) e seguir para a **parte D** (gestão pela
-loja).
+**Em paralelo, no produto:** mesclar e publicar os ajustes do roteiro da parte C e seguir para a **parte D**
+(gestão pela loja), que começa pela especificação.
 
 **Depois:** a **cobrança real da assinatura** (hoje cria a transação e não cobra o provedor) e a
 prontidão de produção (SMTP real, backup externo com ensaio de restauração, revisão de CSRF/origem).
@@ -432,8 +433,8 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #22** estão mesclados e
-publicados (`e416ac9`, schema `065`), e o staging roda o mesmo commit do `origin/main`.
+A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #23** estão mesclados e
+publicados (`a3cf53f`, schema `066`), e o staging roda o mesmo commit do `origin/main`.
 
 **O que já foi provado no pagamento (com a conta global da plataforma, em 05/10):** Pix (#23) e cartão
 (#26) de ponta a ponta com notificação automática, o estorno pelo admin (#26 ficou `refunded` no Foodie e
@@ -458,16 +459,16 @@ em `/home/deploy/releases/<sha>/`), então as imagens em uso foram **re-tagadas*
 `pre-df503c0` — rollback instantâneo para o release atual sem custo de build. Os backups de banco
 seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar de ~70%.
 
-## 6. Estado da árvore de trabalho (09/10)
+## 6. Estado da árvore de trabalho (10/10)
 
-`origin/main` = **`e416ac9`** (PR #22). O checkout está na branch `feat/entregador-motivacao` (PR #23, em
-revisão), limpa (o `.claude/` não é versionado). A **`main` local está atrás** (`aeb7cc1`) — vale um
+`origin/main` = **`a3cf53f`** (PR #23). O checkout está na branch `fix/entregador-ajustes-roteiro` (ajustes do
+roteiro da parte C, em revisão), limpa (o `.claude/` não é versionado). A **`main` local está atrás** (`aeb7cc1`) — vale um
 `git checkout main && git pull`. Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
 verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
 conserto no PR #13).
 
-Os **PRs #1 a #22** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
-os últimos publicados **pelo botão do GitHub**. O **#23** está aberto:
+Os **PRs #1 a #23** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
+os últimos publicados **pelo botão do GitHub**:
 
 | Commit | PR | O que é |
 | --- | --- | --- |
@@ -492,8 +493,8 @@ os últimos publicados **pelo botão do GitHub**. O **#23** está aberto:
 | `fe49bf9` | #19 | `fix`: cashback sobre subtotal, pontos no estorno e cupom de pedido morto (`V062`) |
 | `5614257` | #20 | `feat`: indicação como cupom da loja (`V063`) |
 | `a2ce5a9` | #21 | `feat`: área do entregador — dia a dia na rua, parte A (`V064`) |
-| `e416ac9` | #22 | `feat`: área do entregador — confiança na entrega, parte B (`V065`) — **é o que está na VPS** |
-| — | #23 | `feat`: área do entregador — motivação, parte C (`V066`) — **em revisão** |
+| `e416ac9` | #22 | `feat`: área do entregador — confiança na entrega, parte B (`V065`) |
+| `a3cf53f` | #23 | `feat`: área do entregador — motivação, parte C (`V066`) — **é o que está na VPS** |
 
 **Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
 commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,
@@ -571,8 +572,8 @@ Ver `docs/RUNBOOK_VPS.md`. Dois pontos que já custaram tempo:
 - O código implantado é o **conteúdo de `platform/`**, então o deploy fica em
   `/home/deploy/foodie-platform/deploy` — **não** em `.../platform/deploy`.
 - A VPS **não é um clone** (sem `.git`): não há `git rev-parse` para descobrir
-  o commit no ar. Consulte `/home/deploy/foodie-platform/.deployed` (em 09/10:
-  `e416ac9`, schema `065`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
+  o commit no ar. Consulte `/home/deploy/foodie-platform/.deployed` (em 10/10:
+  `a3cf53f`, schema `066`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
 
 ## 8. Referências
 
