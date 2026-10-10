@@ -7,6 +7,43 @@ import { Badge, Button, Card, EmptyState, Field, TextInput } from '../ui';
 
 const MIN_REVIEWS = 5;
 
+type ShiftHistory = { totalMinutes: number; shifts: { startedAt: string; endedAt: string | null; minutes: number }[] };
+
+function hoursLabel(minutes: number) {
+  const hours = Math.floor(minutes / 60), rest = minutes % 60;
+  if (!hours) return `${rest} min`;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+function shiftLine(shift: ShiftHistory['shifts'][number]) {
+  const time = (date: Date) => date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const start = new Date(shift.startedAt);
+  const day = start.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return `${day} · ${time(start)}–${shift.endedAt ? time(new Date(shift.endedAt)) : 'agora'} · ${hoursLabel(shift.minutes)}`;
+}
+
+/** Horas em turno (parte D): soma de 7 e 30 dias e os últimos turnos. */
+function CourierHours({ courierId }: { courierId: number }) {
+  const [data, setData] = useState<{ week: ShiftHistory; month: ShiftHistory } | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      api<ShiftHistory>(`/restaurant/couriers/${courierId}/shifts?days=7`),
+      api<ShiftHistory>(`/restaurant/couriers/${courierId}/shifts?days=30`),
+    ])
+      .then(([week, month]) => { if (!cancelled) setData({ week, month }); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [courierId]);
+
+  if (!data) return <small role="status">{failed ? 'Não foi possível carregar as horas.' : 'Carregando horas…'}</small>;
+  return <div style={{ display: 'grid', gap: 2 }}>
+    <small>{`Em turno: ${hoursLabel(data.week.totalMinutes)} em 7 dias · ${hoursLabel(data.month.totalMinutes)} em 30 dias`}</small>
+    {data.month.shifts.slice(0, 5).map((shift) => <small key={shift.startedAt}>{shiftLine(shift)}</small>)}
+  </div>;
+}
+
 /** Desempenho de um entregador: entregas em 30 dias e avaliações recentes (anônimas: só o número do pedido). */
 function CourierPerformance({ courierId }: { courierId: number }) {
   const [data, setData] = useState<Reputation | null>(null);
@@ -24,6 +61,7 @@ function CourierPerformance({ courierId }: { courierId: number }) {
   return (
     <div style={{ display: 'grid', gap: 6, width: '100%' }}>
       <small>{`Concluídas em 30 dias: ${data.completed30d} · Falhas: ${data.failed30d}`}</small>
+      <CourierHours courierId={courierId} />
       {recent.length === 0 ? <small>Nenhum comentário ainda.</small> : recent.map((review) => (
         <div key={`${review.orderId}-${review.createdAt}`} style={{ display: 'grid', gap: 2 }}>
           <strong role="img" aria-label={`${review.rating} de 5 estrelas`}>{stars(review.rating)}</strong>
