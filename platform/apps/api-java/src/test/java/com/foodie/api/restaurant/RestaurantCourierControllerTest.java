@@ -1,8 +1,10 @@
 package com.foodie.api.restaurant;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -51,6 +53,9 @@ class RestaurantCourierControllerTest {
 
     @MockitoBean
     private JdbcTemplate jdbc;
+
+    @MockitoBean
+    private com.foodie.api.courier.CourierShiftService shifts;
 
     @Test
     void listsOnlyTheStoresCouriers() throws Exception {
@@ -144,5 +149,27 @@ class RestaurantCourierControllerTest {
 
         mvc.perform(patch("/restaurant/couriers/12/approval").cookie(SESSION)).andExpect(status().isOk());
         mvc.perform(patch("/restaurant/couriers/13/approval").cookie(SESSION)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void suspendingClosesTheShiftAndClearsThePosition() throws Exception {
+        when(auth.requireUser("s", "restaurant", "kitchen")).thenReturn(OWNER);
+        when(jdbc.query(startsWith("SELECT 1 FROM users WHERE id = ?"), any(ResultSetExtractor.class), any(Object[].class))).thenReturn(1);
+        mvc.perform(patch("/restaurant/couriers/12/suspension").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"suspended\":true,\"reason\":\"Faltou ao turno\"}"))
+            .andExpect(status().isOk());
+        verify(shifts).closeForSuspension(12L);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void reactivatingDoesNotTouchTheShift() throws Exception {
+        when(auth.requireUser("s", "restaurant", "kitchen")).thenReturn(OWNER);
+        when(jdbc.query(startsWith("SELECT 1 FROM users WHERE id = ?"), any(ResultSetExtractor.class), any(Object[].class))).thenReturn(1);
+        mvc.perform(patch("/restaurant/couriers/12/suspension").cookie(SESSION).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"suspended\":false}"))
+            .andExpect(status().isOk());
+        verify(shifts, never()).closeForSuspension(anyLong());
     }
 }

@@ -48,6 +48,9 @@ class TrackingControllerTest {
     @MockitoBean
     private CourierDeliveryService deliveries;
 
+    @MockitoBean
+    private com.foodie.api.courier.CourierShiftService shifts;
+
     private void order(String status) {
         when(auth.requireUser("s")).thenReturn(new User(8, "Ana", "ana@demo.local", "customer", null));
         Map<String, Object> row = new HashMap<>();
@@ -96,5 +99,17 @@ class TrackingControllerTest {
                 .contentType(MediaType.APPLICATION_JSON).content(LOCATION))
             .andExpect(status().isConflict());
         verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void locationIsAcceptedOnShiftWithoutDelivery() throws Exception {
+        // Parte D: em turno a loja precisa da posição para saber quem está mais perto.
+        when(auth.requireUser("s", "courier")).thenReturn(COURIER);
+        when(deliveries.hasActiveDelivery(9)).thenReturn(false);
+        when(shifts.isOnShift(9)).thenReturn(true);
+        mvc.perform(post("/courier/location").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON).content(LOCATION))
+            .andExpect(status().isOk());
+        verify(jdbc).update(anyString(), any(Object[].class));
     }
 }

@@ -3,6 +3,7 @@ package com.foodie.api.admin;
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.courier.CourierShiftService;
 import com.foodie.api.support.SupportActionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -36,8 +37,11 @@ public class CourierAdminController {
     private final AdminAuditService audit;
     private final SupportActionService support;
     private final JdbcTemplate jdbc;
+    private final CourierShiftService shifts;
 
-    public CourierAdminController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, SupportActionService support, JdbcTemplate jdbc) {
+    public CourierAdminController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, SupportActionService support, JdbcTemplate jdbc,
+                                  CourierShiftService shifts) {
+        this.shifts = shifts;
         this.auth = auth;
         this.permissions = permissions;
         this.audit = audit;
@@ -97,15 +101,10 @@ public class CourierAdminController {
                                                           @PathVariable @Positive long id) {
         User actor = admin(token);
         requireCourier(id);
-        var key = new org.springframework.jdbc.support.GeneratedKeyHolder();
-        jdbc.update(connection -> {
-            var statement = connection.prepareStatement("INSERT INTO courier_shifts (courier_id) VALUES (?)", java.sql.Statement.RETURN_GENERATED_KEYS);
-            statement.setLong(1, id);
-            return statement;
-        }, key);
-        long shiftId = key.getKey().longValue();
-        audit.record(actor, "create", "courier_shift", shiftId, "Turno iniciado");
-        return ResponseEntity.status(201).body(Map.of("id", shiftId));
+        // Grava a loja do entregador e respeita o turno único (parte D): com turno aberto, devolve o existente.
+        CourierShiftService.SupportShift shift = shifts.openBySupport(id);
+        if (shift.created()) audit.record(actor, "create", "courier_shift", shift.id(), "Turno iniciado");
+        return ResponseEntity.status(shift.created() ? 201 : 200).body(Map.of("id", shift.id()));
     }
 
     @PatchMapping("/{id}/shifts/{shiftId}/end")

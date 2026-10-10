@@ -4,6 +4,7 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.PasswordVerifier;
 import com.foodie.api.auth.User;
+import com.foodie.api.courier.CourierShiftService;
 import com.foodie.api.courier.Reputation;
 import com.foodie.api.permissions.PermissionService;
 import com.foodie.api.permissions.Permissions;
@@ -38,9 +39,12 @@ public class RestaurantCourierController {
     private final AuthService auth;
     private final PermissionService permissions;
     private final PasswordVerifier passwords;
+    private final CourierShiftService shifts;
     private final JdbcTemplate jdbc;
 
-    public RestaurantCourierController(AuthService auth, PermissionService permissions, PasswordVerifier passwords, JdbcTemplate jdbc) {
+    public RestaurantCourierController(AuthService auth, PermissionService permissions, PasswordVerifier passwords, JdbcTemplate jdbc,
+                                     CourierShiftService shifts) {
+        this.shifts = shifts;
         this.auth = auth;
         this.permissions = permissions;
         this.passwords = passwords;
@@ -97,6 +101,8 @@ public class RestaurantCourierController {
             rs -> rs.next() ? 1 : null, id, restaurantId);
         if (own == null) throw new ApiException(404, "Entregador não encontrado");
         auth.setSuspended(id, body.suspended(), body.reason());
+        // Suspenso não segue em turno nem com a posição visível para a loja (parte D).
+        if (body.suspended()) shifts.closeForSuspension(id);
         return Map.of("ok", true);
     }
 
