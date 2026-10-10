@@ -17,9 +17,10 @@ const nav: { href: string; label: string; icon: IconName }[] = [
 ];
 
 const STATUS: Record<string, { label: string; tone: string }> = {
-  sharing: { label: 'Compartilhando', tone: 'is-on' },
-  idle: { label: 'Pausado (sem entrega)', tone: 'is-idle' },
-  blocked: { label: 'Localização bloqueada', tone: 'is-off' },
+  delivering: { label: 'Em entrega', tone: 'is-on' },
+  available: { label: 'Disponível', tone: 'is-on' },
+  off: { label: 'Fora do turno', tone: 'is-idle' },
+  blocked: { label: 'Sem localização', tone: 'is-off' },
   unsupported: { label: 'Sem localização', tone: 'is-off' },
 };
 
@@ -28,7 +29,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, logout, busy, message } = useApp();
   const status = useLocationStatus();
-  const badge = STATUS[status] ?? STATUS.idle;
+  const badge = STATUS[status] ?? STATUS.off;
   return <main className="courier-app">
     <header className="courier-header">
       <div className="courier-who"><strong>{user?.name.split(' ')[0]}</strong>
