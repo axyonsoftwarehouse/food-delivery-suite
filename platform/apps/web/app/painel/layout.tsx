@@ -46,6 +46,7 @@ const menuFor: Record<string, Item[]> = {
   restaurant: [
     { href: '/painel', label: 'Visão geral', icon: 'home' },
     { href: '/painel/pedidos', label: 'Pedidos', icon: 'receipt' },
+    { href: '/painel/entregadores', label: 'Entregadores', icon: 'map-pin', permission: 'orders.dispatch' },
     { href: '/cozinha', label: 'Cozinha (KDS)', icon: 'utensils' },
     { href: '/painel/catalogo', label: 'Catálogo', icon: 'book' },
     { href: '/painel/horarios', label: 'Horários', icon: 'clock' },

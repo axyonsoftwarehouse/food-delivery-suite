@@ -290,3 +290,17 @@
 .shell .dispatch-suggestion button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--brand-500); color: #fff; font-weight: var(--weight-bold); }
 .shell .dispatch-empty { margin: 0; color: var(--text-muted); font-size: var(--text-sm); }
 .shell .dispatch-warning { color: var(--warning, #b45309); font-size: var(--text-sm); }
+
+/* Parte D: página "Entregadores" (mapa e lista do quadro). Os blocos do OSM não têm versão escura. */
+.shell .courier-board { display: grid; gap: var(--space-4); }
+.shell .courier-map-wrap { display: grid; gap: 8px; }
+.shell .courier-map { height: 420px; border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px var(--border); }
+.shell .courier-map-note { margin: 0; color: var(--text-muted); }
+.shell .courier-board-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.shell .courier-board-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface); box-shadow: 0 0 0 1px var(--border); }
+.shell .courier-board-list small { color: var(--text-muted); }
+.shell .board-dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: var(--text-faint); }
+.shell .board-dot.is-available { background: #16a34a; }
+.shell .board-dot.is-delivering { background: #2563eb; }
+.shell .board-dot.is-no_signal { background: #f59e0b; }
+@media (max-width: 700px) { .shell .courier-map { height: 50vh; } }
