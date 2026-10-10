@@ -10,11 +10,6 @@ import { useLocationSharing } from './use-location-sharing';
 const REFRESH_MS = 15_000;
 
 /** Dia de hoje no fuso do aparelho (toISOString viraria o dia seguinte à noite no Brasil). */
-function today() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
 /** Aviso de entrega nova com a tela aberta: som curto e vibração. */
 function alertNewDelivery() {
   try { navigator.vibrate?.([200, 100, 200]); } catch { /* sem vibração */ }
@@ -70,8 +65,13 @@ export default function AgoraPage() {
 
   useEffect(() => {
     if (idsKey === null) return;
-    api<{ delivery_fee_cents: number; tip_cents: number }[]>(`/me/earnings/ledger?from=${today()}&to=${today()}`)
-      .then((rows) => setDay({ count: rows.length, cents: rows.reduce((sum, row) => sum + row.delivery_fee_cents + row.tip_cents, 0) }))
+    // Pela data da entrega, como a meta e o gráfico: um pedido criado ontem e entregue hoje conta hoje.
+    // O último item da série é o "hoje" no fuso da loja.
+    api<{ date: string; count: number; deliveryFeeCents: number; tipCents: number }[]>('/me/earnings/daily?days=7')
+      .then((days) => {
+        const entry = days[days.length - 1];
+        setDay({ count: entry?.count ?? 0, cents: entry ? entry.deliveryFeeCents + entry.tipCents : 0 });
+      })
       .catch(() => {});
   }, [idsKey]);
 

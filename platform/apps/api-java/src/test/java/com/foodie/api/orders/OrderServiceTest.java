@@ -577,6 +577,12 @@ class OrderServiceTest {
     }
 
     @Test
+    void listColumnsCarryTheLastChange() {
+        // A tela do cliente ordena os anteriores e limita a avaliação da entrega pela última mudança do pedido.
+        assertThat(OrderService.ORDER_BASE_SQL).contains("o.updated_at");
+    }
+
+    @Test
     void detailNeverCarriesTheCodeOrTheAttempts() {
         Map<String, Object> row = new java.util.HashMap<>();
         row.put("id", 40L); row.put("customer_id", 8L); row.put("restaurant_id", 3L); row.put("courier_id", 9L);

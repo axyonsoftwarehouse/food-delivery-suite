@@ -22,8 +22,13 @@ function paymentLabel(order: Order) {
   return `${payMethods[order.payment_method] ?? order.payment_method} · ${payStatuses[order.payment_status ?? 'pending'] ?? order.payment_status}`;
 }
 
-/** Janela de avaliação do entregador: 7 dias após a entrega; 8 dias de created_at evitam GET em pedidos antigos. */
+/**
+ * Janela de avaliação do entregador: 7 dias após a entrega (o servidor decide). A tela só evita o GET em pedido
+ * antigo: `updated_at` nunca é anterior à entrega, então 8 dias a partir dele não escondem pedido avaliável.
+ */
 const COURIER_REVIEW_WINDOW_MS = 8 * 24 * 60 * 60 * 1000;
+/** Última mudança do pedido; um pedido antigo entregue hoje sobe para o topo dos anteriores. */
+const lastChange = (order: Order) => new Date(order.updated_at ?? order.created_at).getTime();
 const FINISHED = ['delivered', 'completed', 'served'];
 const FAILED = ['rejected', 'cancelled', 'expired', 'failed'];
 const STEPS: { label: string; icon: IconName; statuses: string[] }[] = [
@@ -74,7 +79,7 @@ function PastOrder({ order, index, expandedOrderId, setExpandedOrderId }: RowPro
     </div>
     <div className="orders-row-foot">
       {FINISHED.includes(order.status) && <ReviewForm orderId={order.id} />}
-      {order.status === 'delivered' && Date.now() - new Date(order.created_at).getTime() < COURIER_REVIEW_WINDOW_MS && <CourierReviewForm orderId={order.id} />}
+      {order.status === 'delivered' && Date.now() - lastChange(order) < COURIER_REVIEW_WINDOW_MS && <CourierReviewForm orderId={order.id} />}
       <DetailsToggle order={order} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} />
     </div>
     {expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}
@@ -101,7 +106,7 @@ export default function PedidosClientePage() {
   }
 
   const active = orders.filter((order) => !FINISHED.includes(order.status) && !FAILED.includes(order.status));
-  const past = [...orders.filter((order) => !active.includes(order)), ...extra];
+  const past = [...orders.filter((order) => !active.includes(order)), ...extra].sort((a, b) => lastChange(b) - lastChange(a) || b.id - a.id);
   const visiblePast = showAllOrders ? past : past.slice(0, 5);
   const rowProps = { expandedOrderId, setExpandedOrderId, cancelOrder, busy };
 
