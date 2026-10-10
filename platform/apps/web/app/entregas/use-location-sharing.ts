@@ -91,7 +91,22 @@ export function useLocationSharing(mode: SharingMode | null, key: string | null,
         })
         .finally(() => { inFlight.current = false; });
     };
-    const flush = () => { if (pending.current) send(pending.current); };
+    // Leitura ativa em andamento: evita pedir o GPS de novo enquanto a anterior não respondeu.
+    let reading = false;
+    const flush = () => {
+      if (rejected) return;
+      if (pending.current) { send(pending.current); return; }
+      // Parado: o navegador não promete avisar o watchPosition sem movimento, e sem envio o servidor marca "Sem sinal"
+      // em 2 min. Se o último envio é antigo, pede uma leitura nova (nunca reenvia coordenadas velhas como novas).
+      const last = lastSent.current;
+      if (reading || inFlight.current || (last && Date.now() - last.at < rule.intervalMs)) return;
+      reading = true;
+      navigator.geolocation.getCurrentPosition(
+        (position) => { reading = false; if (!cancelled && !rejected) send(position.coords); },
+        (error) => { reading = false; if (!cancelled && error.code === error.PERMISSION_DENIED) setStatus('blocked'); },
+        { enableHighAccuracy: true, maximumAge: rule.intervalMs, timeout: 20_000 },
+      );
+    };
 
     const watch = navigator.geolocation.watchPosition(
       (position) => {

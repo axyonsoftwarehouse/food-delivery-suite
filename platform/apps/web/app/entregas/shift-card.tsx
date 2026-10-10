@@ -50,7 +50,7 @@ export function ShiftCard({ shift, activeDeliveries, locationBlocked, offline, o
     </div>
     {confirming && <div className="courier-shift-confirm">
       {activeDeliveries > 0 && <small>{`Você ainda tem ${activeDeliveries} ${activeDeliveries === 1 ? 'entrega' : 'entregas'}; a localização continua até terminar.`}</small>}
-      <button type="button" className="courier-primary" disabled={acting} onClick={() => void end()}>{'Confirmar encerramento'}</button>
+      <button type="button" className="courier-primary" disabled={acting || offline} onClick={() => void end()}>{'Confirmar encerramento'}</button>
       <button type="button" className="courier-back" disabled={acting} onClick={() => setConfirming(false)}>{'Voltar'}</button>
     </div>}
     {locationBlocked && <p className="courier-banner is-warning">{'Sem localização: a loja não vê sua distância. Libere a localização nas permissões do site.'}</p>}
