@@ -231,6 +231,10 @@ public class AdminController {
             throw new ApiException(409, "É necessário manter ao menos um administrador ativo");
         }
         if (!auth.setSuspended(id, body.suspended(), body.reason())) throw new ApiException(404, "Usuário não encontrado");
+        // Mesma regra das rotas de entregador: suspender fecha o turno aberto e apaga a posição.
+        if (body.suspended() && jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier'", rs -> rs.next() ? 1 : null, id) != null) {
+            shifts.closeForSuspension(id);
+        }
         audit(administrator, "update", "user", id, body.suspended() ? "Acesso suspenso" : "Acesso reativado");
         return Map.of("ok", true);
     }

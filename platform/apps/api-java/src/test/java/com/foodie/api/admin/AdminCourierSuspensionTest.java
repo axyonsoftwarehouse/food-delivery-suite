@@ -2,9 +2,11 @@ package com.foodie.api.admin;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.foodie.api.auth.AuthService;
@@ -47,5 +49,27 @@ class AdminCourierSuspensionTest {
                 .contentType(MediaType.APPLICATION_JSON).content("{\"suspended\":true,\"reason\":\"Fraude\"}"))
             .andExpect(status().isOk());
         verify(shifts).closeForSuspension(12L);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void genericSuspensionOfACourierClosesTheShift() throws Exception {
+        when(auth.requireUser("s", "admin")).thenReturn(ADMIN);
+        when(auth.setSuspended(eq(12L), eq(true), any())).thenReturn(true);
+        when(jdbc.query(eq("SELECT 1 FROM users WHERE id = ? AND role = 'courier'"), any(ResultSetExtractor.class), eq(12L))).thenReturn(1);
+        mvc.perform(post("/admin/users/12/suspension").cookie(new Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"suspended\":true,\"reason\":\"Fraude\"}"))
+            .andExpect(status().isOk());
+        verify(shifts).closeForSuspension(12L);
+    }
+
+    @Test
+    void genericSuspensionOfANonCourierDoesNotTouchShifts() throws Exception {
+        when(auth.requireUser("s", "admin")).thenReturn(ADMIN);
+        when(auth.setSuspended(eq(13L), eq(true), any())).thenReturn(true);
+        mvc.perform(post("/admin/users/13/suspension").cookie(new Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"suspended\":true,\"reason\":\"Fraude\"}"))
+            .andExpect(status().isOk());
+        verify(shifts, never()).closeForSuspension(any(Long.class));
     }
 }
