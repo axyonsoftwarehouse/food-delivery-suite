@@ -283,3 +283,10 @@
 @media (prefers-reduced-motion: reduce) {
   .shell *, .shell *::before, .shell *::after { animation: none !important; transition: none !important; }
 }
+
+/* Parte D: despacho com sugestão do mais perto. Texto verde sobre fundo verde usa --brand-700 (claro e escuro). */
+.shell .dispatch { display: grid; gap: 8px; width: 100%; }
+.shell .dispatch-suggestion { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--brand-050); color: var(--brand-700); font-weight: var(--weight-semibold); }
+.shell .dispatch-suggestion button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--brand-500); color: #fff; font-weight: var(--weight-bold); }
+.shell .dispatch-empty { margin: 0; color: var(--text-muted); font-size: var(--text-sm); }
+.shell .dispatch-warning { color: var(--warning, #b45309); font-size: var(--text-sm); }

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import OrderDetails from '../OrderDetails';
 import { LATE_ORDER_MINUTES, type Order, api, labels, minutesSince, money, paymentLabel, useApp } from '../app-context';
 import { Icon } from '../icons';
+import DispatchPicker from './dispatch-picker';
+import { useCourierBoard } from './courier-board';
 
 // "26" e "#26" buscam pelo número do pedido; texto busca no nome do cliente e do restaurante.
 function orderNumber(query: string) {
@@ -25,6 +27,8 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
   const [courierByOrder, setCourierByOrder] = useState<Record<number, string>>({});
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<{ id: number; order: Order | null; error: string } | null>(null);
+  // Despacho da loja (parte D): quadro dos entregadores com status e distância; o admin segue com a lista simples.
+  const { board, failed: boardFailed } = useCourierBoard(user?.role === 'restaurant' && permissions.includes('orders.dispatch'));
   const scoped = restaurantId ? orders.filter((order) => order.restaurant_id === restaurantId) : orders;
   const list = query.trim() ? scoped.filter((order) => matches(order, query)) : scoped;
   const number = orderNumber(query);
@@ -66,7 +70,13 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
       {role === 'restaurant' && permissions.includes('payments.manage') && (order.order_type ?? 'delivery') !== 'delivery' && order.payment_status === 'pending' && receivable(order) && !['placed', 'rejected', 'cancelled', 'expired'].includes(order.status) && <button className="secondary-button" disabled={busy} onClick={() => receivePayment(order)}><Icon name="cash" size={16} />{order.payment_method === 'cash' ? `Receber ${money(order.total_cents)}` : 'Confirmar pagamento'}</button>}
       {role === 'restaurant' && order.status === 'placed' && <><button disabled={busy} onClick={() => act(order, 'accept', 'Pedido aceito.')}><Icon name="check" size={16} />Aceitar</button><button className="availability-button" disabled={busy} onClick={() => reason('Motivo da recusa:', 'reject', 'Pedido recusado.', order)}>Recusar</button></>}
       {role === 'restaurant' && order.status === 'accepted' && <button disabled={busy} onClick={() => act(order, 'ready', 'Pedido pronto.')}><Icon name="bag" size={16} />Marcar pronto</button>}
-      {canDispatch && (order.order_type ?? 'delivery') === 'delivery' && (order.status === 'ready' || order.status === 'assigned') && <div className="assign"><select value={courierByOrder[order.id] ?? ''} aria-label={`Entregador do pedido #${order.id}`} onChange={(event) => setCourierByOrder({ ...courierByOrder, [order.id]: event.target.value })}><option value="">Entregador</option>{couriers.filter((courier) => courier.approved && !courier.suspended && (role !== 'admin' || courier.restaurant_id === order.restaurant_id)).map((courier) => <option key={courier.id} value={courier.id}>{courier.name}</option>)}</select><button disabled={busy || !courierByOrder[order.id]} onClick={() => act(order, 'assign', order.status === 'assigned' ? 'Entregador trocado.' : 'Entregador atribuído.', { courierId: Number(courierByOrder[order.id]) })}>{order.status === 'assigned' ? 'Trocar' : 'Atribuir'}</button>{order.status === 'assigned' && <button className="availability-button" disabled={busy} onClick={() => act(order, 'unassign', 'Entregador removido; pedido voltou a pronto.')}>Remover</button>}</div>}
+      {canDispatch && (order.order_type ?? 'delivery') === 'delivery' && (order.status === 'ready' || order.status === 'assigned') && (role === 'restaurant'
+        ? <>
+            <DispatchPicker order={order} board={board} failed={boardFailed} couriers={couriers} busy={busy}
+              onAssign={(courierId) => act(order, 'assign', order.status === 'assigned' ? 'Entregador trocado.' : 'Entregador atribuído.', { courierId })} />
+            {order.status === 'assigned' && <button className="availability-button" disabled={busy} onClick={() => act(order, 'unassign', 'Entregador removido; pedido voltou a pronto.')}>Remover</button>}
+          </>
+        : <div className="assign"><select value={courierByOrder[order.id] ?? ''} aria-label={`Entregador do pedido #${order.id}`} onChange={(event) => setCourierByOrder({ ...courierByOrder, [order.id]: event.target.value })}><option value="">Entregador</option>{couriers.filter((courier) => courier.approved && !courier.suspended && (role !== 'admin' || courier.restaurant_id === order.restaurant_id)).map((courier) => <option key={courier.id} value={courier.id}>{courier.name}</option>)}</select><button disabled={busy || !courierByOrder[order.id]} onClick={() => act(order, 'assign', order.status === 'assigned' ? 'Entregador trocado.' : 'Entregador atribuído.', { courierId: Number(courierByOrder[order.id]) })}>{order.status === 'assigned' ? 'Trocar' : 'Atribuir'}</button>{order.status === 'assigned' && <button className="availability-button" disabled={busy} onClick={() => act(order, 'unassign', 'Entregador removido; pedido voltou a pronto.')}>Remover</button>}</div>)}
       {role === 'courier' && (order.status === 'assigned' || order.status === 'picked_up') && order.payment_status === 'pending' && receivable(order) && <button className="secondary-button" disabled={busy} onClick={() => receivePayment(order)}><Icon name="cash" size={16} />{order.payment_method === 'cash' ? `Receber ${money(order.total_cents)}` : 'Confirmar pagamento'}</button>}
       {role === 'courier' && order.status === 'assigned' && <><button disabled={busy} onClick={() => act(order, 'pickup', 'Pedido retirado.')}><Icon name="bag" size={16} />Retirado</button><button className="availability-button" disabled={busy} onClick={() => reason('Motivo da falha na entrega:', 'fail', 'Falha registrada.', order)}>Não entreguei</button></>}
       {role === 'courier' && order.status === 'picked_up' && <><button disabled={busy || order.payment_status !== 'paid'} onClick={() => act(order, 'deliver', 'Entrega concluída.')}><Icon name="check" size={16} />Concluir entrega</button><button className="availability-button" disabled={busy} onClick={() => reason('Motivo da falha na entrega:', 'fail', 'Falha registrada.', order)}>Falha na entrega</button></>}
