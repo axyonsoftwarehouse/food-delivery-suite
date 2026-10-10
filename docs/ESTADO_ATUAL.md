@@ -16,13 +16,13 @@ Mantenha curto. Se crescer, corte.
 | Item | Valor |
 | --- | --- |
 | `origin/main` | **`3f7f4ba`** — merge da PR #24 (`fix/entregador-ajustes-roteiro`). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #24** são os do `axyonsoftwarehouse` |
-| Em revisão | `docs/entregador-gestao-loja` — especificação da parte D do entregador (10/10); só documentação |
+| Em revisão | `feat/entregador-gestao-loja` — parte D do entregador (migration `V067`), implementada e commitada só localmente em 10/10; PR ainda não aberta (número a confirmar) |
 | `main` local | igual ao `origin/main` (`3f7f4ba`), atualizada em 10/10; o trabalho é feito nas branches |
 | **Código na VPS** | **`3f7f4ba`** — o `main` inteiro, publicado pelo **botão do GitHub** (10/10 15:04 UTC, execução verde, sem rollback); registro em `/home/deploy/foodie-platform/.deployed` |
 | Schema (`/ready`) | **`066`** na VPS e no `HEAD` (conferido em 10/10: `/ready` e `/health` públicos em **200**) |
 | Distância | **nenhuma** em relação ao `origin/main` |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `mvn test` com **635 execuções** sem falha na PR #24 (10/10); `VERIFY_INTEGRATION=1 pnpm verify` verde nas PRs #16 a #19 |
+| Testes Java | `mvn test` com **665 execuções** sem falha na branch da parte D (10/10, local); eram 635 na PR #24. `VERIFY_INTEGRATION=1 pnpm verify` verde nas PRs #16 a #19; na parte D o smoke e a `V067` em banco real ficam com o CI (sem Docker no PC) |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **40%** depois do deploy de 09/10 22:46 UTC (24 GB livres antes dele), pelo log do deploy — era 66% em 08/10; a limpeza automática dispara em 70% |
 | Árvore de trabalho | limpa na branch `feat/entregador-motivacao` (`.claude/` não versionado) |
@@ -302,10 +302,14 @@ recusa e assim por diante.
     Os ajustes achados (contraste no escuro, Perfil centralizado, "Entregas hoje" pela data de criação, pedido
     entregue escondido na lista do cliente, prazo de avaliação na tela) foram corrigidos na PR #24 (`3f7f4ba`),
     publicada e conferida nas telas em 10/10.
-  - **D) gestão pela loja** — **especificação em revisão** (`docs/superpowers/specs/2026-10-10-entregador-gestao-loja-design.md`):
-    "Estou disponível" abre um turno (registro de jornada na `courier_shifts`), a posição só é compartilhada em
-    turno ou em entrega, o despacho sugere o disponível mais perto (linha reta) e uma página "Entregadores" mostra
-    o mapa (Leaflet + OpenStreetMap). Sem atribuição automática nem escala planejada.
+  - **D) gestão pela loja** — **implementada na branch `feat/entregador-gestao-loja` (migration `V067`), em revisão**
+    (especificação: `docs/superpowers/specs/2026-10-10-entregador-gestao-loja-design.md`): "Estou disponível" abre um
+    turno (registro de jornada na `courier_shifts`) e a posição só é compartilhada em turno ou em entrega; o quadro
+    da loja sugere o entregador disponível mais perto (linha reta), sem atribuição automática; a página
+    "Entregadores" mostra o mapa (Leaflet + OpenStreetMap) e a lista; a Equipe mostra as horas em turno. Verificado
+    em 10/10 no PC: `mvn test` (665 execuções), tipos e build do site, tipos de `tools`, cozinha e api-client.
+    **Não verificado:** smoke e `V067` em banco real (sem Docker no PC; ficam com o CI) e o roteiro de telas no
+    staging (só depois de mesclar e publicar).
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
@@ -360,8 +364,13 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`3f7f4ba`, schema `066`); fora dele só a **especificação da parte D**
-(`docs/entregador-gestao-loja`), em revisão. O staging é publicado pelo **botão do GitHub** desde 07/10.
+**O que está no ar é o `origin/main` inteiro** (`3f7f4ba`, schema `066`); fora dele só a **parte D do entregador**
+(`feat/entregador-gestao-loja`, `V067`), em revisão. O staging é publicado pelo **botão do GitHub** desde 07/10.
+
+**Depois de mesclar e publicar a parte D:** roteiro de telas no staging, com o Werner entrando nas contas — o
+entregador abre e encerra o turno, nega o GPS (aviso e "Sem sinal" para a loja) e encerra com entrega em mãos; a loja
+vê a sugestão e atribui com um toque, escolhe alguém fora do turno (aviso), abre "Entregadores" (mapa, popup, lista) e
+vê as horas na Equipe; celular, claro e escuro, console limpo.
 
 **Próximo passo único: fechar o pagamento real com a conta por loja** (cartão `1nguT9bv`, em TESTING).
 O código está pronto e no ar; o que falta é prova no ambiente publicado:
@@ -464,8 +473,8 @@ seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar
 
 ## 6. Estado da árvore de trabalho (10/10)
 
-`origin/main` = **`3f7f4ba`** (PR #24). O checkout está na branch `docs/entregador-gestao-loja` (especificação da
-parte D), limpa (o `.claude/` não é versionado). A **`main` local foi atualizada** em 10/10 (`3f7f4ba`). Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
+`origin/main` = **`3f7f4ba`** (PR #24). O checkout está na branch `feat/entregador-gestao-loja` (especificação e código da
+parte D, commits só locais), limpa (o `.claude/` não é versionado). A **`main` local foi atualizada** em 10/10 (`3f7f4ba`). Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
 verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
 conserto no PR #13).
 

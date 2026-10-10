@@ -1,7 +1,7 @@
 # Área do entregador — parte D, gestão pela loja: especificação
 
-Data: 10/10/2026. Status: **desenho aprovado** pelo dono do produto (cinco seções, aprovadas em 10/10); este
-texto aguarda a revisão dele.
+Data: 10/10/2026. Status: **aprovada** pelo dono do produto em 10/10/2026 (desenho em cinco seções e este
+texto).
 Origem: roteiro da área do entregador (partes A, B e C em `2026-10-08-entregador-dia-a-dia-design.md`,
 `2026-10-09-entregador-confianca-design.md` e `2026-10-09-entregador-motivacao-design.md`, PRs #21, #22 e #23).
 
