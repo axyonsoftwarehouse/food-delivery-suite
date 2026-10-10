@@ -189,10 +189,35 @@ const referredOrder = await request<{ id: number; discountCents: number; totalCe
 assert.equal(referredOrder.discountCents, 300);
 await request(`/orders/${referredOrder.id}/status`, restaurantSession, 'PATCH', { action: 'accept' });
 await request(`/orders/${referredOrder.id}/status`, restaurantSession, 'PATCH', { action: 'ready' });
+// Parte D: turno, posição em turno e quadro da loja.
+type BoardEntry = { id: number; status: string; distanceMeters: number | null; latitude: number | null; suggested: boolean; activeDeliveries: number };
+type Board = { restaurant: { latitude: number | null }; couriers: BoardEntry[] };
+assert.equal((await request<{ open: boolean }>('/courier/shift', storeCourierSession)).open, false);
+await request('/courier/location', storeCourierSession, 'POST', { latitude: -3.7329, longitude: -38.5267 }, 409);
+assert.equal((await request<{ open: boolean }>('/courier/shift', storeCourierSession, 'POST', undefined, 201)).open, true);
+await request('/courier/shift', storeCourierSession, 'POST', undefined, 200);
+await request('/courier/location', storeCourierSession, 'POST', { latitude: -3.7329, longitude: -38.5267 });
+const boardOnShift = await request<Board>('/restaurant/couriers/board', restaurantSession);
+const onShift = boardOnShift.couriers.find((item) => item.id === storeCourier.id);
+assert.equal(onShift?.status, 'available', 'posição recém-enviada em turno deveria deixá-lo disponível');
+assert.equal(onShift?.latitude, -3.7329);
+assert.equal(boardOnShift.couriers.find((item) => item.suggested)?.id, storeCourier.id);
+if (boardOnShift.restaurant.latitude !== null) assert.equal(typeof onShift?.distanceMeters, 'number');
 await request(`/orders/${referredOrder.id}/status`, restaurantSession, 'PATCH', { action: 'assign', courierId: storeCourier.id });
+const delivering = (await request<Board>('/restaurant/couriers/board', restaurantSession)).couriers.find((item) => item.id === storeCourier.id);
+assert.equal(delivering?.status, 'delivering');
+assert.equal(delivering?.activeDeliveries, 1);
+const ended = await request<{ ok: boolean; keepsSharing: boolean }>('/courier/shift', storeCourierSession, 'DELETE');
+assert.equal(ended.keepsSharing, true, 'com entrega em mãos a posição continua');
+await request('/courier/location', storeCourierSession, 'POST', { latitude: -3.7329, longitude: -38.5267 });
 await request(`/orders/${referredOrder.id}/status`, storeCourierSession, 'PATCH', { action: 'pickup' });
 await request(`/orders/${referredOrder.id}/payment`, storeCourierSession, 'PATCH', { amountReceivedCents: referredOrder.totalCents });
 await request(`/orders/${referredOrder.id}/status`, storeCourierSession, 'PATCH', { action: 'deliver' });
+await request('/courier/location', storeCourierSession, 'POST', { latitude: -3.7329, longitude: -38.5267 }, 409);
+const hours = await request<{ totalMinutes: number; shifts: { endedAt: string | null }[] }>(`/restaurant/couriers/${storeCourier.id}/shifts?days=7`, restaurantSession);
+assert.equal(hours.shifts.length, 1);
+assert.ok(hours.shifts[0].endedAt, 'o turno encerrado tem fim');
+await request(`/restaurant/couriers/${storeCourier.id}/shifts?days=15`, restaurantSession, 'GET', undefined, 400);
 const rewards = await request<{ origin: string; restaurant_id: number; discount_value: number }[]>('/me/coupons', customer);
 assert.ok(rewards.some((item) => item.origin === 'referral_reward' && item.restaurant_id === restaurant.id && item.discount_value === 500),
   'quem indicou deveria ganhar o cupom de indicação da loja');

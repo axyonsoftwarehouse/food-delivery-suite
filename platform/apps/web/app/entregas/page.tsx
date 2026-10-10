@@ -5,7 +5,9 @@ import { api, money, useApp } from '../app-context';
 import { Icon } from '../icons';
 import { DeliveryCard } from './delivery-card';
 import { currentDelivery, type Delivery } from './deliveries';
-import { useLocationSharing } from './use-location-sharing';
+import { ShiftCard } from './shift-card';
+import type { Shift } from './shift';
+import { useLocationSharing, useLocationStatus } from './use-location-sharing';
 
 const REFRESH_MS = 15_000;
 
@@ -27,6 +29,7 @@ export default function AgoraPage() {
   const [deliveries, setDeliveries] = useState<Delivery[] | null>(null);
   const [day, setDay] = useState<{ count: number; cents: number }>({ count: 0, cents: 0 });
   const [offline, setOffline] = useState(false);
+  const [shift, setShift] = useState<Shift | null>(null);
   // Só a resposta da última chamada de load() é aplicada (timer, volta à aba e ação podem se sobrepor).
   const requestId = useRef(0);
   const known = useRef<Set<number> | null>(null);
@@ -38,8 +41,12 @@ export default function AgoraPage() {
     checkNotifications();
     const mine = ++requestId.current;
     try {
-      const list = await api<Delivery[]>('/courier/deliveries/active');
+      const [list, nextShift] = await Promise.all([
+        api<Delivery[]>('/courier/deliveries/active'),
+        api<Shift>('/courier/shift').catch(() => null),
+      ]);
       if (mine !== requestId.current) return;
+      if (nextShift) setShift(nextShift);
       const ids = new Set(list.map((item) => item.id));
       if (known.current) {
         const arrived = list.find((item) => !known.current!.has(item.id));
@@ -82,12 +89,18 @@ export default function AgoraPage() {
   }, [load]);
 
   const current = deliveries ? currentDelivery(deliveries) : null;
-  useLocationSharing(current?.id ?? null);
+  const sharingMode = current ? 'delivery' : shift?.open ? 'shift' : null;
+  const sharingKey = current ? `delivery-${current.id}` : shift?.open ? `shift-${shift.startedAt}` : null;
+  // 409 em turno = turno fechado pela tarefa das 12 h ou por suspensão: recarrega para voltar a "Fora do turno".
+  useLocationSharing(sharingMode, sharingKey, () => void load());
+  const locationStatus = useLocationStatus();
 
   if (deliveries === null) return <p className="courier-empty">{'Carregando suas entregas…'}</p>;
   return <>
     {offline && <p className="courier-banner is-warning">{'Sem conexão — tentando de novo'}</p>}
     {askNotifications && <p className="courier-banner">{'Ative o aviso de entrega nova: toque no sino, no topo, e permita as notificações. Assim você é avisado mesmo com a tela fechada.'}</p>}
+    {shift && <ShiftCard shift={shift} activeDeliveries={deliveries.length} offline={offline}
+      locationBlocked={locationStatus === 'blocked' || locationStatus === 'unsupported'} onChanged={setShift} />}
     {current ? <DeliveryCard key={current.id} delivery={current} onChanged={refresh} offline={offline} /> : <div className="courier-empty">
       <Icon name="bike" size={40} />
       <strong>{'Nenhuma entrega agora'}</strong>

@@ -41,7 +41,7 @@ export default function PerfilPage() {
       <div className="courier-row"><div><strong>{'Localização'}</strong><small>{status === 'blocked'
         ? 'Bloqueada. No Chrome: cadeado na barra de endereço → Permissões → Localização → Permitir. No Safari: Ajustes → Safari → Localização → Permitir.'
         : status === 'unsupported' ? 'Este navegador não oferece localização; o cliente não verá o rastreio.'
-        : 'Compartilhada só durante as entregas.'}</small></div></div>
+        : 'Compartilhada só durante o turno e as entregas.'}</small></div></div>
       <div className="courier-row"><div><strong>{'Notificações'}</strong><small>{notifications === 'granted' ? 'Ativas: você recebe aviso de entrega nova com a tela fechada.'
         : notifications === 'denied' ? 'Bloqueadas no navegador. Libere nas permissões do site para receber aviso de entrega nova.'
         : notifications === 'unsupported' ? 'Este navegador não oferece notificações.' : 'Toque no sino, no topo, para ativar o aviso de entrega nova.'}</small></div></div>

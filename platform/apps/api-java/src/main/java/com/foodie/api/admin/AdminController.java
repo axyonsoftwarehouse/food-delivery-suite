@@ -5,6 +5,7 @@ import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.PasswordVerifier;
 import com.foodie.api.auth.User;
 import com.foodie.api.catalog.PostalCoverageService;
+import com.foodie.api.courier.CourierShiftService;
 import com.foodie.api.routing.GeocodingService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
@@ -45,9 +46,12 @@ public class AdminController {
     private final AdminPermissionService permissions;
     private final AdminAccessService access;
     private final AdminAuditService auditor;
+    private final CourierShiftService shifts;
 
     public AdminController(AuthService auth, JdbcTemplate jdbc, PasswordVerifier passwords, PostalCoverageService postalCoverage,
-                           GeocodingService geocoding, AdminPermissionService permissions, AdminAccessService access, AdminAuditService auditor) {
+                           GeocodingService geocoding, AdminPermissionService permissions, AdminAccessService access, AdminAuditService auditor,
+                           CourierShiftService shifts) {
+        this.shifts = shifts;
         this.auth = auth;
         this.jdbc = jdbc;
         this.passwords = passwords;
@@ -212,6 +216,7 @@ public class AdminController {
         Integer exists = jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier'", rs -> rs.next() ? 1 : null, id);
         if (exists == null) throw new ApiException(404, "Entregador não encontrado");
         auth.setSuspended(id, body.suspended(), body.reason());
+        if (body.suspended()) shifts.closeForSuspension(id);
         audit(actor, "update", "courier", id, body.suspended() ? "Entregador suspenso" : "Entregador reativado");
         return Map.of("ok", true);
     }
@@ -226,6 +231,10 @@ public class AdminController {
             throw new ApiException(409, "É necessário manter ao menos um administrador ativo");
         }
         if (!auth.setSuspended(id, body.suspended(), body.reason())) throw new ApiException(404, "Usuário não encontrado");
+        // Mesma regra das rotas de entregador: suspender fecha o turno aberto e apaga a posição.
+        if (body.suspended() && jdbc.query("SELECT 1 FROM users WHERE id = ? AND role = 'courier'", rs -> rs.next() ? 1 : null, id) != null) {
+            shifts.closeForSuspension(id);
+        }
         audit(administrator, "update", "user", id, body.suspended() ? "Acesso suspenso" : "Acesso reativado");
         return Map.of("ok", true);
     }

@@ -95,3 +95,12 @@
 .chart-key.chart-fee { background: var(--brand-500); }
 .chart-key.chart-tip { background: var(--accent-500); margin-left: 10px; }
 .chart-detail { margin: 0; color: var(--text); font-weight: var(--weight-semibold); }
+
+/* Parte D: turno do entregador. Texto verde sobre fundo verde usa --brand-700 (claro e escuro). */
+.courier-shift-card { display: grid; gap: 10px; padding: 18px; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--border); text-align: center; }
+.courier-shift-card span { color: var(--text-muted); }
+.courier-shift { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-radius: var(--radius-lg); background: var(--brand-050); color: var(--brand-700); font-weight: var(--weight-semibold); }
+.courier-shift.is-off { background: var(--surface); color: var(--text-muted); box-shadow: 0 0 0 1px var(--border); }
+.courier-shift button { min-height: 40px; padding: 0 14px; border-radius: var(--radius-lg); background: transparent; color: inherit; font-weight: var(--weight-bold); box-shadow: 0 0 0 1px currentColor; }
+.courier-shift-confirm { display: grid; gap: 8px; }
+.courier-shift-confirm small { color: var(--text-muted); }

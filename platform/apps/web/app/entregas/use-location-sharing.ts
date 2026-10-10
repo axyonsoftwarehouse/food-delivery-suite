@@ -4,16 +4,17 @@ import { createContext, createElement, useContext, useEffect, useMemo, useRef, u
 import { api, ApiError } from '../app-context';
 
 /**
- * Localização só durante a entrega (área do entregador, parte A): envio a cada 15 s ou após 30 m, só com
- * entrega ativa e a tela aberta. O id da entrega é a dependência do efeito: cada entrega nova religa o envio do
- * zero (inclusive depois de um 409 na anterior). Sem sinal, guarda só a última posição. O servidor também recusa (409) sem
- * entrega, então esta tela não é a única barreira.
+ * Posição do entregador, só com a tela aberta: durante a entrega (parte A, a cada 15 s ou 30 m, para o rastreio do
+ * cliente) e em turno sem entrega (parte D, a cada 30 s ou 50 m, para a loja saber quem está mais perto). A chave é a
+ * dependência do efeito: cada entrega ou turno novo religa o envio do zero. O servidor recusa (409) fora do turno e
+ * sem entrega, então esta tela não é a única barreira.
  */
-type Status = 'sharing' | 'idle' | 'blocked' | 'unsupported';
-const StatusContext = createContext<{ status: Status; setStatus: (status: Status) => void }>({ status: 'idle', setStatus: () => {} });
+export type SharingMode = 'delivery' | 'shift';
+type Status = 'delivering' | 'available' | 'off' | 'blocked' | 'unsupported';
+const StatusContext = createContext<{ status: Status; setStatus: (status: Status) => void }>({ status: 'off', setStatus: () => {} });
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
-  const [status, setStatus] = useState<Status>('idle');
+  const [status, setStatus] = useState<Status>('off');
   const value = useMemo(() => ({ status, setStatus }), [status]);
   return createElement(StatusContext.Provider, { value }, children);
 }
@@ -22,8 +23,10 @@ export function useLocationStatus() {
   return useContext(StatusContext).status;
 }
 
-const INTERVAL_MS = 15_000;
-const MIN_METERS = 30;
+const RULES: Record<SharingMode, { intervalMs: number; minMeters: number; status: Status }> = {
+  delivery: { intervalMs: 15_000, minMeters: 30, status: 'delivering' },
+  shift: { intervalMs: 30_000, minMeters: 50, status: 'available' },
+};
 
 function meters(a: GeolocationCoordinates, b: GeolocationCoordinates) {
   const r = 6_371_000, rad = Math.PI / 180;
@@ -32,27 +35,32 @@ function meters(a: GeolocationCoordinates, b: GeolocationCoordinates) {
   return 2 * r * Math.asin(Math.sqrt(h));
 }
 
-export function useLocationSharing(activeDeliveryId: number | null) {
+export function useLocationSharing(mode: SharingMode | null, key: string | null, onRejected?: () => void) {
   const { setStatus } = useContext(StatusContext);
   const lastSent = useRef<{ at: number; coords: GeolocationCoordinates } | null>(null);
   const pending = useRef<GeolocationCoordinates | null>(null);
   // Trava contra POSTs simultâneos (leitura do GPS, intervalo e "online" podem coincidir).
   const inFlight = useRef(false);
+  const rejectedRef = useRef(onRejected);
+  rejectedRef.current = onRejected;
 
   useEffect(() => {
-    // Cada entrega nova começa do zero: nada da anterior (posição, regra de 15 s / 30 m) vale para ela.
+    // Cada entrega ou turno novo começa do zero: nada do anterior vale para ele.
     pending.current = null;
     lastSent.current = null;
-    if (activeDeliveryId === null) { setStatus('idle'); return; }
+    if (mode === null || key === null) { setStatus('off'); return; }
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) { setStatus('unsupported'); return; }
+    const rule = RULES[mode];
+    setStatus(rule.status);
     let cancelled = false;
-    // Depois de um 409 o servidor diz que não há entrega: para de enviar até a tela desligar o hook.
+    // Depois de um 409 o servidor diz que não há entrega nem turno: para de enviar até a tela mudar de modo.
     let rejected = false;
     let lock: { released: boolean; release: () => Promise<void> } | null = null;
-    // Tela acesa durante a entrega, quando o navegador oferece (evita pausar o rastreio no suporte da moto).
-    const wake = (navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ released: boolean; release: () => Promise<void> }> } }).wakeLock;
+    // Tela acesa só durante a entrega, quando o navegador oferece (evita pausar o rastreio no suporte da moto).
+    const wake = mode === 'delivery'
+      ? (navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ released: boolean; release: () => Promise<void> }> } }).wakeLock
+      : undefined;
     const keepAwake = () => {
-      // Já existe um sentinel ativo: não pede outro.
       if (lock && !lock.released) return;
       wake?.request('screen').then((sentinel) => {
         // A limpeza pode ter rodado antes de o pedido resolver: sem isto o sentinel ficaria preso para sempre.
@@ -71,32 +79,47 @@ export function useLocationSharing(activeDeliveryId: number | null) {
           lastSent.current = { at: Date.now(), coords };
           // Se chegou uma posição mais nova durante o envio, ela continua pendente.
           if (pending.current === coords) pending.current = null;
-          if (!cancelled) setStatus('sharing');
+          if (!cancelled) setStatus(rule.status);
         })
         .catch((error) => {
           if (error instanceof ApiError && error.status === 409) {
             rejected = true;
             pending.current = null;
-            if (!cancelled) setStatus('idle');
+            if (!cancelled) { setStatus('off'); rejectedRef.current?.(); }
           }
           /* demais erros (sem sinal): a última posição fica em `pending` e vai na próxima */
         })
         .finally(() => { inFlight.current = false; });
     };
-    const flush = () => { if (pending.current) send(pending.current); };
+    // Leitura ativa em andamento: evita pedir o GPS de novo enquanto a anterior não respondeu.
+    let reading = false;
+    const flush = () => {
+      if (rejected) return;
+      if (pending.current) { send(pending.current); return; }
+      // Parado: o navegador não promete avisar o watchPosition sem movimento, e sem envio o servidor marca "Sem sinal"
+      // em 2 min. Se o último envio é antigo, pede uma leitura nova (nunca reenvia coordenadas velhas como novas).
+      const last = lastSent.current;
+      if (reading || inFlight.current || (last && Date.now() - last.at < rule.intervalMs)) return;
+      reading = true;
+      navigator.geolocation.getCurrentPosition(
+        (position) => { reading = false; if (!cancelled && !rejected) send(position.coords); },
+        (error) => { reading = false; if (!cancelled && error.code === error.PERMISSION_DENIED) setStatus('blocked'); },
+        { enableHighAccuracy: true, maximumAge: rule.intervalMs, timeout: 20_000 },
+      );
+    };
 
     const watch = navigator.geolocation.watchPosition(
       (position) => {
         if (rejected) return;
         const last = lastSent.current;
-        if (!last || Date.now() - last.at >= INTERVAL_MS || meters(last.coords, position.coords) >= MIN_METERS) send(position.coords);
+        if (!last || Date.now() - last.at >= rule.intervalMs || meters(last.coords, position.coords) >= rule.minMeters) send(position.coords);
         else pending.current = position.coords;
       },
       // Só a permissão negada muda o indicador; sinal fraco/timeout mantém o status anterior.
       (error) => { if (error.code === error.PERMISSION_DENIED) setStatus('blocked'); },
       { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 },
     );
-    const timer = window.setInterval(flush, INTERVAL_MS);
+    const timer = window.setInterval(flush, rule.intervalMs);
     // O navegador solta o Wake Lock quando a página fica oculta (ex.: ao abrir o Maps/Waze): pede de novo ao voltar.
     const visibility = () => {
       if (document.visibilityState !== 'visible') return;
@@ -112,7 +135,7 @@ export function useLocationSharing(activeDeliveryId: number | null) {
       window.removeEventListener('online', flush);
       document.removeEventListener('visibilitychange', visibility);
       void lock?.release().catch(() => {});
-      setStatus('idle');
+      setStatus('off');
     };
-  }, [activeDeliveryId, setStatus]);
+  }, [mode, key, setStatus]);
 }
