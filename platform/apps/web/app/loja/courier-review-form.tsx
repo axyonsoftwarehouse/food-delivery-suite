@@ -24,7 +24,7 @@ export default function CourierReviewForm({ orderId }: { orderId: number }) {
     return () => { cancelled = true; };
   }, [orderId]);
 
-  if (thanks) return <p className="courier-review-thanks">{'Obrigado!'}</p>;
+  if (thanks) return <p className="courier-review-thanks" role="status">{'Avaliação da entrega enviada. Obrigado!'}</p>;
   if (!state?.canReview) return null;
 
   async function send() {
