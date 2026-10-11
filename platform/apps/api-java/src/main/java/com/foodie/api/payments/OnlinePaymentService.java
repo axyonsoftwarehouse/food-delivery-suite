@@ -85,7 +85,7 @@ public class OnlinePaymentService {
         if (CLOSED_ORDER.contains((String) order.get("status"))) throw new ApiException(409, "Este pedido não aceita mais pagamento");
 
         List<Map<String, Object>> payments = jdbc.queryForList(
-            "SELECT id, status, external_id, qr_code, ticket_url, amount_due_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+            "SELECT id, status, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (payments.isEmpty()) throw new ApiException(409, "Pagamento do pedido não encontrado");
         Map<String, Object> payment = payments.getFirst();
         String paymentStatus = (String) payment.get("status");
@@ -100,7 +100,9 @@ public class OnlinePaymentService {
         // guardado, em vez de cobrar de novo. Recusada, expirada ou cancelada abre uma nova tentativa
         // (revisão de 08/10/2026: antes o "Tente outro cartão" da tela nunca cobrava de novo).
         String previousCharge = (String) payment.get("external_id");
-        boolean retry = previousCharge != null && RETRYABLE.contains(paymentStatus);
+        String previousKey = (String) payment.get("idempotency_key");
+        // A recusa (402) pode vir sem o id da order: a chave usada basta para abrir a nova tentativa.
+        boolean retry = RETRYABLE.contains(paymentStatus) && (previousCharge != null || previousKey != null);
         if (previousCharge != null && !retry) return detail(orderId);
 
         long due = ((Number) payment.get("amount_due_cents")).longValue();
@@ -112,7 +114,8 @@ public class OnlinePaymentService {
         }
         // A nova tentativa deriva a chave da cobrança que falhou: clique duplo na mesma tentativa continua
         // idempotente no provedor, e cada falha nova abre uma chave nova.
-        String idempotencyKey = "order-" + orderId + "-" + payment.get("id") + (retry ? "-retry-" + previousCharge : "");
+        String retrySuffix = previousCharge != null ? previousCharge : previousKey == null ? null : "k" + Integer.toHexString(previousKey.hashCode());
+        String idempotencyKey = "order-" + orderId + "-" + payment.get("id") + (retry ? "-retry-" + retrySuffix : "");
 
         if ("card".equals(method)) {
             if (intent.cardToken() == null || intent.cardToken().isBlank()) {

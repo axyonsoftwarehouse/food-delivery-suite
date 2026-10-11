@@ -54,6 +54,8 @@ class OnlinePaymentServiceTest {
         payment.put("external_id", null);
         payment.put("qr_code", null);
         payment.put("ticket_url", null);
+        payment.put("idempotency_key", null);
+        payment.put("provider", null);
         payment.put("amount_due_cents", 1000L);
         payment.put("restaurant_id", 3L);
         when(jdbc.queryForList(argThat(sql -> sql != null && sql.contains("FROM orders")), any(Object[].class))).thenReturn(List.of(order));
@@ -416,5 +418,41 @@ class OnlinePaymentServiceTest {
         assertFalse(OnlinePaymentService.emailValido("cliente@semponto"));
         assertFalse(OnlinePaymentService.emailValido("@exemplo.com.br"));
         assertFalse(OnlinePaymentService.emailValido(null));
+    }
+
+    @Test
+    void declinedCardIsSavedWithTheStoreAccount() {
+        // Roteiro de 11/10: a recusa voltava 502 e não gravava provider, conta nem chave.
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge(
+            "ORDREC1", "1", 1000, "rejected", "rejected_by_issuer", null, null, null, null));
+
+        Map<String, Object> result = service(true).startIntent(customer, 1,
+            new OnlinePaymentService.Intent("card", null, "tok", 1, "CPF", "12345678909", "visa"));
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        Object[] saved = values.getValue();
+        assertEquals("mercadopago", saved[0]);
+        assertEquals("ORDREC1", saved[2]);
+        assertEquals("order-1-11", saved[3]);
+        assertEquals("rejected", saved[4]);
+        assertEquals("rejected_by_issuer", saved[5]);
+        assertEquals(9L, saved[12]);
+        assertEquals(11L, result.get("id"));
+    }
+
+    @Test
+    void retryWithoutTheOrderIdDerivesTheKeyFromThePreviousKey() {
+        // 402 só com errors[]: external_id nulo, mas a chave usada ficou gravada.
+        payment.put("status", "rejected");
+        payment.put("external_id", null);
+        payment.put("idempotency_key", "order-1-11");
+        when(gateway.create(any(), any())).thenReturn(pixCharge());
+
+        service(true).startIntent(customer, 1, "pix", null);
+
+        ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+        verify(gateway).create(eq(loja), request.capture());
+        assertEquals("order-1-11-retry-k" + Integer.toHexString("order-1-11".hashCode()), request.getValue().idempotencyKey());
     }
 }
