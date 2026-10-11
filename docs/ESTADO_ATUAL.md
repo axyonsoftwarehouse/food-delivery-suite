@@ -1,6 +1,6 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 10/10/2026.
+Documento vivo. Última atualização: 11/10/2026.
 Base: `PLANO_EPICOS.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -15,17 +15,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`91e7887`** — merge da PR #25 (`feat/entregador-gestao-loja`, parte D do entregador). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #25** são os do `axyonsoftwarehouse` |
-| Em revisão | `fix/entregador-ajustes-roteiro-d` — ajustes do roteiro de telas da parte D (sem migration) |
-| `main` local | igual ao `origin/main` (`91e7887`), atualizada em 10/10; o trabalho é feito nas branches |
-| **Código na VPS** | **`91e7887`** — o `main` inteiro, publicado pelo **`release.ps1`** no PC (10/10 ~19:56 UTC, `/ready` em 200, sem rollback); registro em `/home/deploy/foodie-platform/.deployed` |
-| Schema (`/ready`) | **`067`** na VPS e no `HEAD` (conferido em 10/10 no deploy: `schemaVersion` 067 igual à maior migration do pacote) |
+| `origin/main` | **`6d81dc8`** — merge da PR #26 (`fix/entregador-ajustes-roteiro-d`, ajustes do roteiro da parte D). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #26** são os do `axyonsoftwarehouse` |
+| Em revisão | `fix/entregador-campo-dinheiro` — campo do valor em dinheiro vazio, com atalhos (sem migration) |
+| `main` local | igual ao `origin/main` (`6d81dc8`), atualizada em 11/10; o trabalho é feito nas branches |
+| **Código na VPS** | **`6d81dc8`** — o `main` inteiro, publicado pelo **`release.ps1`** no PC (11/10 00:29 UTC, `previous=91e7887`); registro em `/home/deploy/foodie-platform/.deployed` |
+| Schema (`/ready`) | **`067`** na VPS e no `HEAD` (o `.deployed` de 11/10 registra `schema=067`; a PR #26 não tem migration) |
 | Distância | **nenhuma** em relação ao `origin/main` |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
 | Testes Java | `mvn test` com **667 execuções** sem falha na `main` (10/10, local); eram 635 na PR #24. A `V067` rodou no MariaDB real do staging no deploy de 10/10 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **52%** depois do deploy de 10/10 (log do deploy); a limpeza automática dispara em 70% |
-| Árvore de trabalho | branch `fix/entregador-ajustes-roteiro-d` (`.claude/` não versionado) |
+| Árvore de trabalho | branch `fix/entregador-campo-dinheiro` (`.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -311,9 +311,17 @@ recusa e assim por diante.
     turno com GPS negado ("Sem localização" e "Sem sinal" para a loja), posição simulada no navegador ("Disponível",
     111 m, "Mais perto"), mapa e popup, atribuição em um toque, quadro fora do ar (volta o seletor simples), encerrar
     com entrega em mãos, 409 depois de entregar e horas na Equipe. A Cozinha Demo ganhou endereço de teste pelo admin
-    (Praça do Ferreira). Ajustes achados, na branch `fix/entregador-ajustes-roteiro-d`: o reenvio do entregador
+    (Praça do Ferreira). Ajustes achados, corrigidos na PR #26 (`6d81dc8`): o reenvio do entregador
     parado saía a cada 60 s (não 30 s); o aviso "Cadastre o endereço da loja" levava a Configurações, onde a loja não
     tem esse campo (só o suporte cadastra); e a entrega em dinheiro (parte A) usava `window.prompt`/`confirm`.
+    **Conferidos nas telas do staging em 11/10** com o pedido #46 (dinheiro na entrega, R$ 25,89): o valor em
+    dinheiro é pedido na própria tela, recusa valor menor que o total e conclui com "Troco de R$ 4,11", sem chamar
+    `prompt`/`confirm`/`alert`; parado em turno, a posição saiu a cada 30 s (12:53:11 → 12:54:41 UTC, todas 200), e
+    parado em entrega, a cada 15 s; o aviso novo da loja sem endereço ("Peça ao suporte Foodie") está no JavaScript
+    servido, mas não foi visto na tela, porque a Cozinha Demo tem endereço. Achado do mesmo roteiro, na branch
+    `fix/entregador-campo-dinheiro`: o campo do dinheiro vinha preenchido com o total, e o toque no meio do número
+    misturava o que se digitava ("25,2089"); agora vem vazio, com atalhos "Valor exato" e "Troco para" (quando o
+    cliente informou). A Cozinha Demo não tem telefone cadastrado (a retirada mostra "Telefone não informado").
     **Não verificado nas telas:** nome de entregador com HTML no popup do mapa (o código monta o popup como texto).
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
@@ -369,12 +377,12 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`91e7887`, schema `067`); fora dele só os **ajustes do roteiro da
-parte D** (`fix/entregador-ajustes-roteiro-d`, sem migration), em revisão. O staging é publicado pelo **botão do
-GitHub** ou pelo `release.ps1` no PC (o deploy de 10/10 da parte D foi pelo `release.ps1`).
+**O que está no ar é o `origin/main` inteiro** (`6d81dc8`, schema `067`); fora dele só o **campo do valor em
+dinheiro** (`fix/entregador-campo-dinheiro`, sem migration), em revisão. O staging é publicado pelo **botão do
+GitHub** ou pelo `release.ps1` no PC (os deploys de 10/10 e 11/10 foram pelo `release.ps1`).
 
-**Depois de mesclar e publicar os ajustes:** conferir nas telas do staging o envio a cada 30 s do entregador parado,
-o novo aviso da loja sem endereço e a confirmação do dinheiro na própria tela.
+**Depois de mesclar e publicar o campo do dinheiro:** conferir nas telas do staging que o campo vem vazio, que
+"Valor exato" preenche o total e que o troco aparece ao digitar um valor maior.
 
 **Próximo passo único: fechar o pagamento real com a conta por loja** (cartão `1nguT9bv`, em TESTING).
 O código está pronto e no ar; o que falta é prova no ambiente publicado:
@@ -408,7 +416,7 @@ repositório **antigo**, que foi apagado na migração; os commits identificam):
 
 **Ambiente local:** a imagem Docker da API não se atualiza sozinha — depois de cada merge:
 `docker compose --profile java up -d --build api-java` no `platform/` do checkout principal, depois de
-`git checkout main && git pull` (a `main` local estava em `91e7887` em 10/10).
+`git checkout main && git pull` (a `main` local estava em `6d81dc8` em 11/10).
 
 O admin compartilhava 4 abas operacionais com o restaurante (`pedidos`,
 `catalogo`, `horarios`, `operacao`); elas saíram do menu, mas a API ainda
@@ -446,8 +454,8 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #25** estão mesclados e
-publicados (`91e7887`, schema `067`), e o staging roda o mesmo commit do `origin/main`.
+A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #26** estão mesclados e
+publicados (`6d81dc8`, schema `067`), e o staging roda o mesmo commit do `origin/main`.
 
 **O que já foi provado no pagamento (com a conta global da plataforma, em 05/10):** Pix (#23) e cartão
 (#26) de ponta a ponta com notificação automática, o estorno pelo admin (#26 ficou `refunded` no Foodie e
@@ -472,10 +480,10 @@ em `/home/deploy/releases/<sha>/`), então as imagens em uso foram **re-tagadas*
 `pre-df503c0` — rollback instantâneo para o release atual sem custo de build. Os backups de banco
 seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar de ~70%.
 
-## 6. Estado da árvore de trabalho (10/10)
+## 6. Estado da árvore de trabalho (11/10)
 
-`origin/main` = **`91e7887`** (PR #25). O checkout está na branch `fix/entregador-ajustes-roteiro-d` (ajustes do
-roteiro de telas da parte D; o `.claude/` não é versionado). A **`main` local foi atualizada** em 10/10 (`91e7887`). Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
+`origin/main` = **`6d81dc8`** (PR #26). O checkout está na branch `fix/entregador-campo-dinheiro` (campo do valor
+em dinheiro; o `.claude/` não é versionado). A **`main` local foi atualizada** em 11/10 (`6d81dc8`). Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
 verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
 conserto no PR #13).
 
@@ -508,7 +516,8 @@ os últimos publicados **pelo botão do GitHub**:
 | `e416ac9` | #22 | `feat`: área do entregador — confiança na entrega, parte B (`V065`) |
 | `a3cf53f` | #23 | `feat`: área do entregador — motivação, parte C (`V066`) |
 | `3f7f4ba` | #24 | `fix`: ajustes do roteiro de telas da parte C |
-| `91e7887` | #25 | `feat`: área do entregador — gestão pela loja, parte D (`V067`) — **é o que está na VPS** (pelo `release.ps1`) |
+| `91e7887` | #25 | `feat`: área do entregador — gestão pela loja, parte D (`V067`) |
+| `6d81dc8` | #26 | `fix`: ajustes do roteiro de telas da parte D — **é o que está na VPS** (pelo `release.ps1`) |
 
 **Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
 commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,
@@ -586,8 +595,8 @@ Ver `docs/RUNBOOK_VPS.md`. Dois pontos que já custaram tempo:
 - O código implantado é o **conteúdo de `platform/`**, então o deploy fica em
   `/home/deploy/foodie-platform/deploy` — **não** em `.../platform/deploy`.
 - A VPS **não é um clone** (sem `.git`): não há `git rev-parse` para descobrir
-  o commit no ar. Consulte `/home/deploy/foodie-platform/.deployed` (em 10/10:
-  `91e7887`, schema `067`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
+  o commit no ar. Consulte `/home/deploy/foodie-platform/.deployed` (em 11/10:
+  `6d81dc8`, schema `067`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
 
 ## 8. Referências
 
