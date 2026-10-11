@@ -455,4 +455,70 @@ class OnlinePaymentServiceTest {
         verify(gateway).create(eq(loja), request.capture());
         assertEquals("order-1-11-retry-k" + Integer.toHexString("order-1-11".hashCode()), request.getValue().idempotencyKey());
     }
+
+    private OnlinePaymentService.Intent card() {
+        return new OnlinePaymentService.Intent("card", null, "tok", 1, "CPF", "12345678909", "visa");
+    }
+
+    private void openPix() {
+        payment.put("status", "pending");
+        payment.put("provider", "mercadopago");
+        payment.put("external_id", "ORDPIX1");
+        payment.put("qr_code", "00020126...");
+    }
+
+    @Test
+    void switchingFromPixToCardCancelsThePixFirst() {
+        openPix();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "action_required", null, null, null, null));
+        when(gateway.cancel(loja, "ORDPIX1", "cancel-ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "cancelled", "canceled_by_api", null, null, null, null));
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDCARD1", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, card());
+
+        org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(gateway);
+        ordem.verify(gateway).cancel(loja, "ORDPIX1", "cancel-ORDPIX1");
+        ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+        ordem.verify(gateway).create(eq(loja), request.capture());
+        assertEquals("order-1-11-retry-ORDPIX1", request.getValue().idempotencyKey());
+        assertEquals("card", request.getValue().method());
+    }
+
+    @Test
+    void pixPaidMeanwhileIsRecordedAndTheCardIsNotCharged() {
+        openPix();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, card());
+
+        verify(gateway, never()).cancel(any(), anyString(), anyString());
+        verify(gateway, never()).create(any(), any());
+        verify(jdbc).update(org.mockito.ArgumentMatchers.contains("SET status = 'paid'"), eq("accredited"), eq(1L));
+    }
+
+    @Test
+    void failingToCancelThePixChargesNothing() {
+        openPix();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "action_required", null, null, null, null));
+        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o cancelamento: HTTP 409"));
+
+        ApiException erro = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, card()));
+
+        assertEquals(409, erro.status());
+        assertEquals("Não foi possível cancelar o Pix gerado; tente de novo em instantes", erro.getMessage());
+        verify(gateway, never()).create(any(), any());
+    }
+
+    @Test
+    void cancelReturningStillPendingChargesNothing() {
+        openPix();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "action_required", null, null, null, null));
+        when(gateway.cancel(loja, "ORDPIX1", "cancel-ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "action_required", null, null, null, null));
+
+        ApiException erro = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, card()));
+
+        assertEquals(409, erro.status());
+        assertEquals("Não foi possível cancelar o Pix gerado; tente de novo em instantes", erro.getMessage());
+        verify(gateway, never()).create(any(), any());
+    }
 }

@@ -83,6 +83,7 @@ public class OnlinePaymentService {
         boolean owner = ((Number) order.get("customer_id")).longValue() == actor.id();
         if (!owner && !"admin".equals(actor.role())) throw new ApiException(403, "Acesso não autorizado");
         if (CLOSED_ORDER.contains((String) order.get("status"))) throw new ApiException(409, "Este pedido não aceita mais pagamento");
+        long restaurantId = ((Number) order.get("restaurant_id")).longValue();
 
         List<Map<String, Object>> payments = jdbc.queryForList(
             "SELECT id, status, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
@@ -91,7 +92,11 @@ public class OnlinePaymentService {
         String paymentStatus = (String) payment.get("status");
         if ("paid".equals(paymentStatus)) throw new ApiException(409, "Este pedido já está pago");
         if ("pending".equals(paymentStatus) && (payment.get("qr_code") != null || payment.get("ticket_url") != null)) {
-            return detail(orderId);
+            // Pix pedindo Pix: devolve o QR que já existe. Pix aberto pedindo cartão: cancela o Pix antes de
+            // cobrar, senão o cliente pode pagar os dois (spec de 11/10/2026, regra 5).
+            if (!"card".equals(method)) return detail(orderId);
+            paymentStatus = trocarPixPorCartao(orderId, restaurantId, payment);
+            if ("paid".equals(paymentStatus)) return detail(orderId);
         }
         if (!allowDirectOnlineCharges) {
             throw new ApiException(409, "Novas cobranças online exigem recebimento direto pelo restaurante");
@@ -126,7 +131,6 @@ public class OnlinePaymentService {
             }
         }
 
-        long restaurantId = ((Number) order.get("restaurant_id")).longValue();
         MerchantCredentials credentials = accounts.credentialsFor(restaurantId)
             .orElseThrow(() -> new ApiException(409, "Esta loja não recebe pagamento online: o Mercado Pago dela não está conectado"));
         PaymentGateway gateway = gateways.resolve(provider);
@@ -232,6 +236,41 @@ public class OnlinePaymentService {
             }
         }
         return Map.of("ok", true, "orderId", orderId, "status", next);
+    }
+
+    /**
+     * Encerra o Pix em aberto antes da cobrança no cartão. Consulta primeiro: se o cliente acabou de pagar o
+     * Pix, grava o pagamento e não cobra o cartão. Se o provedor não cancelar, não cobra nada.
+     * @return "paid" quando o Pix já estava pago; "cancelled" quando foi cancelado.
+     */
+    private String trocarPixPorCartao(long orderId, long restaurantId, Map<String, Object> payment) {
+        String pix = (String) payment.get("external_id");
+        MerchantCredentials credentials = accounts.credentialsFor(restaurantId)
+            .orElseThrow(() -> new ApiException(409, "Esta loja não recebe pagamento online: o Mercado Pago dela não está conectado"));
+        PaymentGateway gateway = gateways.resolve((String) payment.get("provider"));
+        PaymentGateway.Charge atual = gateway.fetch(credentials, pix);
+        long due = ((Number) payment.get("amount_due_cents")).longValue();
+        if ("paid".equals(atual.status()) && atual.amountCents() == due) {
+            jdbc.update("UPDATE order_payments SET status = 'paid', raw_status = ?, confirmed_at = NOW() WHERE order_id = ? AND status = 'pending'",
+                atual.rawStatus(), orderId);
+            return "paid";
+        }
+        String mensagem = "Não foi possível cancelar o Pix gerado; tente de novo em instantes";
+        PaymentGateway.Charge cancelada;
+        try {
+            cancelada = gateway.cancel(credentials, pix, "cancel-" + pix);
+        } catch (RuntimeException falha) {
+            log.warn("Pedido #{}: o Pix {} não foi cancelado na troca para cartão ({})", orderId, pix, falha.getMessage());
+            throw new ApiException(409, mensagem);
+        }
+        // O provedor respondeu sem erro mas o Pix segue vivo: cobrar o cartão agora permitiria pagar os dois.
+        if (cancelada == null || !("cancelled".equals(cancelada.status()) || "expired".equals(cancelada.status()))) {
+            log.warn("Pedido #{}: o Pix {} continua {} após o pedido de cancelamento na troca para cartão", orderId, pix,
+                cancelada == null ? "sem resposta" : cancelada.status());
+            throw new ApiException(409, mensagem);
+        }
+        jdbc.update("UPDATE order_payments SET status = 'cancelled', raw_status = 'cancelled' WHERE order_id = ? AND status = 'pending'", orderId);
+        return "cancelled";
     }
 
     /**
