@@ -123,7 +123,7 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
             {cash
               ? <>
                   <label htmlFor={`cash-${delivery.id}`}>{`Valor recebido em dinheiro (total ${money(collect)})`}</label>
-                  <input id={`cash-${delivery.id}`} className="courier-cash" inputMode="decimal" placeholder={cashInput(collect)} value={cashText} onChange={(event) => setCashText(event.target.value)} autoFocus />
+                  <input id={`cash-${delivery.id}`} className="courier-cash" inputMode="decimal" placeholder="0,00" value={cashText} onChange={(event) => setCashText(event.target.value)} autoFocus />
                   <div className="courier-cash-quick">
                     <button type="button" onClick={() => setCashText(cashInput(collect))}>{`Valor exato · ${money(collect)}`}</button>
                     {delivery.change_for_cents && delivery.change_for_cents > collect
