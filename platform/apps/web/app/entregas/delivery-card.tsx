@@ -13,6 +13,11 @@ function cashCents(text: string) {
   return Math.round(Number(normalized) * 100);
 }
 
+/** Centavos no formato que o campo aceita ("2589" → "25,89"). */
+function cashInput(cents: number) {
+  return (cents / 100).toFixed(2).replace('.', ',');
+}
+
 /** Entrega da vez: etapa, destino, rota, contatos, pagamento e a ação principal. */
 export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Delivery; onChanged: (finishedId?: number) => Promise<void>; offline: boolean }) {
   const { setMessage } = useApp();
@@ -65,7 +70,8 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
     if (delivery.requires_delivery_code && !typedCode) { setCodeOpen(true); return; }
     if (collect > 0) {
       setPayCode(typedCode);
-      setCashText((collect / 100).toFixed(2).replace('.', ','));
+      // Campo vazio: valor pré-digitado se misturava ao que o entregador digitava (o toque punha o cursor no meio).
+      setCashText('');
       setPayOpen(true);
       return;
     }
@@ -75,6 +81,7 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
   function confirmPayment() {
     let received = collect;
     if (cash) {
+      if (!cashText.trim()) { setMessage('Informe o valor recebido.'); return; }
       if (typedCash === null) { setMessage('Valor inválido.'); return; }
       if (typedCash < collect) { setMessage('Valor recebido menor que o total do pedido.'); return; }
       received = typedCash;
@@ -116,7 +123,13 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
             {cash
               ? <>
                   <label htmlFor={`cash-${delivery.id}`}>{`Valor recebido em dinheiro (total ${money(collect)})`}</label>
-                  <input id={`cash-${delivery.id}`} inputMode="decimal" value={cashText} onChange={(event) => setCashText(event.target.value)} autoFocus />
+                  <input id={`cash-${delivery.id}`} className="courier-cash" inputMode="decimal" placeholder="0,00" value={cashText} onChange={(event) => setCashText(event.target.value)} autoFocus />
+                  <div className="courier-cash-quick">
+                    <button type="button" onClick={() => setCashText(cashInput(collect))}>{`Valor exato · ${money(collect)}`}</button>
+                    {delivery.change_for_cents && delivery.change_for_cents > collect
+                      ? <button type="button" onClick={() => setCashText(cashInput(delivery.change_for_cents!))}>{`Troco para ${money(delivery.change_for_cents)}`}</button>
+                      : null}
+                  </div>
                   {change > 0 && <small>{`Troco: ${money(change)}`}</small>}
                 </>
               : <p>{`Confirma que recebeu ${money(collect)} ${methodLabel}?`}</p>}
