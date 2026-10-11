@@ -31,7 +31,8 @@ export function useCourierBoard(enabled: boolean) {
     document.addEventListener('visibilitychange', load);
     return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', load); };
   }, [enabled]);
-  return { board, failed };
+  // `loading` = ainda sem a primeira resposta (o despacho mostra o seletor simples com o aviso de carregando).
+  return { board, failed, loading: enabled && board === null && !failed };
 }
 
 export function distanceLabel(meters: number | null) {

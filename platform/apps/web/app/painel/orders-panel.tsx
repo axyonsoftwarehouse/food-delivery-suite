@@ -28,7 +28,7 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<{ id: number; order: Order | null; error: string } | null>(null);
   // Despacho da loja (parte D): quadro dos entregadores com status e distância; o admin segue com a lista simples.
-  const { board, failed: boardFailed } = useCourierBoard(user?.role === 'restaurant' && permissions.includes('orders.dispatch'));
+  const { board, failed: boardFailed, loading: boardLoading } = useCourierBoard(user?.role === 'restaurant' && permissions.includes('orders.dispatch'));
   const scoped = restaurantId ? orders.filter((order) => order.restaurant_id === restaurantId) : orders;
   const list = query.trim() ? scoped.filter((order) => matches(order, query)) : scoped;
   const number = orderNumber(query);
@@ -72,7 +72,7 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
       {role === 'restaurant' && order.status === 'accepted' && <button disabled={busy} onClick={() => act(order, 'ready', 'Pedido pronto.')}><Icon name="bag" size={16} />Marcar pronto</button>}
       {canDispatch && (order.order_type ?? 'delivery') === 'delivery' && (order.status === 'ready' || order.status === 'assigned') && (role === 'restaurant'
         ? <>
-            <DispatchPicker order={order} board={board} failed={boardFailed} couriers={couriers} busy={busy}
+            <DispatchPicker order={order} board={board} failed={boardFailed} loading={boardLoading} couriers={couriers} busy={busy}
               onAssign={(courierId) => act(order, 'assign', order.status === 'assigned' ? 'Entregador trocado.' : 'Entregador atribuído.', { courierId })} />
             {order.status === 'assigned' && <button className="availability-button" disabled={busy} onClick={() => act(order, 'unassign', 'Entregador removido; pedido voltou a pronto.')}>Remover</button>}
           </>
