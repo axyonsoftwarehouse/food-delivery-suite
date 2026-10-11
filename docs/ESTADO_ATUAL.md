@@ -15,17 +15,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`3f7f4ba`** — merge da PR #24 (`fix/entregador-ajustes-roteiro`). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #24** são os do `axyonsoftwarehouse` |
-| Em revisão | `feat/entregador-gestao-loja` — parte D do entregador (migration `V067`), implementada e commitada só localmente em 10/10; PR ainda não aberta (número a confirmar) |
-| `main` local | igual ao `origin/main` (`3f7f4ba`), atualizada em 10/10; o trabalho é feito nas branches |
-| **Código na VPS** | **`3f7f4ba`** — o `main` inteiro, publicado pelo **botão do GitHub** (10/10 15:04 UTC, execução verde, sem rollback); registro em `/home/deploy/foodie-platform/.deployed` |
-| Schema (`/ready`) | **`066`** na VPS e no `HEAD` (conferido em 10/10: `/ready` e `/health` públicos em **200**) |
+| `origin/main` | **`91e7887`** — merge da PR #25 (`feat/entregador-gestao-loja`, parte D do entregador). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #25** são os do `axyonsoftwarehouse` |
+| Em revisão | `fix/entregador-ajustes-roteiro-d` — ajustes do roteiro de telas da parte D (sem migration) |
+| `main` local | igual ao `origin/main` (`91e7887`), atualizada em 10/10; o trabalho é feito nas branches |
+| **Código na VPS** | **`91e7887`** — o `main` inteiro, publicado pelo **`release.ps1`** no PC (10/10 ~19:56 UTC, `/ready` em 200, sem rollback); registro em `/home/deploy/foodie-platform/.deployed` |
+| Schema (`/ready`) | **`067`** na VPS e no `HEAD` (conferido em 10/10 no deploy: `schemaVersion` 067 igual à maior migration do pacote) |
 | Distância | **nenhuma** em relação ao `origin/main` |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `mvn test` com **665 execuções** sem falha na branch da parte D (10/10, local); eram 635 na PR #24. `VERIFY_INTEGRATION=1 pnpm verify` verde nas PRs #16 a #19; na parte D o smoke e a `V067` em banco real ficam com o CI (sem Docker no PC) |
+| Testes Java | `mvn test` com **667 execuções** sem falha na `main` (10/10, local); eram 635 na PR #24. A `V067` rodou no MariaDB real do staging no deploy de 10/10 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
-| Disco da VPS | **40%** depois do deploy de 09/10 22:46 UTC (24 GB livres antes dele), pelo log do deploy — era 66% em 08/10; a limpeza automática dispara em 70% |
-| Árvore de trabalho | limpa na branch `feat/entregador-gestao-loja` (commits locais, sem push; `.claude/` não versionado) |
+| Disco da VPS | **52%** depois do deploy de 10/10 (log do deploy); a limpeza automática dispara em 70% |
+| Árvore de trabalho | branch `fix/entregador-ajustes-roteiro-d` (`.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -302,14 +302,19 @@ recusa e assim por diante.
     Os ajustes achados (contraste no escuro, Perfil centralizado, "Entregas hoje" pela data de criação, pedido
     entregue escondido na lista do cliente, prazo de avaliação na tela) foram corrigidos na PR #24 (`3f7f4ba`),
     publicada e conferida nas telas em 10/10.
-  - **D) gestão pela loja** — **implementada na branch `feat/entregador-gestao-loja` (migration `V067`), em revisão**
-    (especificação: `docs/superpowers/specs/2026-10-10-entregador-gestao-loja-design.md`): "Estou disponível" abre um
+  - **D) gestão pela loja** — PR #25 (`91e7887`, 10/10), migration `V067`, **publicada** (especificação:
+    `docs/superpowers/specs/2026-10-10-entregador-gestao-loja-design.md`): "Estou disponível" abre um
     turno (registro de jornada na `courier_shifts`) e a posição só é compartilhada em turno ou em entrega; o quadro
     da loja sugere o entregador disponível mais perto (linha reta), sem atribuição automática; a página
-    "Entregadores" mostra o mapa (Leaflet + OpenStreetMap) e a lista; a Equipe mostra as horas em turno. Verificado
-    em 10/10 no PC: `mvn test` (665 execuções), tipos e build do site, tipos de `tools`, cozinha e api-client.
-    **Não verificado:** smoke e `V067` em banco real (sem Docker no PC; ficam com o CI) e o roteiro de telas no
-    staging (só depois de mesclar e publicar).
+    "Entregadores" mostra o mapa (Leaflet + OpenStreetMap) e a lista; a Equipe mostra as horas em turno.
+    **Roteiro de telas no staging em 10/10** (celular, claro e escuro): passou de ponta a ponta com o pedido #45 —
+    turno com GPS negado ("Sem localização" e "Sem sinal" para a loja), posição simulada no navegador ("Disponível",
+    111 m, "Mais perto"), mapa e popup, atribuição em um toque, quadro fora do ar (volta o seletor simples), encerrar
+    com entrega em mãos, 409 depois de entregar e horas na Equipe. A Cozinha Demo ganhou endereço de teste pelo admin
+    (Praça do Ferreira). Ajustes achados, na branch `fix/entregador-ajustes-roteiro-d`: o reenvio do entregador
+    parado saía a cada 60 s (não 30 s); o aviso "Cadastre o endereço da loja" levava a Configurações, onde a loja não
+    tem esse campo (só o suporte cadastra); e a entrega em dinheiro (parte A) usava `window.prompt`/`confirm`.
+    **Não verificado nas telas:** nome de entregador com HTML no popup do mapa (o código monta o popup como texto).
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
@@ -364,13 +369,12 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`3f7f4ba`, schema `066`); fora dele só a **parte D do entregador**
-(`feat/entregador-gestao-loja`, `V067`), em revisão. O staging é publicado pelo **botão do GitHub** desde 07/10.
+**O que está no ar é o `origin/main` inteiro** (`91e7887`, schema `067`); fora dele só os **ajustes do roteiro da
+parte D** (`fix/entregador-ajustes-roteiro-d`, sem migration), em revisão. O staging é publicado pelo **botão do
+GitHub** ou pelo `release.ps1` no PC (o deploy de 10/10 da parte D foi pelo `release.ps1`).
 
-**Depois de mesclar e publicar a parte D:** roteiro de telas no staging, com o Werner entrando nas contas — o
-entregador abre e encerra o turno, nega o GPS (aviso e "Sem sinal" para a loja) e encerra com entrega em mãos; a loja
-vê a sugestão e atribui com um toque, escolhe alguém fora do turno (aviso), abre "Entregadores" (mapa, popup, lista) e
-vê as horas na Equipe; celular, claro e escuro, console limpo.
+**Depois de mesclar e publicar os ajustes:** conferir nas telas do staging o envio a cada 30 s do entregador parado,
+o novo aviso da loja sem endereço e a confirmação do dinheiro na própria tela.
 
 **Próximo passo único: fechar o pagamento real com a conta por loja** (cartão `1nguT9bv`, em TESTING).
 O código está pronto e no ar; o que falta é prova no ambiente publicado:
@@ -381,9 +385,6 @@ O código está pronto e no ar; o que falta é prova no ambiente publicado:
    estorno/chargeback (cartão `FWyJELEC`);
 4. trocar a **credencial de teste exposta** em 02/10 e conferir se a conta tem **chave Pix registrada**;
 5. decidir o **3DS** (status `CALL` não tratado — cartão `PCLXrYCa`).
-
-**Em paralelo, no produto:** aprovar a especificação da **parte D** (gestão pela loja), escrever o plano e
-implementar.
 
 **Depois:** a **cobrança real da assinatura** (hoje cria a transação e não cobra o provedor) e a
 prontidão de produção (SMTP real, backup externo com ensaio de restauração, revisão de CSRF/origem).
@@ -407,7 +408,7 @@ repositório **antigo**, que foi apagado na migração; os commits identificam):
 
 **Ambiente local:** a imagem Docker da API não se atualiza sozinha — depois de cada merge:
 `docker compose --profile java up -d --build api-java` no `platform/` do checkout principal, depois de
-`git checkout main && git pull` (a `main` local estava em `3f7f4ba` em 10/10).
+`git checkout main && git pull` (a `main` local estava em `91e7887` em 10/10).
 
 O admin compartilhava 4 abas operacionais com o restaurante (`pedidos`,
 `catalogo`, `horarios`, `operacao`); elas saíram do menu, mas a API ainda
@@ -445,8 +446,8 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #23** estão mesclados e
-publicados (`3f7f4ba`, schema `066`), e o staging roda o mesmo commit do `origin/main`.
+A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #25** estão mesclados e
+publicados (`91e7887`, schema `067`), e o staging roda o mesmo commit do `origin/main`.
 
 **O que já foi provado no pagamento (com a conta global da plataforma, em 05/10):** Pix (#23) e cartão
 (#26) de ponta a ponta com notificação automática, o estorno pelo admin (#26 ficou `refunded` no Foodie e
@@ -473,12 +474,12 @@ seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar
 
 ## 6. Estado da árvore de trabalho (10/10)
 
-`origin/main` = **`3f7f4ba`** (PR #24). O checkout está na branch `feat/entregador-gestao-loja` (especificação e código da
-parte D, commits só locais), limpa (o `.claude/` não é versionado). A **`main` local foi atualizada** em 10/10 (`3f7f4ba`). Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
+`origin/main` = **`91e7887`** (PR #25). O checkout está na branch `fix/entregador-ajustes-roteiro-d` (ajustes do
+roteiro de telas da parte D; o `.claude/` não é versionado). A **`main` local foi atualizada** em 10/10 (`91e7887`). Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
 verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
 conserto no PR #13).
 
-Os **PRs #1 a #24** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
+Os **PRs #1 a #25** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
 os últimos publicados **pelo botão do GitHub**:
 
 | Commit | PR | O que é |
@@ -506,7 +507,8 @@ os últimos publicados **pelo botão do GitHub**:
 | `a2ce5a9` | #21 | `feat`: área do entregador — dia a dia na rua, parte A (`V064`) |
 | `e416ac9` | #22 | `feat`: área do entregador — confiança na entrega, parte B (`V065`) |
 | `a3cf53f` | #23 | `feat`: área do entregador — motivação, parte C (`V066`) |
-| `3f7f4ba` | #24 | `fix`: ajustes do roteiro de telas da parte C — **é o que está na VPS** |
+| `3f7f4ba` | #24 | `fix`: ajustes do roteiro de telas da parte C |
+| `91e7887` | #25 | `feat`: área do entregador — gestão pela loja, parte D (`V067`) — **é o que está na VPS** (pelo `release.ps1`) |
 
 **Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
 commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,
@@ -585,7 +587,7 @@ Ver `docs/RUNBOOK_VPS.md`. Dois pontos que já custaram tempo:
   `/home/deploy/foodie-platform/deploy` — **não** em `.../platform/deploy`.
 - A VPS **não é um clone** (sem `.git`): não há `git rev-parse` para descobrir
   o commit no ar. Consulte `/home/deploy/foodie-platform/.deployed` (em 10/10:
-  `3f7f4ba`, schema `066`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
+  `91e7887`, schema `067`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
 
 ## 8. Referências
 
