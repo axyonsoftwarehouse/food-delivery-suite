@@ -5,6 +5,14 @@ import { api, money, useApp } from '../app-context';
 import { Icon } from '../icons';
 import { FAILURE_REASONS, amountToCollect, distanceLabel, phoneLinks, routeLinks, type Delivery, type FailureCode } from './deliveries';
 
+/** Valor digitado em reais ("37,79", "1.234,56") em centavos; null se inválido ou zero. */
+function cashCents(text: string) {
+  // Ponto só some quando é separador de milhar (seguido de 3 dígitos); "1.234,56" vira 1234.56.
+  const normalized = text.trim().replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized) || Number(normalized) <= 0) return null;
+  return Math.round(Number(normalized) * 100);
+}
+
 /** Entrega da vez: etapa, destino, rota, contatos, pagamento e a ação principal. */
 export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Delivery; onChanged: (finishedId?: number) => Promise<void>; offline: boolean }) {
   const { setMessage } = useApp();
@@ -14,6 +22,10 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
   const [failOpen, setFailOpen] = useState(false);
   const [failReason, setFailReason] = useState<FailureCode | ''>('');
   const [failNote, setFailNote] = useState('');
+  // Recebimento na entrega, confirmado na própria tela (sem janelas nativas): valor em dinheiro ou "recebi no Pix/cartão".
+  const [payOpen, setPayOpen] = useState(false);
+  const [payCode, setPayCode] = useState<string | undefined>();
+  const [cashText, setCashText] = useState('');
   const pickup = delivery.status === 'assigned';
   const target = pickup
     ? { title: 'Retirar na loja', name: delivery.restaurant_name, address: delivery.restaurant_address ?? 'Endereço da loja não informado', routeText: delivery.restaurant_address ?? delivery.restaurant_name, lat: delivery.restaurant_latitude, lng: delivery.restaurant_longitude }
@@ -37,33 +49,40 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
 
   const status = (action: string, extra: Record<string, unknown> = {}) => api(`/orders/${delivery.id}/status`, { method: 'PATCH', body: JSON.stringify({ action, ...extra }) });
 
-  // O código vem primeiro (formulário na tela); só depois os avisos de dinheiro e o envio de `deliver`.
+  const cash = delivery.payment_method === 'cash';
+  const typedCash = cashCents(cashText);
+  const change = typedCash !== null && typedCash > collect ? typedCash - collect : 0;
+
+  // Código errado volta ao formulário do código (o servidor informa as tentativas restantes); sucesso fecha tudo.
+  async function sendDeliver(typedCode?: string) {
+    try { await status('deliver', typedCode ? { deliveryCode: typedCode } : {}); setCodeOpen(false); setPayOpen(false); }
+    catch (error) { setPayOpen(false); throw error; }
+    finally { setCode(''); }
+  }
+
+  // O código vem primeiro (formulário na tela); depois a confirmação do recebimento e o envio de `deliver`.
   function deliver(typedCode?: string) {
     if (delivery.requires_delivery_code && !typedCode) { setCodeOpen(true); return; }
-    // Código errado mantém o formulário aberto (o servidor informa as tentativas restantes); sucesso fecha.
-    const sendDeliver = async () => {
-      try { await status('deliver', typedCode ? { deliveryCode: typedCode } : {}); setCodeOpen(false); }
-      finally { setCode(''); }
-    };
     if (collect > 0) {
-      const cash = delivery.payment_method === 'cash';
-      let received = collect;
-      if (cash) {
-        const typed = window.prompt(`Valor recebido em dinheiro (total ${money(collect)}):`, (collect / 100).toFixed(2).replace('.', ','));
-        if (typed === null) return;
-        // Ponto só some quando é separador de milhar (seguido de 3 dígitos); "1.234,56" vira 1234.56.
-        const normalized = typed.trim().replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
-        if (!/^\d+(\.\d{1,2})?$/.test(normalized) || Number(normalized) <= 0) { setMessage('Valor inválido.'); return; }
-        received = Math.round(Number(normalized) * 100);
-        if (received < collect) { setMessage('Valor recebido menor que o total do pedido.'); return; }
-      } else if (!window.confirm(`Confirma que recebeu ${money(collect)} ${methodLabel}?`)) return;
-      void act(async () => {
-        await api(`/orders/${delivery.id}/payment`, { method: 'PATCH', body: JSON.stringify({ amountReceivedCents: received }) });
-        await sendDeliver();
-      }, cash && received > collect ? `Entrega concluída. Troco de ${money(received - collect)}.` : 'Entrega concluída.', true);
+      setPayCode(typedCode);
+      setCashText((collect / 100).toFixed(2).replace('.', ','));
+      setPayOpen(true);
       return;
     }
-    void act(sendDeliver, 'Entrega concluída.', true);
+    void act(() => sendDeliver(typedCode), 'Entrega concluída.', true);
+  }
+
+  function confirmPayment() {
+    let received = collect;
+    if (cash) {
+      if (typedCash === null) { setMessage('Valor inválido.'); return; }
+      if (typedCash < collect) { setMessage('Valor recebido menor que o total do pedido.'); return; }
+      received = typedCash;
+    }
+    void act(async () => {
+      await api(`/orders/${delivery.id}/payment`, { method: 'PATCH', body: JSON.stringify({ amountReceivedCents: received }) });
+      await sendDeliver(payCode);
+    }, cash && received > collect ? `Entrega concluída. Troco de ${money(received - collect)}.` : 'Entrega concluída.', true);
   }
 
   function fail() {
@@ -92,7 +111,19 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
       <ul>{delivery.items.map((item, index) => <li key={index}>{item.quantity}× {item.name}{item.variation_name ? ` (${item.variation_name})` : ''}</li>)}</ul></details>
     {pickup
       ? <button className="courier-primary" disabled={acting || offline} onClick={() => void act(() => status('pickup'), 'Pedido retirado. Boa entrega!')}>{'Retirei o pedido'}</button>
-      : codeOpen && delivery.code_attempts_left > 0
+      : payOpen
+        ? <form className="courier-code" onSubmit={(event) => { event.preventDefault(); confirmPayment(); }}>
+            {cash
+              ? <>
+                  <label htmlFor={`cash-${delivery.id}`}>{`Valor recebido em dinheiro (total ${money(collect)})`}</label>
+                  <input id={`cash-${delivery.id}`} inputMode="decimal" value={cashText} onChange={(event) => setCashText(event.target.value)} autoFocus />
+                  {change > 0 && <small>{`Troco: ${money(change)}`}</small>}
+                </>
+              : <p>{`Confirma que recebeu ${money(collect)} ${methodLabel}?`}</p>}
+            <button className="courier-primary" type="submit" disabled={acting || offline}>{'Confirmar entrega'}</button>
+            <button type="button" className="courier-back" disabled={acting} onClick={() => setPayOpen(false)}>{'Voltar'}</button>
+          </form>
+        : codeOpen && delivery.code_attempts_left > 0
         ? <form className="courier-code" onSubmit={(event) => { event.preventDefault(); if (code.length === 4) deliver(code); }}>
             <label htmlFor={`code-${delivery.id}`}>{'Código que o cliente informou'}</label>
             <input id={`code-${delivery.id}`} inputMode="numeric" autoComplete="one-time-code" pattern="\d{4}" maxLength={4}

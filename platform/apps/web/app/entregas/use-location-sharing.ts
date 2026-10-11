@@ -28,6 +28,8 @@ const RULES: Record<SharingMode, { intervalMs: number; minMeters: number; status
   shift: { intervalMs: 30_000, minMeters: 50, status: 'available' },
 };
 
+const TICK_SLACK_MS = 1_000;
+
 function meters(a: GeolocationCoordinates, b: GeolocationCoordinates) {
   const r = 6_371_000, rad = Math.PI / 180;
   const dLat = (b.latitude - a.latitude) * rad, dLng = (b.longitude - a.longitude) * rad;
@@ -74,9 +76,11 @@ export function useLocationSharing(mode: SharingMode | null, key: string | null,
       if (rejected || inFlight.current) { pending.current = rejected ? null : coords; return; }
       pending.current = coords;
       inFlight.current = true;
+      // Hora do início do envio, não da resposta: senão a batida seguinte do relógio acha o envio "novo" demais e pula.
+      const startedAt = Date.now();
       api('/courier/location', { method: 'POST', body: JSON.stringify({ latitude: coords.latitude, longitude: coords.longitude }) })
         .then(() => {
-          lastSent.current = { at: Date.now(), coords };
+          lastSent.current = { at: startedAt, coords };
           // Se chegou uma posição mais nova durante o envio, ela continua pendente.
           if (pending.current === coords) pending.current = null;
           if (!cancelled) setStatus(rule.status);
@@ -98,8 +102,9 @@ export function useLocationSharing(mode: SharingMode | null, key: string | null,
       if (pending.current) { send(pending.current); return; }
       // Parado: o navegador não promete avisar o watchPosition sem movimento, e sem envio o servidor marca "Sem sinal"
       // em 2 min. Se o último envio é antigo, pede uma leitura nova (nunca reenvia coordenadas velhas como novas).
+      // A folga de 1 s absorve o atraso do relógio: sem ela o envio parado saía a cada duas batidas (60 s em turno).
       const last = lastSent.current;
-      if (reading || inFlight.current || (last && Date.now() - last.at < rule.intervalMs)) return;
+      if (reading || inFlight.current || (last && Date.now() - last.at < rule.intervalMs - TICK_SLACK_MS)) return;
       reading = true;
       navigator.geolocation.getCurrentPosition(
         (position) => { reading = false; if (!cancelled && !rejected) send(position.coords); },
