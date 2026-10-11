@@ -23,6 +23,14 @@ public interface PaymentGateway {
         throw new com.foodie.api.ApiException(409, "Este meio de pagamento não tem estorno automático; devolva o valor fora do sistema");
     }
 
+    /**
+     * Cancela no provedor uma cobrança ainda não paga (o Pix em aberto). O padrão recusa: provedor sem
+     * cancelamento (Pix estático) não tem o que cancelar fora do sistema.
+     */
+    default Charge cancel(com.foodie.api.payments.accounts.MerchantCredentials credentials, String externalId, String idempotencyKey) {
+        throw new com.foodie.api.ApiException(409, "Este meio de pagamento não permite cancelar a cobrança");
+    }
+
     /** Conta do provedor (vendedor) a que a notificação se refere; vazio quando o provedor não informa. */
     default Optional<String> webhookAccountId(WebhookRequest request) {
         return Optional.empty();

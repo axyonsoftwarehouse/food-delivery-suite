@@ -66,6 +66,10 @@ public class MercadoPagoGateway implements PaymentGateway {
         try {
             return createOrder(request, request.idempotencyKey(), token);
         } catch (RestClientResponseException error) {
+            // Cartão recusado: a API de Orders responde 402 com a order recusada. Isso é resultado de cobrança,
+            // não falha do provedor — a tentativa tem de ser gravada (roteiro de 11/10/2026).
+            java.util.Optional<Charge> recusa = recusaDoProvedor(error, request);
+            if (recusa.isPresent()) return recusa.get();
             // O provedor guarda a chave de idempotência: se a tentativa anterior falhou (um 4xx), o mesmo
             // valor passa a ser recusado com "X-Idempotency-Key already used" e o pedido ficaria **sem
             // cobrança possível** até a chave expirar. Só nesse caso a segunda tentativa usa chave nova —
@@ -75,6 +79,8 @@ public class MercadoPagoGateway implements PaymentGateway {
                 try {
                     return createOrder(request, request.idempotencyKey() + "-r2", token);
                 } catch (RestClientResponseException segunda) {
+                    java.util.Optional<Charge> recusaSegunda = recusaDoProvedor(segunda, request);
+                    if (recusaSegunda.isPresent()) return recusaSegunda.get();
                     throw new ApiException(502, "Mercado Pago recusou a cobrança: " + providerMessage(segunda));
                 }
             }
@@ -105,6 +111,55 @@ public class MercadoPagoGateway implements PaymentGateway {
         if (error.getStatusCode().value() != 409) return false;
         String corpo = error.getResponseBodyAsString();
         return corpo != null && corpo.toLowerCase(java.util.Locale.ROOT).contains("idempotency");
+    }
+
+    /**
+     * A order recusada que veio no 402. O corpo exato está a confirmar no sandbox; aceita a order em
+     * {@code data}, na raiz, ou só o {@code errors[].details} ("PAY…: rejected_by_issuer") — neste último caso
+     * sem o id da order, que o webhook preenche depois.
+     */
+    java.util.Optional<Charge> recusaDoProvedor(RestClientResponseException error, ChargeRequest request) {
+        if (error.getStatusCode().value() != 402) return java.util.Optional.empty();
+        String corpo = error.getResponseBodyAsString();
+        if (corpo == null || corpo.isBlank()) return java.util.Optional.empty();
+        Map<String, Object> resposta;
+        try {
+            resposta = new ObjectMapper().readValue(corpo, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception ilegivel) {
+            return java.util.Optional.empty();
+        }
+        Map<String, Object> order = nested(resposta, "data");
+        if (order == null && resposta.get("id") != null && resposta.get("transactions") != null) order = resposta;
+        if (order != null && order.get("id") != null) {
+            Charge lida = fromOrder(order);
+            return java.util.Optional.of(new Charge(lida.externalId(), lida.externalReference(),
+                lida.amountCents() > 0 ? lida.amountCents() : request.amountCents(), "rejected", lida.rawStatus(),
+                null, null, null, null));
+        }
+        String detalhe = null;
+        if (resposta.get("errors") instanceof List<?> erros && !erros.isEmpty() && erros.getFirst() instanceof Map<?, ?> erro
+            && erro.get("details") instanceof List<?> detalhes && !detalhes.isEmpty()) {
+            String texto = String.valueOf(detalhes.getFirst());
+            int doisPontos = texto.lastIndexOf(':');
+            detalhe = doisPontos >= 0 ? texto.substring(doisPontos + 1).trim() : texto.trim();
+        }
+        return java.util.Optional.of(new Charge(null, String.valueOf(request.orderId()), request.amountCents(), "rejected",
+            detalhe == null || detalhe.isBlank() ? "rejected" : detalhe, null, null, null, null));
+    }
+
+    /** Cancela a order ainda não paga ({@code POST /v1/orders/{id}/cancel}) — o Pix em aberto. */
+    @Override
+    public Charge cancel(MerchantCredentials credentials, String externalId, String idempotencyKey) {
+        String token = token(credentials);
+        try {
+            Map<String, Object> order = client.post().uri("/v1/orders/" + externalId + "/cancel")
+                .header("Authorization", "Bearer " + token)
+                .header("X-Idempotency-Key", idempotencyKey)
+                .retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {});
+            return fromOrder(order == null ? Map.of() : order);
+        } catch (RestClientResponseException error) {
+            throw new ApiException(502, "Mercado Pago recusou o cancelamento: " + providerMessage(error));
+        }
     }
 
     /**
