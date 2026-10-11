@@ -15,17 +15,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`6d81dc8`** — merge da PR #26 (`fix/entregador-ajustes-roteiro-d`, ajustes do roteiro da parte D). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #26** são os do `axyonsoftwarehouse` |
-| Em revisão | `fix/entregador-campo-dinheiro` — campo do valor em dinheiro vazio, com atalhos (sem migration) |
-| `main` local | igual ao `origin/main` (`6d81dc8`), atualizada em 11/10; o trabalho é feito nas branches |
-| **Código na VPS** | **`6d81dc8`** — o `main` inteiro, publicado pelo **`release.ps1`** no PC (11/10 00:29 UTC, `previous=91e7887`); registro em `/home/deploy/foodie-platform/.deployed` |
-| Schema (`/ready`) | **`067`** na VPS e no `HEAD` (o `.deployed` de 11/10 registra `schema=067`; a PR #26 não tem migration) |
+| `origin/main` | **`35afad4`** — merge da PR #28 (`fix/compose-db-restart`); antes dela, a PR #27 (campo do dinheiro). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #28** são os do `axyonsoftwarehouse` |
+| Em revisão | `fix/despacho-carregando` — aviso "Carregando entregadores…" no despacho da loja (sem migration) |
+| `main` local | igual ao `origin/main` (`35afad4`), atualizada em 11/10; o trabalho é feito nas branches |
+| **Código na VPS** | **`35afad4`** — o `main` inteiro, publicado pelo **`release.ps1`** no PC (11/10 14:39 UTC, `previous=6d81dc8`, sem rollback); registro em `/home/deploy/foodie-platform/.deployed` |
+| Schema (`/ready`) | **`067`** na VPS e no `HEAD` (conferido no deploy de 11/10 14:39: `schemaVersion` 067 igual à maior migration do pacote) |
 | Distância | **nenhuma** em relação ao `origin/main` |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
 | Testes Java | `mvn test` com **667 execuções** sem falha na `main` (10/10, local); eram 635 na PR #24. A `V067` rodou no MariaDB real do staging no deploy de 10/10 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **52%** depois do deploy de 10/10 (log do deploy); a limpeza automática dispara em 70% |
-| Árvore de trabalho | branch `fix/entregador-campo-dinheiro` (`.claude/` não versionado) |
+| Árvore de trabalho | branch `fix/despacho-carregando` (`.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -318,10 +318,15 @@ recusa e assim por diante.
     dinheiro é pedido na própria tela, recusa valor menor que o total e conclui com "Troco de R$ 4,11", sem chamar
     `prompt`/`confirm`/`alert`; parado em turno, a posição saiu a cada 30 s (12:53:11 → 12:54:41 UTC, todas 200), e
     parado em entrega, a cada 15 s; o aviso novo da loja sem endereço ("Peça ao suporte Foodie") está no JavaScript
-    servido, mas não foi visto na tela, porque a Cozinha Demo tem endereço. Achado do mesmo roteiro, na branch
-    `fix/entregador-campo-dinheiro`: o campo do dinheiro vinha preenchido com o total, e o toque no meio do número
-    misturava o que se digitava ("25,2089"); agora vem vazio, com atalhos "Valor exato" e "Troco para" (quando o
-    cliente informou). A Cozinha Demo não tem telefone cadastrado (a retirada mostra "Telefone não informado").
+    servido, mas não foi visto na tela, porque a Cozinha Demo tem endereço. Achado do mesmo roteiro: o campo do
+    dinheiro vinha preenchido com o total, e o toque no meio do número misturava o que se digitava ("25,2089").
+    Corrigido na PR #27 (publicada em `35afad4`): o campo vem vazio, com a dica "0,00" e os atalhos "Valor exato" e
+    "Troco para" (quando o cliente informou). **Conferido nas telas do staging em 11/10** com o pedido #47 (R$ 41,90,
+    troco para R$ 50): vazio pede o valor, digitar 45 dá "Troco: R$ 3,10", os atalhos preenchem 41,90 e 50,00, e a
+    entrega conclui com "Troco de R$ 8,10" (pago, R$ 50,00 recebidos), sem janela nativa. Também do roteiro: ao abrir
+    os Pedidos, o despacho mostra por alguns segundos o seletor simples, antes de o quadro carregar; a branch
+    `fix/despacho-carregando` acrescenta o aviso "Carregando entregadores…" nesse intervalo (o seletor continua
+    usável). A Cozinha Demo não tem telefone cadastrado (a retirada mostra "Telefone não informado").
     **Não verificado nas telas:** nome de entregador com HTML no popup do mapa (o código monta o popup como texto).
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
@@ -377,12 +382,12 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`6d81dc8`, schema `067`); fora dele só o **campo do valor em
-dinheiro** (`fix/entregador-campo-dinheiro`, sem migration), em revisão. O staging é publicado pelo **botão do
+**O que está no ar é o `origin/main` inteiro** (`35afad4`, schema `067`); fora dele só o **aviso de carregando no
+despacho** (`fix/despacho-carregando`, sem migration), em revisão. O staging é publicado pelo **botão do
 GitHub** ou pelo `release.ps1` no PC (os deploys de 10/10 e 11/10 foram pelo `release.ps1`).
 
-**Depois de mesclar e publicar o campo do dinheiro:** conferir nas telas do staging que o campo vem vazio, que
-"Valor exato" preenche o total e que o troco aparece ao digitar um valor maior.
+**Depois de mesclar e publicar o aviso:** abrir os Pedidos da loja com um pedido pronto e ver "Carregando
+entregadores…" até o quadro aparecer.
 
 **Próximo passo único: fechar o pagamento real com a conta por loja** (cartão `1nguT9bv`, em TESTING).
 O código está pronto e no ar; o que falta é prova no ambiente publicado:
@@ -416,7 +421,7 @@ repositório **antigo**, que foi apagado na migração; os commits identificam):
 
 **Ambiente local:** a imagem Docker da API não se atualiza sozinha — depois de cada merge:
 `docker compose --profile java up -d --build api-java` no `platform/` do checkout principal, depois de
-`git checkout main && git pull` (a `main` local estava em `6d81dc8` em 11/10).
+`git checkout main && git pull` (a `main` local estava em `35afad4` em 11/10).
 
 O admin compartilhava 4 abas operacionais com o restaurante (`pedidos`,
 `catalogo`, `horarios`, `operacao`); elas saíram do menu, mas a API ainda
@@ -454,8 +459,8 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #26** estão mesclados e
-publicados (`6d81dc8`, schema `067`), e o staging roda o mesmo commit do `origin/main`.
+A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #28** estão mesclados e
+publicados (`35afad4`, schema `067`), e o staging roda o mesmo commit do `origin/main`.
 
 **O que já foi provado no pagamento (com a conta global da plataforma, em 05/10):** Pix (#23) e cartão
 (#26) de ponta a ponta com notificação automática, o estorno pelo admin (#26 ficou `refunded` no Foodie e
@@ -482,8 +487,8 @@ seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar
 
 ## 6. Estado da árvore de trabalho (11/10)
 
-`origin/main` = **`6d81dc8`** (PR #26). O checkout está na branch `fix/entregador-campo-dinheiro` (campo do valor
-em dinheiro; o `.claude/` não é versionado). A **`main` local foi atualizada** em 11/10 (`6d81dc8`). Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
+`origin/main` = **`35afad4`** (PR #28). O checkout está na branch `fix/despacho-carregando` (aviso de carregando
+no despacho; o `.claude/` não é versionado). A **`main` local foi atualizada** em 11/10 (`35afad4`). Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
 verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
 conserto no PR #13).
 
@@ -517,7 +522,9 @@ os últimos publicados **pelo botão do GitHub**:
 | `a3cf53f` | #23 | `feat`: área do entregador — motivação, parte C (`V066`) |
 | `3f7f4ba` | #24 | `fix`: ajustes do roteiro de telas da parte C |
 | `91e7887` | #25 | `feat`: área do entregador — gestão pela loja, parte D (`V067`) |
-| `6d81dc8` | #26 | `fix`: ajustes do roteiro de telas da parte D — **é o que está na VPS** (pelo `release.ps1`) |
+| `6d81dc8` | #26 | `fix`: ajustes do roteiro de telas da parte D |
+| `5bdc128` | #27 | `fix`: campo do valor em dinheiro vazio, com atalhos |
+| `35afad4` | #28 | `fix`: banco local volta junto com a API (compose local) — **é o que está na VPS** (pelo `release.ps1`) |
 
 **Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
 commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,
@@ -596,7 +603,7 @@ Ver `docs/RUNBOOK_VPS.md`. Dois pontos que já custaram tempo:
   `/home/deploy/foodie-platform/deploy` — **não** em `.../platform/deploy`.
 - A VPS **não é um clone** (sem `.git`): não há `git rev-parse` para descobrir
   o commit no ar. Consulte `/home/deploy/foodie-platform/.deployed` (em 11/10:
-  `6d81dc8`, schema `067`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
+  `35afad4`, schema `067`) ou compare hashes de blob (`RUNBOOK_VPS.md` §0).
 
 ## 8. Referências
 
