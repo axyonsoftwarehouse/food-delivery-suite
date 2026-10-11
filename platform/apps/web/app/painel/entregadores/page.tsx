@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useApp } from '../../app-context';
 import CourierMap from '../courier-map';
 import { distanceLabel, statusLabel, updatedAgo, useCourierBoard } from '../courier-board';
@@ -18,7 +17,8 @@ export default function EntregadoresPage() {
     {failed && <p className="courier-map-note" role="status">{'Sem conexão — mostrando a última atualização.'}</p>}
     {hasStore
       ? <CourierMap board={board} />
-      : <p className="courier-map-note">{'Cadastre o endereço da loja para ver o mapa. '}<Link href="/painel/configuracoes/loja">{'Abrir Configurações'}</Link></p>}
+      // Só o suporte cadastra o endereço da loja (admin → Operação → Origem da entrega); a loja não tem esse campo.
+      : <p className="courier-map-note">{'O endereço da loja ainda não está cadastrado, então o mapa e a distância não aparecem. Peça ao suporte Foodie para cadastrar.'}</p>}
     {board.couriers.length === 0
       ? <div className="empty-state">{'Nenhum entregador cadastrado. Cadastre em Equipe e acessos.'}</div>
       : <ul className="courier-board-list">{board.couriers.map((courier) => <li key={courier.id}>
