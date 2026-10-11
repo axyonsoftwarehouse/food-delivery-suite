@@ -54,6 +54,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    # Sem isto, depois de reiniciar o Docker só a API voltava e ficava em loop sem achar o host `db`.
+    restart: unless-stopped
 
 volumes:
   foodie_platform_db:
