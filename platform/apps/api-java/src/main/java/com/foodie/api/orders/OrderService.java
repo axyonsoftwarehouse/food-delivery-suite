@@ -384,7 +384,11 @@ public class OrderService {
         return created;
     }
 
-    static final String ORDER_BASE_SQL = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, o.updated_at, o.delivery_code IS NOT NULL AS has_delivery_code, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, p.amount_due_cents AS payment_due_cents FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN users c ON c.id = o.customer_id LEFT JOIN order_payments p ON p.order_id = o.id LEFT JOIN restaurant_tables t ON t.id = o.table_id ";
+    static final String ORDER_BASE_SQL = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, o.updated_at, o.delivery_code IS NOT NULL AS has_delivery_code, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, p.amount_due_cents AS payment_due_cents"
+        + ", p.raw_status AS payment_raw_status, "
+        + "CASE WHEN o.status = 'placed' AND p.modality = 'online' AND p.status <> 'paid' THEN o.created_at + INTERVAL 15 MINUTE END AS pay_deadline, "
+        + "CASE WHEN o.status = 'placed' THEN " + expiryClock("o") + " + INTERVAL 15 MINUTE END AS accept_deadline"
+        + " FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN users c ON c.id = o.customer_id LEFT JOIN order_payments p ON p.order_id = o.id LEFT JOIN restaurant_tables t ON t.id = o.table_id ";
     private static final String TERMINAL = "'delivered','rejected','cancelled','expired','failed','completed'";
     private static final int ACTIVE_LIMIT = 200;
     private static final int HISTORY_LIMIT = 100;
@@ -396,7 +400,7 @@ public class OrderService {
         List<Map<String, Object>> merged = new ArrayList<>(active);
         merged.addAll(terminal);
         merged.sort((a, b) -> Long.compare(((Number) b.get("id")).longValue(), ((Number) a.get("id")).longValue()));
-        return merged;
+        return withPaymentTexts(merged);
     }
 
     public Map<String, Object> history(User user, String status, Long after, int limit) {
@@ -417,7 +421,7 @@ public class OrderService {
         boolean hasMore = rows.size() > limit;
         List<Map<String, Object>> items = hasMore ? rows.subList(0, limit) : rows;
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("items", items);
+        result.put("items", withPaymentTexts(items));
         result.put("nextCursor", hasMore ? ((Number) items.getLast().get("id")).longValue() : null);
         return result;
     }
@@ -431,7 +435,19 @@ public class OrderService {
         args.add(orderId);
         List<Map<String, Object>> rows = jdbc.queryForList(ORDER_BASE_SQL + "WHERE " + scope.where() + " AND o.id = ?", args.toArray());
         if (rows.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
-        return rows.getFirst();
+        return withPaymentTexts(rows).getFirst();
+    }
+
+    /** Motivo da recusa em português na linha da listagem (o código cru fica em `payment_raw_status`). */
+    private static List<Map<String, Object>> withPaymentTexts(List<Map<String, Object>> rows) {
+        List<Map<String, Object>> result = new ArrayList<>(rows.size());
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> copy = new LinkedHashMap<>(row);
+            copy.put("payment_rejection_message", "rejected".equals(row.get("payment_status"))
+                ? com.foodie.api.payments.PaymentDisplay.rejectionMessage((String) row.get("payment_raw_status")) : null);
+            result.add(copy);
+        }
+        return result;
     }
 
     private record Scope(String where, List<Object> args) {}
@@ -506,6 +522,11 @@ public class OrderService {
         String next = transition.nextStatus();
         if ("deliver".equals(action) && !"paid".equals(payments.status(orderId))) {
             throw new ApiException(409, "Confirme o recebimento do pagamento antes de concluir a entrega");
+        }
+        // "Pagar agora" ainda não pago: a loja vê o pedido (decisão de 08/10), mas não aceita nem prepara sem o
+        // dinheiro (spec de 11/10/2026, regra 3). Recusar continua liberado.
+        if ("accept".equals(action) && payments.awaitingOnlinePayment(orderId)) {
+            throw new ApiException(409, "Aguardando o pagamento do cliente");
         }
         String deliveryProof = null;
         if ("deliver".equals(action)) {
@@ -663,7 +684,7 @@ public class OrderService {
      * de um cliente varria todas as lojas e podia chamar o Mercado Pago.
      */
     public void expireStale() {
-        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND created_at < (NOW() - INTERVAL 15 MINUTE) " + DUE_SCHEDULE, (rs, row) -> rs.getLong(1));
+        List<Long> stale = jdbc.query("SELECT id FROM orders WHERE status = 'placed' AND " + DUE, (rs, row) -> rs.getLong(1));
         for (Long id : stale) {
             try {
                 expiryTx.executeWithoutResult(status -> expireOne(id));
@@ -676,8 +697,17 @@ public class OrderService {
         }
     }
 
-    /** Agendado ganha os mesmos 15 minutos do pedido comum, contados do horário marcado. */
-    private static final String DUE_SCHEDULE = "AND (scheduled_at IS NULL OR scheduled_at <= (NOW() - INTERVAL 15 MINUTE))";
+    /**
+     * Início dos 15 minutos de um pedido `placed`: o pagamento online confirmado (a loja não perde o tempo que o
+     * cliente levou para pagar), senão a criação — e nunca antes do horário marcado do agendado (spec de
+     * 11/10/2026, regra 4). Online não pago conta da criação: é o prazo para pagar.
+     */
+    static String expiryClock(String o) {
+        return "GREATEST(COALESCE((SELECT p.confirmed_at FROM order_payments p WHERE p.order_id = " + o + ".id AND p.modality = 'online' AND p.status = 'paid'), "
+            + o + ".created_at), COALESCE(" + o + ".scheduled_at, " + o + ".created_at))";
+    }
+
+    private static final String DUE = expiryClock("orders") + " < (NOW() - INTERVAL 15 MINUTE)";
 
     private void expireOne(long id) {
         // Trava a linha do pedido e relê: entre a busca dos vencidos e aqui a loja pode ter aceitado. Como
@@ -688,7 +718,9 @@ public class OrderService {
         // estorno). Esperar a trava prenderia a tarefa e uma conexão do pool de 8; linha travada volta vazia e
         // fica para a próxima rodada.
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT status, created_at, scheduled_at, (created_at < (NOW() - INTERVAL 15 MINUTE) " + DUE_SCHEDULE + ") AS due FROM orders WHERE id = ? FOR UPDATE SKIP LOCKED", id);
+            "SELECT status, created_at, scheduled_at, (" + DUE + ") AS due, "
+                + "(SELECT p.modality = 'online' AND p.status <> 'paid' FROM order_payments p WHERE p.order_id = orders.id) AS awaiting_payment "
+                + "FROM orders WHERE id = ? FOR UPDATE SKIP LOCKED", id);
         if (rows.isEmpty()) return;
         Map<String, Object> order = rows.getFirst();
         if (!"placed".equals(order.get("status")) || !truthy(order.get("due"))) return;
@@ -696,7 +728,8 @@ public class OrderService {
             payments.cancelPending(id);
             restoreStock(id);
             releaseCoupon(id);
-            jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, "Sem aceite em 15 minutos");
+            String motivo = truthy(order.get("awaiting_payment")) ? "Sem pagamento em 15 minutos" : "Sem aceite em 15 minutos";
+            jdbc.update("INSERT INTO order_events (order_id, actor_id, from_status, to_status, reason) VALUES (?, NULL, 'placed', 'expired', ?)", id, motivo);
             // Pago online e sem aceite: estorna por último, na mesma transação (falha desfaz a expiração).
             payments.refundIfPaidOnline(null, id, "Estorno automático: pedido expirado sem aceite");
         }

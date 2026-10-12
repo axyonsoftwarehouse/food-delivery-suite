@@ -1,5 +1,9 @@
 package com.foodie.api.orders;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -356,12 +360,12 @@ class OrderServiceTest {
     }
 
     private void staleOrders(Long... ids) {
-        org.mockito.Mockito.doReturn(List.of(ids)).when(jdbc).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND created_at"), any(org.springframework.jdbc.core.RowMapper.class));
+        org.mockito.Mockito.doReturn(List.of(ids)).when(jdbc).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND GREATEST"), any(org.springframework.jdbc.core.RowMapper.class));
     }
 
     private void lockedReread(String status, Object due) {
         Map<String, Object> row = new java.util.HashMap<>();
-        row.put("status", status); row.put("created_at", null); row.put("scheduled_at", null); row.put("due", due);
+        row.put("status", status); row.put("created_at", null); row.put("scheduled_at", null); row.put("due", due); row.put("awaiting_payment", 0L);
         when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT status, created_at, scheduled_at"), any(Object[].class))).thenReturn(List.of(row));
     }
 
@@ -376,7 +380,7 @@ class OrderServiceTest {
         orders.history(ADMIN, null, null, 20);
         orders.lookup(ADMIN, 26);
 
-        verify(jdbc, org.mockito.Mockito.never()).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND created_at"), any(org.springframework.jdbc.core.RowMapper.class));
+        verify(jdbc, org.mockito.Mockito.never()).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND GREATEST"), any(org.springframework.jdbc.core.RowMapper.class));
     }
 
     @Test
@@ -386,7 +390,7 @@ class OrderServiceTest {
 
         orders.expireStale();
 
-        verify(jdbc).query(org.mockito.ArgumentMatchers.contains("scheduled_at <= (NOW() - INTERVAL 15 MINUTE)"), any(org.springframework.jdbc.core.RowMapper.class));
+        verify(jdbc).query(org.mockito.ArgumentMatchers.contains("COALESCE(orders.scheduled_at, orders.created_at)"), any(org.springframework.jdbc.core.RowMapper.class));
     }
 
     @Test
@@ -627,5 +631,67 @@ class OrderServiceTest {
         when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT status, delivery_code"), eq(40L), eq(8L)))
             .thenReturn(List.of());
         assertThatThrownBy(() -> orders.deliveryCodeFor(CUSTOMER, 40)).isInstanceOf(ApiException.class).hasMessage("Pedido não encontrado");
+    }
+
+    @Test
+    void storeCannotAcceptAnOnlineOrderNotYetPaid() {
+        storedOrder(40, "placed");
+        when(payments.awaitingOnlinePayment(40L)).thenReturn(true);
+
+        ApiException erro = assertThrows(ApiException.class, () -> orders.changeStatus(RESTAURANT, 40, "accept", null, null));
+
+        assertEquals(409, erro.status());
+        assertEquals("Aguardando o pagamento do cliente", erro.getMessage());
+        verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.startsWith("UPDATE orders SET status"), any(Object[].class));
+    }
+
+    @Test
+    void storeCanStillRejectAnOnlineOrderNotYetPaid() {
+        storedOrder(40, "placed");
+        when(payments.awaitingOnlinePayment(40L)).thenReturn(true);
+
+        assertDoesNotThrow(() -> orders.changeStatus(RESTAURANT, 40, "reject", null, "sem ingrediente"));
+    }
+
+    @Test
+    void paidOnlineOrderCountsTheAcceptTimeFromThePayment() {
+        staleOrders();
+
+        orders.expireStale();
+
+        verify(jdbc).query(org.mockito.ArgumentMatchers.contains("p.confirmed_at FROM order_payments p WHERE p.order_id = orders.id AND p.modality = 'online' AND p.status = 'paid'"),
+            any(org.springframework.jdbc.core.RowMapper.class));
+    }
+
+    @Test
+    void scheduledOrderNeverExpiresBeforeTheScheduledTimePlusFifteen() {
+        // Review Focus 5: agendado pago online — o maior entre o pagamento e o horário marcado.
+        assertTrue(OrderService.expiryClock("orders").startsWith("GREATEST("));
+        assertTrue(OrderService.expiryClock("orders").contains("COALESCE(orders.scheduled_at, orders.created_at)"));
+    }
+
+    @Test
+    void unpaidOnlineOrderExpiresWithItsOwnReason() {
+        staleOrders(41L);
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("status", "placed"); row.put("created_at", null); row.put("scheduled_at", null); row.put("due", 1L); row.put("awaiting_payment", 1L);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT status, created_at, scheduled_at"), any(Object[].class))).thenReturn(List.of(row));
+        when(jdbc.update(org.mockito.ArgumentMatchers.contains("SET status = 'expired'"), any(Object[].class))).thenReturn(1);
+
+        orders.expireStale();
+
+        verify(payments).cancelPending(41L);
+        verify(jdbc).update(org.mockito.ArgumentMatchers.startsWith("INSERT INTO order_events"), eq(41L), eq("Sem pagamento em 15 minutos"));
+    }
+
+    @Test
+    void listingCarriesDeadlinesAndTheReasonInPortuguese() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("id", 50L); row.put("payment_status", "rejected"); row.put("payment_raw_status", "rejected_by_issuer");
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("AS accept_deadline"), any(Object[].class))).thenReturn(List.of(row));
+
+        Map<String, Object> found = orders.lookup(ADMIN, 50);
+
+        assertEquals("O banco emissor não autorizou.", found.get("payment_rejection_message"));
     }
 }
