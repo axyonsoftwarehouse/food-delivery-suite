@@ -49,7 +49,7 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
   amountCents: number;
   publicKey: string;
   payerEmail?: string;
-  onSubmit: (data: CardChargeData) => Promise<{ status: string; message: string }>;
+  onSubmit: (data: CardChargeData) => Promise<'paid' | 'rejected' | 'pending'>;
 }) {
   const containerId = 'foodie-card-form';
   const controle = useRef<BrickController | null>(null);
@@ -99,26 +99,16 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
               setMensagem(erro?.message ?? 'Não foi possível carregar o formulário do cartão.');
             },
             onSubmit: async (dados: CardData) => {
-              try {
-                const resultado = await enviar.current({
-                  token: dados.token,
-                  paymentMethodId: dados.payment_method_id,
-                  installments: dados.installments,
-                  docType: dados.payer?.identification?.type,
-                  docNumber: dados.payer?.identification?.number,
-                });
-                setMensagem(resultado.message);
-                // Recusado: rejeitar devolve o formulário para o cliente tentar outro cartão.
-                // Aprovado ou em análise: resolver deixa o Mercado Pago mostrar o resultado.
-                if (resultado.status === 'rejected') throw new Error(resultado.message);
-              } catch (erro: unknown) {
-                // O motivo tem de aparecer: o aviso genérico do Mercado Pago ("tente novamente mais
-                // tarde") esconderia, por exemplo, um cartão recusado por saldo.
-                const texto = erro instanceof Error ? erro.message : 'Não foi possível concluir o pagamento com cartão.';
-                setMensagem(texto);
-                throw erro instanceof Error ? erro : new Error(texto);
-              }
-              return;
+              const resultado = await enviar.current({
+                token: dados.token,
+                paymentMethodId: dados.payment_method_id,
+                installments: dados.installments,
+                docType: dados.payer?.identification?.type,
+                docNumber: dados.payer?.identification?.number,
+              });
+              // Recusado: rejeitar devolve o formulário para o cliente tentar outro cartão. O motivo é
+              // mostrado pela página, em destaque e acima do formulário (spec de 11/10, regra 10).
+              if (resultado === 'rejected') throw new Error('Pagamento recusado.');
             },
           },
         });
@@ -140,10 +130,9 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
   }, [amountCents, publicKey, payerEmail]);
 
   return <section className="customer-card customer-online-payment">
-    <div className="customer-card-title"><div><span className="customer-kicker">PAGAMENTO COM CARTÃO</span><h2>Informe os dados do cartão</h2></div></div>
-    {estado === 'carregando' && <p className="form-help">Carregando o formulário seguro do Mercado Pago...</p>}
+    {estado === 'carregando' && <p className="form-help">Carregando…</p>}
     <div id={containerId} />
-    {mensagem && <p role="status" className={estado === 'erro' ? 'customer-minimum' : 'form-help'}>{mensagem}</p>}
+    {estado === 'erro' && mensagem && <p role="alert" className="customer-minimum">{mensagem}</p>}
     <p className="form-help">O número e o código de segurança do cartão são criptografados pelo Mercado Pago no seu navegador — eles não passam pelo Foodie.</p>
   </section>;
 }
