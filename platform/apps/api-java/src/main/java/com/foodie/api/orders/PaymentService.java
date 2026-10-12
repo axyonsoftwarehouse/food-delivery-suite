@@ -128,9 +128,10 @@ public class PaymentService {
         }
         // Antes da entrega, quem devolve é Recusar/Cancelar (que encerram o pedido e estornam). Estornar e deixar
         // o pedido aberto permitia aceitar e preparar um pedido sem pagamento (roteiro de 11/10/2026, #52).
+        // Pedido encerrado sem volta (entregue, concluído ou falha na entrega) não tem Recusar/Cancelar: só o estorno devolve.
         List<String> orderStatus = jdbc.queryForList("SELECT status FROM orders WHERE id = ?", String.class, orderId);
         if (orderStatus.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
-        if (!"delivered".equals(orderStatus.getFirst())) throw new ApiException(409, "Para devolver antes da entrega, recuse ou cancele o pedido");
+        if (!List.of("delivered", "completed", "failed").contains(orderStatus.getFirst())) throw new ApiException(409, "Para devolver antes da entrega, recuse ou cancele o pedido");
         return refundAsSystem(actor.id(), orderId, note);
     }
 

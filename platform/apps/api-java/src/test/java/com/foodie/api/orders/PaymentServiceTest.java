@@ -112,6 +112,19 @@ class PaymentServiceTest {
     }
 
     @Test
+    void manualRefundAllowedForOrdersClosedWithoutReturn() {
+        // Pedido concluído (retirada/mesa) ou com falha na entrega não tem Recusar/Cancelar: só o estorno devolve.
+        for (String encerrado : List.of("completed", "failed")) {
+            storedPayment("paid", "cash", 1000, 5L);
+            when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+            when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(1L))).thenReturn(List.of(3L));
+            when(jdbc.queryForList(eq("SELECT status FROM orders WHERE id = ?"), eq(String.class), eq(1L))).thenReturn(List.of(encerrado));
+
+            assertEquals("refunded", withOnline.refund(owner, 1, "teste").get("status"), encerrado);
+        }
+    }
+
+    @Test
     void cancellingAPendingPixAlsoCancelsItAtTheProvider() {
         Map<String, Object> row = new java.util.HashMap<>();
         row.put("modality", "online"); row.put("status", "pending"); row.put("provider", "mercadopago");

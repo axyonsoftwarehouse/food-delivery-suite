@@ -87,8 +87,8 @@ loja, prazo vencido —, com prints legíveis de cada tela.
    diferente do atual) que chega **paga**: hoje só registra erro no log; passa a estornar essa cobrança
    pela conta que a recebeu (`refund` no gateway, chave `refund-dup-<external_id>`), sem mexer no
    pagamento atual do pedido. Falha → erro não-2xx, o provedor reenvia.
-8. **Estorno manual só em pedido entregue.** `POST /orders/{id}/payment/refund` (loja e suporte) exige
-   `orders.status = 'delivered'`; senão **409** "Para devolver antes da entrega, recuse ou cancele o
+8. **Estorno manual só em pedido encerrado sem volta (`delivered`, `completed`, `failed`).** `POST /orders/{id}/payment/refund` (loja e suporte) exige
+   `orders.status` em `delivered`, `completed` ou `failed` (esses não têm Recusar/Cancelar); senão **409** "Para devolver antes da entrega, recuse ou cancele o
    pedido". O estorno automático (cancelar, recusar, expirar) não muda.
 9. **O que a tela recebe.** O detalhe do pagamento do pedido (cliente e loja) ganha:
    - `pay_deadline` — `created_at + 15 min`, só para online não pago;
