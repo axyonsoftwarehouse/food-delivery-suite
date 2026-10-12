@@ -678,8 +678,9 @@ public class OrderService {
     }
 
     /**
-     * Expira os pedidos sem aceite: 15 minutos depois de criados, ou 15 minutos depois do horário marcado
-     * quando agendados. Roda na tarefa agendada (OrderExpiryRunner), não nas leituras — revisão de 08/10/2026:
+     * Expira os pedidos sem aceite 15 minutos depois do relógio de {@link #expiryClock}: do pagamento online
+     * confirmado, ou da criação (online não pago, que é o prazo para pagar); agendado nunca antes do horário
+     * marcado + 15 minutos. Roda na tarefa agendada (OrderExpiryRunner), não nas leituras — revisão de 08/10/2026:
      * dentro das leituras, sem ninguém abrir o painel o pedido pago não expirava nem era estornado, e a leitura
      * de um cliente varria todas as lojas e podia chamar o Mercado Pago.
      */
@@ -700,11 +701,12 @@ public class OrderService {
     /**
      * Início dos 15 minutos de um pedido `placed`: o pagamento online confirmado (a loja não perde o tempo que o
      * cliente levou para pagar), senão a criação — e nunca antes do horário marcado do agendado (spec de
-     * 11/10/2026, regra 4). Online não pago conta da criação: é o prazo para pagar.
+     * 11/10/2026, regra 4). Online não pago conta sempre da criação, mesmo agendado: é o prazo para pagar.
      */
     static String expiryClock(String o) {
-        return "GREATEST(COALESCE((SELECT p.confirmed_at FROM order_payments p WHERE p.order_id = " + o + ".id AND p.modality = 'online' AND p.status = 'paid'), "
-            + o + ".created_at), COALESCE(" + o + ".scheduled_at, " + o + ".created_at))";
+        return "CASE WHEN EXISTS (SELECT 1 FROM order_payments p WHERE p.order_id = " + o + ".id AND p.modality = 'online' AND p.status <> 'paid') THEN " + o + ".created_at ELSE "
+            + "GREATEST(COALESCE((SELECT p.confirmed_at FROM order_payments p WHERE p.order_id = " + o + ".id AND p.modality = 'online' AND p.status = 'paid'), "
+            + o + ".created_at), COALESCE(" + o + ".scheduled_at, " + o + ".created_at)) END";
     }
 
     private static final String DUE = expiryClock("orders") + " < (NOW() - INTERVAL 15 MINUTE)";

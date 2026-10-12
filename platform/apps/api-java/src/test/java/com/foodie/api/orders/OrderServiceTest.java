@@ -360,7 +360,7 @@ class OrderServiceTest {
     }
 
     private void staleOrders(Long... ids) {
-        org.mockito.Mockito.doReturn(List.of(ids)).when(jdbc).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND GREATEST"), any(org.springframework.jdbc.core.RowMapper.class));
+        org.mockito.Mockito.doReturn(List.of(ids)).when(jdbc).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND CASE WHEN EXISTS"), any(org.springframework.jdbc.core.RowMapper.class));
     }
 
     private void lockedReread(String status, Object due) {
@@ -380,7 +380,7 @@ class OrderServiceTest {
         orders.history(ADMIN, null, null, 20);
         orders.lookup(ADMIN, 26);
 
-        verify(jdbc, org.mockito.Mockito.never()).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND GREATEST"), any(org.springframework.jdbc.core.RowMapper.class));
+        verify(jdbc, org.mockito.Mockito.never()).query(org.mockito.ArgumentMatchers.contains("status = 'placed' AND CASE WHEN EXISTS"), any(org.springframework.jdbc.core.RowMapper.class));
     }
 
     @Test
@@ -666,8 +666,17 @@ class OrderServiceTest {
     @Test
     void scheduledOrderNeverExpiresBeforeTheScheduledTimePlusFifteen() {
         // Review Focus 5: agendado pago online — o maior entre o pagamento e o horário marcado.
-        assertTrue(OrderService.expiryClock("orders").startsWith("GREATEST("));
-        assertTrue(OrderService.expiryClock("orders").contains("COALESCE(orders.scheduled_at, orders.created_at)"));
+        String clock = OrderService.expiryClock("orders");
+        assertTrue(clock.startsWith("CASE WHEN EXISTS"));
+        assertTrue(clock.contains("ELSE GREATEST("));
+        assertTrue(clock.contains("COALESCE(orders.scheduled_at, orders.created_at)"));
+    }
+
+    @Test
+    void unpaidOnlineScheduledOrderCountsFromCreationNotFromTheScheduledTime() {
+        // Prazo para pagar (created_at + 15) vale mesmo agendado: o aviso ao cliente e a expiração têm de bater.
+        assertTrue(OrderService.expiryClock("orders").contains(
+            "p.modality = 'online' AND p.status <> 'paid') THEN orders.created_at ELSE"));
     }
 
     @Test
