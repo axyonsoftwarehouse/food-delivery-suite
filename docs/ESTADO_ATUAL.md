@@ -16,7 +16,7 @@ Mantenha curto. Se crescer, corte.
 | Item | Valor |
 | --- | --- |
 | `origin/main` | **`9acd727`** — merge da PR #29 (`fix/despacho-carregando`, aviso "Carregando entregadores…"); antes dela, a PR #28 (compose local). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #29** são os do `axyonsoftwarehouse` |
-| Em revisão | `feat/pagamento-online-clareza` — PR 1 do pagamento online claro (servidor, sem migration): recusa 402 gravada, aceite só com pagamento online feito, prazos de pagar/aceitar, Pix cancelado no provedor, estorno duplicado automático, estorno manual só após a entrega. Spec `docs/superpowers/specs/2026-10-11-pagamento-online-clareza-design.md`, plano `docs/superpowers/plans/2026-10-11-pagamento-online-servidor.md`. PR [#31](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/31), aberta em 12/10, aguardando CI e 1 aprovação |
+| Em revisão | `feat/pagamento-online-clareza` — PR 1 do pagamento online claro (servidor, sem migration): recusa 402 gravada, aceite só com pagamento online feito, prazos de pagar/aceitar, Pix cancelado no provedor, estorno duplicado automático, estorno manual só após a entrega. Spec `docs/superpowers/specs/2026-10-11-pagamento-online-clareza-design.md`, plano `docs/superpowers/plans/2026-10-11-pagamento-online-servidor.md`. PR [#31](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/31), aberta em 12/10, aguardando CI e 1 aprovação. Depois dela, `feat/pagamento-online-telas` — PR 2 (telas): página `/loja/pedidos/<id>/pagamento` (prazo, recusa em destaque, cartão, Pix, cancelar), Carrinho leva a ela, Pedidos mostra "Pagar", diálogo de motivo no painel no lugar do `window.prompt`, cartão do pedido com "Aguardando pagamento" e prazos. Plano `docs/superpowers/plans/2026-10-12-pagamento-online-telas.md`. PR ainda não aberta (a confirmar) |
 | `main` local | igual ao `origin/main` (`9acd727`), atualizada em 11/10; o trabalho é feito nas branches |
 | **Código na VPS** | **`9acd727`** — o `main` inteiro, publicado pelo **botão do GitHub** (11/10 15:05 UTC; o anterior era `35afad4`, pelo `release.ps1` às 14:39); registro em `/home/deploy/foodie-platform/.deployed` |
 | Schema (`/ready`) | **`067`** na VPS e no `HEAD` (conferido no deploy de 11/10 14:39: `schemaVersion` 067 igual à maior migration do pacote) |
@@ -25,7 +25,7 @@ Mantenha curto. Se crescer, corte.
 | Testes Java | `mvn test` com **699 execuções** sem falha na branch `feat/pagamento-online-clareza` (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. A `V067` rodou no MariaDB real do staging no deploy de 10/10 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **52%** depois do deploy de 10/10 (log do deploy); a limpeza automática dispara em 70% |
-| Árvore de trabalho | branch `feat/pagamento-online-clareza` (`.claude/` não versionado) |
+| Árvore de trabalho | branch `feat/pagamento-online-telas`, criada a partir de `feat/pagamento-online-clareza` (`.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -396,7 +396,7 @@ O código está pronto e no ar; o que falta é prova no ambiente publicado:
 4. trocar a **credencial de teste exposta** em 02/10 e conferir se a conta tem **chave Pix registrada**;
 5. decidir o **3DS** (status `CALL` não tratado — cartão `PCLXrYCa`).
 
-**Andamento (roteiro de 11/10 no staging):** a nova tentativa (#51), o Pix (#52), o estorno automático na expiração (#51) e o estorno pela loja (#52, feito no Firefox porque o botão usava `window.prompt`) passaram. Os achados viraram a spec `2026-10-11-pagamento-online-clareza-design.md`: a **PR 1 (servidor)** está em revisão ([#31](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/31)) e a **PR 2 (tela de pagamento do cliente + diálogo de motivo no painel da loja)** vem depois.
+**Andamento (roteiro de 11/10 no staging):** a nova tentativa (#51), o Pix (#52), o estorno automático na expiração (#51) e o estorno pela loja (#52, feito no Firefox porque o botão usava `window.prompt`) passaram. Os achados viraram a spec `2026-10-11-pagamento-online-clareza-design.md`: a **PR 1 (servidor)** está em revisão ([#31](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/31)) e a **PR 2 (tela de pagamento do cliente + diálogo de motivo no painel da loja)** está pronta na branch `feat/pagamento-online-telas` (`pnpm verify` verde em 12/10, sem integração; telas ainda não conferidas no navegador porque o Docker estava parado) e entra depois da PR 1.
 
 **Depois:** a **cobrança real da assinatura** (hoje cria a transação e não cobra o provedor) e a
 prontidão de produção (SMTP real, backup externo com ensaio de restauração, revisão de CSRF/origem).
