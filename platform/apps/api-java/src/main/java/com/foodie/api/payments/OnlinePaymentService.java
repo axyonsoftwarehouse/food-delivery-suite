@@ -83,15 +83,20 @@ public class OnlinePaymentService {
         boolean owner = ((Number) order.get("customer_id")).longValue() == actor.id();
         if (!owner && !"admin".equals(actor.role())) throw new ApiException(403, "Acesso não autorizado");
         if (CLOSED_ORDER.contains((String) order.get("status"))) throw new ApiException(409, "Este pedido não aceita mais pagamento");
+        long restaurantId = ((Number) order.get("restaurant_id")).longValue();
 
         List<Map<String, Object>> payments = jdbc.queryForList(
-            "SELECT id, status, external_id, qr_code, ticket_url, amount_due_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+            "SELECT id, status, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents, payment_account_id FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (payments.isEmpty()) throw new ApiException(409, "Pagamento do pedido não encontrado");
         Map<String, Object> payment = payments.getFirst();
         String paymentStatus = (String) payment.get("status");
+        boolean pixAbertoParaCartao = false;
         if ("paid".equals(paymentStatus)) throw new ApiException(409, "Este pedido já está pago");
         if ("pending".equals(paymentStatus) && (payment.get("qr_code") != null || payment.get("ticket_url") != null)) {
-            return detail(orderId);
+            // Pix pedindo Pix: devolve o QR que já existe. Pix aberto pedindo cartão: cancela o Pix antes de
+            // cobrar, senão o cliente pode pagar os dois (spec de 11/10/2026, regra 5).
+            if (!"card".equals(method)) return detail(orderId);
+            pixAbertoParaCartao = true;
         }
         if (!allowDirectOnlineCharges) {
             throw new ApiException(409, "Novas cobranças online exigem recebimento direto pelo restaurante");
@@ -100,7 +105,10 @@ public class OnlinePaymentService {
         // guardado, em vez de cobrar de novo. Recusada, expirada ou cancelada abre uma nova tentativa
         // (revisão de 08/10/2026: antes o "Tente outro cartão" da tela nunca cobrava de novo).
         String previousCharge = (String) payment.get("external_id");
-        boolean retry = previousCharge != null && RETRYABLE.contains(paymentStatus);
+        String previousKey = (String) payment.get("idempotency_key");
+        // A recusa (402) pode vir sem o id da order: a chave usada basta para abrir a nova tentativa.
+        // Pix aberto trocado por cartão: o Pix será encerrado adiante e a cobrança do cartão é uma nova tentativa.
+        boolean retry = pixAbertoParaCartao || RETRYABLE.contains(paymentStatus) && (previousCharge != null || previousKey != null);
         if (previousCharge != null && !retry) return detail(orderId);
 
         long due = ((Number) payment.get("amount_due_cents")).longValue();
@@ -112,7 +120,8 @@ public class OnlinePaymentService {
         }
         // A nova tentativa deriva a chave da cobrança que falhou: clique duplo na mesma tentativa continua
         // idempotente no provedor, e cada falha nova abre uma chave nova.
-        String idempotencyKey = "order-" + orderId + "-" + payment.get("id") + (retry ? "-retry-" + previousCharge : "");
+        String retrySuffix = previousCharge != null ? previousCharge : previousKey == null ? null : "k" + Integer.toHexString(previousKey.hashCode());
+        String idempotencyKey = "order-" + orderId + "-" + payment.get("id") + (retry ? "-retry-" + retrySuffix : "");
 
         if ("card".equals(method)) {
             if (intent.cardToken() == null || intent.cardToken().isBlank()) {
@@ -123,7 +132,10 @@ public class OnlinePaymentService {
             }
         }
 
-        long restaurantId = ((Number) order.get("restaurant_id")).longValue();
+        // Só aqui, depois de todas as validações: cancelar o Pix no provedor não se desfaz com o rollback.
+        if (pixAbertoParaCartao && "paid".equals(trocarPixPorCartao(orderId, payment))) {
+            return detail(orderId);
+        }
         MerchantCredentials credentials = accounts.credentialsFor(restaurantId)
             .orElseThrow(() -> new ApiException(409, "Esta loja não recebe pagamento online: o Mercado Pago dela não está conectado"));
         PaymentGateway gateway = gateways.resolve(provider);
@@ -140,7 +152,7 @@ public class OnlinePaymentService {
             status = "rejected";
             note = "Valor divergente: provedor " + charge.amountCents() + " vs pedido " + due;
         }
-        jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = ?, idempotency_key = ?, status = ?, raw_status = ?,"
+        jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = COALESCE(?, external_id), idempotency_key = ?, status = ?, raw_status = ?,"
                 + " qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ?, note = ?,"
                 + " confirmed_at = IF(? = 'paid', NOW(), confirmed_at), payment_account_id = ?, provider_user_id = ? WHERE order_id = ?",
             gateway.provider(), method, charge.externalId(), idempotencyKey, status, charge.rawStatus(),
@@ -184,14 +196,16 @@ public class OnlinePaymentService {
             log.warn("Webhook do Mercado Pago ignorado: conta {} não atende a loja {} do pedido #{}", providerUserId, restaurantId, orderId);
             return Map.of("ok", true, "ignored", true);
         }
-        // Depois de uma nova tentativa, o aviso atrasado de uma cobrança anterior não mexe na atual.
+        // Depois de uma nova tentativa, o aviso atrasado de uma cobrança anterior não mexe na atual. Se essa
+        // cobrança anterior aparece PAGA, o cliente pagou duas vezes: devolve a anterior na hora, pela conta
+        // que recebeu (spec de 11/10/2026, regra 7). Falha no estorno sobe: o provedor reenvia o aviso.
         Object currentCharge = row.get("external_id");
         if (currentCharge != null && charge.externalId() != null && !currentCharge.equals(charge.externalId())) {
-            if ("paid".equals(charge.status())) {
-                log.error("Pedido #{}: cobrança anterior {} aparece paga, mas a atual é {} — conferir no painel do Mercado Pago da loja e estornar a duplicada",
-                    orderId, charge.externalId(), currentCharge);
-            }
-            return Map.of("ok", true, "ignored", true);
+            if (!"paid".equals(charge.status())) return Map.of("ok", true, "ignored", true);
+            gateways.resolve(provider).refund(sellers.getFirst(), charge.externalId(), "refund-dup-" + charge.externalId());
+            log.warn("Pedido #{}: cobrança anterior {} foi paga depois da atual {} e foi estornada automaticamente",
+                orderId, charge.externalId(), currentCharge);
+            return Map.of("ok", true, "orderId", orderId, "refundedDuplicate", charge.externalId());
         }
         String current = (String) row.get("status");
         if ("refunded".equals(current)) return Map.of("ok", true, "already", current);
@@ -232,6 +246,62 @@ public class OnlinePaymentService {
     }
 
     /**
+     * Encerra o Pix em aberto antes da cobrança no cartão. Consulta primeiro: se o cliente acabou de pagar o
+     * Pix, grava o pagamento e não cobra o cartão. Se o provedor não cancelar, não cobra nada.
+     * @return "paid" quando o Pix já estava pago; "cancelled" quando foi cancelado.
+     */
+    private String trocarPixPorCartao(long orderId, Map<String, Object> payment) {
+        String pix = (String) payment.get("external_id");
+        String mensagem = "Não foi possível cancelar o Pix gerado; tente de novo em instantes";
+        // O Pix só se cancela pela conta que o criou (a loja pode ter trocado de conta desde então).
+        Object contaDoPix = payment.get("payment_account_id");
+        MerchantCredentials credentials = contaDoPix == null ? null
+            : accounts.credentialsForAccount(((Number) contaDoPix).longValue()).orElse(null);
+        if (credentials == null) {
+            log.warn("Pedido #{}: sem credenciais da conta que gerou o Pix {} na troca para cartão", orderId, pix);
+            throw new ApiException(409, mensagem);
+        }
+        PaymentGateway gateway = gateways.resolve((String) payment.get("provider"));
+        PaymentGateway.Charge atual;
+        try {
+            atual = gateway.fetch(credentials, pix);
+        } catch (RuntimeException falha) {
+            log.warn("Pedido #{}: o Pix {} não pôde ser consultado na troca para cartão ({})", orderId, pix, falha.getMessage());
+            throw new ApiException(409, mensagem);
+        }
+        if (atual == null) {
+            log.warn("Pedido #{}: o Pix {} não pôde ser consultado na troca para cartão", orderId, pix);
+            throw new ApiException(409, mensagem);
+        }
+        long due = ((Number) payment.get("amount_due_cents")).longValue();
+        if ("cancelled".equals(atual.status()) || "expired".equals(atual.status())) {
+            // Pix já morto no provedor: não há o que cancelar, o cartão pode ser cobrado.
+            jdbc.update("UPDATE order_payments SET status = 'cancelled', raw_status = 'cancelled' WHERE order_id = ? AND status = 'pending'", orderId);
+            return "cancelled";
+        }
+        if ("paid".equals(atual.status()) && atual.amountCents() == due) {
+            jdbc.update("UPDATE order_payments SET status = 'paid', raw_status = ?, confirmed_at = NOW() WHERE order_id = ? AND status = 'pending'",
+                atual.rawStatus(), orderId);
+            return "paid";
+        }
+        PaymentGateway.Charge cancelada;
+        try {
+            cancelada = gateway.cancel(credentials, pix, "cancel-" + pix);
+        } catch (RuntimeException falha) {
+            log.warn("Pedido #{}: o Pix {} não foi cancelado na troca para cartão ({})", orderId, pix, falha.getMessage());
+            throw new ApiException(409, mensagem);
+        }
+        // O provedor respondeu sem erro mas o Pix segue vivo: cobrar o cartão agora permitiria pagar os dois.
+        if (cancelada == null || !("cancelled".equals(cancelada.status()) || "expired".equals(cancelada.status()))) {
+            log.warn("Pedido #{}: o Pix {} continua {} após o pedido de cancelamento na troca para cartão", orderId, pix,
+                cancelada == null ? "sem resposta" : cancelada.status());
+            throw new ApiException(409, mensagem);
+        }
+        jdbc.update("UPDATE order_payments SET status = 'cancelled', raw_status = 'cancelled' WHERE order_id = ? AND status = 'pending'", orderId);
+        return "cancelled";
+    }
+
+    /**
      * O Mercado Pago recusa o email do pagador quando o domínio não é entregável — o caso concreto do
      * dado de demonstração: {@code cliente@demo.local} voltou "payer.email must be a valid email".
      * Barrar antes evita um 502 sem explicação na tela do cliente.
@@ -257,8 +327,8 @@ public class OnlinePaymentService {
 
     public Map<String, Object> detail(long orderId) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, order_id, modality, provider, method, status, raw_status, amount_due_cents, amount_received_cents, change_cents, qr_code, qr_code_base64, ticket_url, external_id, expires_at, note, confirmed_at "
-                + "FROM order_payments WHERE order_id = ?", orderId);
+            "SELECT id, order_id, modality, provider, method, status, raw_status, amount_due_cents, amount_received_cents, change_cents, qr_code, qr_code_base64, ticket_url, external_id, expires_at, note, confirmed_at, "
+                + PaymentDisplay.PAY_DEADLINE_COLUMN + " FROM order_payments WHERE order_id = ?", orderId);
         if (rows.isEmpty()) return null;
         Map<String, Object> value = new LinkedHashMap<>(rows.getFirst());
         value.remove("qr_code_base64");
@@ -269,6 +339,7 @@ public class OnlinePaymentService {
         image.put("qr_code_base64", rows.getFirst().get("qr_code_base64"));
         image.put("ticket_url", value.get("ticket_url"));
         value.put("image", image);
+        value.put("rejection_message", "rejected".equals(value.get("status")) ? PaymentDisplay.rejectionMessage((String) value.get("raw_status")) : null);
         return value;
     }
 }

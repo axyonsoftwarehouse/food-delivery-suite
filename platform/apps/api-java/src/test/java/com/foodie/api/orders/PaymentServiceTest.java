@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -35,6 +36,7 @@ class PaymentServiceTest {
     void storeRefundsItsOwnOrder() {
         storedPayment("paid", "cash", 1000, 5L);
         when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(1L))).thenReturn(List.of(3L));
+        when(jdbc.queryForList(eq("SELECT status FROM orders WHERE id = ?"), eq(String.class), eq(1L))).thenReturn(List.of("delivered"));
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
 
         assertEquals("refunded", service.refund(owner, 1, "cliente desistiu").get("status"));
@@ -47,6 +49,7 @@ class PaymentServiceTest {
     void directRefundClosesTheOpenCustomerRequest() {
         storedPayment("paid", "cash", 1000, 5L);
         when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(1L))).thenReturn(List.of(3L));
+        when(jdbc.queryForList(eq("SELECT status FROM orders WHERE id = ?"), eq(String.class), eq(1L))).thenReturn(List.of("delivered"));
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
 
         service.refund(owner, 1, "cliente desistiu");
@@ -77,6 +80,8 @@ class PaymentServiceTest {
         row.put("restaurant_id", 3L);
         row.put("modality", "on_delivery");
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
+        // Estorno manual só vale depois da entrega; os testes de estorno partem de um pedido entregue.
+        when(jdbc.queryForList(eq("SELECT status FROM orders WHERE id = ?"), eq(String.class), anyLong())).thenReturn(List.of("delivered"));
     }
 
     private void storedPayment(String status, String method, long due, Long courierId, String modality, long restaurantId) {
@@ -88,6 +93,87 @@ class PaymentServiceTest {
         row.put("restaurant_id", restaurantId);
         row.put("modality", modality);
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
+        // Estorno manual só vale depois da entrega; os testes de estorno partem de um pedido entregue.
+        when(jdbc.queryForList(eq("SELECT status FROM orders WHERE id = ?"), eq(String.class), anyLong())).thenReturn(List.of("delivered"));
+    }
+
+    @Test
+    void manualRefundOnlyAfterDelivery() {
+        // Roteiro de 11/10: o #52 foi estornado pela loja e continuou "Novo pedido" com "Aceitar".
+        storedPayment("paid", "pix", 4190, null, "online", 3L);
+        when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(1L))).thenReturn(List.of(3L));
+        when(jdbc.queryForList(eq("SELECT status FROM orders WHERE id = ?"), eq(String.class), eq(1L))).thenReturn(List.of("placed"));
+
+        ApiException erro = assertThrows(ApiException.class, () -> withOnline.refund(owner, 1, "teste"));
+
+        assertEquals(409, erro.status());
+        assertEquals("Para devolver antes da entrega, recuse ou cancele o pedido", erro.getMessage());
+        verify(gateway, Mockito.never()).refund(any(), anyString(), anyString());
+    }
+
+    @Test
+    void manualRefundAllowedForOrdersClosedWithoutReturn() {
+        // Pedido concluído (retirada/mesa) ou com falha na entrega não tem Recusar/Cancelar: só o estorno devolve.
+        for (String encerrado : List.of("completed", "failed")) {
+            storedPayment("paid", "cash", 1000, 5L);
+            when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+            when(jdbc.queryForList(eq("SELECT restaurant_id FROM orders WHERE id = ?"), eq(Long.class), eq(1L))).thenReturn(List.of(3L));
+            when(jdbc.queryForList(eq("SELECT status FROM orders WHERE id = ?"), eq(String.class), eq(1L))).thenReturn(List.of(encerrado));
+
+            assertEquals("refunded", withOnline.refund(owner, 1, "teste").get("status"), encerrado);
+        }
+    }
+
+    @Test
+    void cancellingAPendingPixAlsoCancelsItAtTheProvider() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("modality", "online"); row.put("status", "pending"); row.put("provider", "mercadopago");
+        row.put("external_id", "ORDPIX1"); row.put("payment_account_id", 9L);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT modality, status, provider, external_id, payment_account_id"), any(Object[].class))).thenReturn(List.of(row));
+        com.foodie.api.payments.accounts.MerchantCredentials loja = new com.foodie.api.payments.accounts.MerchantCredentials(9, 3, "token", "pk", "3588446200");
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(loja));
+        when(gateways.resolve("mercadopago")).thenReturn(gateway);
+
+        withOnline.cancelPending(1);
+
+        verify(gateway).cancel(loja, "ORDPIX1", "cancel-ORDPIX1");
+        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled' WHERE order_id = ? AND status = 'pending'", 1L);
+    }
+
+    @Test
+    void providerFailureDoesNotStopTheLocalCancellation() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("modality", "online"); row.put("status", "pending"); row.put("provider", "mercadopago");
+        row.put("external_id", "ORDPIX1"); row.put("payment_account_id", 9L);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT modality, status, provider, external_id, payment_account_id"), any(Object[].class))).thenReturn(List.of(row));
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(new com.foodie.api.payments.accounts.MerchantCredentials(9, 3, "token", "pk", "3588446200")));
+        when(gateways.resolve("mercadopago")).thenReturn(gateway);
+        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o cancelamento: HTTP 500"));
+
+        assertDoesNotThrow(() -> withOnline.cancelPending(1));
+
+        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled' WHERE order_id = ? AND status = 'pending'", 1L);
+    }
+
+    @Test
+    void awaitsOnlinePaymentOnlyForUnpaidOnline() {
+        for (Object[] caso : new Object[][] { {"online", "pending", true}, {"online", "rejected", true}, {"online", "paid", false}, {"on_delivery", "pending", false}, {"offline", "pending", false} }) {
+            Map<String, Object> row = new java.util.HashMap<>();
+            row.put("modality", caso[0]); row.put("status", caso[1]);
+            when(jdbc.queryForList(eq("SELECT modality, status FROM order_payments WHERE order_id = ?"), eq(1L))).thenReturn(List.of(row));
+            assertEquals(caso[2], service.awaitingOnlinePayment(1), caso[0] + "/" + caso[1]);
+        }
+    }
+
+    @Test
+    void detailCarriesTheDeadlineAndTheReasonInPortuguese() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("id", 11L); row.put("status", "rejected"); row.put("raw_status", "rejected_by_issuer");
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("AS pay_deadline"), any(Object[].class))).thenReturn(List.of(row));
+
+        Map<String, Object> detail = service.detail(1);
+
+        assertEquals("O banco emissor não autorizou.", detail.get("rejection_message"));
     }
 
     @Test
@@ -199,6 +285,8 @@ class PaymentServiceTest {
         row.put("provider_user_id", "3588446200");
         row.put("amount_received_cents", null);
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(row));
+        // Estorno manual só vale depois da entrega; os testes de estorno partem de um pedido entregue.
+        when(jdbc.queryForList(eq("SELECT status FROM orders WHERE id = ?"), eq(String.class), anyLong())).thenReturn(List.of("delivered"));
     }
 
     @Test

@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PaymentService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PaymentService.class);
     public static final Set<String> METHODS = Set.of("cash", "card", "pix");
     /** Formas de pagamento que a cobrança online aceita; dinheiro só existe na entrega. */
     public static final Set<String> ONLINE_METHODS = Set.of("card", "pix");
@@ -125,6 +126,12 @@ public class PaymentService {
         } else if (!"admin".equals(actor.role())) {
             throw new ApiException(403, "Acesso não autorizado");
         }
+        // Antes da entrega, quem devolve é Recusar/Cancelar (que encerram o pedido e estornam). Estornar e deixar
+        // o pedido aberto permitia aceitar e preparar um pedido sem pagamento (roteiro de 11/10/2026, #52).
+        // Pedido encerrado sem volta (entregue, concluído ou falha na entrega) não tem Recusar/Cancelar: só o estorno devolve.
+        List<String> orderStatus = jdbc.queryForList("SELECT status FROM orders WHERE id = ?", String.class, orderId);
+        if (orderStatus.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
+        if (!List.of("delivered", "completed", "failed").contains(orderStatus.getFirst())) throw new ApiException(409, "Para devolver antes da entrega, recuse ou cancele o pedido");
         return refundAsSystem(actor.id(), orderId, note);
     }
 
@@ -202,8 +209,35 @@ public class PaymentService {
         rewards.reverseOrder(orderId);
     }
 
+    /**
+     * Pagamento ainda não feito de um pedido que morreu. Pix online em aberto é cancelado também no provedor,
+     * senão o QR continua pagável (spec de 11/10/2026, regra 6). Falha no provedor só vai ao log: o pedido
+     * morre do mesmo jeito, e um pagamento atrasado é estornado pelo webhook.
+     */
     public void cancelPending(long orderId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT modality, status, provider, external_id, payment_account_id FROM order_payments WHERE order_id = ?", orderId);
+        if (!rows.isEmpty()) {
+            Map<String, Object> row = rows.getFirst();
+            if ("online".equals(row.get("modality")) && "pending".equals(row.get("status"))
+                && row.get("provider") != null && row.get("external_id") instanceof String charge && row.get("payment_account_id") != null) {
+                try {
+                    accounts.credentialsForAccount(((Number) row.get("payment_account_id")).longValue()).ifPresent(credentials ->
+                        gateways.resolve((String) row.get("provider")).cancel(credentials, charge, "cancel-" + charge));
+                } catch (RuntimeException falha) {
+                    log.warn("Pedido #{}: a cobrança {} não foi cancelada no provedor ({}); pagamento atrasado será estornado pelo webhook",
+                        orderId, charge, falha.getMessage());
+                }
+            }
+        }
         jdbc.update("UPDATE order_payments SET status = 'cancelled' WHERE order_id = ? AND status = 'pending'", orderId);
+    }
+
+    /** Pedido de "Pagar agora" que ainda não foi pago: a loja não aceita até o pagamento entrar. */
+    public boolean awaitingOnlinePayment(long orderId) {
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT modality, status FROM order_payments WHERE order_id = ?", orderId);
+        if (rows.isEmpty()) return false;
+        return "online".equals(rows.getFirst().get("modality")) && !"paid".equals(rows.getFirst().get("status"));
     }
 
     public String status(long orderId) {
@@ -213,7 +247,7 @@ public class PaymentService {
 
     public Map<String, Object> detail(long orderId) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, order_id, method, modality, status, raw_status, amount_due_cents, change_for_cents, amount_received_cents, change_cents, qr_code, qr_code_base64, ticket_url, external_id, expires_at, note, confirmed_by, confirmed_at, refunded_by, refunded_at, offline_method_id, proof_url, proof_note, submitted_at, rejection_reason FROM order_payments WHERE order_id = ?",
+            "SELECT id, order_id, method, modality, status, raw_status, amount_due_cents, change_for_cents, amount_received_cents, change_cents, qr_code, qr_code_base64, ticket_url, external_id, expires_at, note, confirmed_by, confirmed_at, refunded_by, refunded_at, offline_method_id, proof_url, proof_note, submitted_at, rejection_reason, " + com.foodie.api.payments.PaymentDisplay.PAY_DEADLINE_COLUMN + " FROM order_payments WHERE order_id = ?",
             orderId
         );
         if (rows.isEmpty()) return null;
@@ -229,6 +263,8 @@ public class PaymentService {
         payment.remove("qr_code_base64");
         payment.put("has_qr_image", image.get("qr_code_base64") != null);
         payment.put("image", image);
+        payment.put("rejection_message", "rejected".equals(payment.get("status"))
+            ? com.foodie.api.payments.PaymentDisplay.rejectionMessage((String) payment.get("raw_status")) : null);
         return payment;
     }
 
