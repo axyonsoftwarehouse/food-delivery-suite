@@ -50,6 +50,7 @@ async function waitForReady(url, attempts = 60, timeoutMs = 5000) {
 // --- Verificação sempre executada (sem banco) ---
 run('Testes Java (api-java)', 'mvn', [...mvnOffline, '-q', '-Dmaven.repo.local=.m2-cache', 'test'], { cwd: join(root, 'apps/api-java'), env: { JAVA_HOME: defaultJavaHome } });
 run('Tipos do site (tsc)', 'npx', ['tsc', '--noEmit'], { cwd: join(root, 'apps/web') });
+run('Testes do site (node --test)', 'node', ['--test', 'app/online-payment.test.ts'], { cwd: join(root, 'apps/web') });
 run('Build do site (next build)', 'npm', ['run', 'build'], { cwd: join(root, 'apps/web') });
 run('Tipos do app da cozinha (tsc)', 'pnpm', ['--filter', '@foodie/kitchen', 'typecheck'], { cwd: root });
 run('Testes do app da cozinha (jest)', 'pnpm', ['--filter', '@foodie/kitchen', 'test'], { cwd: root });
