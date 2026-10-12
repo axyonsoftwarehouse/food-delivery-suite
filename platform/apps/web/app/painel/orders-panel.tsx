@@ -6,6 +6,9 @@ import { LATE_ORDER_MINUTES, type Order, api, labels, minutesSince, money, payme
 import { Icon } from '../icons';
 import DispatchPicker from './dispatch-picker';
 import { useCourierBoard } from './courier-board';
+import { awaitingOnlinePayment, deadlineInfo, deadlineText } from '../online-payment';
+import { useNow } from '../use-now';
+import { Badge } from '../ui';
 
 // "26" e "#26" buscam pelo número do pedido; texto busca no nome do cliente e do restaurante.
 function orderNumber(query: string) {
@@ -25,6 +28,7 @@ function matches(order: Order, query: string) {
 export default function OrdersPanel({ restaurantId }: { restaurantId?: number } = {}) {
   const { user, permissions, orders, couriers, busy, run, askReason, refresh, setMessage, expandedOrderId, setExpandedOrderId, receivePayment, refundPayment } = useApp();
   const [courierByOrder, setCourierByOrder] = useState<Record<number, string>>({});
+  const now = useNow(30_000);
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<{ id: number; order: Order | null; error: string } | null>(null);
   // Despacho da loja (parte D): quadro dos entregadores com status e distância; o admin segue com a lista simples.
@@ -72,7 +76,11 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
   function actions(order: Order) {
     return <div className="order-action">
       {role === 'restaurant' && permissions.includes('payments.manage') && (order.order_type ?? 'delivery') !== 'delivery' && order.payment_status === 'pending' && receivable(order) && !['placed', 'rejected', 'cancelled', 'expired'].includes(order.status) && <button className="secondary-button" disabled={busy} onClick={() => receivePayment(order)}><Icon name="cash" size={16} />{order.payment_method === 'cash' ? `Receber ${money(order.total_cents)}` : 'Confirmar pagamento'}</button>}
-      {role === 'restaurant' && order.status === 'placed' && <><button disabled={busy} onClick={() => act(order, 'accept', 'Pedido aceito.')}><Icon name="check" size={16} />Aceitar</button><button className="availability-button" disabled={busy} onClick={() => reason('Motivo da recusa', 'reject', 'Pedido recusado.', order)}>Recusar</button></>}
+      {role === 'restaurant' && order.status === 'placed' && <>
+        <button disabled={busy || awaitingOnlinePayment(order)} onClick={() => act(order, 'accept', 'Pedido aceito.')}><Icon name="check" size={16} />Aceitar</button>
+        <button className="availability-button" disabled={busy} onClick={() => reason('Motivo da recusa', 'reject', 'Pedido recusado.', order)}>Recusar</button>
+        {awaitingOnlinePayment(order) && <small className="form-help">{'Libera quando o cliente pagar'}</small>}
+      </>}
       {role === 'restaurant' && order.status === 'accepted' && <button disabled={busy} onClick={() => act(order, 'ready', 'Pedido pronto.')}><Icon name="bag" size={16} />Marcar pronto</button>}
       {canDispatch && (order.order_type ?? 'delivery') === 'delivery' && (order.status === 'ready' || order.status === 'assigned') && (role === 'restaurant'
         ? <>
@@ -86,7 +94,7 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
       {role === 'courier' && order.status === 'picked_up' && <><button disabled={busy || order.payment_status !== 'paid'} onClick={() => act(order, 'deliver', 'Entrega concluída.')}><Icon name="check" size={16} />Concluir entrega</button><button className="availability-button" disabled={busy} onClick={() => reason('Motivo da falha na entrega', 'fail', 'Falha registrada.', order)}>Falha na entrega</button></>}
       {role === 'restaurant' && permissions.includes('orders.cancel') && ['accepted', 'ready', 'assigned', 'picked_up'].includes(order.status) && <button className="availability-button" disabled={busy} onClick={() => reason('Motivo do cancelamento (o cliente é avisado e o pagamento online é estornado)', 'cancel', 'Pedido cancelado.', order)}>Cancelar pedido</button>}
       {role === 'admin' && ['placed', 'accepted', 'ready', 'assigned', 'picked_up'].includes(order.status) && <button className="availability-button" disabled={busy} onClick={() => reason('Motivo do cancelamento', 'cancel', 'Pedido cancelado.', order)}>Cancelar</button>}
-      {order.payment_status === 'paid' && ((role === 'admin' && permissions.includes('support.act')) || (role === 'restaurant' && permissions.includes('payments.manage'))) && <button className="availability-button" disabled={busy} onClick={() => refundPayment(order)}>Estornar</button>}
+      {order.payment_status === 'paid' && ['delivered', 'completed', 'failed'].includes(order.status) && ((role === 'admin' && permissions.includes('support.act')) || (role === 'restaurant' && permissions.includes('payments.manage'))) && <button className="availability-button" disabled={busy} onClick={() => refundPayment(order)}>Estornar</button>}
     </div>;
   }
 
@@ -95,6 +103,9 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
     const late = order.status === 'placed' && waiting >= LATE_ORDER_MINUTES;
     const open = expandedOrderId === order.id;
     const who = role === 'admin' ? order.restaurant_name : order.customer_name || order.restaurant_name;
+    const awaiting = awaitingOnlinePayment(order);
+    const pay = awaiting ? deadlineInfo(order.pay_deadline, now) : null;
+    const accept = order.status === 'placed' && !awaiting && order.payment_modality === 'online' ? deadlineInfo(order.accept_deadline, now) : null;
     return <article className={`op-card status-card-${order.status}${late ? ' is-late' : ''}`} key={order.id} style={{ '--i': Math.min(index, 8) } as React.CSSProperties}>
       <div className="op-card-head">
         <span className="op-id">#{order.id}</span>
@@ -105,6 +116,8 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
       {role === 'admin' && order.customer_name && <small className="op-line"><Icon name="user" size={14} />{order.customer_name}</small>}
       {order.delivery_address_text && <small className="op-line"><Icon name="map-pin" size={14} />{order.delivery_address_text}</small>}
       <div className="op-money"><strong>{money(order.total_cents)}</strong>{order.payment_method && <span className={`op-pay${order.payment_status === 'paid' ? ' is-paid' : ''}`}>{paymentLabel(order)}</span>}</div>
+      {awaiting && <div className="op-await"><Badge tone="warning">{'Aguardando pagamento'}</Badge>{pay && <small className={`op-deadline${pay.urgent ? ' is-urgent' : ''}`}><Icon name="clock" size={14} />{deadlineText('Pague até', pay)}</small>}</div>}
+      {accept && <div className="op-await"><Badge tone="success">{'Pago'}</Badge><small className={`op-deadline${accept.urgent ? ' is-urgent' : ''}`}><Icon name="clock" size={14} />{deadlineText('Aceite até', accept)}</small></div>}
       {actions(order)}
       <button className="order-detail-toggle" aria-expanded={open} onClick={() => setExpandedOrderId(open ? null : order.id)}>{open ? 'Ocultar itens' : 'Ver itens'}<Icon name="chevron-down" size={14} /></button>
       {open && <OrderDetails orderId={order.id} status={order.status} />}
