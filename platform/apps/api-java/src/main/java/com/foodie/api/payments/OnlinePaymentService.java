@@ -196,14 +196,16 @@ public class OnlinePaymentService {
             log.warn("Webhook do Mercado Pago ignorado: conta {} não atende a loja {} do pedido #{}", providerUserId, restaurantId, orderId);
             return Map.of("ok", true, "ignored", true);
         }
-        // Depois de uma nova tentativa, o aviso atrasado de uma cobrança anterior não mexe na atual.
+        // Depois de uma nova tentativa, o aviso atrasado de uma cobrança anterior não mexe na atual. Se essa
+        // cobrança anterior aparece PAGA, o cliente pagou duas vezes: devolve a anterior na hora, pela conta
+        // que recebeu (spec de 11/10/2026, regra 7). Falha no estorno sobe: o provedor reenvia o aviso.
         Object currentCharge = row.get("external_id");
         if (currentCharge != null && charge.externalId() != null && !currentCharge.equals(charge.externalId())) {
-            if ("paid".equals(charge.status())) {
-                log.error("Pedido #{}: cobrança anterior {} aparece paga, mas a atual é {} — conferir no painel do Mercado Pago da loja e estornar a duplicada",
-                    orderId, charge.externalId(), currentCharge);
-            }
-            return Map.of("ok", true, "ignored", true);
+            if (!"paid".equals(charge.status())) return Map.of("ok", true, "ignored", true);
+            gateways.resolve(provider).refund(sellers.getFirst(), charge.externalId(), "refund-dup-" + charge.externalId());
+            log.warn("Pedido #{}: cobrança anterior {} foi paga depois da atual {} e foi estornada automaticamente",
+                orderId, charge.externalId(), currentCharge);
+            return Map.of("ok", true, "orderId", orderId, "refundedDuplicate", charge.externalId());
         }
         String current = (String) row.get("status");
         if ("refunded".equals(current)) return Map.of("ok", true, "already", current);

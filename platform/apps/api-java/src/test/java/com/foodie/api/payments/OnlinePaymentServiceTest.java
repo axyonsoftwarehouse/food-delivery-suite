@@ -361,6 +361,43 @@ class OnlinePaymentServiceTest {
     }
 
     @Test
+    void previousChargePaidLaterIsRefundedAutomatically() {
+        // Pix trocado por cartão e pago mesmo assim (ou cartão aprovado após o cliente tentar de novo): o
+        // dinheiro a mais volta sozinho, sem mexer no pagamento atual.
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("status", "paid");
+        row.put("amount_due_cents", 1000L);
+        row.put("external_id", "ORDCARD1");
+        row.put("restaurant_id", 3L);
+        row.put("order_status", "placed");
+        when(jdbc.queryForList(argThat(sql -> sql != null && sql.contains("FOR UPDATE") && sql.contains("JOIN orders")), any(Object[].class))).thenReturn(List.of(row));
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        Map<String, Object> result = service(true).handleWebhook("mercadopago", "ORDPIX1", "3588446200");
+
+        verify(gateway).refund(loja, "ORDPIX1", "refund-dup-ORDPIX1");
+        assertEquals("ORDPIX1", result.get("refundedDuplicate"));
+        verify(jdbc, never()).update(org.mockito.ArgumentMatchers.startsWith("UPDATE order_payments"), any(Object[].class));
+    }
+
+    @Test
+    void previousChargeCancelledLaterIsIgnored() {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("status", "pending");
+        row.put("amount_due_cents", 1000L);
+        row.put("external_id", "ORDCARD1");
+        row.put("restaurant_id", 3L);
+        row.put("order_status", "placed");
+        when(jdbc.queryForList(argThat(sql -> sql != null && sql.contains("FOR UPDATE") && sql.contains("JOIN orders")), any(Object[].class))).thenReturn(List.of(row));
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "cancelled", "canceled_by_api", null, null, null, null));
+
+        Map<String, Object> result = service(true).handleWebhook("mercadopago", "ORDPIX1", "3588446200");
+
+        assertEquals(true, result.get("ignored"));
+        verify(gateway, never()).refund(any(), anyString(), anyString());
+    }
+
+    @Test
     void statusOtherThanPaidOnlyOverwritesPending() {
         // Um "pending" atrasado não pode reabrir um pagamento cancelado (pedido morto) nem recusado.
         for (String current : List.of("cancelled", "rejected", "expired")) {
