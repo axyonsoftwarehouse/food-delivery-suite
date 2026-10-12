@@ -112,6 +112,19 @@ class MercadoPagoOrdersTest {
     }
 
     @Test
+    void canceledOrderWinsOverAPaymentThatHasNotMovedYet() throws Exception {
+        MercadoPagoGateway mp = gateway(200, """
+            {"id":"ORDPIX1","external_reference":"52","total_amount":"41.90","status":"canceled",
+             "transactions":{"payments":[{"id":"PAY02","amount":"41.90","status":"action_required","status_detail":"waiting_transfer"}]}}
+            """);
+
+        PaymentGateway.Charge cancelada = mp.cancel(LOJA, "ORDPIX1", "cancel-ORDPIX1");
+
+        assertEquals("cancelled", cancelada.status());
+        assertEquals("ORDPIX1", cancelada.externalId());
+    }
+
+    @Test
     void cancelRefusedByTheProviderIs502() throws Exception {
         MercadoPagoGateway mp = gateway(409, "{\"errors\":[{\"code\":\"order_already_processed\",\"message\":\"Order already processed\"}]}");
 

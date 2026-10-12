@@ -12,7 +12,7 @@ public final class PaymentDisplay {
     /** Prazo para pagar: 15 min desde a criação, só enquanto o pedido online aguarda pagamento. */
     public static final String PAY_DEADLINE_COLUMN = "(SELECT o.created_at + INTERVAL 15 MINUTE FROM orders o"
         + " WHERE o.id = order_payments.order_id AND o.status = 'placed'"
-        + " AND order_payments.modality = 'online' AND order_payments.status <> 'paid') AS pay_deadline";
+        + " AND order_payments.modality = 'online' AND order_payments.status IN ('pending', 'rejected', 'cancelled')) AS pay_deadline";
 
     public static String rejectionMessage(String rawStatus) {
         String code = rawStatus == null ? "" : rawStatus.trim().toLowerCase(Locale.ROOT);

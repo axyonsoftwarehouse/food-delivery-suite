@@ -156,7 +156,15 @@ public class MercadoPagoGateway implements PaymentGateway {
                 .header("Authorization", "Bearer " + token)
                 .header("X-Idempotency-Key", idempotencyKey)
                 .retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {});
-            return fromOrder(order == null ? Map.of() : order);
+            Map<String, Object> corpo = order == null ? Map.of() : order;
+            Charge lida = fromOrder(corpo);
+            // Order cancelada/expirada vale mesmo se o pagamento de dentro ainda não mudou de status.
+            String statusOrder = MercadoPagoStatus.normalize(str(corpo.get("status")));
+            if ("cancelled".equals(statusOrder) || "expired".equals(statusOrder)) {
+                return new Charge(lida.externalId(), lida.externalReference(), lida.amountCents(), statusOrder, lida.rawStatus(),
+                    lida.qrCode(), lida.qrCodeBase64(), lida.ticketUrl(), lida.expiresAt());
+            }
+            return lida;
         } catch (RestClientResponseException error) {
             throw new ApiException(502, "Mercado Pago recusou o cancelamento: " + providerMessage(error));
         }

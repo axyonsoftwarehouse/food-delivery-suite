@@ -86,7 +86,7 @@ public class OnlinePaymentService {
         long restaurantId = ((Number) order.get("restaurant_id")).longValue();
 
         List<Map<String, Object>> payments = jdbc.queryForList(
-            "SELECT id, status, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+            "SELECT id, status, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents, payment_account_id FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (payments.isEmpty()) throw new ApiException(409, "Pagamento do pedido não encontrado");
         Map<String, Object> payment = payments.getFirst();
         String paymentStatus = (String) payment.get("status");
@@ -133,7 +133,7 @@ public class OnlinePaymentService {
         }
 
         // Só aqui, depois de todas as validações: cancelar o Pix no provedor não se desfaz com o rollback.
-        if (pixAbertoParaCartao && "paid".equals(trocarPixPorCartao(orderId, restaurantId, payment))) {
+        if (pixAbertoParaCartao && "paid".equals(trocarPixPorCartao(orderId, payment))) {
             return detail(orderId);
         }
         MerchantCredentials credentials = accounts.credentialsFor(restaurantId)
@@ -152,7 +152,7 @@ public class OnlinePaymentService {
             status = "rejected";
             note = "Valor divergente: provedor " + charge.amountCents() + " vs pedido " + due;
         }
-        jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = ?, idempotency_key = ?, status = ?, raw_status = ?,"
+        jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = COALESCE(?, external_id), idempotency_key = ?, status = ?, raw_status = ?,"
                 + " qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ?, note = ?,"
                 + " confirmed_at = IF(? = 'paid', NOW(), confirmed_at), payment_account_id = ?, provider_user_id = ? WHERE order_id = ?",
             gateway.provider(), method, charge.externalId(), idempotencyKey, status, charge.rawStatus(),
@@ -250,13 +250,25 @@ public class OnlinePaymentService {
      * Pix, grava o pagamento e não cobra o cartão. Se o provedor não cancelar, não cobra nada.
      * @return "paid" quando o Pix já estava pago; "cancelled" quando foi cancelado.
      */
-    private String trocarPixPorCartao(long orderId, long restaurantId, Map<String, Object> payment) {
+    private String trocarPixPorCartao(long orderId, Map<String, Object> payment) {
         String pix = (String) payment.get("external_id");
-        MerchantCredentials credentials = accounts.credentialsFor(restaurantId)
-            .orElseThrow(() -> new ApiException(409, "Esta loja não recebe pagamento online: o Mercado Pago dela não está conectado"));
-        PaymentGateway gateway = gateways.resolve((String) payment.get("provider"));
-        PaymentGateway.Charge atual = gateway.fetch(credentials, pix);
         String mensagem = "Não foi possível cancelar o Pix gerado; tente de novo em instantes";
+        // O Pix só se cancela pela conta que o criou (a loja pode ter trocado de conta desde então).
+        Object contaDoPix = payment.get("payment_account_id");
+        MerchantCredentials credentials = contaDoPix == null ? null
+            : accounts.credentialsForAccount(((Number) contaDoPix).longValue()).orElse(null);
+        if (credentials == null) {
+            log.warn("Pedido #{}: sem credenciais da conta que gerou o Pix {} na troca para cartão", orderId, pix);
+            throw new ApiException(409, mensagem);
+        }
+        PaymentGateway gateway = gateways.resolve((String) payment.get("provider"));
+        PaymentGateway.Charge atual;
+        try {
+            atual = gateway.fetch(credentials, pix);
+        } catch (RuntimeException falha) {
+            log.warn("Pedido #{}: o Pix {} não pôde ser consultado na troca para cartão ({})", orderId, pix, falha.getMessage());
+            throw new ApiException(409, mensagem);
+        }
         if (atual == null) {
             log.warn("Pedido #{}: o Pix {} não pôde ser consultado na troca para cartão", orderId, pix);
             throw new ApiException(409, mensagem);

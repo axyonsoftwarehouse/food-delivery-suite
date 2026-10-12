@@ -502,6 +502,9 @@ class OnlinePaymentServiceTest {
         payment.put("provider", "mercadopago");
         payment.put("external_id", "ORDPIX1");
         payment.put("qr_code", "00020126...");
+        payment.put("payment_account_id", 9L);
+        // O Pix é cancelado pela conta que o criou, não pela conta atual da loja.
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(loja));
     }
 
     @Test
@@ -590,6 +593,54 @@ class OnlinePaymentServiceTest {
     void nullFetchResultChargesNothing() {
         openPix();
         when(gateway.fetch(loja, "ORDPIX1")).thenReturn(null);
+
+        ApiException erro = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, card()));
+
+        assertEquals(409, erro.status());
+        verify(gateway, never()).create(any(), any());
+    }
+
+    @Test
+    void fetchFailureOnTheSwitchChargesNothing() {
+        openPix();
+        when(gateway.fetch(loja, "ORDPIX1")).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
+
+        ApiException erro = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, card()));
+
+        assertEquals(409, erro.status());
+        assertEquals("Não foi possível cancelar o Pix gerado; tente de novo em instantes", erro.getMessage());
+        verify(gateway, never()).cancel(any(), anyString(), anyString());
+        verify(gateway, never()).create(any(), any());
+    }
+
+    @Test
+    void switchUsesTheAccountThatCreatedThePixNotTheCurrentOne() {
+        openPix();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "expired", "expired", null, null, null, null));
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDCARD1", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, card());
+
+        verify(accounts).credentialsForAccount(9L);
+    }
+
+    @Test
+    void pixAccountGoneChargesNothing() {
+        openPix();
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.empty());
+
+        ApiException erro = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, card()));
+
+        assertEquals(409, erro.status());
+        assertEquals("Não foi possível cancelar o Pix gerado; tente de novo em instantes", erro.getMessage());
+        verify(gateway, never()).fetch(any(), anyString());
+        verify(gateway, never()).create(any(), any());
+    }
+
+    @Test
+    void pixWithoutRecordedAccountChargesNothing() {
+        openPix();
+        payment.put("payment_account_id", null);
 
         ApiException erro = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, card()));
 

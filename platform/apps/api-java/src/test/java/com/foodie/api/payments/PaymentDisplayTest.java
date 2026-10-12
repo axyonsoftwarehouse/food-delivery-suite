@@ -32,7 +32,7 @@ class PaymentDisplayTest {
         String sql = PaymentDisplay.PAY_DEADLINE_COLUMN;
         assertTrue(sql.contains("o.status = 'placed'"));
         assertTrue(sql.contains("order_payments.modality = 'online'"));
-        assertTrue(sql.contains("order_payments.status <> 'paid'"));
+        assertTrue(sql.contains("order_payments.status IN ('pending', 'rejected', 'cancelled')"));
         assertTrue(sql.contains("INTERVAL 15 MINUTE"));
         assertTrue(sql.endsWith("AS pay_deadline"));
     }

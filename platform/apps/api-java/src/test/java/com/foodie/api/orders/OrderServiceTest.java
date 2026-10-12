@@ -659,7 +659,7 @@ class OrderServiceTest {
 
         orders.expireStale();
 
-        verify(jdbc).query(org.mockito.ArgumentMatchers.contains("p.confirmed_at FROM order_payments p WHERE p.order_id = orders.id AND p.modality = 'online' AND p.status = 'paid'"),
+        verify(jdbc).query(org.mockito.ArgumentMatchers.contains("p2.confirmed_at FROM order_payments p2 WHERE p2.order_id = orders.id AND p2.modality = 'online' AND p2.status = 'paid'"),
             any(org.springframework.jdbc.core.RowMapper.class));
     }
 
@@ -676,7 +676,7 @@ class OrderServiceTest {
     void unpaidOnlineScheduledOrderCountsFromCreationNotFromTheScheduledTime() {
         // Prazo para pagar (created_at + 15) vale mesmo agendado: o aviso ao cliente e a expiração têm de bater.
         assertTrue(OrderService.expiryClock("orders").contains(
-            "p.modality = 'online' AND p.status <> 'paid') THEN orders.created_at ELSE"));
+            "p2.modality = 'online' AND p2.status <> 'paid') THEN orders.created_at ELSE"));
     }
 
     @Test

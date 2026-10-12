@@ -386,7 +386,7 @@ public class OrderService {
 
     static final String ORDER_BASE_SQL = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, o.updated_at, o.delivery_code IS NOT NULL AS has_delivery_code, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, p.amount_due_cents AS payment_due_cents"
         + ", p.raw_status AS payment_raw_status, "
-        + "CASE WHEN o.status = 'placed' AND p.modality = 'online' AND p.status <> 'paid' THEN o.created_at + INTERVAL 15 MINUTE END AS pay_deadline, "
+        + "CASE WHEN o.status = 'placed' AND p.modality = 'online' AND p.status IN ('pending', 'rejected', 'cancelled') THEN o.created_at + INTERVAL 15 MINUTE END AS pay_deadline, "
         + "CASE WHEN o.status = 'placed' THEN " + expiryClock("o") + " + INTERVAL 15 MINUTE END AS accept_deadline"
         + " FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN users c ON c.id = o.customer_id LEFT JOIN order_payments p ON p.order_id = o.id LEFT JOIN restaurant_tables t ON t.id = o.table_id ";
     private static final String TERMINAL = "'delivered','rejected','cancelled','expired','failed','completed'";
@@ -704,8 +704,8 @@ public class OrderService {
      * 11/10/2026, regra 4). Online não pago conta sempre da criação, mesmo agendado: é o prazo para pagar.
      */
     static String expiryClock(String o) {
-        return "CASE WHEN EXISTS (SELECT 1 FROM order_payments p WHERE p.order_id = " + o + ".id AND p.modality = 'online' AND p.status <> 'paid') THEN " + o + ".created_at ELSE "
-            + "GREATEST(COALESCE((SELECT p.confirmed_at FROM order_payments p WHERE p.order_id = " + o + ".id AND p.modality = 'online' AND p.status = 'paid'), "
+        return "CASE WHEN EXISTS (SELECT 1 FROM order_payments p2 WHERE p2.order_id = " + o + ".id AND p2.modality = 'online' AND p2.status <> 'paid') THEN " + o + ".created_at ELSE "
+            + "GREATEST(COALESCE((SELECT p2.confirmed_at FROM order_payments p2 WHERE p2.order_id = " + o + ".id AND p2.modality = 'online' AND p2.status = 'paid'), "
             + o + ".created_at), COALESCE(" + o + ".scheduled_at, " + o + ".created_at)) END";
     }
 
