@@ -125,7 +125,7 @@ type CustomerValue = {
   setExpandedOrderId: (value: number | null) => void;
   showAllOrders: boolean;
   setShowAllOrders: (value: boolean) => void;
-  cancelOrder: (orderId: number) => Promise<void>;
+  cancelOrder: (orderId: number) => Promise<boolean>;
 };
 
 /** O que o formulário de cartão manda para a nossa API: só o token, nunca os dados do cartão. */
@@ -537,12 +537,12 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function cancelOrder(orderId: number) {
-    const value = window.prompt('Motivo do cancelamento:') ?? '';
-    if (value.trim().length < 3) { setLocalMessage('Informe um motivo com pelo menos 3 caracteres.'); return; }
+    const reason = await app.askReason('Motivo do cancelamento', { confirmLabel: 'Cancelar pedido' });
+    if (!reason) return false;
     // A API diz se houve estorno automático (pagamento online já pago); só então prometemos o dinheiro de volta.
     let refunded = false;
-    await app.run(async () => {
-      const result = await request<{ paymentRefunded?: boolean }>(`/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'cancel', reason: value.trim() }) });
+    return app.run(async () => {
+      const result = await request<{ paymentRefunded?: boolean }>(`/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'cancel', reason }) });
       refunded = result?.paymentRefunded === true;
     }, () => (refunded ? 'Pedido cancelado. O pagamento foi estornado.' : 'Pedido cancelado.'));
   }

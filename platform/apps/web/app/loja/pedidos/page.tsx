@@ -40,7 +40,7 @@ const STEPS: { label: string; icon: IconName; statuses: string[] }[] = [
 const stepOf = (status: string) => Math.max(0, STEPS.findIndex((step) => step.statuses.includes(status)));
 const when = (value: string) => new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-type RowProps = { order: Order; index: number; expandedOrderId: number | null; setExpandedOrderId: (value: number | null) => void; cancelOrder: (orderId: number) => Promise<void>; busy: boolean };
+type RowProps = { order: Order; index: number; expandedOrderId: number | null; setExpandedOrderId: (value: number | null) => void; cancelOrder: (orderId: number) => Promise<boolean>; busy: boolean };
 
 function DetailsToggle({ order, expandedOrderId, setExpandedOrderId }: Pick<RowProps, 'order' | 'expandedOrderId' | 'setExpandedOrderId'>) {
   const open = expandedOrderId === order.id;

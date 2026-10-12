@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useReasonDialog } from './ReasonDialog';
 
 export type Role = 'admin' | 'restaurant' | 'kitchen' | 'courier' | 'customer';
 export type User = { id: number; name: string; email: string; role: Role; restaurantId: number | null };
@@ -119,7 +120,8 @@ type AppValue = {
   refresh: (activeUser?: User | null) => Promise<void>;
   /** `success` pode ser uma função: a mensagem depende do que a ação devolveu (ex.: houve estorno). */
   run: (action: () => Promise<unknown>, success: string | (() => string)) => Promise<boolean>;
-  askReason: (title: string) => string | null;
+  /** Motivo em diálogo do app (o `window.prompt` não aparece no navegador do app). Padrão: 3 a 255 caracteres. */
+  askReason: (title: string, limits?: { min?: number; max?: number; confirmLabel?: string }) => Promise<string | null>;
   login: (event: React.FormEvent) => Promise<void>;
   signup: (event: React.FormEvent) => Promise<void>;
   forgotPassword: () => Promise<void>;
@@ -274,10 +276,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally { setBusy(false); }
   }
 
-  function askReason(title: string) {
-    const value = window.prompt(title) ?? '';
-    if (value.trim().length < 3) { setMessage('Informe um motivo com pelo menos 3 caracteres.'); return null; }
-    return value.trim();
+  const reasonDialog = useReasonDialog();
+  function askReason(title: string, limits: { min?: number; max?: number; confirmLabel?: string } = {}) {
+    return reasonDialog.ask({ title, min: limits.min ?? 3, max: limits.max ?? 255, confirmLabel: limits.confirmLabel });
   }
 
   async function receivePayment(order: Order) {
@@ -296,9 +297,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function refundPayment(order: Order) {
     // Admin estorna só como suporte, em nome da loja: o motivo vai para a trilha da loja (10+ caracteres).
     const support = user?.role === 'admin';
-    const value = window.prompt(support ? 'Motivo do estorno (suporte, em nome da loja — 10 a 255 caracteres):' : 'Motivo do estorno:') ?? '';
-    const reason = value.trim();
-    if (support ? reason.length < 10 : reason.length < 3) { setMessage(support ? 'Informe o motivo do suporte com pelo menos 10 caracteres.' : 'Informe um motivo com pelo menos 3 caracteres.'); return; }
+    const reason = await askReason(support ? 'Motivo do estorno (suporte, em nome da loja)' : 'Motivo do estorno', { min: support ? 10 : 3, max: 255, confirmLabel: 'Estornar' });
+    if (!reason) return;
     await run(() => api(`/orders/${order.id}/payment/refund`, { method: 'POST', body: JSON.stringify({ note: reason }) }), 'Pagamento estornado.');
   }
 
@@ -383,5 +383,5 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, googleLogin, facebookLogin, requestOtp, verifyOtp,
     refresh, run, askReason, login, signup, forgotPassword, logout, receivePayment, refundPayment,
   };
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={value}>{children}{reasonDialog.dialog}</AppContext.Provider>;
 }
