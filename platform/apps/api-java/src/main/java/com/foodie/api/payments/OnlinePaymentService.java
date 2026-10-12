@@ -90,13 +90,13 @@ public class OnlinePaymentService {
         if (payments.isEmpty()) throw new ApiException(409, "Pagamento do pedido não encontrado");
         Map<String, Object> payment = payments.getFirst();
         String paymentStatus = (String) payment.get("status");
+        boolean pixAbertoParaCartao = false;
         if ("paid".equals(paymentStatus)) throw new ApiException(409, "Este pedido já está pago");
         if ("pending".equals(paymentStatus) && (payment.get("qr_code") != null || payment.get("ticket_url") != null)) {
             // Pix pedindo Pix: devolve o QR que já existe. Pix aberto pedindo cartão: cancela o Pix antes de
             // cobrar, senão o cliente pode pagar os dois (spec de 11/10/2026, regra 5).
             if (!"card".equals(method)) return detail(orderId);
-            paymentStatus = trocarPixPorCartao(orderId, restaurantId, payment);
-            if ("paid".equals(paymentStatus)) return detail(orderId);
+            pixAbertoParaCartao = true;
         }
         if (!allowDirectOnlineCharges) {
             throw new ApiException(409, "Novas cobranças online exigem recebimento direto pelo restaurante");
@@ -107,7 +107,8 @@ public class OnlinePaymentService {
         String previousCharge = (String) payment.get("external_id");
         String previousKey = (String) payment.get("idempotency_key");
         // A recusa (402) pode vir sem o id da order: a chave usada basta para abrir a nova tentativa.
-        boolean retry = RETRYABLE.contains(paymentStatus) && (previousCharge != null || previousKey != null);
+        // Pix aberto trocado por cartão: o Pix será encerrado adiante e a cobrança do cartão é uma nova tentativa.
+        boolean retry = pixAbertoParaCartao || RETRYABLE.contains(paymentStatus) && (previousCharge != null || previousKey != null);
         if (previousCharge != null && !retry) return detail(orderId);
 
         long due = ((Number) payment.get("amount_due_cents")).longValue();
@@ -131,6 +132,10 @@ public class OnlinePaymentService {
             }
         }
 
+        // Só aqui, depois de todas as validações: cancelar o Pix no provedor não se desfaz com o rollback.
+        if (pixAbertoParaCartao && "paid".equals(trocarPixPorCartao(orderId, restaurantId, payment))) {
+            return detail(orderId);
+        }
         MerchantCredentials credentials = accounts.credentialsFor(restaurantId)
             .orElseThrow(() -> new ApiException(409, "Esta loja não recebe pagamento online: o Mercado Pago dela não está conectado"));
         PaymentGateway gateway = gateways.resolve(provider);
@@ -249,13 +254,22 @@ public class OnlinePaymentService {
             .orElseThrow(() -> new ApiException(409, "Esta loja não recebe pagamento online: o Mercado Pago dela não está conectado"));
         PaymentGateway gateway = gateways.resolve((String) payment.get("provider"));
         PaymentGateway.Charge atual = gateway.fetch(credentials, pix);
+        String mensagem = "Não foi possível cancelar o Pix gerado; tente de novo em instantes";
+        if (atual == null) {
+            log.warn("Pedido #{}: o Pix {} não pôde ser consultado na troca para cartão", orderId, pix);
+            throw new ApiException(409, mensagem);
+        }
         long due = ((Number) payment.get("amount_due_cents")).longValue();
+        if ("cancelled".equals(atual.status()) || "expired".equals(atual.status())) {
+            // Pix já morto no provedor: não há o que cancelar, o cartão pode ser cobrado.
+            jdbc.update("UPDATE order_payments SET status = 'cancelled', raw_status = 'cancelled' WHERE order_id = ? AND status = 'pending'", orderId);
+            return "cancelled";
+        }
         if ("paid".equals(atual.status()) && atual.amountCents() == due) {
             jdbc.update("UPDATE order_payments SET status = 'paid', raw_status = ?, confirmed_at = NOW() WHERE order_id = ? AND status = 'pending'",
                 atual.rawStatus(), orderId);
             return "paid";
         }
-        String mensagem = "Não foi possível cancelar o Pix gerado; tente de novo em instantes";
         PaymentGateway.Charge cancelada;
         try {
             cancelada = gateway.cancel(credentials, pix, "cancel-" + pix);

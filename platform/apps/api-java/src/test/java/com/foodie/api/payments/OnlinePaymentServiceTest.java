@@ -521,4 +521,42 @@ class OnlinePaymentServiceTest {
         assertEquals("Não foi possível cancelar o Pix gerado; tente de novo em instantes", erro.getMessage());
         verify(gateway, never()).create(any(), any());
     }
+
+    @Test
+    void cardWithoutTokenDoesNotCancelTheOpenPix() {
+        openPix();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "action_required", null, null, null, null));
+
+        ApiException erro = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1,
+            new OnlinePaymentService.Intent("card", null, null, 1, "CPF", "12345678909", "visa")));
+
+        assertEquals(400, erro.status());
+        verify(gateway, never()).cancel(any(), anyString(), anyString());
+        verify(gateway, never()).create(any(), any());
+    }
+
+    @Test
+    void pixAlreadyExpiredAtTheProviderIsNotCancelledAndTheCardIsCharged() {
+        openPix();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "expired", "expired", null, null, null, null));
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDCARD1", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, card());
+
+        verify(gateway, never()).cancel(any(), anyString(), anyString());
+        ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+        verify(gateway).create(eq(loja), request.capture());
+        assertEquals("order-1-11-retry-ORDPIX1", request.getValue().idempotencyKey());
+    }
+
+    @Test
+    void nullFetchResultChargesNothing() {
+        openPix();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(null);
+
+        ApiException erro = assertThrows(ApiException.class, () -> service(true).startIntent(customer, 1, card()));
+
+        assertEquals(409, erro.status());
+        verify(gateway, never()).create(any(), any());
+    }
 }
