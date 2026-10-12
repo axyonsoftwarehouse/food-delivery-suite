@@ -113,7 +113,12 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
           },
         });
       })
-      .then((criado) => { controle.current = criado; })
+      .then((criado) => {
+        // Trocou de aba antes de o Brick ficar pronto: desmonta o que chegou atrasado, senão a volta
+        // para "Cartão" encontra o container ocupado (dois formulários ou `already_initialized`).
+        if (!vivo) { try { criado.unmount(); } catch { /* já desmontado */ } return; }
+        controle.current = criado;
+      })
       .catch((erro: unknown) => {
         if (!vivo) return;
         respondeu = true;

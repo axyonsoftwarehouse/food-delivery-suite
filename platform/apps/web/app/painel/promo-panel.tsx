@@ -115,9 +115,10 @@ function Reasons({ onMessage }: { onMessage: (m: string) => void }) {
 
 function Refunds({ onMessage, canDecide }: { onMessage: (m: string) => void; canDecide: boolean }) {
   const { rows, reload } = useJsonArray<{ id: number; order_id: number; customer_name: string; reason: string | null; note: string; status: string; created_at: string }>('/admin/refunds', onMessage);
-  function decide(id: number, decision: 'approve' | 'reject') {
-    const reason = (window.prompt(`Motivo (suporte, em nome da loja — 10 a 255 caracteres) para ${decision === 'approve' ? 'aprovar' : 'recusar'}:`) ?? '').trim();
-    if (reason.length < 10) { onMessage('Informe o motivo do suporte com pelo menos 10 caracteres.'); return; }
+  const { askReason } = useApp();
+  async function decide(id: number, decision: 'approve' | 'reject') {
+    const reason = await askReason(`Motivo do suporte, em nome da loja, para ${decision === 'approve' ? 'aprovar' : 'recusar'} o reembolso`, { min: 10, max: 255 });
+    if (!reason) return;
     void act(`/admin/refunds/${id}/decision`, 'POST', { decision, note: reason }, decision === 'approve' ? 'Reembolso aprovado.' : 'Reembolso recusado.', reload, onMessage);
   }
   return <div className="postal-range-list">

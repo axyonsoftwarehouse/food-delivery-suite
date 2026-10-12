@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  awaitingOnlinePayment, deadlineInfo, deadlineText, finalMessage, hasLivePix, parseOrderId, paymentPageState,
+  awaitingOnlinePayment, cardInReview, deadlineInfo, deadlineText, finalMessage, friendlyError, hasLivePix, parseOrderId, paymentPageState,
 } from './online-payment.ts';
 
 // Datas sem fuso, como a API manda: as duas pontas são lidas no fuso local, então o teste não depende de TZ.
@@ -82,4 +82,28 @@ test('id da rota: só inteiro positivo', () => {
   assert.equal(parseOrderId('5.5'), null);
   assert.equal(parseOrderId(['52']), null);
   assert.equal(parseOrderId(undefined), null);
+});
+
+// Erro com o código HTTP, como o ApiError do app-context (sem importar React no teste).
+class HttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) { super(message); this.status = status; }
+}
+
+test('erro amigável: repassa só a mensagem da API em erro do cliente (4xx)', () => {
+  const fallback = 'Não foi possível falar com o pagamento agora.';
+  assert.equal(friendlyError(new HttpError('Não foi possível cancelar o Pix gerado; tente de novo em instantes', 409), fallback), 'Não foi possível cancelar o Pix gerado; tente de novo em instantes');
+  assert.equal(friendlyError(new HttpError('Mercado Pago recusou a cobrança: HTTP 402 - rejected', 502), fallback), fallback);
+  assert.equal(friendlyError(new TypeError('Failed to fetch'), fallback), fallback);
+  assert.equal(friendlyError(new SyntaxError("Unexpected token '<'"), fallback), fallback);
+  assert.equal(friendlyError('qualquer coisa', fallback), fallback);
+});
+
+test('cartão em análise: cartão pendente que já foi cobrado no provedor', () => {
+  const card = { method: 'card', modality: 'online', status: 'pending', external_id: 'ORD01' };
+  assert.equal(cardInReview(card), true);
+  assert.equal(cardInReview({ ...card, external_id: null }), false);
+  assert.equal(cardInReview({ ...card, status: 'rejected' }), false);
+  assert.equal(cardInReview({ ...card, method: 'pix' }), false);
+  assert.equal(cardInReview(null), false);
 });

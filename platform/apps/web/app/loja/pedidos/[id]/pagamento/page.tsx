@@ -8,13 +8,15 @@ import { useCustomer, type CardChargeData } from '../../../customer-context';
 import CardPaymentForm from '../../../../CardPaymentForm';
 import PixPayment, { type PixImage } from '../../../../PixPayment';
 import { Alert, Badge } from '../../../../ui';
-import { deadlineInfo, deadlineText, finalMessage, hasLivePix, parseOrderId, paymentPageState } from '../../../../online-payment';
+import { cardInReview, deadlineInfo, deadlineText, finalMessage, friendlyError, hasLivePix, parseOrderId, paymentPageState } from '../../../../online-payment';
 import { useNow } from '../../../../use-now';
 
-type OnlinePayment = { method: string; modality: string | null; status: string; raw_status?: string | null; pay_deadline?: string | null; rejection_message?: string | null; image?: PixImage | null };
+type OnlinePayment = { method: string; modality: string | null; status: string; raw_status?: string | null; external_id?: string | null; pay_deadline?: string | null; rejection_message?: string | null; image?: PixImage | null };
 type OrderDetail = { id: number; status: string; restaurant_id: number; restaurant_name: string; total_cents: number; payment: OnlinePayment | null };
 
 const POLL_MS = 5000;
+/** Falha de rede ou do provedor: nunca o texto técnico ("Failed to fetch", "HTTP 402 - …"). */
+const PAYMENT_UNAVAILABLE = 'Não foi possível falar com o pagamento agora. Nada foi cobrado; tente de novo.';
 
 /**
  * Pagamento do pedido "Pagar agora" (spec de 11/10/2026, regras 10 e 11): prazo, recusa em destaque,
@@ -30,6 +32,8 @@ export default function PagamentoPedidoPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [notFound, setNotFound] = useState(orderId === null);
   const [error, setError] = useState('');
+  // Erro da consulta periódica: some na próxima consulta que der certo.
+  const [loadError, setLoadError] = useState('');
   const [tab, setTab] = useState<'card' | 'pix' | null>(null);
   const [config, setConfig] = useState<{ publicKey: string } | null>(null);
   const [working, setWorking] = useState(false);
@@ -48,9 +52,10 @@ export default function PagamentoPedidoPage() {
         return detail;
       });
       setTab((current) => current ?? (detail.payment?.method === 'card' ? 'card' : 'pix'));
+      setLoadError('');
     } catch (failure) {
       if (failure instanceof ApiError && (failure.status === 404 || failure.status === 403)) setNotFound(true);
-      else setError(failure instanceof Error ? failure.message : 'Não foi possível carregar o pedido.');
+      else setLoadError(friendlyError(failure, 'Não foi possível atualizar o pedido agora.'));
     }
   }, [orderId]);
 
@@ -85,7 +90,7 @@ export default function PagamentoPedidoPage() {
       await api(`/orders/${orderId}/payment/online`, { method: 'POST', body: JSON.stringify({ method: 'pix' }) });
       await load();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Não foi possível gerar o Pix.');
+      setError(friendlyError(failure, PAYMENT_UNAVAILABLE));
     } finally { setWorking(false); }
   }, [orderId, load]);
 
@@ -109,7 +114,7 @@ export default function PagamentoPedidoPage() {
       return result.status === 'paid' ? 'paid' : 'pending';
     } catch (failure) {
       // Ex.: 409 "Não foi possível cancelar o Pix gerado; tente de novo em instantes" — nada foi cobrado.
-      setError(failure instanceof Error ? failure.message : 'Não foi possível concluir o pagamento com cartão.');
+      setError(friendlyError(failure, PAYMENT_UNAVAILABLE));
       await load();
       return 'rejected';
     }
@@ -124,11 +129,12 @@ export default function PagamentoPedidoPage() {
     <div className="pay-final" role="status"><p>{'Pedido não encontrado.'}</p><Link className="customer-solid-button" href="/loja/pedidos">{'Ver meus pedidos'}</Link></div>
   </section>;
   if (!order || !state || state === 'leave' || !payment) return <section className="pay-page">
-    {error ? <Alert tone="error">{error}</Alert> : <p className="form-help">{'Carregando o pedido…'}</p>}
+    {loadError ? <Alert tone="error">{loadError}</Alert> : <p className="form-help">{'Carregando o pedido…'}</p>}
   </section>;
 
   const final = finalMessage(state, payment.status, order.restaurant_name);
   const livePix = hasLivePix(payment);
+  const inReview = cardInReview(payment);
 
   return <section className="pay-page">
     <header className="customer-card pay-head">
@@ -142,10 +148,12 @@ export default function PagamentoPedidoPage() {
       <strong>{'O cartão foi recusado. Nenhum valor foi cobrado.'}</strong>
       {payment.rejection_message && <span>{payment.rejection_message}</span>}
     </div>}
-    {error && <Alert tone="error">{error}</Alert>}
+    {(error || loadError) && <Alert tone="error">{error || loadError}</Alert>}
+    {state === 'pay' && inReview && <Alert tone="info">{'Pagamento em análise pelo Mercado Pago. Você será avisado aqui; não pague de novo.'}</Alert>}
     {state === 'closing' && <Alert tone="warning">{'O prazo para pagar acabou. Conferindo o pedido…'}</Alert>}
 
     {state === 'pay' && <>
+      {!inReview && <>
       <div className="cart-segment" role="tablist" aria-label="Forma de pagamento">
         <button type="button" role="tab" aria-selected={tab === 'card'} className={tab === 'card' ? 'selected' : ''} onClick={() => setTab('card')}>{'Cartão'}</button>
         <button type="button" role="tab" aria-selected={tab === 'pix'} className={tab === 'pix' ? 'selected' : ''} onClick={() => setTab('pix')}>{'Pix'}</button>
@@ -162,6 +170,7 @@ export default function PagamentoPedidoPage() {
             <p className="form-help">{'Gere o código e pague pelo app do seu banco.'}</p>
             <button type="button" className="customer-solid-button" disabled={working} onClick={() => void generatePix()}>{working ? 'Gerando…' : 'Gerar o Pix'}</button>
           </div>)}
+      </>}
       <footer className="pay-foot">
         <button type="button" className="orders-cancel" disabled={busy || working} onClick={() => void cancel()}>{'Cancelar pedido'}</button>
       </footer>

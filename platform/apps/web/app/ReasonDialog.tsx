@@ -77,7 +77,7 @@ export function useReasonDialog(): { ask: (options: ReasonOptions) => Promise<st
         {options.action && <p className="support-dialog__action"><span>{'Ação:'}</span> <strong>{options.action}</strong></p>}
         {options.warning && <Alert tone="warning">{options.warning}</Alert>}
         <Field label={options.label ?? `Motivo (${options.min} a ${options.max} caracteres)`} hint={`${length}/${options.max}`}>
-          <TextArea autoFocus required minLength={options.min} maxLength={options.max} rows={4} value={text} onChange={(event) => setText(event.target.value)} />
+          <TextArea autoFocus required={options.min > 0} minLength={options.min} maxLength={options.max} rows={4} value={text} onChange={(event) => setText(event.target.value)} />
         </Field>
         <div className="support-dialog__actions">
           <Button type="button" variant="ghost" onClick={() => close(null)}>{options.cancelLabel ?? 'Voltar'}</Button>

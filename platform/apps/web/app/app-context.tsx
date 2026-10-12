@@ -121,7 +121,7 @@ type AppValue = {
   /** `success` pode ser uma função: a mensagem depende do que a ação devolveu (ex.: houve estorno). */
   run: (action: () => Promise<unknown>, success: string | (() => string)) => Promise<boolean>;
   /** Motivo em diálogo do app (o `window.prompt` não aparece no navegador do app). Padrão: 3 a 255 caracteres. */
-  askReason: (title: string, limits?: { min?: number; max?: number; confirmLabel?: string }) => Promise<string | null>;
+  askReason: (title: string, limits?: { min?: number; max?: number; confirmLabel?: string; label?: string }) => Promise<string | null>;
   login: (event: React.FormEvent) => Promise<void>;
   signup: (event: React.FormEvent) => Promise<void>;
   forgotPassword: () => Promise<void>;
@@ -277,8 +277,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   const reasonDialog = useReasonDialog();
-  function askReason(title: string, limits: { min?: number; max?: number; confirmLabel?: string } = {}) {
-    return reasonDialog.ask({ title, min: limits.min ?? 3, max: limits.max ?? 255, confirmLabel: limits.confirmLabel });
+  function askReason(title: string, limits: { min?: number; max?: number; confirmLabel?: string; label?: string } = {}) {
+    return reasonDialog.ask({ title, min: limits.min ?? 3, max: limits.max ?? 255, confirmLabel: limits.confirmLabel, label: limits.label });
   }
 
   async function receivePayment(order: Order) {

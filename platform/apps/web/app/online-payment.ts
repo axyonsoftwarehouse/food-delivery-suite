@@ -32,11 +32,29 @@ export function awaitingOnlinePayment(order: { status: string; payment_modality?
   return order.status === 'placed' && order.payment_modality === 'online' && order.payment_status !== 'paid';
 }
 
-export type PaymentSnapshot = { method: string; modality: string | null; status: string; image?: { qr_code?: string | null } | null };
+export type PaymentSnapshot = { method: string; modality: string | null; status: string; external_id?: string | null; image?: { qr_code?: string | null } | null };
 
 /** Há um Pix gerado e ainda pagável (a troca para cartão o cancela no provedor, regra 5). */
 export function hasLivePix(payment: PaymentSnapshot | null | undefined) {
   return !!payment && payment.method === 'pix' && payment.status === 'pending' && !!payment.image?.qr_code;
+}
+
+/**
+ * Cartão já enviado ao provedor e ainda sem resposta final (`in_process`): o pedido com cartão nasce
+ * `pending` sem `external_id`; depois da cobrança, o `external_id` fica gravado.
+ */
+export function cardInReview(payment: PaymentSnapshot | null | undefined) {
+  return !!payment && payment.method === 'card' && payment.status === 'pending' && !!payment.external_id;
+}
+
+/**
+ * Texto para o cliente: a mensagem da API só em erro do pedido (4xx), que já vem em português. Falha de
+ * rede, resposta que não é JSON e erro do provedor (5xx, ex.: "HTTP 402 - …") viram `fallback`.
+ */
+export function friendlyError(error: unknown, fallback: string) {
+  const status = typeof error === 'object' && error !== null && 'status' in error ? (error as { status: unknown }).status : undefined;
+  if (typeof status === 'number' && status < 500 && error instanceof Error && error.message) return error.message;
+  return fallback;
 }
 
 export type PageState = 'pay' | 'closing' | 'approved' | 'expired' | 'cancelled' | 'rejected_by_store' | 'leave';
