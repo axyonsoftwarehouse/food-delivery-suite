@@ -315,8 +315,8 @@ public class OnlinePaymentService {
 
     public Map<String, Object> detail(long orderId) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, order_id, modality, provider, method, status, raw_status, amount_due_cents, amount_received_cents, change_cents, qr_code, qr_code_base64, ticket_url, external_id, expires_at, note, confirmed_at "
-                + "FROM order_payments WHERE order_id = ?", orderId);
+            "SELECT id, order_id, modality, provider, method, status, raw_status, amount_due_cents, amount_received_cents, change_cents, qr_code, qr_code_base64, ticket_url, external_id, expires_at, note, confirmed_at, "
+                + PaymentDisplay.PAY_DEADLINE_COLUMN + " FROM order_payments WHERE order_id = ?", orderId);
         if (rows.isEmpty()) return null;
         Map<String, Object> value = new LinkedHashMap<>(rows.getFirst());
         value.remove("qr_code_base64");
@@ -327,6 +327,7 @@ public class OnlinePaymentService {
         image.put("qr_code_base64", rows.getFirst().get("qr_code_base64"));
         image.put("ticket_url", value.get("ticket_url"));
         value.put("image", image);
+        value.put("rejection_message", "rejected".equals(value.get("status")) ? PaymentDisplay.rejectionMessage((String) value.get("raw_status")) : null);
         return value;
     }
 }
