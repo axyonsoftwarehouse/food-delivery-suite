@@ -10,7 +10,6 @@ export default function ThemeToggle() {
     let stored = false;
     try { stored = localStorage.getItem('foodie_theme') === 'dark'; } catch { /* armazenamento opcional */ }
     setDark(stored);
-    document.documentElement.dataset.theme = stored ? 'dark' : 'light';
   }, []);
 
   function toggle() {

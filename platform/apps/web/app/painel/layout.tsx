@@ -139,7 +139,7 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
       <header className="topbar">
         <button className="topbar-menu" type="button" onClick={() => setDrawer(true)} aria-label="Abrir menu" aria-expanded={drawer}><Icon name="menu" size={20} /></button>
         <h1 key={title}>{title}</h1>
-        <div className="top-actions"><span className={`live-status ${connection}`} title={syncedAt ? `Sincronizado às ${syncedAt}` : ''}>{connection === 'online' ? <><span className="m-live-dot" /><span className="live-label">{'ao vivo'}</span></> : <span className="live-label">{'● sem conexão'}</span>}</span><ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/painel/pedidos?order=${orderId}`)} /></div>
+        <div className="top-actions"><span className={`live-status ${connection}`} title={syncedAt ? `Sincronizado às ${syncedAt}` : ''}>{connection === 'online' ? <><span className="m-live-dot" /><span className="live-label">{'ao vivo'}</span></> : <><span className="m-live-dot is-off" /><span className="live-label">{'sem conexão'}</span></>}</span><ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/painel/pedidos?order=${orderId}`)} /></div>
       </header>
       {newOrderNotice && <div className="notice alert" role="alert"><span className="notice-icon"><Icon name="bell" size={18} /></span><span>{newOrderNotice}</span><button className="text-button" onClick={() => setNewOrderNotice('')}>{'Dispensar'}</button></div>}
       {message && <div className="notice" role="status" key={message}>{message}</div>}
