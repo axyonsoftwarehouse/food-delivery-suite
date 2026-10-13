@@ -41,6 +41,7 @@
 
 /* Ponto "ao vivo" pulsando */
 .m-live-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--brand-400); animation: m-pulse-ring 1.8s ease-out infinite; }
+.m-live-dot.is-off { background: var(--danger); animation: none; }
 
 /* Mini spinner dentro de botões */
 .m-spinner { width: 18px; height: 18px; border: 2.5px solid rgb(255 255 255 / 0.4); border-top-color: #fff; border-radius: 50%; animation: m-spin-slow 0.7s linear infinite; }

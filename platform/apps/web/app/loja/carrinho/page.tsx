@@ -28,6 +28,7 @@ export default function CarrinhoPage() {
   const [recurringBusy, setRecurringBusy] = useState(false);
   const [recurringMessage, setRecurringMessage] = useState('');
   const { cartEntries, cartCount, subtotal, fee, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
+  const payHint = manual ? undefined : modality === 'online' ? 'pague agora' : 'ao entregador';
   const parsedTip = Number(tip.replace(',', '.'));
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
   const total = subtotal + orderFee - discount + serviceFee + tipCents;
@@ -94,9 +95,10 @@ export default function CarrinhoPage() {
             <button type="button" className={manual ? 'selected' : ''} onClick={() => setManual(true)}>{'Manual'}</button>
           </div>
           <div className="cart-options" role="group" aria-label="Forma de pagamento">
-            {!manual && modality === 'on_delivery' && <Option selected={paymentMethod === 'cash'} icon="cash" label="Dinheiro" onClick={() => setPaymentMethod('cash')} />}
-            {!manual && (modality === 'on_delivery' || cardTransparent) && <Option selected={paymentMethod === 'card'} icon="card" label="Cartão" onClick={() => setPaymentMethod('card')} />}
-            <Option selected={paymentMethod === 'pix'} icon="pix" label="Pix" onClick={() => setPaymentMethod('pix')} />
+            {!manual && modality === 'on_delivery' && <Option selected={paymentMethod === 'cash'} icon="cash" label="Dinheiro" hint="ao entregador" onClick={() => setPaymentMethod('cash')} />}
+            {!manual && (modality === 'on_delivery' || cardTransparent) && <Option selected={paymentMethod === 'card'} icon="card" label="Cartão" hint={payHint} onClick={() => setPaymentMethod('card')} />}
+            {/* "Pix" sozinho em "Na entrega" parecia o Pix com QR: o pedido saía sem tela de pagamento. */}
+            <Option selected={paymentMethod === 'pix'} icon="pix" label="Pix" hint={manual ? undefined : modality === 'online' ? 'com QR Code' : 'ao entregador'} onClick={() => setPaymentMethod('pix')} />
           </div>
           {!manual && modality === 'on_delivery' && paymentMethod === 'cash' && <label className="customer-change">{'Troco para (opcional)'}<input inputMode="decimal" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} placeholder="50,00" /></label>}
           {!manual && modality === 'online' && <p className="form-help">{'Pelo Mercado Pago. A confirmação é automática.'}</p>}
@@ -163,7 +165,7 @@ export default function CarrinhoPage() {
 
       <div className="cart-mobile-bar">
         <a href="#resumo" className="cart-mobile-total"><small>{'Total'}</small><strong key={total}>{money(total)}</strong></a>
-        <button className="customer-solid-button m-shine" onClick={placeOrder} disabled={checkoutDisabled}>{placing ? <span className="m-spinner" /> : <>{'Fazer pedido'}<Icon name="arrow-right" /></>}</button>
+        <button className="customer-solid-button m-shine" onClick={placeOrder} disabled={checkoutDisabled}>{placing ? <span className="m-spinner" /> : <>{!manual && modality === 'online' ? 'Pedir e pagar' : 'Fazer pedido'}<Icon name="arrow-right" /></>}</button>
       </div>
     </div> : <div className="cart-empty m-scale">
       <span className="cart-empty-art" aria-hidden="true"><span className="cart-empty-bag"><Icon name="bag" size={44} /></span><Icon name="sparkle" size={16} className="cart-empty-spark cart-empty-spark--a" /><Icon name="sparkle" size={12} className="cart-empty-spark cart-empty-spark--b" /><Icon name="heart" size={14} filled className="cart-empty-spark cart-empty-spark--c" /></span>

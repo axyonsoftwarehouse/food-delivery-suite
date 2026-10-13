@@ -19,7 +19,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {/* Aplica o tema salvo antes da primeira pintura; num useEffect a tela piscava clara no tema escuro. */}
+        <script dangerouslySetInnerHTML={{ __html: "try{document.documentElement.dataset.theme=localStorage.getItem('foodie_theme')==='dark'?'dark':'light'}catch(e){}" }} />
+      </head>
       <body>
         <AppProvider>{children}</AppProvider>
       </body>
