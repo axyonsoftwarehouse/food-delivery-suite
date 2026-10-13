@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useReasonDialog } from './ReasonDialog';
+import { useCashDialog } from './CashDialog';
 
 export type Role = 'admin' | 'restaurant' | 'kitchen' | 'courier' | 'customer';
 export type User = { id: number; name: string; email: string; role: Role; restaurantId: number | null };
@@ -10,7 +12,7 @@ export type Product = { id: number; restaurant_id: number; category_id: number; 
 export type Catalog = { restaurants: Restaurant[]; categories: Category[]; products: Product[]; coverage: { restaurant_id: number; zone_id: number }[] };
 export type Zone = { id: number; name: string; city: string; state: string; delivery_fee_cents: number; minimum_order_cents: number };
 export type Address = { id: number; zone_id: number; postal_code: string | null; label: string; street: string; number: string; neighborhood: string; complement: string; zone_name: string; city: string; state: string };
-export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; customer_name?: string | null; created_at: string; updated_at?: string; scheduled_at?: string | null; payment_method: string | null; payment_modality?: string | null; payment_status: string | null; payment_due_cents: number | null; order_type?: string | null; table_id?: number | null; table_number?: string | null; party_size?: number | null; has_delivery_code?: number | boolean };
+export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; customer_name?: string | null; created_at: string; updated_at?: string; scheduled_at?: string | null; payment_method: string | null; payment_modality?: string | null; payment_status: string | null; payment_due_cents: number | null; order_type?: string | null; table_id?: number | null; table_number?: string | null; party_size?: number | null; has_delivery_code?: number | boolean; pay_deadline?: string | null; accept_deadline?: string | null; payment_raw_status?: string | null; payment_rejection_message?: string | null };
 export type Courier = { id: number; name: string; email: string; suspended: boolean; approved: boolean; restaurant_id?: number | null; restaurant_name?: string | null; ratingAverage?: number | null; ratingCount?: number };
 export type PostalRange = { id: number; zone_id: number; zone_name: string; postal_start: string; postal_end: string };
 
@@ -119,7 +121,8 @@ type AppValue = {
   refresh: (activeUser?: User | null) => Promise<void>;
   /** `success` pode ser uma função: a mensagem depende do que a ação devolveu (ex.: houve estorno). */
   run: (action: () => Promise<unknown>, success: string | (() => string)) => Promise<boolean>;
-  askReason: (title: string) => string | null;
+  /** Motivo em diálogo do app (o `window.prompt` não aparece no navegador do app). Padrão: 3 a 255 caracteres. */
+  askReason: (title: string, limits?: { min?: number; max?: number; confirmLabel?: string; label?: string }) => Promise<string | null>;
   login: (event: React.FormEvent) => Promise<void>;
   signup: (event: React.FormEvent) => Promise<void>;
   forgotPassword: () => Promise<void>;
@@ -274,20 +277,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally { setBusy(false); }
   }
 
-  function askReason(title: string) {
-    const value = window.prompt(title) ?? '';
-    if (value.trim().length < 3) { setMessage('Informe um motivo com pelo menos 3 caracteres.'); return null; }
-    return value.trim();
+  const reasonDialog = useReasonDialog();
+  function askReason(title: string, limits: { min?: number; max?: number; confirmLabel?: string; label?: string } = {}) {
+    return reasonDialog.ask({ title, min: limits.min ?? 3, max: limits.max ?? 255, confirmLabel: limits.confirmLabel, label: limits.label });
   }
 
+  const cashDialog = useCashDialog();
   async function receivePayment(order: Order) {
     let amount = order.total_cents;
     if (order.payment_method === 'cash') {
-      const value = window.prompt(`Valor recebido em dinheiro (total ${money(order.total_cents)}):`, (order.total_cents / 100).toFixed(2).replace('.', ','));
-      if (value === null) return;
-      const parsed = Math.round(Number(value.replace(',', '.')) * 100);
-      if (!Number.isFinite(parsed) || parsed < order.total_cents) { setMessage('Valor recebido menor que o total do pedido.'); return; }
-      amount = parsed;
+      // O diálogo só confirma com valor válido e pelo menos o total (o troco aparece enquanto se digita).
+      const received = await cashDialog.ask({ id: order.id, totalCents: order.total_cents });
+      if (received === null) return;
+      amount = received;
     }
     await run(() => api(`/orders/${order.id}/payment`, { method: 'PATCH', body: JSON.stringify({ amountReceivedCents: amount }) }),
       order.payment_method === 'cash' ? `Pagamento recebido. Troco de ${money(amount - order.total_cents)}.` : 'Pagamento confirmado.');
@@ -296,9 +298,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function refundPayment(order: Order) {
     // Admin estorna só como suporte, em nome da loja: o motivo vai para a trilha da loja (10+ caracteres).
     const support = user?.role === 'admin';
-    const value = window.prompt(support ? 'Motivo do estorno (suporte, em nome da loja — 10 a 255 caracteres):' : 'Motivo do estorno:') ?? '';
-    const reason = value.trim();
-    if (support ? reason.length < 10 : reason.length < 3) { setMessage(support ? 'Informe o motivo do suporte com pelo menos 10 caracteres.' : 'Informe um motivo com pelo menos 3 caracteres.'); return; }
+    const reason = await askReason(support ? 'Motivo do estorno (suporte, em nome da loja)' : 'Motivo do estorno', { min: support ? 10 : 3, max: 255, confirmLabel: 'Estornar' });
+    if (!reason) return;
     await run(() => api(`/orders/${order.id}/payment/refund`, { method: 'POST', body: JSON.stringify({ note: reason }) }), 'Pagamento estornado.');
   }
 
@@ -383,5 +384,5 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, googleLogin, facebookLogin, requestOtp, verifyOtp,
     refresh, run, askReason, login, signup, forgotPassword, logout, receivePayment, refundPayment,
   };
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={value}>{children}{reasonDialog.dialog}{cashDialog.dialog}</AppContext.Provider>;
 }

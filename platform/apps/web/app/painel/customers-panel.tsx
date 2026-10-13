@@ -11,7 +11,7 @@ type Wallet = { balanceCents: number; items: { id: number; kind: string; amount_
 const KIND_LABEL: Record<string, string> = { sale: 'Venda', commission: 'Comissão', delivery_fee: 'Entrega', tip: 'Gorjeta', refund: 'Estorno', payout: 'Repasse', adjustment: 'Ajuste', cashback: 'Cashback', bonus: 'Bônus' };
 
 export default function CustomersPanel() {
-  const { setMessage } = useApp();
+  const { setMessage, askReason } = useApp();
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<CustomerRow[]>([]);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
@@ -50,8 +50,9 @@ export default function CustomersPanel() {
   async function toggleSuspension(customer: CustomerDetail) {
     let reason = '';
     if (!customer.suspended) {
-      reason = window.prompt('Motivo da suspensão:') ?? '';
-      if (reason.trim().length < 3) { setMessage('Informe um motivo com pelo menos 3 caracteres.'); return; }
+      const value = await askReason('Motivo da suspensão', { confirmLabel: 'Suspender' });
+      if (!value) return;
+      reason = value;
     }
     setBusy(true);
     try {

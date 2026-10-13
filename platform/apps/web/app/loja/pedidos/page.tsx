@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import OrderDetails from '../../OrderDetails';
-import { Order, money, useApp } from '../../app-context';
+import { Order, money, paymentLabel, useApp } from '../../app-context';
+import { awaitingOnlinePayment } from '../../online-payment';
 import { useCustomer } from '../customer-context';
 import ReviewForm from '../ReviewForm';
 import CourierReviewForm from '../courier-review-form';
@@ -15,12 +16,6 @@ const statusLabels: Record<string, string> = {
   assigned: 'Entregador a caminho', picked_up: 'Saiu para entrega', delivered: 'Entregue',
   rejected: 'Recusado pelo restaurante', cancelled: 'Cancelado', expired: 'Expirou sem aceite', failed: 'Falha na entrega',
 };
-const payMethods: Record<string, string> = { cash: 'Dinheiro', card: 'Cartão', pix: 'Pix' };
-const payStatuses: Record<string, string> = { pending: 'a receber', paid: 'pago', cancelled: 'cancelado', refunded: 'estornado' };
-function paymentLabel(order: Order) {
-  if (!order.payment_method) return '';
-  return `${payMethods[order.payment_method] ?? order.payment_method} · ${payStatuses[order.payment_status ?? 'pending'] ?? order.payment_status}`;
-}
 
 /**
  * Janela de avaliação do entregador: 7 dias após a entrega (o servidor decide). A tela só evita o GET em pedido
@@ -40,7 +35,7 @@ const STEPS: { label: string; icon: IconName; statuses: string[] }[] = [
 const stepOf = (status: string) => Math.max(0, STEPS.findIndex((step) => step.statuses.includes(status)));
 const when = (value: string) => new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-type RowProps = { order: Order; index: number; expandedOrderId: number | null; setExpandedOrderId: (value: number | null) => void; cancelOrder: (orderId: number) => Promise<void>; busy: boolean };
+type RowProps = { order: Order; index: number; expandedOrderId: number | null; setExpandedOrderId: (value: number | null) => void; cancelOrder: (orderId: number) => Promise<boolean>; busy: boolean };
 
 function DetailsToggle({ order, expandedOrderId, setExpandedOrderId }: Pick<RowProps, 'order' | 'expandedOrderId' | 'setExpandedOrderId'>) {
   const open = expandedOrderId === order.id;
@@ -49,13 +44,14 @@ function DetailsToggle({ order, expandedOrderId, setExpandedOrderId }: Pick<RowP
 
 function ActiveOrder({ order, index, expandedOrderId, setExpandedOrderId, cancelOrder, busy }: RowProps) {
   const step = stepOf(order.status);
+  const awaiting = awaitingOnlinePayment(order);
   return <article className="orders-active m-rise" style={{ '--i': index } as React.CSSProperties}>
     <div className="orders-active-head">
       <span className={`orders-tile tone-${order.restaurant_id % 5}`} aria-hidden="true">{order.restaurant_name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
       <div><strong>{order.restaurant_name}</strong><small>{`#${order.id} · ${when(order.created_at)}`}</small></div>
       <strong className="orders-total">{money(order.total_cents)}</strong>
     </div>
-    <p className="orders-status-line"><span className="m-live-dot" />{statusLabels[order.status] ?? order.status}</p>
+    <p className="orders-status-line"><span className="m-live-dot" />{awaiting ? 'Aguardando pagamento' : statusLabels[order.status] ?? order.status}</p>
     {order.scheduled_at && <p className="orders-note"><Icon name="calendar" size={14} />{`Agendado para ${when(order.scheduled_at)}`}</p>}
     <ol className="orders-steps" style={{ '--progress': step / (STEPS.length - 1) } as React.CSSProperties}>
       {STEPS.map((item, position) => <li key={item.label} className={position < step ? 'is-done' : position === step ? 'is-current' : ''}><span><Icon name={item.icon} size={16} /></span>{item.label}</li>)}
@@ -63,6 +59,7 @@ function ActiveOrder({ order, index, expandedOrderId, setExpandedOrderId, cancel
     {order.has_delivery_code ? <DeliveryCodeCard orderId={order.id} /> : null}
     <div className="orders-actions">
       <DetailsToggle order={order} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} />
+      {awaiting && <Link className="customer-solid-button" href={`/loja/pedidos/${order.id}/pagamento`}>{'Pagar'}</Link>}
       {order.status === 'placed' && <button className="orders-cancel" onClick={() => cancelOrder(order.id)} disabled={busy}>{'Cancelar pedido'}</button>}
     </div>
     {expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}

@@ -50,7 +50,7 @@ const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'curren
 const date = (value: string) => new Date(value).toLocaleString('pt-BR');
 
 export default function OrderDetails({ orderId, status }: { orderId: number; status: string }) {
-  const { user, permissions } = useApp();
+  const { user, permissions, askReason } = useApp();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -78,9 +78,9 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
   async function verify(approve: boolean) {
     let note: string | undefined;
     if (!approve) {
-      const value = window.prompt('Motivo da recusa do comprovante:') ?? '';
-      if (value.trim().length < 3) return;
-      note = value.trim();
+      const value = await askReason('Motivo da recusa do comprovante');
+      if (!value) return;
+      note = value;
     }
     try {
       await api(`/orders/${orderId}/payment/verify`, { method: 'POST', body: JSON.stringify({ approve, note }) });
@@ -91,10 +91,10 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
   }
 
   async function requestRefund() {
-    const note = window.prompt('Descreva o motivo do reembolso:') ?? '';
-    if (note.trim().length < 3) return;
+    const note = await askReason('Motivo do reembolso', { max: 500, confirmLabel: 'Pedir reembolso' });
+    if (!note) return;
     try {
-      await api(`/orders/${orderId}/refund-request`, { method: 'POST', body: JSON.stringify({ note: note.trim() }) });
+      await api(`/orders/${orderId}/refund-request`, { method: 'POST', body: JSON.stringify({ note }) });
       window.alert('Solicitação de reembolso enviada.');
     } catch (cause) {
       window.alert(cause instanceof Error ? cause.message : 'Não foi possível solicitar o reembolso.');

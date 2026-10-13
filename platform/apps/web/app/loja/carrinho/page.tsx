@@ -4,8 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { api, money, useApp } from '../../app-context';
 import { useCustomer } from '../customer-context';
-import CardPaymentForm from '../../CardPaymentForm';
-import PixPayment from '../../PixPayment';
 import { Icon, type IconName } from '../../icons';
 
 function Block({ icon, title, index, children }: { icon: IconName; title: string; index: number; children: React.ReactNode }) {
@@ -24,12 +22,12 @@ function Option({ selected, icon, label, hint, onClick }: { selected: boolean; i
 }
 
 export default function CarrinhoPage() {
-  const { busy, user } = useApp();
+  const { busy } = useApp();
   const [frequencyDays, setFrequencyDays] = useState(7);
   const [firstRunAt, setFirstRunAt] = useState('');
   const [recurringBusy, setRecurringBusy] = useState(false);
   const [recurringMessage, setRecurringMessage] = useState('');
-  const { cartEntries, cartCount, subtotal, fee, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, onlineCode, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, publicKey, cardOrder, chargeCardOrder, restaurantById } = useCustomer();
+  const { cartEntries, cartCount, subtotal, fee, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
   const parsedTip = Number(tip.replace(',', '.'));
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
   const total = subtotal + orderFee - discount + serviceFee + tipCents;
@@ -37,7 +35,7 @@ export default function CarrinhoPage() {
   const minimum = selectedZone?.minimum_order_cents ?? 0;
   const minimumProgress = minimum > 0 ? Math.min(1, subtotal / minimum) : 1;
   const checkoutDisabled = busy || placing || cartBusy || (orderType === 'delivery' && (!selectedAddress?.postal_code || !meetsMinimum || !cartCovered)) || (orderType === 'dine_in' && tableId === null) || (manual && (!manualMethodId || (offlineMethods.find((method) => method.id === manualMethodId)?.requires_proof && !proofUrl.trim()))) || (orderType === 'delivery' && contactPhone.replace(/\D/g, '').length < 10) || (cartRestaurantClosed && !scheduledFor);
-  const checkoutLabel = placing ? 'Processando...' : !manual && modality === 'online' ? (paymentMethod === 'card' ? 'Fazer pedido e informar o cartão' : 'Fazer pedido e pagar com Pix') : 'Fazer pedido';
+  const checkoutLabel = placing ? 'Processando...' : !manual && modality === 'online' ? 'Fazer pedido e pagar' : 'Fazer pedido';
 
   async function createRecurring() {
     if (!selectedAddress || !cartEntries.length) return;
@@ -62,9 +60,6 @@ export default function CarrinhoPage() {
       <div><h1>{'Carrinho'}</h1>{cartRestaurant && <p>{'de '}<Link href={`/loja/restaurantes/${cartRestaurant.id}`}>{cartRestaurant.name}</Link></p>}</div>
       <div className="customer-cart-heading-actions"><button onClick={refreshCart} disabled={cartBusy || !cartLoaded} aria-label="Atualizar carrinho" title="Atualizar"><Icon name="refresh" /></button>{cartCount > 0 && <button onClick={() => mutateCart('/cart', 'DELETE', undefined, 'Carrinho esvaziado.')} disabled={cartBusy} aria-label="Esvaziar carrinho" title="Esvaziar"><Icon name="trash" /></button>}</div>
     </div>
-
-    {onlineCode && <PixPayment image={{ qr_code: onlineCode.text, qr_code_base64: onlineCode.base64, ticket_url: onlineCode.url }} />}
-    {cardOrder && <CardPaymentForm amountCents={cardOrder.totalCents} publicKey={publicKey} payerEmail={user?.email} onSubmit={chargeCardOrder} />}
 
     {cartEntries.length ? <div className="customer-cart-layout">
       <div className="customer-cart-main">
@@ -172,8 +167,8 @@ export default function CarrinhoPage() {
       </div>
     </div> : <div className="cart-empty m-scale">
       <span className="cart-empty-art" aria-hidden="true"><span className="cart-empty-bag"><Icon name="bag" size={44} /></span><Icon name="sparkle" size={16} className="cart-empty-spark cart-empty-spark--a" /><Icon name="sparkle" size={12} className="cart-empty-spark cart-empty-spark--b" /><Icon name="heart" size={14} filled className="cart-empty-spark cart-empty-spark--c" /></span>
-      <h2>{cartLoaded ? 'Seu carrinho está vazio' : 'Carregando seu carrinho...'}</h2>
-      {cartLoaded && <Link className="customer-solid-button m-shine" href="/loja">{'Explorar restaurantes'}<Icon name="arrow-right" /></Link>}
+      <h2>{placing ? 'Abrindo o pagamento…' : cartLoaded ? 'Seu carrinho está vazio' : 'Carregando seu carrinho...'}</h2>
+      {cartLoaded && !placing && <Link className="customer-solid-button m-shine" href="/loja">{'Explorar restaurantes'}<Icon name="arrow-right" /></Link>}
     </div>}
   </section>;
 }

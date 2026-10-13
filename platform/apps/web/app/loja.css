@@ -628,3 +628,19 @@
 .customer-referral strong { font-weight: var(--weight-semibold); }
 .customer-referral p { margin: 2px 0 0; color: var(--text-muted); font-size: var(--text-sm); line-height: 1.5; }
 @media (max-width: 640px) { .customer-referral { flex-wrap: wrap; } .customer-referral > button { width: 100%; } }
+
+/* Página de pagamento do pedido (spec de 11/10/2026, regras 10 e 11). O respiro de baixo deixa o
+   "Cancelar pedido" acima da barra inferior do celular. */
+.pay-page { display: grid; gap: 16px; max-width: 640px; margin: 0 auto; padding: 16px 16px 120px; }
+.pay-head { display: grid; gap: 6px; justify-items: start; }
+.pay-head h1 { margin: 0; }
+.pay-deadline { margin: 0; font-weight: 600; }
+.pay-deadline.is-urgent { color: #b42318; }
+.pay-rejected { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid #f04438; border-radius: 12px; background: #fef3f2; color: #912018; }
+.pay-foot { display: flex; justify-content: center; }
+.pay-final { display: grid; gap: 12px; justify-items: start; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.pay-final p { margin: 0; }
+.pay-final.is-approved { border-color: #12b76a; background: #ecfdf3; color: #05603a; }
+[data-theme='dark'] .pay-deadline.is-urgent { color: #fda29b; }
+[data-theme='dark'] .pay-rejected { background: #3b1513; color: #fecdca; }
+[data-theme='dark'] .pay-final.is-approved { background: #053321; color: #a6f4c5; }

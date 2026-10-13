@@ -8,7 +8,7 @@ const STATUS: Record<string, string> = { requested: 'aguardando', approved: 'apr
 
 /** Pedidos de reembolso dos clientes: quem decide é a loja (o estorno é obrigação dela). */
 export default function RestaurantRefundsPanel() {
-  const { setMessage, refresh } = useApp();
+  const { setMessage, refresh, askReason } = useApp();
   const [rows, setRows] = useState<Refund[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -20,9 +20,9 @@ export default function RestaurantRefundsPanel() {
   useEffect(() => { void load(); }, [load]);
 
   async function decide(refund: Refund, decision: 'approve' | 'reject') {
-    const note = window.prompt(decision === 'approve' ? `Aprovar o reembolso do pedido #${refund.order_id}? O valor volta ao cliente. Observação (opcional):` : `Recusar o reembolso do pedido #${refund.order_id}? Motivo:`);
+    const note = await askReason(decision === 'approve' ? `Aprovar o reembolso do pedido #${refund.order_id}? O valor volta ao cliente. Observação (opcional)` : `Recusar o reembolso do pedido #${refund.order_id}`,
+      decision === 'approve' ? { min: 0, max: 255, confirmLabel: 'Aprovar', label: 'Observação (opcional, até 255 caracteres)' } : { min: 3, max: 255, confirmLabel: 'Recusar' });
     if (note === null) return;
-    if (decision === 'reject' && note.trim().length < 3) { setMessage('Informe o motivo da recusa (3+ caracteres).'); return; }
     setBusy(true);
     try {
       await api(`/restaurant/refunds/${refund.id}/decision`, { method: 'POST', body: JSON.stringify({ decision, note: note.trim() }) });
