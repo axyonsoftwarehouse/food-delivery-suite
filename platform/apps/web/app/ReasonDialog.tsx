@@ -24,6 +24,17 @@ export type ReasonOptions = {
 
 const FOCUSABLE = 'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
+/** Tab e Shift+Tab circulam dentro do diálogo (o foco não escapa para a tela de trás). */
+export function trapFocusIn(box: HTMLElement | null, event: KeyboardEvent<HTMLElement>) {
+  if (event.key !== 'Tab' || !box) return;
+  const items = Array.from(box.querySelectorAll<HTMLElement>(FOCUSABLE));
+  if (items.length === 0) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
+
 export function useReasonDialog(): { ask: (options: ReasonOptions) => Promise<string | null>; dialog: ReactElement | null } {
   const [options, setOptions] = useState<ReasonOptions | null>(null);
   const [text, setText] = useState('');
@@ -58,21 +69,11 @@ export function useReasonDialog(): { ask: (options: ReasonOptions) => Promise<st
     return () => document.removeEventListener('keydown', onKey);
   }, [options, close]);
 
-  function trapFocus(event: KeyboardEvent<HTMLFormElement>) {
-    if (event.key !== 'Tab' || !box.current) return;
-    const items = Array.from(box.current.querySelectorAll<HTMLElement>(FOCUSABLE));
-    if (items.length === 0) return;
-    const first = items[0];
-    const last = items[items.length - 1];
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-  }
-
   const length = text.trim().length;
   const valid = options !== null && length >= options.min && length <= options.max;
   const dialog = options === null ? null : (
     <div className="support-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <form ref={box} className="support-dialog__box" onKeyDown={trapFocus} onSubmit={(event) => { event.preventDefault(); if (valid) close(text.trim()); }}>
+      <form ref={box} className="support-dialog__box" onKeyDown={(event) => trapFocusIn(box.current, event)} onSubmit={(event) => { event.preventDefault(); if (valid) close(text.trim()); }}>
         <h3 id={titleId}>{options.title}</h3>
         {options.action && <p className="support-dialog__action"><span>{'Ação:'}</span> <strong>{options.action}</strong></p>}
         {options.warning && <Alert tone="warning">{options.warning}</Alert>}

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useReasonDialog } from './ReasonDialog';
+import { useCashDialog } from './CashDialog';
 
 export type Role = 'admin' | 'restaurant' | 'kitchen' | 'courier' | 'customer';
 export type User = { id: number; name: string; email: string; role: Role; restaurantId: number | null };
@@ -281,14 +282,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return reasonDialog.ask({ title, min: limits.min ?? 3, max: limits.max ?? 255, confirmLabel: limits.confirmLabel, label: limits.label });
   }
 
+  const cashDialog = useCashDialog();
   async function receivePayment(order: Order) {
     let amount = order.total_cents;
     if (order.payment_method === 'cash') {
-      const value = window.prompt(`Valor recebido em dinheiro (total ${money(order.total_cents)}):`, (order.total_cents / 100).toFixed(2).replace('.', ','));
-      if (value === null) return;
-      const parsed = Math.round(Number(value.replace(',', '.')) * 100);
-      if (!Number.isFinite(parsed) || parsed < order.total_cents) { setMessage('Valor recebido menor que o total do pedido.'); return; }
-      amount = parsed;
+      // O diálogo só confirma com valor válido e pelo menos o total (o troco aparece enquanto se digita).
+      const received = await cashDialog.ask({ id: order.id, totalCents: order.total_cents });
+      if (received === null) return;
+      amount = received;
     }
     await run(() => api(`/orders/${order.id}/payment`, { method: 'PATCH', body: JSON.stringify({ amountReceivedCents: amount }) }),
       order.payment_method === 'cash' ? `Pagamento recebido. Troco de ${money(amount - order.total_cents)}.` : 'Pagamento confirmado.');
@@ -383,5 +384,5 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, googleLogin, facebookLogin, requestOtp, verifyOtp,
     refresh, run, askReason, login, signup, forgotPassword, logout, receivePayment, refundPayment,
   };
-  return <AppContext.Provider value={value}>{children}{reasonDialog.dialog}</AppContext.Provider>;
+  return <AppContext.Provider value={value}>{children}{reasonDialog.dialog}{cashDialog.dialog}</AppContext.Provider>;
 }
