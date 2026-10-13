@@ -1,7 +1,8 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { useReasonDialog } from './ReasonDialog';
+import { useReasonDialog, type ReasonOptions } from './ReasonDialog';
+import { useConfirmDialog, type ConfirmOptions } from './ConfirmDialog';
 import { useCashDialog } from './CashDialog';
 
 export type Role = 'admin' | 'restaurant' | 'kitchen' | 'courier' | 'customer';
@@ -123,6 +124,10 @@ type AppValue = {
   run: (action: () => Promise<unknown>, success: string | (() => string)) => Promise<boolean>;
   /** Motivo em diálogo do app (o `window.prompt` não aparece no navegador do app). Padrão: 3 a 255 caracteres. */
   askReason: (title: string, limits?: { min?: number; max?: number; confirmLabel?: string; label?: string }) => Promise<string | null>;
+  /** Texto em diálogo do app (nome, quantidade), no lugar do `window.prompt`. */
+  askText: (options: ReasonOptions) => Promise<string | null>;
+  /** Confirmação em diálogo do app, no lugar do `window.confirm`. */
+  askConfirm: (options: ConfirmOptions) => Promise<boolean>;
   login: (event: React.FormEvent) => Promise<void>;
   signup: (event: React.FormEvent) => Promise<void>;
   forgotPassword: () => Promise<void>;
@@ -278,6 +283,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   const reasonDialog = useReasonDialog();
+  const confirmDialog = useConfirmDialog();
   function askReason(title: string, limits: { min?: number; max?: number; confirmLabel?: string; label?: string } = {}) {
     return reasonDialog.ask({ title, min: limits.min ?? 3, max: limits.max ?? 255, confirmLabel: limits.confirmLabel, label: limits.label });
   }
@@ -382,7 +388,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     connection, lastSync, newOrderNotice, setNewOrderNotice, expandedOrderId, setExpandedOrderId,
     email, setEmail, password, setPassword, authMode, setAuthMode, signupName, setSignupName,
     otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, googleLogin, facebookLogin, requestOtp, verifyOtp,
-    refresh, run, askReason, login, signup, forgotPassword, logout, receivePayment, refundPayment,
+    refresh, run, askReason, askText: reasonDialog.ask, askConfirm: confirmDialog.ask, login, signup, forgotPassword, logout, receivePayment, refundPayment,
   };
-  return <AppContext.Provider value={value}>{children}{reasonDialog.dialog}{cashDialog.dialog}</AppContext.Provider>;
+  return <AppContext.Provider value={value}>{children}{reasonDialog.dialog}{cashDialog.dialog}{confirmDialog.dialog}</AppContext.Provider>;
 }
