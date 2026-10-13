@@ -208,6 +208,7 @@
 .notif-button:hover { border-color: var(--brand-500); color: var(--brand-600); }
 .notif-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--surface); border-radius: var(--radius-pill); background: var(--accent-500); color: #fff; font-size: 10px; font-weight: var(--weight-bold); line-height: 1; box-sizing: border-box; pointer-events: none; }
 .notif-panel { position: absolute; right: 0; top: 48px; z-index: 70; width: min(360px, calc(100vw - 32px)); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: var(--space-3); animation: ui-rise 0.18s var(--ease); }
+.notif-panel:focus { outline: none; }
 .notif-head { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px 10px; }
 .notif-head strong { font-family: var(--font-display); font-size: var(--text-lg); }
 .notif-head button { background: none; border: 0; color: var(--brand-700); font-size: var(--text-sm); font-weight: var(--weight-bold); }

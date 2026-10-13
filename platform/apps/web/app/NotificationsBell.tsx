@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Icon } from './icons';
 
 type Item = { id: number; type: string; title: string; body: string; order_id: number | null; read_at: string | null; created_at: string };
@@ -31,12 +31,19 @@ export default function NotificationsBell({ onOpenOrder }: { onOpenOrder?: (orde
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
   const root = useRef<HTMLDivElement | null>(null);
+  const bell = useRef<HTMLButtonElement | null>(null);
+  const panel = useRef<HTMLDivElement | null>(null);
+  const panelId = useId();
 
-  // Fecha ao tocar fora ou com Esc: no celular o painel cobre a tela inteira.
+  // Ao abrir, o foco vai para o painel (o leitor de tela anuncia "Notificações"; o Tab segue para os itens).
+  useEffect(() => { if (open) panel.current?.focus(); }, [open]);
+
+  // Fecha ao tocar fora ou com Esc: no celular o painel cobre a tela inteira. Com Esc o foco volta ao sino;
+  // no toque fora ele fica onde a pessoa tocou.
   useEffect(() => {
     if (!open) return;
     const onDown = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpen(false); bell.current?.focus(); } };
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey); };
@@ -77,11 +84,16 @@ export default function NotificationsBell({ onOpenOrder }: { onOpenOrder?: (orde
     if (item.order_id && onOpenOrder) onOpenOrder(item.order_id);
   }
 
-  return <div className="notif" ref={root}>
-    <button type="button" className="notif-button" onClick={() => { setOpen(!open); void load(); }} aria-label={inbox.unread > 0 ? `Notificações, ${inbox.unread} não lidas` : 'Notificações'} aria-expanded={open}>
+  // Tab para fora do painel fecha (senão ele ficaria aberto atrás de onde o foco foi).
+  const onBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (open && event.relatedTarget instanceof Node && !root.current?.contains(event.relatedTarget)) setOpen(false);
+  };
+
+  return <div className="notif" ref={root} onBlur={onBlur}>
+    <button ref={bell} type="button" className="notif-button" onClick={() => { setOpen(!open); void load(); }} aria-label={inbox.unread > 0 ? `Notificações, ${inbox.unread} não lidas` : 'Notificações'} aria-expanded={open} aria-controls={open ? panelId : undefined}>
       <Icon name="bell" size={18} />{inbox.unread > 0 && <span className="notif-badge">{inbox.unread > 9 ? '9+' : inbox.unread}</span>}
     </button>
-    {open && <div className="notif-panel" role="dialog" aria-label="Notificações">
+    {open && <div ref={panel} id={panelId} className="notif-panel" role="dialog" aria-label="Notificações" tabIndex={-1}>
       <div className="notif-head"><strong>Notificações</strong><button type="button" onClick={markAll}>Marcar todas</button></div>
       {message && <p className="notif-hint">{message}</p>}
       {inbox.items.length ? <ul className="notif-list">{inbox.items.map((item) => <li key={item.id} className={item.read_at ? '' : 'unread'}>
