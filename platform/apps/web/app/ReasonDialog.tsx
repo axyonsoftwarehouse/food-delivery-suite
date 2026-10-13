@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
-import { Alert, Button, Field, TextArea } from './ui';
+import { Alert, Button, Field, TextArea, TextInput } from './ui';
 
 /**
  * Pedido de motivo em diálogo do app. Substitui o `window.prompt`, que o navegador do app não mostra
@@ -20,6 +20,12 @@ export type ReasonOptions = {
   cancelLabel?: string;
   /** Mesma chave: o rascunho de um pedido desistido volta ao abrir de novo. */
   draftKey?: string;
+  /** Texto que o campo já traz ao abrir (ex.: o nome atual, para renomear). */
+  initial?: string;
+  /** Campo de uma linha em vez da caixa de texto (nome, quantidade). */
+  singleLine?: boolean;
+  /** Erro em português para o texto digitado ('' quando está certo); trava "Confirmar". */
+  validate?: (text: string) => string;
 };
 
 const FOCUSABLE = 'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
@@ -49,7 +55,7 @@ export function useReasonDialog(): { ask: (options: ReasonOptions) => Promise<st
     resolver.current?.(null);
     resolver.current = resolve;
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setText(next.draftKey && draft.current?.key === next.draftKey ? draft.current.text : '');
+    setText(next.draftKey && draft.current?.key === next.draftKey ? draft.current.text : next.initial ?? '');
     setOptions(next);
   }), []);
 
@@ -70,15 +76,18 @@ export function useReasonDialog(): { ask: (options: ReasonOptions) => Promise<st
   }, [options, close]);
 
   const length = text.trim().length;
-  const valid = options !== null && length >= options.min && length <= options.max;
+  const problem = options?.validate && text.trim() ? options.validate(text) : '';
+  const valid = options !== null && length >= options.min && length <= options.max && !problem;
   const dialog = options === null ? null : (
     <div className="support-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <form ref={box} className="support-dialog__box" onKeyDown={(event) => trapFocusIn(box.current, event)} onSubmit={(event) => { event.preventDefault(); if (valid) close(text.trim()); }}>
         <h3 id={titleId}>{options.title}</h3>
         {options.action && <p className="support-dialog__action"><span>{'Ação:'}</span> <strong>{options.action}</strong></p>}
         {options.warning && <Alert tone="warning">{options.warning}</Alert>}
-        <Field label={options.label ?? `Motivo (${options.min} a ${options.max} caracteres)`} hint={`${length}/${options.max}`}>
-          <TextArea autoFocus required={options.min > 0} minLength={options.min} maxLength={options.max} rows={4} value={text} onChange={(event) => setText(event.target.value)} />
+        <Field label={options.label ?? `Motivo (${options.min} a ${options.max} caracteres)`} hint={`${length}/${options.max}`} error={problem || undefined}>
+          {options.singleLine
+            ? <TextInput autoFocus required={options.min > 0} minLength={options.min} maxLength={options.max} value={text} onChange={(event) => setText(event.target.value)} aria-invalid={problem ? true : undefined} />
+            : <TextArea autoFocus required={options.min > 0} minLength={options.min} maxLength={options.max} rows={4} value={text} onChange={(event) => setText(event.target.value)} />}
         </Field>
         <div className="support-dialog__actions">
           <Button type="button" variant="ghost" onClick={() => close(null)}>{options.cancelLabel ?? 'Voltar'}</Button>

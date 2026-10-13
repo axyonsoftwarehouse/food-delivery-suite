@@ -8,7 +8,7 @@ type TicketLine = { productId: number; name: string; priceCents: number; quantit
 type Sale = { id: number; totalCents: number; changeCents: number; customerName: string };
 
 export default function PosPanel() {
-  const { user, catalog, busy, message, run } = useApp();
+  const { user, catalog, busy, message, run, setMessage } = useApp();
   const [search, setSearch] = useState('');
   const [ticket, setTicket] = useState<TicketLine[]>([]);
   const [orderType, setOrderType] = useState<'take_away' | 'dine_in'>('take_away');
@@ -54,7 +54,7 @@ export default function PosPanel() {
 
   async function finish() {
     if (!ticket.length) return;
-    if (orderType === 'dine_in' && tableId === null) { window.alert('Escolha a mesa.'); return; }
+    if (orderType === 'dine_in' && tableId === null) { setMessage('Escolha a mesa.'); return; }
     const changeForCents = paymentMethod === 'cash' && changeFor.trim() ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
     const body: Record<string, unknown> = {
       items: ticket.map((line) => ({ productId: line.productId, quantity: line.quantity })),
