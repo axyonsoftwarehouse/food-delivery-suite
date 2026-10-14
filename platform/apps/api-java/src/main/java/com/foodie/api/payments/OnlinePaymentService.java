@@ -272,13 +272,17 @@ public class OnlinePaymentService {
     }
 
     /**
-     * O cliente desiste da verificação do banco (spec de 14/10/2026, regra 8): cancela a order no provedor e
-     * libera uma nova cobrança, de cartão ou Pix. Só marca cancelado com a confirmação do provedor — sem ela,
-     * uma nova cobrança poderia ser paga junto com esta. Se o cancelamento falhar ou vier ainda pendente
-     * (a chave de idempotência é fixa e o provedor pode repetir uma resposta antiga), confere a cobrança
-     * antes de decidir. Um desfecho final do provedor nunca vira 409: pago ou recusado pelo banco é gravado
-     * (nada foi cobrado na recusa; a tela volta ao formulário com o motivo); cancelado ou expirado libera
-     * a nova cobrança. Sem resposta, ou ainda pendente depois da conferência, é 409 sem escrita.
+     * O cliente desiste da verificação do banco: tenta cancelar a order no provedor e libera uma nova
+     * cobrança, de cartão ou Pix. Se o cancelamento falhar ou vier ainda pendente (a chave de idempotência é
+     * fixa e o provedor pode repetir uma resposta antiga), confere a cobrança antes de decidir: pago ou
+     * recusado pelo banco é gravado (nada foi cobrado na recusa; a tela volta ao formulário com o motivo);
+     * cancelado ou expirado libera a nova cobrança.
+     * <p>
+     * Sem confirmação do provedor — durante o 3DS o Mercado Pago recusa o cancelamento com HTTP 422 (#60 no
+     * staging, 14/10/2026) — a cobrança é dada como abandonada e a nova cobrança é liberada mesmo assim (spec
+     * de 14/10/2026, desistência sem cancelamento). O {@code external_id} fica o da abandonada: se ela for
+     * paga depois de outra cobrança, o webhook a estorna como anterior; se for paga sem outra, o pedido fica
+     * pago. Só a conta da loja sem credencial ainda é 409: sem token, nem esse estorno seria possível.
      */
     @Transactional
     public Map<String, Object> abandonChallenge(User actor, long orderId) {
@@ -287,16 +291,17 @@ public class OnlinePaymentService {
             || !(row.get("external_id") instanceof String charge) || row.get("payment_account_id") == null) {
             throw new ApiException(409, "Não há verificação do banco em andamento.");
         }
-        String mensagem = "Não foi possível cancelar a verificação agora. Tente de novo em instantes.";
         MerchantCredentials credentials = accounts.credentialsForAccount(((Number) row.get("payment_account_id")).longValue())
-            .orElseThrow(() -> new ApiException(409, mensagem));
+            .orElseThrow(() -> new ApiException(409, "Não foi possível cancelar a verificação agora. Tente de novo em instantes."));
         PaymentGateway gateway = gateways.resolve((String) row.get("provider"));
         PaymentGateway.Charge resposta;
+        String motivo = null;
         try {
             resposta = gateway.cancel(credentials, charge, "cancel-" + charge);
         } catch (RuntimeException falha) {
             // A order paga não se cancela: confere antes de desistir, para não perder um pagamento que entrou.
             log.warn("Pedido #{}: a cobrança {} não foi cancelada na desistência do 3DS ({})", orderId, charge, falha.getMessage());
+            motivo = falha.getMessage();
             resposta = consultarSemFalhar(gateway, credentials, charge, orderId);
         }
         if (resposta != null && "pending".equals(resposta.status())) {
@@ -311,7 +316,13 @@ public class OnlinePaymentService {
             gravarResultado(orderId, ((Number) row.get("amount_due_cents")).longValue(), resposta);
             return detail(orderId);
         }
-        throw new ApiException(409, mensagem);
+        if (motivo == null) motivo = resposta == null ? "cobrança não pôde ser consultada" : "cobrança ainda " + resposta.rawStatus();
+        log.warn("Pedido #{}: desistência do 3DS sem cancelamento no provedor; cobrança {} dada como abandonada ({})", orderId, charge, motivo);
+        String nota = "Desistência da verificação; cobrança não cancelada no Mercado Pago: " + motivo;
+        jdbc.update("UPDATE order_payments SET status = 'cancelled', raw_status = 'abandoned', challenge_url = NULL, note = ?"
+                + " WHERE order_id = ? AND status = 'pending'",
+            nota.length() > 255 ? nota.substring(0, 255) : nota, orderId);
+        return detail(orderId);
     }
 
     private PaymentGateway.Charge consultarSemFalhar(PaymentGateway gateway, MerchantCredentials credentials, String charge, long orderId) {

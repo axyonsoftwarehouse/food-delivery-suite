@@ -764,6 +764,9 @@ class OnlinePaymentServiceTest {
         verify(gateway, never()).fetch(any(), anyString());
     }
 
+    private static final String SQL_ABANDONED = "UPDATE order_payments SET status = 'cancelled', raw_status = 'abandoned', challenge_url = NULL, note = ?"
+        + " WHERE order_id = ? AND status = 'pending'";
+
     @Test
     void abandonCancelsAtTheProviderAndFreesANewCharge() {
         desafioAberto();
@@ -839,28 +842,132 @@ class OnlinePaymentServiceTest {
     }
 
     @Test
-    void abandonNotConfirmedByTheProviderIs409AndChangesNothing() {
+    void abandonRefusedByTheProviderFreesANewChargeAnyway() {
+        // #60 no staging (14/10): durante a verificação o Mercado Pago recusa o cancelamento (HTTP 422). O
+        // cliente sai do mesmo jeito; se a cobrança abandonada for paga depois, o webhook a estorna.
         desafioAberto();
-        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
-        when(gateway.fetch(loja, "ORD3DS")).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
+        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o cancelamento: HTTP 422 - Unprocessable Entity"));
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null));
 
-        ApiException error = assertThrows(ApiException.class, () -> service(true).abandonChallenge(customer, 1));
+        service(true).abandonChallenge(customer, 1);
 
-        assertEquals(409, error.status());
-        assertEquals("Não foi possível cancelar a verificação agora. Tente de novo em instantes.", error.getMessage());
-        verify(jdbc, never()).update(anyString(), any(Object[].class));
+        verify(jdbc).update(SQL_ABANDONED,
+            "Desistência da verificação; cobrança não cancelada no Mercado Pago: Mercado Pago recusou o cancelamento: HTTP 422 - Unprocessable Entity", 1L);
     }
 
     @Test
-    void abandonStillPendingAfterTheCancelIs409() {
+    void abandonStillPendingAfterTheCancelFreesANewChargeAnyway() {
         desafioAberto();
         when(gateway.cancel(any(), anyString(), anyString())).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null));
         when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null));
 
+        service(true).abandonChallenge(customer, 1);
+
+        verify(jdbc).update(SQL_ABANDONED,
+            "Desistência da verificação; cobrança não cancelada no Mercado Pago: cobrança ainda pending_challenge", 1L);
+    }
+
+    @Test
+    void abandonWithoutAnswerFromTheProviderFreesANewChargeAnyway() {
+        desafioAberto();
+        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
+        when(gateway.fetch(loja, "ORD3DS")).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
+
+        service(true).abandonChallenge(customer, 1);
+
+        verify(jdbc).update(SQL_ABANDONED,
+            "Desistência da verificação; cobrança não cancelada no Mercado Pago: Mercado Pago fora do ar", 1L);
+    }
+
+    @Test
+    void abandonWithAnEmptyCheckFreesANewChargeAnyway() {
+        desafioAberto();
+        when(gateway.cancel(any(), anyString(), anyString())).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null));
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(null);
+
+        service(true).abandonChallenge(customer, 1);
+
+        verify(jdbc).update(SQL_ABANDONED,
+            "Desistência da verificação; cobrança não cancelada no Mercado Pago: cobrança não pôde ser consultada", 1L);
+    }
+
+    @Test
+    void abandonNoteIsCutToTheColumnSize() {
+        desafioAberto();
+        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "x".repeat(400)));
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null));
+
+        service(true).abandonChallenge(customer, 1);
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(eq(SQL_ABANDONED), values.capture());
+        assertEquals(255, ((String) values.getValue()[0]).length());
+    }
+
+    @Test
+    void abandonKeepsTheAbandonedChargeAsTheCurrentOne() {
+        // O external_id continua o da cobrança abandonada: é isso que faz o webhook tratá-la como "anterior"
+        // (e estorná-la se for paga) depois que o cliente pagar de outro jeito.
+        desafioAberto();
+        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o cancelamento: HTTP 422 - Unprocessable Entity"));
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null));
+
+        service(true).abandonChallenge(customer, 1);
+
+        verify(jdbc, never()).update(argThat(sql -> sql != null && sql.contains("external_id")), any(Object[].class));
+    }
+
+    @Test
+    void newChargeAfterAnAbandonedChallengeDerivesTheKeyFromTheAbandonedOne() {
+        payment.put("status", "cancelled");
+        payment.put("raw_status", "abandoned");
+        payment.put("external_id", "ORD3DS");
+        when(gateway.create(any(), any())).thenReturn(pixCharge());
+
+        service(true).startIntent(customer, 1, "pix", null);
+
+        ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+        verify(gateway).create(eq(loja), request.capture());
+        assertEquals("order-1-11-retry-ORD3DS", request.getValue().idempotencyKey());
+    }
+
+    @Test
+    void abandonedChargePaidLaterOnAnActiveOrderIsRecorded() {
+        // Sem nova cobrança, a abandonada continua sendo a atual: se o banco aprovar mesmo assim, o pedido fica pago.
+        payment.put("status", "cancelled");
+        payment.put("external_id", "ORD3DS");
+        payment.put("order_status", "placed");
+        when(gateway.fetch(any(), eq("ORD3DS"))).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        assertEquals("paid", service(true).handleWebhook("mercadopago", "ORD3DS", "3588446200").get("status"));
+        verify(orderPayments, never()).refundIfPaidOnline(any(), org.mockito.ArgumentMatchers.anyLong(), anyString());
+        verify(gateway, never()).refund(any(), anyString(), anyString());
+    }
+
+    @Test
+    void abandonTwiceDoesNotCallTheProviderAgain() {
+        desafioAberto();
+        payment.put("status", "cancelled");
+        payment.put("challenge_url", null);
+
+        ApiException error = assertThrows(ApiException.class, () -> service(true).abandonChallenge(customer, 1));
+
+        assertEquals(409, error.status());
+        assertEquals("Não há verificação do banco em andamento.", error.getMessage());
+        verify(gateway, never()).cancel(any(), anyString(), anyString());
+    }
+
+    @Test
+    void abandonWithoutTheStoreCredentialsIs409AndChangesNothing() {
+        // Sem token o webhook também não estornaria uma cobrança dupla: aqui não se libera nada.
+        desafioAberto();
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.empty());
+
         ApiException error = assertThrows(ApiException.class, () -> service(true).abandonChallenge(customer, 1));
 
         assertEquals(409, error.status());
         assertEquals("Não foi possível cancelar a verificação agora. Tente de novo em instantes.", error.getMessage());
+        verify(gateway, never()).cancel(any(), anyString(), anyString());
         verify(jdbc, never()).update(anyString(), any(Object[].class));
     }
 

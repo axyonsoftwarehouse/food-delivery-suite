@@ -87,7 +87,9 @@ Fonte: Mercado Pago, "Integrar 3DS" da API de Orders
    consulta a cobrança pendente no provedor com a conta da loja e grava o resultado como o webhook
    gravaria. Sem cobrança pendente, devolve o estado atual sem chamar o provedor. Erro do provedor não
    muda nada e devolve o estado atual (a atualização automática e o webhook seguem valendo).
-8. **Desistir da verificação.** Rota nova `POST /orders/{id}/payment/online/abandon` (cliente dono do
+8. **Desistir da verificação.** *(Corrigida pela spec `2026-10-14-3ds-desistencia-sem-cancelamento-design.md`:
+   no staging o Mercado Pago recusou o cancelamento durante a verificação com HTTP 422, e a desistência
+   passou a liberar a nova cobrança sem essa confirmação.)* Rota nova `POST /orders/{id}/payment/online/abandon` (cliente dono do
    pedido), só para cartão `pending` com `challenge_url`:
    - cancela a order no provedor (`gateway.cancel`) — que o `POST /v1/orders/{id}/cancel` aceita order em
      `action_required` fica `(a confirmar no roteiro do staging)`;

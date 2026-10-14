@@ -100,7 +100,8 @@ autorizou uma conta real, remova o acesso do Foodie em Aplicativos conectados, n
    número `5031 4332 1540 6351`, que circula como "Mastercard de teste", **não é do Brasil**. Com ele, o
    formulário mostra "Não foi possível obter a informação de pagamento. Tente outro cartão".
 
-   - **Nome no cartão:** `APRO` (ou o mesmo código do resultado que você quer testar).
+   - **Nome no cartão:** `APRO-AUTH` para aprovar sem a verificação do banco (ou o código do resultado que
+     você quer testar — tabela da §8). Desde o 3DS (14/10), `APRO` puro **cai na verificação** e é recusado.
    - **CPF:** `12345678909`.
 3. Confirme. O cartão é aprovado na hora; o webhook confirma em seguida.
 
@@ -173,9 +174,17 @@ arriscada (`validation: on_fraud_risk`, `liability_shift: required`). No modo de
 | `OTHE-CHNO` | aparece a página do banco; resultado → recusado |
 | `APRO-AUTH` ou `APRO-ATMT` | aprovado sem mostrar a página do banco |
 | `OTHE-NAUT` | recusado sem mostrar a página do banco |
+| `APRO` | aparece a página do banco e o resultado é **recusado** (`3ds_challenge_failed`) — conferido no staging, 14/10, pedido #58 |
 
-Resultados conforme a documentação do Mercado Pago (consultada em 14/10/2026) — `(a confirmar no roteiro do staging)`, inclusive o `status_detail` real do `OTHE-CHNO`.
+Conferido no staging em 14/10/2026 (pedidos #58 e #59): `APRO-CHOK` aprova, `OTHE-CHNO` recusa com
+`status_detail` **`3ds_challenge_failed`**, `APRO-AUTH` aprova sem a página do banco. `OTHE-NAUT` segue
+`(a confirmar)`.
 
-O código de verificação mostrado no modo de teste é ilustrativo: basta clicar em **Confirmar**. Durante a
-verificação, o botão **"Usar outro cartão ou Pix"** cancela a cobrança no Mercado Pago e volta para a
-escolha. O prazo continua o do pedido (15 min); vencido, o pedido é cancelado e a cobrança também.
+O código de verificação do modo de teste vem preenchido em cinza e não aceita digitação `(a confirmar se é
+sempre assim)`: basta clicar em **Confirmar**. Durante a verificação, o botão **"Usar outro cartão ou Pix"**
+tenta cancelar a cobrança no Mercado Pago e volta para a escolha mesmo que o cancelamento não seja
+confirmado; nesse caso a cobrança fica `cancelled` com `raw_status = 'abandoned'` e, se for paga depois de
+outra, é estornada sozinha pelo webhook. No staging (pedido #60, 14/10) o Mercado Pago **recusou** esse
+cancelamento com HTTP 422 durante a verificação — se é sempre assim, e o motivo, `(a confirmar)` pelo log da
+API. O prazo continua o do pedido (15 min); vencido, o pedido é cancelado (no #60 o cancelamento no Mercado
+Pago também levou o 422, que vai só ao log).
