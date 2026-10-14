@@ -50,7 +50,7 @@ const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'curren
 const date = (value: string) => new Date(value).toLocaleString('pt-BR');
 
 export default function OrderDetails({ orderId, status }: { orderId: number; status: string }) {
-  const { user, permissions, askReason } = useApp();
+  const { user, permissions, askReason, setMessage } = useApp();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -86,7 +86,7 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
       await api(`/orders/${orderId}/payment/verify`, { method: 'POST', body: JSON.stringify({ approve, note }) });
       load();
     } catch (cause) {
-      window.alert(cause instanceof Error ? cause.message : 'Não foi possível verificar o comprovante.');
+      setMessage(cause instanceof Error ? cause.message : 'Não foi possível verificar o comprovante.');
     }
   }
 
@@ -95,9 +95,9 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
     if (!note) return;
     try {
       await api(`/orders/${orderId}/refund-request`, { method: 'POST', body: JSON.stringify({ note }) });
-      window.alert('Solicitação de reembolso enviada.');
+      setMessage('Solicitação de reembolso enviada.');
     } catch (cause) {
-      window.alert(cause instanceof Error ? cause.message : 'Não foi possível solicitar o reembolso.');
+      setMessage(cause instanceof Error ? cause.message : 'Não foi possível solicitar o reembolso.');
     }
   }
 
@@ -106,9 +106,9 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
       const data = await api<{ courierLocation: { latitude: number; longitude: number } | null }>(`/orders/${orderId}/tracking`);
       const location = data.courierLocation;
       if (location) window.open(`https://www.google.com/maps?q=${location.latitude},${location.longitude}`, '_blank');
-      else window.alert('O entregador ainda não compartilhou a localização.');
+      else setMessage('O entregador ainda não compartilhou a localização.');
     } catch (cause) {
-      window.alert(cause instanceof Error ? cause.message : 'Não foi possível rastrear.');
+      setMessage(cause instanceof Error ? cause.message : 'Não foi possível rastrear.');
     }
   }
 
