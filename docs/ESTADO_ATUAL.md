@@ -15,17 +15,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`a65f497`** — merge da PR #38 (foco do painel de notificações). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #38** são os do `axyonsoftwarehouse` |
-| Em revisão | **nada** — as PRs #31 a #38 estão mescladas. O pagamento online claro está completo no código: **PR 1 (servidor)** [#31](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/31) e **PR 2 (telas)** [#33](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/33) (página `/loja/pedidos/<id>/pagamento`, Carrinho levando a ela, Pedidos com "Pagar", `ReasonDialog` no lugar do `window.prompt`, cartão do pedido com "Aguardando pagamento" e prazos). Spec `docs/superpowers/specs/2026-10-11-pagamento-online-clareza-design.md`; planos `docs/superpowers/plans/2026-10-11-pagamento-online-servidor.md` e `2026-10-12-pagamento-online-telas.md` |
+| `origin/main` | **`8eb3206`** — merge da PR #39 (3DS: verificação do banco na página do cartão). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #39** são os do `axyonsoftwarehouse` |
+| Em revisão | **nada aberto** — a correção da desistência do 3DS está na branch `fix/3ds-desistencia`, ainda sem PR (spec `docs/superpowers/specs/2026-10-14-3ds-desistencia-sem-cancelamento-design.md`, plano `docs/superpowers/plans/2026-10-14-3ds-desistencia-sem-cancelamento.md`) |
 | `main` local | `6f5f456` `(a confirmar)` — atrás do `origin/main`; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
-| **Código na VPS** | **`a65f497`** — o `main` inteiro (PRs #31 a #38), publicado pelo **botão do GitHub** em **14/10 13:12 UTC** (run `38569848887`, sucesso, `headSha` = `a65f497`; o anterior era `ab595b1`, de 13/10 01:21 UTC). Conteúdo do `.deployed` não lido nesta atualização `(a confirmar)` |
-| Schema (`/ready`) | **`067`** na VPS e no `HEAD` do `main` (conferido em 14/10: `{"schemaVersion":"067","status":"ready"}`; as PRs #31 a #38 não trouxeram migration). O `HEAD` da branch `feat/3ds-desafio-cartao` está em **`068`** (migration `V068`, `order_payments.challenge_url`); a VPS segue em `067` até o deploy |
+| **Código na VPS** | **`8eb3206`** — o `main` inteiro (até a PR #39, 3DS), publicado pelo **botão do GitHub** em **14/10 21:31 UTC** (run `38640927629`, sucesso, `headSha` = `8eb3206`; o anterior era `a65f497`, de 14/10 13:12 UTC). Conteúdo do `.deployed` não lido nesta atualização `(a confirmar)` |
+| Schema (`/ready`) | **`068`** na VPS e no `HEAD` do `main` (conferido em 14/10: `{"status":"ready","schemaVersion":"068"}`; migration `V068`, `order_payments.challenge_url`, da PR #39). A branch `fix/3ds-desistencia` não traz migration |
 | Distância | o staging roda o mesmo commit do `origin/main` |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #37 e #38 |
+| Testes Java | `pnpm verify` verde na branch `fix/3ds-desistencia` (14/10, local, sem integração: Docker parado), com **737 testes Java** sem falha. Antes: `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #37 e #38 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **34%** em 13/10 (antes do deploy de 14/10; número novo `(a confirmar)` com `df -h /`); a limpeza automática dispara em 70% |
-| Árvore de trabalho | branch **`feat/3ds-desafio-cartao`** (spec, plano, código do 3DS e este documento; `.claude/` não versionado) |
+| Árvore de trabalho | branch **`fix/3ds-desistencia`** (spec, plano, código da desistência do 3DS e este documento; `.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -398,24 +398,35 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`a65f497`, schema `067`), sem nada em revisão. O staging é
-publicado pelo **botão do GitHub** ou pelo `release.ps1` no PC (o último deploy, de 14/10 13:12 UTC, foi pelo botão).
+**O que está no ar é o `origin/main` inteiro** (`8eb3206`, schema `068`), com o 3DS (PR #39). O staging é
+publicado pelo **botão do GitHub** ou pelo `release.ps1` no PC (o último deploy, de 14/10 21:31 UTC, foi pelo botão).
 
-**Próximo passo único: o roteiro do pagamento com a conta da loja no staging** (cartão `1nguT9bv`, em TESTING),
-agora com as telas novas da PR 2 no ar:
-1. "Fazer pedido e pagar" com a **conta da loja conectada**, pela página `/loja/pedidos/<id>/pagamento`;
-2. a **nova tentativa** depois de recusa — cartão `OTHE` recusado e, depois, `APRO` no mesmo pedido;
-3. o estorno pela loja com o **diálogo de motivo** (sem `window.prompt`);
-4. **prints** das telas (Pix, cartão e estorno) para o cartão — o professor exige print no comentário.
+**Roteiro do 3DS no staging (14/10, cartão `PCLXrYCa`):**
+- passaram: `APRO-CHOK` aprovado depois de duas recusas no mesmo pedido (#58); `OTHE-CHNO` recusado com
+  `3ds_challenge_failed` e, no mesmo pedido, `APRO-AUTH` aprovado sem verificação (#59); prazo vencido com a
+  verificação aberta → pedido cancelado e "Nada foi cobrado" (#60);
+- **falhou: desistir → Pix** (#60). O Mercado Pago recusou o cancelamento com **HTTP 422** durante a verificação
+  (motivo `(a confirmar)`), e a regra 8 da spec de 14/10 respondia 409 — o cliente ficava preso. O cancelamento do prazo
+  vencido também levou 422 (a order segue viva no Mercado Pago; um pagamento atrasado é estornado pelo webhook);
+- achados: `APRO` puro cai na verificação e é recusado (para "cartão comum" use `APRO-AUTH`); o código do
+  simulador vem em cinza e não aceita digitação; o formulário do Mercado Pago deu "Ocorreu um erro" e travou até
+  trocar de aba (#59, nenhuma chamada chegou à API).
+
+**Próximo passo único: a correção da desistência** (branch `fix/3ds-desistencia`): sem a confirmação do
+cancelamento, a cobrança vira `cancelled`/`abandoned` e o cliente segue com outro cartão ou Pix; o estorno
+automático de cobrança anterior paga segura o risco. Falta PR, CI `Verificação`, 1 aprovação, deploy e repetir no
+staging desistir → Pix e `APRO-AUTH` (com prints).
 
 **Decisões que nenhum código resolve:**
 - **Conta da empresa** que mantém o sistema: em discussão. O estorno e o chargeback são da loja (14/10) —
   cartão `FWyJELEC`; falta o contrato com as lojas.
-
-**3DS na tela do cartão** (cartão `PCLXrYCa`): spec `docs/superpowers/specs/2026-10-14-3ds-desafio-cartao-design.md`, plano `docs/superpowers/plans/2026-10-14-3ds-desafio-cartao.md`; implementado na branch `feat/3ds-desafio-cartao` (migration `V068`), falta o roteiro no staging.
 - As credenciais de teste **não** serão trocadas no staging: serão todas trocadas na ida para produção (14/10).
 
-**Andamento (roteiro de 11/10 no staging):** a nova tentativa (#51), o Pix (#52), o estorno automático na expiração (#51) e o estorno pela loja (#52, feito no Firefox porque o botão usava `window.prompt`) passaram. Os achados viraram a spec `2026-10-11-pagamento-online-clareza-design.md`, entregue em duas PRs mescladas e publicadas: a **PR 1 (servidor)** ([#31](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/31)) e a **PR 2 (telas)** ([#33](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/33)), conferida no navegador local em 13/10. Junto foram publicados: o valor em dinheiro em diálogo do app (#34), o fim das janelas nativas no catálogo e no estoque (#35 na branch da PR 2, #37 na `main`), ajustes visuais do cabeçalho, notificações, cardápio e Pix (#36) e o foco do painel de notificações (#38).
+**Roteiro do pagamento com a conta da loja** (cartão `1nguT9bv`): nova tentativa (#51), Pix (#52), estorno
+automático na expiração (#51) e estorno pela loja (#52) passaram em 11/10; os achados viraram as PRs #31 e #33.
+Os pedidos de 14/10 (#58 a #60) repetiram cartão e nova tentativa com a conta da loja conectada. Falta conferir de
+novo o estorno pela loja com o **diálogo de motivo** e tirar os prints para o cartão `(a confirmar se ainda é
+exigido depois do roteiro do 3DS)`.
 
 **Depois:** a **cobrança real da assinatura** (hoje cria a transação e não cobra o provedor) e a
 prontidão de produção (SMTP real, backup externo com ensaio de restauração, revisão de CSRF/origem).
@@ -477,8 +488,8 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #38** estão mesclados e
-publicados (`a65f497`, schema `067`), e o staging roda o mesmo commit do `origin/main`.
+A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #39** estão mesclados e
+publicados (`8eb3206`, schema `068`), e o staging roda o mesmo commit do `origin/main`.
 
 **O que já foi provado no pagamento (com a conta global da plataforma, em 05/10):** Pix (#23) e cartão
 (#26) de ponta a ponta com notificação automática, o estorno pelo admin (#26 ficou `refunded` no Foodie e
@@ -505,12 +516,12 @@ seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar
 
 ## 6. Estado da árvore de trabalho (14/10)
 
-`origin/main` = **`a65f497`** (PR #38). O checkout está na branch `feat/3ds-desafio-cartao` (spec, plano, código do 3DS e este documento;
+`origin/main` = **`8eb3206`** (PR #39). O checkout está na branch `fix/3ds-desistencia` (spec, plano, código da desistência do 3DS e este documento;
 o `.claude/` não é versionado). A `main` local não foi atualizada desde 11/10 `(a confirmar)`. Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
 verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
 conserto no PR #13).
 
-Os **PRs #1 a #38** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
+Os **PRs #1 a #39** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
 os últimos publicados **pelo botão do GitHub**:
 
 | Commit | PR | O que é |
@@ -552,7 +563,8 @@ os últimos publicados **pelo botão do GitHub**:
 | `648a457` | #35 | `fix(web)`: sem janela nativa no site (mesclada na branch da #33; chegou à `main` pela #37) |
 | `adb9da2` | #36 | `fix(web)`: ajustes visuais do cabeçalho, notificações, cardápio e Pix |
 | `339190b` | #37 | `fix(web)`: sem janela nativa no site — renomear, estoque, confirmações e avisos |
-| `a65f497` | #38 | `fix(web)`: foco do painel de notificações entra ao abrir e volta ao sino — **é o que está na VPS** (pelo botão do GitHub, 14/10) |
+| `a65f497` | #38 | `fix(web)`: foco do painel de notificações entra ao abrir e volta ao sino |
+| `8eb3206` | #39 | `feat(api,web)`: verificação do banco (3DS) na página de pagamento do cartão — **é o que está na VPS** (pelo botão do GitHub, 14/10 21:31 UTC) |
 
 **Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
 commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,

@@ -259,7 +259,12 @@ public class MercadoPagoGateway implements PaymentGateway {
         try {
             Map<String, Object> resposta = new ObjectMapper().readValue(corpo, new TypeReference<Map<String, Object>>() {});
             Object mensagem = resposta.get("message");
-            if (mensagem != null && !String.valueOf(mensagem).isBlank()) return situacao + " - " + mensagem;
+            if (mensagem != null && !String.valueOf(mensagem).isBlank()) {
+                // A raiz pode trazer só o nome genérico do status ("Unprocessable Entity"): o motivo de verdade
+                // vem no `errors[]` da API de Orders (422 do cancelamento durante o 3DS, 14/10/2026).
+                String erroOrders = primeiroErro(resposta);
+                return situacao + " - " + mensagem + (erroOrders == null ? "" : " (" + erroOrders + ")");
+            }
             if (resposta.get("cause") instanceof List<?> causas && !causas.isEmpty() && causas.getFirst() instanceof Map<?, ?> primeira) {
                 Object descricao = primeira.get("description");
                 if (descricao != null && !String.valueOf(descricao).isBlank()) return situacao + " - " + descricao;
@@ -277,6 +282,18 @@ public class MercadoPagoGateway implements PaymentGateway {
         } catch (Exception ignorado) {
             return situacao;
         }
+    }
+
+    /** {@code código: mensagem} do primeiro item de {@code errors[]}, só o que existir; nulo sem nenhum dos dois. */
+    private static String primeiroErro(Map<String, Object> resposta) {
+        if (!(resposta.get("errors") instanceof List<?> erros) || erros.isEmpty() || !(erros.getFirst() instanceof Map<?, ?> erro)) return null;
+        String codigo = str(erro.get("code"));
+        String texto = str(erro.get("message"));
+        boolean temCodigo = codigo != null && !codigo.isBlank();
+        boolean temTexto = texto != null && !texto.isBlank();
+        if (temCodigo && temTexto) return codigo + ": " + texto;
+        if (temCodigo) return codigo;
+        return temTexto ? texto : null;
     }
 
     @Override

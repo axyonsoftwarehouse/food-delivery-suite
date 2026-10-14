@@ -169,7 +169,8 @@ class PaymentServiceTest {
         withOnline.cancelPending(1);
 
         verify(gateway).cancel(loja, "ORDPIX1", "cancel-ORDPIX1");
-        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled', challenge_url = NULL WHERE order_id = ? AND status = 'pending'", 1L);
+        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled', raw_status = IF(modality = 'online', 'cancelled', raw_status),"
+            + " challenge_url = NULL WHERE order_id = ? AND status = 'pending'", 1L);
     }
 
     @Test
@@ -180,11 +181,13 @@ class PaymentServiceTest {
         when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT modality, status, provider, external_id, payment_account_id"), any(Object[].class))).thenReturn(List.of(row));
         when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(new com.foodie.api.payments.accounts.MerchantCredentials(9, 3, "token", "pk", "3588446200")));
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
+        // #60 no staging (14/10): o Mercado Pago recusou o cancelamento durante o 3DS com HTTP 422.
         when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o cancelamento: HTTP 500"));
 
         assertDoesNotThrow(() -> withOnline.cancelPending(1));
 
-        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled', challenge_url = NULL WHERE order_id = ? AND status = 'pending'", 1L);
+        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled', raw_status = IF(modality = 'online', 'cancelled', raw_status),"
+            + " challenge_url = NULL WHERE order_id = ? AND status = 'pending'", 1L);
     }
 
     @Test

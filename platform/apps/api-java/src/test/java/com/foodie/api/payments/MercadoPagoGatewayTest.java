@@ -73,6 +73,13 @@ class MercadoPagoGatewayTest {
         assertEquals("HTTP 400 - Properties not supported (additionalProperties '$.notification_url' not allowed)",
             MercadoPagoGateway.providerMessage(erro(400, "{\"errors\":[{\"code\":\"unsupported_properties\",\"message\":\"Properties not supported\","
                 + "\"details\":[\"additionalProperties '$.notification_url' not allowed\"]}]}")));
+        // 14/10: o 422 do cancelamento durante o 3DS chegou só como "Unprocessable Entity" — o código
+        // que explica o motivo estava em `errors[]` e ficava de fora.
+        assertEquals("HTTP 422 - Unprocessable Entity (cannot_cancel_order: The order cannot be canceled)",
+            MercadoPagoGateway.providerMessage(erro(422, "{\"message\":\"Unprocessable Entity\","
+                + "\"errors\":[{\"code\":\"cannot_cancel_order\",\"message\":\"The order cannot be canceled\"}]}")));
+        assertEquals("HTTP 422 - Unprocessable Entity (cannot_cancel_order)",
+            MercadoPagoGateway.providerMessage(erro(422, "{\"message\":\"Unprocessable Entity\",\"errors\":[{\"code\":\"cannot_cancel_order\"}]}")));
         assertEquals("HTTP 500", MercadoPagoGateway.providerMessage(erro(500, "")));
         assertEquals("HTTP 500", MercadoPagoGateway.providerMessage(erro(500, "nao e json")));
     }

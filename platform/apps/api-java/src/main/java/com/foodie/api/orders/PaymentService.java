@@ -230,7 +230,9 @@ public class PaymentService {
                 }
             }
         }
-        jdbc.update("UPDATE order_payments SET status = 'cancelled', challenge_url = NULL WHERE order_id = ? AND status = 'pending'", orderId);
+        // `raw_status` acompanha o cancelamento: sem isto, o #60 (14/10) ficou `cancelled` com `pending_challenge`.
+        jdbc.update("UPDATE order_payments SET status = 'cancelled', raw_status = IF(modality = 'online', 'cancelled', raw_status),"
+            + " challenge_url = NULL WHERE order_id = ? AND status = 'pending'", orderId);
     }
 
     /** Pedido de "Pagar agora" que ainda não foi pago: a loja não aceita até o pagamento entrar. */
