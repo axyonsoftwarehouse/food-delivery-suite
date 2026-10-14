@@ -1,6 +1,6 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 13/10/2026.
+Documento vivo. Última atualização: 14/10/2026.
 Base: `PLANO_EPICOS.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -15,17 +15,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`ab595b1`** — merge da PR #32 (`fix/verify-tsc-sem-cache`, o `tsc` do site sem cache incremental); antes dela, a PR #31 (PR 1 do pagamento online claro, servidor). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #32** são os do `axyonsoftwarehouse` |
-| Em revisão | **PR 1 do pagamento online claro (servidor) mesclada e publicada** — PR [#31](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/31) (`59d0fc6`, 12/10), sem migration: recusa 402 gravada com motivo, **aceite só com pagamento online feito** (409), prazos de pagar/aceitar, Pix cancelado no provedor, cobrança duplicada estornada, estorno manual só após a entrega. Spec `docs/superpowers/specs/2026-10-11-pagamento-online-clareza-design.md`, plano `docs/superpowers/plans/2026-10-11-pagamento-online-servidor.md`. **Em revisão: PR 2 (telas)** — PR [#33](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/33), branch `feat/pagamento-online-telas` com a `main` já mesclada (13/10): página `/loja/pedidos/<id>/pagamento`, Carrinho levando a ela, Pedidos com "Pagar", `ReasonDialog` no lugar do `window.prompt`, cartão do pedido com "Aguardando pagamento" e prazos. Aguardando CI e 1 aprovação. Plano `docs/superpowers/plans/2026-10-12-pagamento-online-telas.md` |
-| `main` local | **`6f5f456`**, atrás do `origin/main` (`ab595b1`) — a `main` não foi atualizada depois das PRs #31 e #32; o trabalho é feito nas branches |
-| **Código na VPS** | **`ab595b1`** — o `main` inteiro (PRs #31 e #32), publicado pelo **botão do GitHub** (12/10 22:21 local / 13/10 01:21 UTC; o anterior era `59d0fc6`); registro em `/home/deploy/foodie-platform/.deployed` |
-| Schema (`/ready`) | **`067`** na VPS e no `HEAD` (conferido no `/ready` de 12/10: `{"schemaVersion":"067","status":"ok"}`; a PR #31 não trouxe migration) |
-| Distância | a `main` local está **3 commits atrás** do `origin/main`; a branch `feat/pagamento-online-telas` (PR [#33](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/33)) está à frente do `origin/main`, com ele mesclado |
+| `origin/main` | **`a65f497`** — merge da PR #38 (foco do painel de notificações). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #38** são os do `axyonsoftwarehouse` |
+| Em revisão | **nada** — as PRs #31 a #38 estão mescladas. O pagamento online claro está completo no código: **PR 1 (servidor)** [#31](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/31) e **PR 2 (telas)** [#33](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/33) (página `/loja/pedidos/<id>/pagamento`, Carrinho levando a ela, Pedidos com "Pagar", `ReasonDialog` no lugar do `window.prompt`, cartão do pedido com "Aguardando pagamento" e prazos). Spec `docs/superpowers/specs/2026-10-11-pagamento-online-clareza-design.md`; planos `docs/superpowers/plans/2026-10-11-pagamento-online-servidor.md` e `2026-10-12-pagamento-online-telas.md` |
+| `main` local | `6f5f456` `(a confirmar)` — atrás do `origin/main`; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
+| **Código na VPS** | **`a65f497`** — o `main` inteiro (PRs #31 a #38), publicado pelo **botão do GitHub** em **14/10 13:12 UTC** (run `38569848887`, sucesso, `headSha` = `a65f497`; o anterior era `ab595b1`, de 13/10 01:21 UTC). Conteúdo do `.deployed` não lido nesta atualização `(a confirmar)` |
+| Schema (`/ready`) | **`067`** na VPS e no `HEAD` do `main` (conferido em 14/10: `{"schemaVersion":"067","status":"ready"}`; as PRs #31 a #38 não trouxeram migration). O `HEAD` da branch `feat/3ds-desafio-cartao` está em **`068`** (migration `V068`, `order_payments.challenge_url`); a VPS segue em `067` até o deploy |
+| Distância | o staging roda o mesmo commit do `origin/main` |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde depois do merge da `main` (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11** |
+| Testes Java | `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #37 e #38 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
-| Disco da VPS | **34%** (a limpeza de 11/10 levou a 26% e os dois deploys de 12/10 somaram ~4 GB); a limpeza automática dispara em 70% |
-| Árvore de trabalho | branch **`feat/pagamento-online-telas`** (PR [#33](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/33), enviada) (`.claude/` não versionado) |
+| Disco da VPS | **34%** em 13/10 (antes do deploy de 14/10; número novo `(a confirmar)` com `df -h /`); a limpeza automática dispara em 70% |
+| Árvore de trabalho | branch **`feat/3ds-desafio-cartao`** (spec, plano, código do 3DS e este documento; `.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -52,6 +52,15 @@ A **Foodie** cobra **assinatura** da loja, não comissão sobre a venda.
 > o cashback e o **estorno**. A obrigação de estornar é da loja; a Foodie não recebe, não guarda e não
 > devolve dinheiro de pedido. Consequências no código, ainda pendentes: §4, "Decorrências da decisão de
 > 05/10".
+>
+> **Reafirmado em 14/10/2026 (dono do produto):** o **estorno é sempre responsabilidade da loja**. A
+> conta da empresa que mantém o sistema (a que recebe a assinatura) **ainda está em discussão**. O
+> **chargeback** (contestação da compra pelo cliente no banco ou na bandeira do cartão) **também é da
+> loja** (decidido em 14/10). Como a cobrança cai na conta Mercado Pago da loja, a disputa chega a essa
+> conta; falta deixar isso escrito no contrato com as lojas.
+>
+> **3DS decidido em 14/10:** o desafio do banco emissor será **mostrado na tela do cartão** (em vez de
+> recusar o pagamento).
 
 **Legado de terceiros (v9) — removido por completo.** Saiu do repositório em
 25/09/2026 (commit de remoção do código legado) e da VPS na mesma data. Não existe mais `admin-panel`, `web`,
@@ -198,11 +207,15 @@ recusa e assim por diante.
    painel do Mercado Pago. Prova: o pedido **#26** (cartão) foi estornado pelo admin às 22:31:50 UTC.
    Ficou `refunded` no Foodie e **`refunded` no Mercado Pago** (R$ 57,80), e o webhook seguinte (22:31:52,
    **200**) não reverteu duas vezes. Ainda faltam os prints para o cartão `1nguT9bv`.
-3. **Trocar a credencial de teste** exposta em 02/10. O `.env.bak` da PR #23 continua no histórico do
-   GitHub. Trocar também a senha do vendedor de teste, que foi exibida na sessão de 04/10, e o segredo
-   da TestApp, que foi colado na conversa de 05/10.
-4. **Decidir o 3DS** (o status `CALL` não é tratado) e conferir se a conta tem **chave Pix registrada**
-   (o provedor exige para produção).
+3. **Credenciais de teste expostas (02/10, 04/10 e 05/10): não serão trocadas no staging.** Decisão de
+   14/10: **todas as credenciais serão trocadas na ida para produção**, que vem em breve. Fica como
+   item da prontidão de produção (§4), não como pendência do staging. O `.env.bak` da PR #23 continua no
+   histórico do GitHub — por isso nenhuma credencial de teste pode ser reaproveitada em produção.
+4. **Decidir o 3DS** (cartão `PCLXrYCa`) e conferir se a conta tem **chave Pix registrada** (o provedor
+   exige para produção). O 3DS é a **verificação extra do banco emissor** na compra com cartão (código
+   por SMS ou confirmação no app do banco). Hoje, quando o provedor pede essa verificação (status
+   `CALL`), o Foodie não mostra o desafio ao cliente e o pagamento fica sem desfecho. **Decidido em
+   14/10: mostrar o desafio na tela do cartão** (em desenho).
 5. **Produção ainda não existe.** A URL de produção no painel está vazia e não há credencial de produção
    na VPS. A decisão comercial foi tomada em 05/10: o dinheiro é da loja. A **conta de recebimento por
    loja** está implementada (§4): cada loja conecta a própria conta, e a Foodie não tem conta global
@@ -333,7 +346,8 @@ recusa e assim por diante.
   único fluxo de dinheiro da plataforma.
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
 - **Prontidão de publicação** — SMTP real, revisão de origem/CSRF, backup
-  externo, ensaio de restauração, teste de carga na VPS
+  externo, ensaio de restauração, teste de carga na VPS, e **trocar todas as credenciais**
+  (Mercado Pago, segredos de webhook, senhas de teste) na ida para produção (decisão de 14/10)
 
 ### Prioridade média — produto e governança
 - Contrato dos módulos (hoje habilitados manualmente)
@@ -378,25 +392,30 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ### Decisões de negócio em aberto
 - Quem opera: marca própria ou cliente?
+- Conta da empresa que mantém o sistema (recebe a assinatura) — em discussão (14/10)
 - Licença do pacote comercial e do kit visual de terceiros (Figma)
 - Tokens do Mapbox configurados?
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`9acd727`, schema `067`), sem nada em revisão. O staging é
-publicado pelo **botão do GitHub** ou pelo `release.ps1` no PC (o último deploy, de 11/10 15:05 UTC, foi pelo botão).
+**O que está no ar é o `origin/main` inteiro** (`a65f497`, schema `067`), sem nada em revisão. O staging é
+publicado pelo **botão do GitHub** ou pelo `release.ps1` no PC (o último deploy, de 14/10 13:12 UTC, foi pelo botão).
 
-**Próximo passo único: fechar o pagamento real com a conta por loja** (cartão `1nguT9bv`, em TESTING).
-O código está pronto e no ar; o que falta é prova no ambiente publicado:
-1. a **nova tentativa** de cobrança depois de recusa (PR #17) — cartão `OTHE` recusado e, depois, `APRO`
-   no mesmo pedido, com a **conta da loja** conectada;
-2. **prints** das telas (Pix, cartão e estorno) para o cartão — o professor exige print no comentário;
-3. a **decisão comercial** que nenhum código resolve: de quem é a conta que recebe e quem assume o
-   estorno/chargeback (cartão `FWyJELEC`);
-4. trocar a **credencial de teste exposta** em 02/10 e conferir se a conta tem **chave Pix registrada**;
-5. decidir o **3DS** (status `CALL` não tratado — cartão `PCLXrYCa`).
+**Próximo passo único: o roteiro do pagamento com a conta da loja no staging** (cartão `1nguT9bv`, em TESTING),
+agora com as telas novas da PR 2 no ar:
+1. "Fazer pedido e pagar" com a **conta da loja conectada**, pela página `/loja/pedidos/<id>/pagamento`;
+2. a **nova tentativa** depois de recusa — cartão `OTHE` recusado e, depois, `APRO` no mesmo pedido;
+3. o estorno pela loja com o **diálogo de motivo** (sem `window.prompt`);
+4. **prints** das telas (Pix, cartão e estorno) para o cartão — o professor exige print no comentário.
 
-**Andamento (roteiro de 11/10 no staging):** a nova tentativa (#51), o Pix (#52), o estorno automático na expiração (#51) e o estorno pela loja (#52, feito no Firefox porque o botão usava `window.prompt`) passaram. Os achados viraram a spec `2026-10-11-pagamento-online-clareza-design.md`: a **PR 1 (servidor)** foi mesclada e publicada ([#31](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/31)) e a **PR 2 (tela de pagamento do cliente + diálogo de motivo no painel da loja)** está em revisão ([#33](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/33)): telas conferidas no navegador local em 13/10; falta o roteiro no staging (cartão real, "Fazer pedido e pagar" com conta conectada).
+**Decisões que nenhum código resolve:**
+- **Conta da empresa** que mantém o sistema: em discussão. O estorno e o chargeback são da loja (14/10) —
+  cartão `FWyJELEC`; falta o contrato com as lojas.
+
+**3DS na tela do cartão** (cartão `PCLXrYCa`): spec `docs/superpowers/specs/2026-10-14-3ds-desafio-cartao-design.md`, plano `docs/superpowers/plans/2026-10-14-3ds-desafio-cartao.md`; implementado na branch `feat/3ds-desafio-cartao` (migration `V068`), falta o roteiro no staging.
+- As credenciais de teste **não** serão trocadas no staging: serão todas trocadas na ida para produção (14/10).
+
+**Andamento (roteiro de 11/10 no staging):** a nova tentativa (#51), o Pix (#52), o estorno automático na expiração (#51) e o estorno pela loja (#52, feito no Firefox porque o botão usava `window.prompt`) passaram. Os achados viraram a spec `2026-10-11-pagamento-online-clareza-design.md`, entregue em duas PRs mescladas e publicadas: a **PR 1 (servidor)** ([#31](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/31)) e a **PR 2 (telas)** ([#33](https://github.com/axyonsoftwarehouse/food-delivery-suite/pull/33)), conferida no navegador local em 13/10. Junto foram publicados: o valor em dinheiro em diálogo do app (#34), o fim das janelas nativas no catálogo e no estoque (#35 na branch da PR 2, #37 na `main`), ajustes visuais do cabeçalho, notificações, cardápio e Pix (#36) e o foco do painel de notificações (#38).
 
 **Depois:** a **cobrança real da assinatura** (hoje cria a transação e não cobra o provedor) e a
 prontidão de produção (SMTP real, backup externo com ensaio de restauração, revisão de CSRF/origem).
@@ -458,8 +477,8 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #29** estão mesclados e
-publicados (`9acd727`, schema `067`), e o staging roda o mesmo commit do `origin/main`.
+A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #38** estão mesclados e
+publicados (`a65f497`, schema `067`), e o staging roda o mesmo commit do `origin/main`.
 
 **O que já foi provado no pagamento (com a conta global da plataforma, em 05/10):** Pix (#23) e cartão
 (#26) de ponta a ponta com notificação automática, o estorno pelo admin (#26 ficou `refunded` no Foodie e
@@ -484,14 +503,14 @@ em `/home/deploy/releases/<sha>/`), então as imagens em uso foram **re-tagadas*
 `pre-df503c0` — rollback instantâneo para o release atual sem custo de build. Os backups de banco
 seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar de ~70%.
 
-## 6. Estado da árvore de trabalho (11/10)
+## 6. Estado da árvore de trabalho (14/10)
 
-`origin/main` = **`9acd727`** (PR #29). O checkout está na branch `docs/estado-atual-pr29` (só este documento;
-o `.claude/` não é versionado). A **`main` local foi atualizada** em 11/10 (`9acd727`). Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
+`origin/main` = **`a65f497`** (PR #38). O checkout está na branch `feat/3ds-desafio-cartao` (spec, plano, código do 3DS e este documento;
+o `.claude/` não é versionado). A `main` local não foi atualizada desde 11/10 `(a confirmar)`. Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
 verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
 conserto no PR #13).
 
-Os **PRs #1 a #25** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
+Os **PRs #1 a #38** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
 os últimos publicados **pelo botão do GitHub**:
 
 | Commit | PR | O que é |
@@ -524,7 +543,16 @@ os últimos publicados **pelo botão do GitHub**:
 | `6d81dc8` | #26 | `fix`: ajustes do roteiro de telas da parte D |
 | `5bdc128` | #27 | `fix`: campo do valor em dinheiro vazio, com atalhos |
 | `35afad4` | #28 | `fix`: banco local volta junto com a API (compose local) |
-| `9acd727` | #29 | `fix`: aviso "Carregando entregadores…" no despacho da loja — **é o que está na VPS** (pelo botão do GitHub) |
+| `9acd727` | #29 | `fix`: aviso "Carregando entregadores…" no despacho da loja |
+| `6f5f456` | #30 | `docs`: ESTADO_ATUAL com a PR #29 publicada |
+| `59d0fc6` | #31 | `feat(api)`: pagamento online claro e seguro — PR 1 (servidor) |
+| `ab595b1` | #32 | `fix(verify)`: checagem de tipos do site sem cache incremental |
+| `e5075ee` | #33 | `feat(web)`: pagamento online claro — PR 2 (telas) |
+| `5df8bc0` | #34 | `fix(web)`: valor recebido em dinheiro em diálogo do app |
+| `648a457` | #35 | `fix(web)`: sem janela nativa no site (mesclada na branch da #33; chegou à `main` pela #37) |
+| `adb9da2` | #36 | `fix(web)`: ajustes visuais do cabeçalho, notificações, cardápio e Pix |
+| `339190b` | #37 | `fix(web)`: sem janela nativa no site — renomear, estoque, confirmações e avisos |
+| `a65f497` | #38 | `fix(web)`: foco do painel de notificações entra ao abrir e volta ao sino — **é o que está na VPS** (pelo botão do GitHub, 14/10) |
 
 **Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
 commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,

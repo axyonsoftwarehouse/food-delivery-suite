@@ -17,6 +17,7 @@ public final class PaymentDisplay {
     public static String rejectionMessage(String rawStatus) {
         String code = rawStatus == null ? "" : rawStatus.trim().toLowerCase(Locale.ROOT);
         if (code.equals("cc_rejected_duplicated_payment")) return "Este cartão já foi recusado neste pagamento. Use outro cartão.";
+        if (code.equals("cc_rejected_3ds_challenge")) return "O banco não confirmou a verificação. Tente de novo ou use outro cartão ou o Pix.";
         if (code.equals("rejected_by_issuer") || code.equals("cc_rejected_call_for_authorize") || code.equals("cc_rejected_card_disabled")) {
             return "O banco emissor não autorizou.";
         }

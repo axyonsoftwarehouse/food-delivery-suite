@@ -21,6 +21,12 @@ class PaymentDisplayTest {
     }
 
     @Test
+    void failedBankVerificationHasItsOwnReason() {
+        assertEquals("O banco não confirmou a verificação. Tente de novo ou use outro cartão ou o Pix.",
+            PaymentDisplay.rejectionMessage("cc_rejected_3ds_challenge"));
+    }
+
+    @Test
     void unknownOrMissingReasonGetsTheGenericText() {
         assertEquals("O pagamento não foi autorizado.", PaymentDisplay.rejectionMessage("qualquer_coisa"));
         assertEquals("O pagamento não foi autorizado.", PaymentDisplay.rejectionMessage(null));

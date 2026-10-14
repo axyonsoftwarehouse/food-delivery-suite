@@ -5,16 +5,19 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ApiError, api, money, useApp } from '../../../../app-context';
 import { useCustomer, type CardChargeData } from '../../../customer-context';
+import BankChallenge from '../../../../BankChallenge';
 import CardPaymentForm from '../../../../CardPaymentForm';
 import PixPayment, { type PixImage } from '../../../../PixPayment';
 import { Alert, Badge } from '../../../../ui';
-import { cardInReview, deadlineInfo, deadlineText, finalMessage, friendlyError, hasLivePix, parseOrderId, paymentPageState } from '../../../../online-payment';
+import { bankChallenge, cardInReview, deadlineInfo, deadlineText, finalMessage, friendlyError, hasLivePix, parseOrderId, paymentPageState } from '../../../../online-payment';
 import { useNow } from '../../../../use-now';
 
-type OnlinePayment = { method: string; modality: string | null; status: string; raw_status?: string | null; external_id?: string | null; pay_deadline?: string | null; rejection_message?: string | null; image?: PixImage | null };
+type OnlinePayment = { method: string; modality: string | null; status: string; raw_status?: string | null; external_id?: string | null; pay_deadline?: string | null; rejection_message?: string | null; challenge_url?: string | null; image?: PixImage | null };
 type OrderDetail = { id: number; status: string; restaurant_id: number; restaurant_name: string; total_cents: number; payment: OnlinePayment | null };
 
 const POLL_MS = 5000;
+/** Com o desafio do banco na tela, confere na API sem depender do webhook da loja. */
+const CHALLENGE_REFRESH_MS = 15000;
 /** Falha de rede ou do provedor: nunca o texto técnico ("Failed to fetch", "HTTP 402 - …"). */
 const PAYMENT_UNAVAILABLE = 'Não foi possível falar com o pagamento agora. Nada foi cobrado; tente de novo.';
 
@@ -38,6 +41,8 @@ export default function PagamentoPedidoPage() {
   const [config, setConfig] = useState<{ publicKey: string } | null>(null);
   const [working, setWorking] = useState(false);
   const [rejections, setRejections] = useState(0);
+  const [checking, setChecking] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const paidHere = useRef(false);
   const pixRequested = useRef(false);
   const alertRef = useRef<HTMLDivElement | null>(null);
@@ -60,6 +65,7 @@ export default function PagamentoPedidoPage() {
   }, [orderId]);
 
   const payment = order?.payment ?? null;
+  const challengeUrl = bankChallenge(payment);
   const deadline = deadlineInfo(payment?.pay_deadline, now);
   const state = order ? paymentPageState({ orderStatus: order.status, payment, payDeadlineOver: deadline?.over ?? false, paidHere: paidHere.current }) : null;
 
@@ -70,6 +76,21 @@ export default function PagamentoPedidoPage() {
     const timer = window.setInterval(() => void load(), POLL_MS);
     return () => window.clearInterval(timer);
   }, [state, load]);
+  useEffect(() => {
+    // O resultado do desafio não pode depender só do webhook da loja: confere na API a cada 15 s.
+    if (state !== 'pay' || !challengeUrl || orderId === null) return;
+    const timer = window.setInterval(() => {
+      void (async () => {
+        try { await api(`/orders/${orderId}/payment/online/refresh`, { method: 'POST' }); } catch { /* falha ignorada */ }
+        await load();
+      })();
+    }, CHALLENGE_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [challengeUrl, state, orderId, load]);
+  useEffect(() => {
+    // Um aviso de erro antigo (ex.: 409 da desistência) não fica ao lado de um novo estado do pagamento.
+    setError('');
+  }, [payment?.status]);
   useEffect(() => {
     // A public key é da loja do pedido: cada loja recebe na própria conta.
     if (!order?.restaurant_id) return;
@@ -101,6 +122,28 @@ export default function PagamentoPedidoPage() {
     pixRequested.current = true;
     void generatePix();
   }, [state, tab, payment, generatePix]);
+
+  // A página do banco avisou que terminou: confere na hora. Falha aqui não é erro para o cliente — a
+  // atualização automática e o webhook trazem o resultado do mesmo jeito.
+  const completeChallenge = useCallback(async () => {
+    if (orderId === null) return;
+    setChecking(true);
+    try { await api(`/orders/${orderId}/payment/online/refresh`, { method: 'POST' }); } catch { /* segue pela atualização */ }
+    await load();
+    setChecking(false);
+  }, [orderId, load]);
+
+  async function leaveChallenge() {
+    if (orderId === null) return;
+    setLeaving(true); setError('');
+    try {
+      await api(`/orders/${orderId}/payment/online/abandon`, { method: 'POST' });
+    } catch (failure) {
+      setError(friendlyError(failure, PAYMENT_UNAVAILABLE));
+    }
+    await load();
+    setLeaving(false);
+  }
 
   async function chargeCard(data: CardChargeData): Promise<'paid' | 'rejected' | 'pending'> {
     setError('');
@@ -153,7 +196,9 @@ export default function PagamentoPedidoPage() {
     {state === 'closing' && <Alert tone="warning">{'O prazo para pagar acabou. Conferindo o pedido…'}</Alert>}
 
     {state === 'pay' && <>
-      {!inReview && <>
+      {challengeUrl
+        ? <BankChallenge url={challengeUrl} checking={checking} leaving={leaving} onComplete={() => void completeChallenge()} onLeave={() => void leaveChallenge()} />
+        : !inReview && <>
       <div className="cart-segment" role="tablist" aria-label="Forma de pagamento">
         <button type="button" role="tab" aria-selected={tab === 'card'} className={tab === 'card' ? 'selected' : ''} onClick={() => setTab('card')}>{'Cartão'}</button>
         <button type="button" role="tab" aria-selected={tab === 'pix'} className={tab === 'pix' ? 'selected' : ''} onClick={() => setTab('pix')}>{'Pix'}</button>

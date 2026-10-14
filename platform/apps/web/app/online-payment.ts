@@ -32,7 +32,7 @@ export function awaitingOnlinePayment(order: { status: string; payment_modality?
   return order.status === 'placed' && order.payment_modality === 'online' && order.payment_status !== 'paid';
 }
 
-export type PaymentSnapshot = { method: string; modality: string | null; status: string; external_id?: string | null; image?: { qr_code?: string | null } | null };
+export type PaymentSnapshot = { method: string; modality: string | null; status: string; external_id?: string | null; challenge_url?: string | null; image?: { qr_code?: string | null } | null };
 
 /** Há um Pix gerado e ainda pagável (a troca para cartão o cancela no provedor, regra 5). */
 export function hasLivePix(payment: PaymentSnapshot | null | undefined) {
@@ -41,10 +41,16 @@ export function hasLivePix(payment: PaymentSnapshot | null | undefined) {
 
 /**
  * Cartão já enviado ao provedor e ainda sem resposta final (`in_process`): o pedido com cartão nasce
- * `pending` sem `external_id`; depois da cobrança, o `external_id` fica gravado.
+ * `pending` sem `external_id`; depois da cobrança, o `external_id` fica gravado. Com a página do banco
+ * aberta (3DS), não é análise: é a verificação (`bankChallenge`).
  */
 export function cardInReview(payment: PaymentSnapshot | null | undefined) {
-  return !!payment && payment.method === 'card' && payment.status === 'pending' && !!payment.external_id;
+  return !!payment && payment.method === 'card' && payment.status === 'pending' && !!payment.external_id && !payment.challenge_url;
+}
+
+/** O banco pediu a verificação extra (3DS) e ela está aberta: devolve a página do banco (spec de 14/10/2026, regra 11). */
+export function bankChallenge(payment: PaymentSnapshot | null | undefined): string | null {
+  return payment && payment.method === 'card' && payment.status === 'pending' && payment.challenge_url ? payment.challenge_url : null;
 }
 
 /**

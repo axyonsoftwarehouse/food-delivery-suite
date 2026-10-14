@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  awaitingOnlinePayment, cardInReview, deadlineInfo, deadlineText, finalMessage, friendlyError, hasLivePix, parseOrderId, paymentPageState,
+  awaitingOnlinePayment, bankChallenge, cardInReview, deadlineInfo, deadlineText, finalMessage, friendlyError, hasLivePix, parseOrderId, paymentPageState,
 } from './online-payment.ts';
 
 // Datas sem fuso, como a API manda: as duas pontas são lidas no fuso local, então o teste não depende de TZ.
@@ -106,4 +106,19 @@ test('cartão em análise: cartão pendente que já foi cobrado no provedor', ()
   assert.equal(cardInReview({ ...card, status: 'rejected' }), false);
   assert.equal(cardInReview({ ...card, method: 'pix' }), false);
   assert.equal(cardInReview(null), false);
+});
+
+test('3DS: cartão pendente com a página do banco abre a verificação, não a análise', () => {
+  const card = { method: 'card', modality: 'online', status: 'pending', external_id: 'ORD3DS', challenge_url: 'https://acs.banco.exemplo/desafio/abc' };
+  assert.equal(bankChallenge(card), 'https://acs.banco.exemplo/desafio/abc');
+  assert.equal(cardInReview(card), false);
+});
+
+test('3DS: sem página do banco é análise; recusado, Pix ou vazio não abrem verificação', () => {
+  const card = { method: 'card', modality: 'online', status: 'pending', external_id: 'ORD3DS', challenge_url: 'https://acs.banco.exemplo/desafio/abc' };
+  assert.equal(bankChallenge({ ...card, challenge_url: null }), null);
+  assert.equal(cardInReview({ ...card, challenge_url: null }), true);
+  assert.equal(bankChallenge({ ...card, status: 'rejected' }), null);
+  assert.equal(bankChallenge({ ...card, method: 'pix' }), null);
+  assert.equal(bankChallenge(null), null);
 });

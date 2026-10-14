@@ -477,7 +477,7 @@ public class OrderService {
                 + "(SELECT GROUP_CONCAT(oia.name SEPARATOR ', ') FROM order_item_addons oia WHERE oia.order_item_id = oi.id) AS addons "
                 + "FROM order_items oi WHERE oi.order_id = ?", orderId));
         result.put("history", jdbc.queryForList("SELECT from_status, to_status, reason, created_at FROM order_events WHERE order_id = ? ORDER BY id", orderId));
-        result.put("payment", payments.detail(orderId));
+        result.put("payment", payments.detail(orderId, "customer".equals(user.role())));
         return result;
     }
 

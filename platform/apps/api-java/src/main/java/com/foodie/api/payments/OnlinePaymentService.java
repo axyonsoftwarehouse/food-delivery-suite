@@ -154,11 +154,11 @@ public class OnlinePaymentService {
         }
         jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = COALESCE(?, external_id), idempotency_key = ?, status = ?, raw_status = ?,"
                 + " qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ?, note = ?,"
-                + " confirmed_at = IF(? = 'paid', NOW(), confirmed_at), payment_account_id = ?, provider_user_id = ? WHERE order_id = ?",
+                + " confirmed_at = IF(? = 'paid', NOW(), confirmed_at), payment_account_id = ?, provider_user_id = ?, challenge_url = ? WHERE order_id = ?",
             gateway.provider(), method, charge.externalId(), idempotencyKey, status, charge.rawStatus(),
             charge.qrCode(), charge.qrCodeBase64(), charge.ticketUrl(),
             charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), note, status,
-            credentials.accountId(), credentials.providerUserId(), orderId);
+            credentials.accountId(), credentials.providerUserId(), "pending".equals(status) ? charge.challengeUrl() : null, orderId);
         return detail(orderId);
     }
 
@@ -229,8 +229,9 @@ public class OnlinePaymentService {
             next = "rejected";
             note = "Valor divergente: provedor " + charge.amountCents() + " vs pedido " + due;
         }
-        jdbc.update("UPDATE order_payments SET status = ?, raw_status = ?, external_id = ?, note = ?, confirmed_at = IF(? = 'paid', NOW(), confirmed_at) WHERE order_id = ?",
-            next, charge.rawStatus(), charge.externalId(), note, next, orderId);
+        jdbc.update("UPDATE order_payments SET status = ?, raw_status = ?, external_id = ?, note = ?, confirmed_at = IF(? = 'paid', NOW(), confirmed_at),"
+                + " challenge_url = IF(? = 'pending', COALESCE(?, challenge_url), NULL) WHERE order_id = ?",
+            next, charge.rawStatus(), charge.externalId(), note, next, next, charge.challengeUrl(), orderId);
         // Pagamento aprovado depois de o pedido morrer (Pix pago após cancelar, recusar ou expirar): registra
         // como pago e devolve na mesma transação. Se o estorno falhar, a exceção desfaz tudo e o webhook
         // responde erro (não-2xx) — o Mercado Pago reenvia e tentamos de novo.
@@ -243,6 +244,108 @@ public class OnlinePaymentService {
             }
         }
         return Map.of("ok", true, "orderId", orderId, "status", next);
+    }
+
+    /**
+     * Confere na hora a cobrança pendente do cliente (spec de 14/10/2026, regra 7): a página do banco avisou
+     * que o desafio terminou, e o cliente não precisa esperar o webhook. Sem cobrança pendente, ou com falha
+     * no provedor, devolve o que está gravado — a atualização da página e o webhook continuam valendo.
+     */
+    @Transactional
+    public Map<String, Object> refresh(User actor, long orderId) {
+        Map<String, Object> row = pagamentoDoCliente(actor, orderId);
+        if (!"pending".equals(row.get("status")) || !"placed".equals(row.get("order_status"))
+            || !(row.get("external_id") instanceof String charge) || row.get("payment_account_id") == null) {
+            return detail(orderId);
+        }
+        MerchantCredentials credentials = accounts.credentialsForAccount(((Number) row.get("payment_account_id")).longValue()).orElse(null);
+        if (credentials == null) return detail(orderId);
+        PaymentGateway.Charge atual;
+        try {
+            atual = gateways.resolve((String) row.get("provider")).fetch(credentials, charge);
+        } catch (RuntimeException falha) {
+            log.warn("Pedido #{}: a cobrança {} não pôde ser conferida ({})", orderId, charge, falha.getMessage());
+            return detail(orderId);
+        }
+        if (atual != null) gravarResultado(orderId, ((Number) row.get("amount_due_cents")).longValue(), atual);
+        return detail(orderId);
+    }
+
+    /**
+     * O cliente desiste da verificação do banco (spec de 14/10/2026, regra 8): cancela a order no provedor e
+     * libera uma nova cobrança, de cartão ou Pix. Só marca cancelado com a confirmação do provedor — sem ela,
+     * uma nova cobrança poderia ser paga junto com esta. Se o cancelamento falhar ou vier ainda pendente
+     * (a chave de idempotência é fixa e o provedor pode repetir uma resposta antiga), confere a cobrança
+     * antes de decidir. Um desfecho final do provedor nunca vira 409: pago ou recusado pelo banco é gravado
+     * (nada foi cobrado na recusa; a tela volta ao formulário com o motivo); cancelado ou expirado libera
+     * a nova cobrança. Sem resposta, ou ainda pendente depois da conferência, é 409 sem escrita.
+     */
+    @Transactional
+    public Map<String, Object> abandonChallenge(User actor, long orderId) {
+        Map<String, Object> row = pagamentoDoCliente(actor, orderId);
+        if (!"pending".equals(row.get("status")) || !"card".equals(row.get("method")) || row.get("challenge_url") == null
+            || !(row.get("external_id") instanceof String charge) || row.get("payment_account_id") == null) {
+            throw new ApiException(409, "Não há verificação do banco em andamento.");
+        }
+        String mensagem = "Não foi possível cancelar a verificação agora. Tente de novo em instantes.";
+        MerchantCredentials credentials = accounts.credentialsForAccount(((Number) row.get("payment_account_id")).longValue())
+            .orElseThrow(() -> new ApiException(409, mensagem));
+        PaymentGateway gateway = gateways.resolve((String) row.get("provider"));
+        PaymentGateway.Charge resposta;
+        try {
+            resposta = gateway.cancel(credentials, charge, "cancel-" + charge);
+        } catch (RuntimeException falha) {
+            // A order paga não se cancela: confere antes de desistir, para não perder um pagamento que entrou.
+            log.warn("Pedido #{}: a cobrança {} não foi cancelada na desistência do 3DS ({})", orderId, charge, falha.getMessage());
+            resposta = consultarSemFalhar(gateway, credentials, charge, orderId);
+        }
+        if (resposta != null && "pending".equals(resposta.status())) {
+            resposta = consultarSemFalhar(gateway, credentials, charge, orderId);
+        }
+        if (resposta != null && ("cancelled".equals(resposta.status()) || "expired".equals(resposta.status()))) {
+            jdbc.update("UPDATE order_payments SET status = 'cancelled', raw_status = 'cancelled', challenge_url = NULL WHERE order_id = ? AND status = 'pending'",
+                orderId);
+            return detail(orderId);
+        }
+        if (resposta != null && ("paid".equals(resposta.status()) || "rejected".equals(resposta.status()))) {
+            gravarResultado(orderId, ((Number) row.get("amount_due_cents")).longValue(), resposta);
+            return detail(orderId);
+        }
+        throw new ApiException(409, mensagem);
+    }
+
+    private PaymentGateway.Charge consultarSemFalhar(PaymentGateway gateway, MerchantCredentials credentials, String charge, long orderId) {
+        try {
+            return gateway.fetch(credentials, charge);
+        } catch (RuntimeException falha) {
+            log.warn("Pedido #{}: a cobrança {} não pôde ser consultada na desistência do 3DS ({})", orderId, charge, falha.getMessage());
+            return null;
+        }
+    }
+
+    /** Pagamento do pedido, travado para atualização. Só o cliente dono do pedido: os outros recebem 404. */
+    private Map<String, Object> pagamentoDoCliente(User actor, long orderId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT p.status, p.method, p.provider, p.external_id, p.payment_account_id, p.amount_due_cents, p.challenge_url,"
+                + " o.customer_id, o.status AS order_status FROM order_payments p JOIN orders o ON o.id = p.order_id"
+                + " WHERE p.order_id = ? FOR UPDATE", orderId);
+        if (rows.isEmpty() || !(rows.getFirst().get("customer_id") instanceof Number dono) || dono.longValue() != actor.id()) {
+            throw new ApiException(404, "Pedido não encontrado");
+        }
+        return rows.getFirst();
+    }
+
+    /** Grava o que o provedor disse de uma cobrança ainda pendente, com a mesma conferência de valor do webhook. */
+    private void gravarResultado(long orderId, long due, PaymentGateway.Charge charge) {
+        String next = charge.status() == null || !STATUSES.contains(charge.status()) ? "pending" : charge.status();
+        String note = null;
+        if ("paid".equals(next) && charge.amountCents() != due) {
+            next = "rejected";
+            note = "Valor divergente: provedor " + charge.amountCents() + " vs pedido " + due;
+        }
+        jdbc.update("UPDATE order_payments SET status = ?, raw_status = ?, note = COALESCE(?, note), confirmed_at = IF(? = 'paid', NOW(), confirmed_at),"
+                + " challenge_url = IF(? = 'pending', COALESCE(?, challenge_url), NULL) WHERE order_id = ? AND status = 'pending'",
+            next, charge.rawStatus(), note, next, next, charge.challengeUrl(), orderId);
     }
 
     /**

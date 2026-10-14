@@ -73,6 +73,36 @@ class OnlinePaymentServiceTest {
             "base64image", "https://www.mercadopago.com.br/payments/123456/ticket", null);
     }
 
+    private static final String URL_BANCO = "https://acs.banco.exemplo/desafio/abc";
+
+    @Test
+    void cardWaitingForTheBankSavesTheChallengeUrl() {
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge(
+            "ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null, URL_BANCO));
+
+        service(true).startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok", 1, "CPF", "12345678909", "master"));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(sql.capture(), values.capture());
+        assertTrue(sql.getValue().contains("challenge_url = ?"));
+        assertEquals("pending", values.getValue()[4]);
+        assertEquals("pending_challenge", values.getValue()[5]);
+        assertEquals(URL_BANCO, values.getValue()[14]);
+        assertEquals(1L, values.getValue()[15]);
+    }
+
+    @Test
+    void pixHasNoChallengeUrl() {
+        when(gateway.create(any(), any())).thenReturn(pixCharge());
+
+        service(true).startIntent(customer, 1, "pix", null);
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        assertEquals(null, values.getValue()[14]);
+    }
+
     @Test
     void withoutFlagNewChargesStayBlocked() {
         ApiException error = assertThrows(ApiException.class, () -> service(false).startIntent(customer, 1, "pix", null));
@@ -108,7 +138,7 @@ class OnlinePaymentServiceTest {
         assertEquals("https://www.mercadopago.com.br/payments/123456/ticket", saved[8]);
         assertEquals(9L, saved[12]);
         assertEquals("3588446200", saved[13]);
-        assertEquals(1L, saved[14]);
+        assertEquals(1L, saved[15]);
     }
 
     @Test
@@ -307,6 +337,22 @@ class OnlinePaymentServiceTest {
         verify(orderPayments, never()).reverseOrderValues(org.mockito.ArgumentMatchers.anyLong());
     }
 
+    @Test
+    void finalResultFromTheWebhookClearsTheChallengeUrl() {
+        payment.put("external_id", "ORD3DS");
+        when(gateway.fetch(eq(loja), eq("ORD3DS"))).thenReturn(new PaymentGateway.Charge(
+            "ORD3DS", "1", 1000, "rejected", "cc_rejected_3ds_challenge", null, null, null, null));
+
+        service(true).handleWebhook("mercadopago", "ORD3DS", "3588446200");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(sql.capture(), values.capture());
+        assertTrue(sql.getValue().contains("challenge_url = IF(? = 'pending', COALESCE(?, challenge_url), NULL)"));
+        assertEquals("rejected", values.getValue()[5]);
+        assertEquals(null, values.getValue()[6]);
+    }
+
     private static final String LATE_PAID_NOTE = "Estorno automático: pagamento aprovado após o cancelamento do pedido";
 
     @Test
@@ -318,7 +364,7 @@ class OnlinePaymentServiceTest {
         service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200");
 
         org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(jdbc, orderPayments);
-        ordem.verify(jdbc).update(argThat(sql -> sql != null && sql.startsWith("UPDATE order_payments SET status = ?")), eq("paid"), any(), any(), any(), any(), any());
+        ordem.verify(jdbc).update(argThat(sql -> sql != null && sql.startsWith("UPDATE order_payments SET status = ?")), eq("paid"), any(), any(), any(), any(), any(), any(), any());
         ordem.verify(orderPayments).refundIfPaidOnline(null, 1L, LATE_PAID_NOTE);
     }
 
@@ -646,5 +692,197 @@ class OnlinePaymentServiceTest {
 
         assertEquals(409, erro.status());
         verify(gateway, never()).create(any(), any());
+    }
+
+    private void desafioAberto() {
+        payment.put("method", "card");
+        payment.put("provider", "mercadopago");
+        payment.put("external_id", "ORD3DS");
+        payment.put("payment_account_id", 9L);
+        payment.put("challenge_url", URL_BANCO);
+        payment.put("customer_id", 7L);
+        payment.put("order_status", "placed");
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(loja));
+    }
+
+    @Test
+    void refreshRecordsWhatTheBankDecided() {
+        desafioAberto();
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).refresh(customer, 1);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(sql.capture(), values.capture());
+        assertTrue(sql.getValue().contains("WHERE order_id = ? AND status = 'pending'"));
+        assertEquals("paid", values.getValue()[0]);
+        assertEquals("accredited", values.getValue()[1]);
+    }
+
+    @Test
+    void refreshWithADifferentAmountIsNotPaid() {
+        desafioAberto();
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 900, "paid", "accredited", null, null, null, null));
+
+        service(true).refresh(customer, 1);
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        assertEquals("rejected", values.getValue()[0]);
+        assertEquals("Valor divergente: provedor 900 vs pedido 1000", values.getValue()[2]);
+    }
+
+    @Test
+    void refreshWithoutAPendingChargeDoesNotCallTheProvider() {
+        desafioAberto();
+        payment.put("status", "paid");
+
+        service(true).refresh(customer, 1);
+
+        verify(gateway, never()).fetch(any(), anyString());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void providerFailureOnRefreshChangesNothing() {
+        desafioAberto();
+        when(gateway.fetch(loja, "ORD3DS")).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
+
+        service(true).refresh(customer, 1);
+
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void refreshOfSomeoneElsesOrderIsNotFound() {
+        desafioAberto();
+
+        ApiException error = assertThrows(ApiException.class, () -> service(true).refresh(stranger, 1));
+
+        assertEquals(404, error.status());
+        verify(gateway, never()).fetch(any(), anyString());
+    }
+
+    @Test
+    void abandonCancelsAtTheProviderAndFreesANewCharge() {
+        desafioAberto();
+        when(gateway.cancel(loja, "ORD3DS", "cancel-ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "cancelled", "canceled", null, null, null, null));
+
+        service(true).abandonChallenge(customer, 1);
+
+        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled', raw_status = 'cancelled', challenge_url = NULL WHERE order_id = ? AND status = 'pending'",
+            1L);
+    }
+
+    @Test
+    void abandonWithAnExpiredOrderFreesANewCharge() {
+        desafioAberto();
+        when(gateway.cancel(loja, "ORD3DS", "cancel-ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "expired", "expired", null, null, null, null));
+
+        service(true).abandonChallenge(customer, 1);
+
+        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled', raw_status = 'cancelled', challenge_url = NULL WHERE order_id = ? AND status = 'pending'",
+            1L);
+    }
+
+    @Test
+    void abandonAfterTheBankRefusedRecordsTheRefusal() {
+        desafioAberto();
+        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o cancelamento: order processed"));
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "rejected", "cc_rejected_3ds_challenge", null, null, null, null));
+
+        service(true).abandonChallenge(customer, 1);
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        assertEquals("rejected", values.getValue()[0]);
+        assertEquals("cc_rejected_3ds_challenge", values.getValue()[1]);
+    }
+
+    @Test
+    void abandonStillPendingButTheCheckSaysPaidRecordsThePayment() {
+        desafioAberto();
+        when(gateway.cancel(any(), anyString(), anyString())).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null));
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).abandonChallenge(customer, 1);
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        assertEquals("paid", values.getValue()[0]);
+    }
+
+    @Test
+    void abandonWhenTheBankJustApprovedRecordsThePayment() {
+        desafioAberto();
+        when(gateway.cancel(loja, "ORD3DS", "cancel-ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).abandonChallenge(customer, 1);
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        assertEquals("paid", values.getValue()[0]);
+    }
+
+    @Test
+    void abandonWhenTheCancelFailsButTheBankApprovedRecordsThePayment() {
+        desafioAberto();
+        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o cancelamento: order processed"));
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).abandonChallenge(customer, 1);
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        assertEquals("paid", values.getValue()[0]);
+    }
+
+    @Test
+    void abandonNotConfirmedByTheProviderIs409AndChangesNothing() {
+        desafioAberto();
+        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
+        when(gateway.fetch(loja, "ORD3DS")).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
+
+        ApiException error = assertThrows(ApiException.class, () -> service(true).abandonChallenge(customer, 1));
+
+        assertEquals(409, error.status());
+        assertEquals("Não foi possível cancelar a verificação agora. Tente de novo em instantes.", error.getMessage());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void abandonStillPendingAfterTheCancelIs409() {
+        desafioAberto();
+        when(gateway.cancel(any(), anyString(), anyString())).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null));
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null));
+
+        ApiException error = assertThrows(ApiException.class, () -> service(true).abandonChallenge(customer, 1));
+
+        assertEquals(409, error.status());
+        assertEquals("Não foi possível cancelar a verificação agora. Tente de novo em instantes.", error.getMessage());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void abandonWithoutAnOpenChallengeIs409() {
+        desafioAberto();
+        payment.put("challenge_url", null);
+
+        ApiException error = assertThrows(ApiException.class, () -> service(true).abandonChallenge(customer, 1));
+
+        assertEquals(409, error.status());
+        assertEquals("Não há verificação do banco em andamento.", error.getMessage());
+        verify(gateway, never()).cancel(any(), anyString(), anyString());
+    }
+
+    @Test
+    void abandonOfSomeoneElsesOrderIsNotFound() {
+        desafioAberto();
+
+        ApiException error = assertThrows(ApiException.class, () -> service(true).abandonChallenge(stranger, 1));
+
+        assertEquals(404, error.status());
+        verify(gateway, never()).cancel(any(), anyString(), anyString());
     }
 }

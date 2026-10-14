@@ -68,6 +68,20 @@ public class PaymentController {
             body.method(), body.provider(), body.cardToken(), body.installments(), body.docType(), body.docNumber(), body.paymentMethodId()));
     }
 
+    /** A página do banco (3DS) avisou que terminou: confere na hora, sem esperar o webhook (spec de 14/10/2026). */
+    @PostMapping("/orders/{id}/payment/online/refresh")
+    public Map<String, Object> refreshOnline(@CookieValue(value = "foodie_session", required = false) String token,
+                                             @PathVariable @Positive long id) {
+        return online.refresh(auth.requireUser(token, "customer"), id);
+    }
+
+    /** O cliente desiste da verificação do banco (3DS) e volta para Cartão ou Pix (spec de 14/10/2026). */
+    @PostMapping("/orders/{id}/payment/online/abandon")
+    public Map<String, Object> abandonChallenge(@CookieValue(value = "foodie_session", required = false) String token,
+                                                @PathVariable @Positive long id) {
+        return online.abandonChallenge(auth.requireUser(token, "customer"), id);
+    }
+
     /** O que o checkout precisa para a loja do carrinho: a public key DELA (não é segredo) e se cobra online. */
     @GetMapping("/payments/public-config")
     public Map<String, Object> publicConfig(@CookieValue(value = "foodie_session", required = false) String token,
