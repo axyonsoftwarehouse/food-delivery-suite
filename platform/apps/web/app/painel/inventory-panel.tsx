@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, money, useApp } from '../app-context';
+import { quantityDelta } from '../quantity';
 
 type Item = { id: number; name: string; unit: string; quantity: number; min_quantity: number; cost_cents: number; supplier_id: number | null; supplier_name: string | null; active: boolean; low: number };
 type Supplier = { id: number; name: string; contact: string; notes: string };
@@ -45,11 +46,12 @@ function Items({ onMessage }: { onMessage: (m: string) => void }) {
   const [cost, setCost] = useState('0');
   const [supplierId, setSupplierId] = useState('');
 
+  const { askText } = useApp();
   async function move(item: Item) {
-    const value = window.prompt(`Movimentar "${item.name}" (use valor negativo para saída):`, '0');
+    const value = await askText({ title: `Movimentar "${item.name}"`, label: `Quantidade em ${item.unit} (negativa para saída)`, min: 1, max: 16, singleLine: true, confirmLabel: 'Movimentar', validate: (text) => quantityDelta(text).error });
     if (value === null) return;
-    const delta = Number(value.replace(',', '.'));
-    if (!Number.isFinite(delta) || delta === 0) { onMessage('Informe um valor válido.'); return; }
+    const { delta } = quantityDelta(value);
+    if (delta === null) return;
     await act(`/restaurant/inventory/${item.id}/movement`, 'POST', { delta, reason: 'Ajuste manual' }, 'Estoque movimentado.', reload, onMessage);
   }
 

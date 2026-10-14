@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { uploadFile } from './files';
 import { createRequest, SupportCancelled } from './support-request';
 import { useSupportReason } from './SupportReasonDialog';
+import { useApp } from './app-context';
 
 type Category = { id: number; restaurant_id: number; name: string };
 type Product = { id: number; restaurant_id: number; category_id: number; name: string; description: string; price_cents: number; available: boolean; is_combo?: boolean; stock?: number | null; available_from?: string | null; available_until?: string | null };
@@ -45,7 +46,9 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
   const { askReason, dialog } = useSupportReason();
   const request = useMemo(() => createRequest(isSupport ? askReason : null), [isSupport, askReason]);
   // No modo suporte o diálogo de motivo já confirma a exclusão (mostrando a ação); não pergunta duas vezes.
-  const confirmDelete = (action: string) => isSupport || window.confirm(action);
+  const { askText, askConfirm } = useApp();
+  // No modo suporte o próprio diálogo do motivo já mostra a ação e confirma; fora dele, diálogo do app.
+  const confirmDelete = async (action: string) => isSupport || askConfirm({ title: action, confirmLabel: 'Excluir', danger: true });
   const [catalog, setCatalog] = useState<Catalog>({ categories: [], products: [] });
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -187,23 +190,23 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
     void run(() => request(`${productBase}/${product.id}`, { method: 'PATCH', body: JSON.stringify({ available: !product.available }) }), product.available ? 'Produto pausado.' : 'Produto reativado.');
   }
 
-  function removeProduct(product: Product) {
+  async function removeProduct(product: Product) {
     const action = `Excluir "${product.name}"? Se já foi usado em pedidos, prefira pausar.`;
-    if (!confirmDelete(action)) return;
+    if (!(await confirmDelete(action))) return;
     if (expandedId === product.id) { setExpandedId(null); setDetail(null); }
     void run(() => request(`${productBase}/${product.id}`, { method: 'DELETE', action }), 'Produto excluído.');
   }
 
-  function renameCategory(category: Category) {
-    const name = window.prompt('Novo nome da categoria:', category.name) ?? '';
-    if (name.trim().length < 2) { onMessage('Informe um nome com pelo menos 2 caracteres.'); return; }
+  async function renameCategory(category: Category) {
+    const name = await askText({ title: 'Renomear categoria', label: 'Nome (2 a 120 caracteres)', min: 2, max: 120, initial: category.name, singleLine: true, confirmLabel: 'Salvar' });
+    if (name === null || name === category.name) return;
     const path = `${root}/categories/${category.id}`;
-    void run(() => request(path, { method: 'PATCH', body: JSON.stringify({ name: name.trim() }) }), 'Categoria atualizada.');
+    void run(() => request(path, { method: 'PATCH', body: JSON.stringify({ name }) }), 'Categoria atualizada.');
   }
 
-  function removeCategory(category: Category) {
+  async function removeCategory(category: Category) {
     const action = `Excluir a categoria "${category.name}"? Só é possível se estiver vazia.`;
-    if (!confirmDelete(action)) return;
+    if (!(await confirmDelete(action))) return;
     const path = `${root}/categories/${category.id}`;
     void run(() => request(path, { method: 'DELETE', action }), 'Categoria excluída.');
   }

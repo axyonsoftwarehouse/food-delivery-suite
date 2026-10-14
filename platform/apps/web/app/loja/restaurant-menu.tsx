@@ -11,7 +11,7 @@ import AddressPicker from './address-picker';
 import { ReferralBlock } from './referral';
 
 export default function RestaurantMenu() {
-  const { busy } = useApp();
+  const { busy, setMessage } = useApp();
   const { catalog, restaurantId, selectedAddress, selectedZone, setCategoryId, showAddressForm, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId } = useCustomer();
   const [chosen, setChosen] = useState<number | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<number[]>([]);
@@ -53,7 +53,7 @@ export default function RestaurantMenu() {
     type Recognition = { lang: string; onresult: (event: { results: Array<Array<{ transcript: string }>> }) => void; start: () => void };
     const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
     const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!Ctor) { window.alert('Busca por voz não disponível neste navegador.'); return; }
+    if (!Ctor) { setMessage('Busca por voz não disponível neste navegador.'); return; }
     const recognition = new Ctor();
     recognition.lang = 'pt-BR';
     recognition.onresult = (event) => setSearch(event.results[0][0].transcript);

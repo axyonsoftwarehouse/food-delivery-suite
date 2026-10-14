@@ -18,7 +18,7 @@ const RETURN_MESSAGES: Record<string, string> = {
 
 /** Conta Mercado Pago da loja: o dinheiro de Pix e cartão online cai direto nela (decisão de 05/10/2026). */
 export default function PaymentAccountCard() {
-  const { setMessage } = useApp();
+  const { setMessage, askConfirm } = useApp();
   const [account, setAccount] = useState<Account | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -62,7 +62,7 @@ export default function PaymentAccountCard() {
   }
 
   async function disconnect() {
-    if (!window.confirm('Desconectar o Mercado Pago? Pix e cartão online saem do checkout da loja até reconectar.')) return;
+    if (!(await askConfirm({ title: 'Desconectar o Mercado Pago?', message: 'Pix e cartão online saem do checkout da loja até reconectar.', confirmLabel: 'Desconectar', danger: true }))) return;
     setBusy(true);
     try { setAccount(await api<Account>('/restaurant/payment-account', { method: 'DELETE' })); setNotice('Mercado Pago desconectado.'); }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível desconectar.'); }
