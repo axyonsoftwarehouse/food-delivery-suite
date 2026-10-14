@@ -1,6 +1,7 @@
 package com.foodie.api.orders;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -31,6 +32,37 @@ class PaymentServiceTest {
     private final User courier = new User(5, "Entregador", "entregador@demo.local", "courier", null);
 
     private final User owner = new User(5, "Dona", "dona@cantina.com.br", "restaurant", 3L);
+
+    private Map<String, Object> linhaComDesafio() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("id", 11L); row.put("modality", "online"); row.put("method", "card"); row.put("status", "pending");
+        row.put("raw_status", "pending_challenge"); row.put("challenge_url", "https://acs.banco.exemplo/desafio/abc");
+        return row;
+    }
+
+    @Test
+    void customerSeesTheBankChallengeWhileItIsOpen() {
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("AS pay_deadline"), any(Object[].class))).thenReturn(List.of(linhaComDesafio()));
+
+        assertEquals("https://acs.banco.exemplo/desafio/abc", service.detail(1, true).get("challenge_url"));
+    }
+
+    @Test
+    void storeAndAdminDoNotSeeTheBankChallenge() {
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("AS pay_deadline"), any(Object[].class))).thenReturn(List.of(linhaComDesafio()));
+
+        assertFalse(service.detail(1, false).containsKey("challenge_url"));
+        assertFalse(service.detail(1).containsKey("challenge_url"));
+    }
+
+    @Test
+    void finishedPaymentDoesNotShowTheChallenge() {
+        Map<String, Object> row = linhaComDesafio();
+        row.put("status", "rejected");
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("AS pay_deadline"), any(Object[].class))).thenReturn(List.of(row));
+
+        assertFalse(service.detail(1, true).containsKey("challenge_url"));
+    }
 
     @Test
     void storeRefundsItsOwnOrder() {
@@ -137,7 +169,7 @@ class PaymentServiceTest {
         withOnline.cancelPending(1);
 
         verify(gateway).cancel(loja, "ORDPIX1", "cancel-ORDPIX1");
-        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled' WHERE order_id = ? AND status = 'pending'", 1L);
+        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled', challenge_url = NULL WHERE order_id = ? AND status = 'pending'", 1L);
     }
 
     @Test
@@ -152,7 +184,7 @@ class PaymentServiceTest {
 
         assertDoesNotThrow(() -> withOnline.cancelPending(1));
 
-        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled' WHERE order_id = ? AND status = 'pending'", 1L);
+        verify(jdbc).update("UPDATE order_payments SET status = 'cancelled', challenge_url = NULL WHERE order_id = ? AND status = 'pending'", 1L);
     }
 
     @Test

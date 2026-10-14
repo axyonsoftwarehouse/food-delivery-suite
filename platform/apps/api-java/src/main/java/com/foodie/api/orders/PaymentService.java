@@ -230,7 +230,7 @@ public class PaymentService {
                 }
             }
         }
-        jdbc.update("UPDATE order_payments SET status = 'cancelled' WHERE order_id = ? AND status = 'pending'", orderId);
+        jdbc.update("UPDATE order_payments SET status = 'cancelled', challenge_url = NULL WHERE order_id = ? AND status = 'pending'", orderId);
     }
 
     /** Pedido de "Pagar agora" que ainda não foi pago: a loja não aceita até o pagamento entrar. */
@@ -246,8 +246,16 @@ public class PaymentService {
     }
 
     public Map<String, Object> detail(long orderId) {
+        return detail(orderId, false);
+    }
+
+    /**
+     * {@code customerView}: quem pede é o cliente dono do pedido. Só ele recebe a página do banco do 3DS,
+     * e só enquanto o cartão espera a verificação (spec de 14/10/2026, regra 5).
+     */
+    public Map<String, Object> detail(long orderId, boolean customerView) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, order_id, method, modality, status, raw_status, amount_due_cents, change_for_cents, amount_received_cents, change_cents, qr_code, qr_code_base64, ticket_url, external_id, expires_at, note, confirmed_by, confirmed_at, refunded_by, refunded_at, offline_method_id, proof_url, proof_note, submitted_at, rejection_reason, " + com.foodie.api.payments.PaymentDisplay.PAY_DEADLINE_COLUMN + " FROM order_payments WHERE order_id = ?",
+            "SELECT id, order_id, method, modality, status, raw_status, amount_due_cents, change_for_cents, amount_received_cents, change_cents, qr_code, qr_code_base64, ticket_url, external_id, expires_at, note, confirmed_by, confirmed_at, refunded_by, refunded_at, offline_method_id, proof_url, proof_note, submitted_at, rejection_reason, challenge_url, " + com.foodie.api.payments.PaymentDisplay.PAY_DEADLINE_COLUMN + " FROM order_payments WHERE order_id = ?",
             orderId
         );
         if (rows.isEmpty()) return null;
@@ -265,6 +273,11 @@ public class PaymentService {
         payment.put("image", image);
         payment.put("rejection_message", "rejected".equals(payment.get("status"))
             ? com.foodie.api.payments.PaymentDisplay.rejectionMessage((String) payment.get("raw_status")) : null);
+        Object desafio = payment.remove("challenge_url");
+        if (customerView && desafio != null && "online".equals(payment.get("modality")) && "card".equals(payment.get("method"))
+            && "pending".equals(payment.get("status"))) {
+            payment.put("challenge_url", desafio);
+        }
         return payment;
     }
 

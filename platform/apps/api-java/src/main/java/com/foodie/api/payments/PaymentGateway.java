@@ -80,6 +80,16 @@ public interface PaymentGateway {
         }
     }
 
+    /**
+     * {@code challengeUrl}: página do banco para a verificação extra (3DS), só enquanto a cobrança de cartão
+     * espera o desafio (spec de 14/10/2026, regra 2); nula em todos os outros casos.
+     */
     record Charge(String externalId, String externalReference, long amountCents, String status, String rawStatus,
-                  String qrCode, String qrCodeBase64, String ticketUrl, Instant expiresAt) {}
+                  String qrCode, String qrCodeBase64, String ticketUrl, Instant expiresAt, String challengeUrl) {
+        /** Cobrança sem desafio do banco (Pix, cartão sem 3DS, caminho antigo). */
+        public Charge(String externalId, String externalReference, long amountCents, String status, String rawStatus,
+                      String qrCode, String qrCodeBase64, String ticketUrl, Instant expiresAt) {
+            this(externalId, externalReference, amountCents, status, rawStatus, qrCode, qrCodeBase64, ticketUrl, expiresAt, null);
+        }
+    }
 }

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -592,12 +593,28 @@ class OrderServiceTest {
         row.put("id", 40L); row.put("customer_id", 8L); row.put("restaurant_id", 3L); row.put("courier_id", 9L);
         row.put("status", "picked_up"); row.put("delivery_code", "0427"); row.put("delivery_code_attempts", 2);
         when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT o.*"), any(Object[].class))).thenReturn(List.of(row));
-        when(payments.detail(40)).thenReturn(Map.of());
+        when(payments.detail(eq(40L), anyBoolean())).thenReturn(Map.of());
 
         for (User viewer : List.of(CUSTOMER, RESTAURANT, COURIER, ADMIN)) {
             Map<String, Object> detail = orders.detail(viewer, 40);
             assertThat(detail).doesNotContainKeys("delivery_code", "delivery_code_attempts").containsEntry("has_delivery_code", true);
         }
+    }
+
+    @Test
+    void detailAsksForTheCustomerViewOnlyForTheCustomer() {
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("id", 40L); row.put("customer_id", 8L); row.put("restaurant_id", 3L); row.put("courier_id", 9L);
+        row.put("status", "placed");
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.startsWith("SELECT o.*"), any(Object[].class))).thenReturn(List.of(row));
+        when(payments.detail(eq(40L), anyBoolean())).thenReturn(Map.of());
+
+        orders.detail(CUSTOMER, 40);
+        verify(payments).detail(40L, true);
+        verify(payments, org.mockito.Mockito.never()).detail(40L, false);
+
+        orders.detail(RESTAURANT, 40);
+        verify(payments).detail(40L, false);
     }
 
     @Test

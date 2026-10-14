@@ -160,3 +160,22 @@ bloqueadores). O que dá para fazer:
 - manter a mensagem da PR #44 e, se possível, oferecer o Pix na própria mensagem;
 - **não** tentar contornar o bloqueio servindo os scripts do Mercado Pago pelo nosso domínio: o Brick
   precisa carregar dos servidores deles (é o que mantém o cartão fora do Foodie, exigência de PCI).
+
+## 8. Verificação do banco (3DS) no cartão
+
+A partir do deploy da branch `feat/3ds-desafio-cartao` (spec de 14/10/2026), a cobrança de cartão pede o 3DS ao Mercado Pago só quando o banco acha a compra
+arriscada (`validation: on_fraud_risk`, `liability_shift: required`). No modo de teste, quem decide é o
+**nome impresso no cartão** (o titular digitado no formulário), não o primeiro nome do cliente:
+
+| Titular no cartão | O que acontece |
+| --- | --- |
+| `APRO-CHOK` | aparece a página do banco; clicar em **Confirmar** → pagamento aprovado |
+| `OTHE-CHNO` | aparece a página do banco; resultado → recusado |
+| `APRO-AUTH` ou `APRO-ATMT` | aprovado sem mostrar a página do banco |
+| `OTHE-NAUT` | recusado sem mostrar a página do banco |
+
+Resultados conforme a documentação do Mercado Pago (consultada em 14/10/2026) — `(a confirmar no roteiro do staging)`, inclusive o `status_detail` real do `OTHE-CHNO`.
+
+O código de verificação mostrado no modo de teste é ilustrativo: basta clicar em **Confirmar**. Durante a
+verificação, o botão **"Usar outro cartão ou Pix"** cancela a cobrança no Mercado Pago e volta para a
+escolha. O prazo continua o do pedido (15 min); vencido, o pedido é cancelado e a cobrança também.

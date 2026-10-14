@@ -205,6 +205,12 @@ public class MercadoPagoGateway implements PaymentGateway {
         pagamento.put("amount", dinheiro(request.amountCents()));
         pagamento.put("payment_method", meio);
         corpo.put("transactions", Map.of("payments", List.of(pagamento)));
+        if ("card".equals(request.method())) {
+            // 3DS só quando o banco achar a compra arriscada; com a compra autenticada, o chargeback por fraude
+            // passa da loja para a bandeira (spec de 14/10/2026, regra 1). O Pix não tem 3DS.
+            corpo.put("config", Map.of("online", Map.of("transaction_security",
+                Map.of("validation", "on_fraud_risk", "liability_shift", "required"))));
+        }
 
         // Sem `notification_url`: a API de Orders recusa campo extra no corpo
         // (`400 unsupported_properties: additionalProperties '$.notification_url' not allowed`).
@@ -374,10 +380,14 @@ public class MercadoPagoGateway implements PaymentGateway {
             ? amountCents(pagamento.get("amount"))
             : amountCents(order.get("total_amount"));
         Map<String, Object> meio = pagamento == null ? null : nested(pagamento, "payment_method");
+        String normalizado = MercadoPagoStatus.normalize(status);
+        // A URL do banco só vale enquanto a cobrança espera o desafio: a resposta final ainda pode trazê-la.
+        Map<String, Object> seguranca = meio == null ? null : nested(meio, "transaction_security");
+        String desafio = "pending".equals(normalizado) && seguranca != null ? str(seguranca.get("url")) : null;
         return new Charge(str(order.get("id")), str(order.get("external_reference")), centavos,
-            MercadoPagoStatus.normalize(status), textoOu(detalhe, status),
+            normalizado, textoOu(detalhe, status),
             meio == null ? null : str(meio.get("qr_code")), meio == null ? null : str(meio.get("qr_code_base64")),
-            meio == null ? null : str(meio.get("ticket_url")), instant(order.get("date_of_expiration")));
+            meio == null ? null : str(meio.get("ticket_url")), instant(order.get("date_of_expiration")), desafio);
     }
 
     /** Caminho antigo (Payments API), só para consultar cobrança criada antes desta mudança. */

@@ -3,7 +3,10 @@ package com.foodie.api.payments;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foodie.api.ApiException;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
@@ -21,10 +24,12 @@ class MercadoPagoOrdersTest {
     private HttpServer server;
     private final AtomicReference<String> caminho = new AtomicReference<>();
     private final AtomicReference<String> idempotencia = new AtomicReference<>();
+    private final AtomicReference<String> corpoEnviado = new AtomicReference<>();
 
     private MercadoPagoGateway gateway(int status, String resposta) throws Exception {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", troca -> {
+            corpoEnviado.set(new String(troca.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             caminho.set(troca.getRequestURI().getPath());
             idempotencia.set(troca.getRequestHeaders().getFirst("X-Idempotency-Key"));
             byte[] corpo = resposta.getBytes(StandardCharsets.UTF_8);
@@ -40,6 +45,63 @@ class MercadoPagoOrdersTest {
     @AfterEach
     void parar() {
         if (server != null) server.stop(0);
+    }
+
+    private static final PaymentGateway.ChargeRequest PIX = new PaymentGateway.ChargeRequest(
+        51, 4190, "pix", "Pedido #51", "apro@exemplo.com.br", "order-51-51", null, null, null, null, null, "APRO");
+
+    private static final String DESAFIO = """
+        {"id":"ORDTST3DS","external_reference":"51","total_amount":"41.90","status":"action_required","status_detail":"pending_challenge",
+         "transactions":{"payments":[{"id":"PAY3DS","amount":"41.90","status":"action_required","status_detail":"pending_challenge",
+          "payment_method":{"id":"master","type":"credit_card","transaction_security":{"validation":"on_fraud_risk","liability_shift":"required",
+           "url":"https://acs.banco.exemplo/desafio/abc"}}}]}}
+        """;
+
+    @Test
+    void cardOrderAsksFor3dsOnlyOnFraudRiskWithLiabilityShift() throws Exception {
+        MercadoPagoGateway mp = gateway(201, DESAFIO);
+
+        mp.create(LOJA, CARTAO);
+
+        JsonNode corpo = new ObjectMapper().readTree(corpoEnviado.get());
+        assertEquals("on_fraud_risk", corpo.at("/config/online/transaction_security/validation").asText());
+        assertEquals("required", corpo.at("/config/online/transaction_security/liability_shift").asText());
+    }
+
+    @Test
+    void pixOrderDoesNotAskFor3ds() throws Exception {
+        MercadoPagoGateway mp = gateway(201, """
+            {"id":"ORDPIX","external_reference":"51","total_amount":"41.90","status":"action_required",
+             "transactions":{"payments":[{"id":"PAYPIX","amount":"41.90","status":"action_required","status_detail":"waiting_transfer",
+              "payment_method":{"id":"pix","type":"bank_transfer","qr_code":"000201"}}]}}
+            """);
+
+        mp.create(LOJA, PIX);
+
+        assertTrue(new ObjectMapper().readTree(corpoEnviado.get()).path("config").isMissingNode());
+    }
+
+    @Test
+    void pendingChallengeComesBackWithTheBankUrl() throws Exception {
+        MercadoPagoGateway mp = gateway(201, DESAFIO);
+
+        PaymentGateway.Charge cobranca = mp.create(LOJA, CARTAO);
+
+        assertEquals("pending", cobranca.status());
+        assertEquals("pending_challenge", cobranca.rawStatus());
+        assertEquals("https://acs.banco.exemplo/desafio/abc", cobranca.challengeUrl());
+        assertEquals("ORDTST3DS", cobranca.externalId());
+    }
+
+    @Test
+    void urlOfAFinishedChargeIsIgnored() throws Exception {
+        MercadoPagoGateway mp = gateway(200, DESAFIO
+            .replace("\"status\":\"action_required\",\"status_detail\":\"pending_challenge\"", "\"status\":\"processed\",\"status_detail\":\"accredited\""));
+
+        PaymentGateway.Charge cobranca = mp.fetch(LOJA, "ORDTST3DS");
+
+        assertEquals("paid", cobranca.status());
+        assertNull(cobranca.challengeUrl());
     }
 
     @Test
