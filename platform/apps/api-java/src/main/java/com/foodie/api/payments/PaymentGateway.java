@@ -69,13 +69,13 @@ public interface PaymentGateway {
     record ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey,
                          String cardToken, Integer installments, String docType, String docNumber, String paymentMethodId, String payerFirstName) {
         /** Cartão sem a bandeira e sem o nome do pagador (a bandeira vem do formulário quando existe). */
-        ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey,
+        public ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey,
                       String cardToken, Integer installments, String docType, String docNumber) {
             this(orderId, amountCents, method, description, payerEmail, idempotencyKey, cardToken, installments, docType, docNumber, null, null);
         }
 
         /** Cobrança sem cartão tokenizado (Pix). */
-        ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey) {
+        public ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey) {
             this(orderId, amountCents, method, description, payerEmail, idempotencyKey, null, null, null, null, null, null);
         }
     }

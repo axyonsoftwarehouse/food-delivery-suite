@@ -35,6 +35,9 @@ class PaymentWebhookControllerTest {
     @MockitoBean
     private com.foodie.api.payments.accounts.PaymentAccountService accounts;
 
+    @MockitoBean
+    private com.foodie.api.subscriptions.SubscriptionWebhookRouter subscriptions;
+
     @Test
     void ignoresNonPaymentEvents() throws Exception {
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
@@ -73,6 +76,22 @@ class PaymentWebhookControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("paid"));
         verify(online).handleWebhook("mercadopago", "123", "3588446200");
+    }
+
+    @Test
+    void routesASubscriptionChargeBeforeOrders() throws Exception {
+        when(gateways.resolve("mercadopago")).thenReturn(gateway);
+        when(gateway.provider()).thenReturn("mercadopago");
+        when(gateway.webhookChargeId(any())).thenReturn(Optional.of("ORDSUB9"));
+        when(gateway.verifyWebhook(any())).thenReturn(true);
+        when(gateway.webhookAccountId(any())).thenReturn(Optional.of("3588446200"));
+        when(subscriptions.route("mercadopago", "ORDSUB9", "3588446200")).thenReturn(Optional.of(Map.of("ok", true, "status", "paid")));
+
+        mvc.perform(post("/webhooks/mercadopago").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"order\",\"data\":{\"id\":\"ORDSUB9\"}}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("paid"));
+        verify(online, never()).handleWebhook(any(), any(), any());
     }
 
     @Test

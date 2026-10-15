@@ -2,6 +2,7 @@ package com.foodie.api.payments;
 
 import com.foodie.api.ApiException;
 import com.foodie.api.payments.accounts.PaymentAccountService;
+import com.foodie.api.subscriptions.SubscriptionWebhookRouter;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,11 +17,14 @@ public class PaymentWebhookController {
     private final OnlinePaymentService online;
     private final PaymentGatewayRegistry gateways;
     private final PaymentAccountService accounts;
+    private final SubscriptionWebhookRouter subscriptions;
 
-    public PaymentWebhookController(OnlinePaymentService online, PaymentGatewayRegistry gateways, PaymentAccountService accounts) {
+    public PaymentWebhookController(OnlinePaymentService online, PaymentGatewayRegistry gateways, PaymentAccountService accounts,
+                                    SubscriptionWebhookRouter subscriptions) {
         this.online = online;
         this.gateways = gateways;
         this.accounts = accounts;
+        this.subscriptions = subscriptions;
     }
 
     @PostMapping("/webhooks/{provider}")
@@ -40,6 +44,9 @@ public class PaymentWebhookController {
         Optional<String> chargeId = gateway.webhookChargeId(request);
         if (chargeId.isEmpty()) return Map.of("ok", true, "ignored", true);
         if (!gateway.verifyWebhook(request)) throw new ApiException(401, "Assinatura do webhook inválida");
+        // A assinatura da loja tem a própria cobrança (conta da Foodie): roteia antes dos pedidos.
+        Optional<Map<String, Object>> assinatura = subscriptions.route(gateway.provider(), chargeId.get(), gateway.webhookAccountId(request).orElse(null));
+        if (assinatura.isPresent()) return assinatura.get();
         return online.handleWebhook(gateway.provider(), chargeId.get(), gateway.webhookAccountId(request).orElse(null));
     }
 }

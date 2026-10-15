@@ -1,6 +1,6 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 14/10/2026.
+Documento vivo. Última atualização: 15/10/2026.
 Base: `PLANO_EPICOS.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -15,17 +15,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`8eb3206`** — merge da PR #39 (3DS: verificação do banco na página do cartão). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #39** são os do `axyonsoftwarehouse` |
-| Em revisão | **nada aberto** — a correção da desistência do 3DS está na branch `fix/3ds-desistencia`, ainda sem PR (spec `docs/superpowers/specs/2026-10-14-3ds-desistencia-sem-cancelamento-design.md`, plano `docs/superpowers/plans/2026-10-14-3ds-desistencia-sem-cancelamento.md`) |
-| `main` local | `6f5f456` `(a confirmar)` — atrás do `origin/main`; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
-| **Código na VPS** | **`8eb3206`** — o `main` inteiro (até a PR #39, 3DS), publicado pelo **botão do GitHub** em **14/10 21:31 UTC** (run `38640927629`, sucesso, `headSha` = `8eb3206`; o anterior era `a65f497`, de 14/10 13:12 UTC). Conteúdo do `.deployed` não lido nesta atualização `(a confirmar)` |
-| Schema (`/ready`) | **`068`** na VPS e no `HEAD` do `main` (conferido em 14/10: `{"status":"ready","schemaVersion":"068"}`; migration `V068`, `order_payments.challenge_url`, da PR #39). A branch `fix/3ds-desistencia` não traz migration |
+| `origin/main` | **`41a29d9`** — merge da PR #41 (Pix sem QR e formulário do cartão travado). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #41** são os do `axyonsoftwarehouse` |
+| Em revisão | **nada aberto** — a desistência do 3DS foi mesclada na **PR #40** (`3a5bc14`, 14/10 23:29 UTC) e o Pix sem QR na **PR #41** (`41a29d9`, 15/10 00:34 UTC) |
+| `main` local | `adb9da2` — atrás do `origin/main`; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
+| **Código na VPS** | **`41a29d9`** — o `main` inteiro (até a PR #41, Pix sem QR), publicado pelo **botão do GitHub** em **15/10 00:37 UTC** (run `38661127216`, sucesso, `headSha` = `41a29d9`; antes dele, o `3a5bc14` da PR #40, deploy de 14/10 23:59 UTC). Conteúdo do `.deployed` não lido nesta atualização `(a confirmar)` |
+| Schema (`/ready`) | **`068`** na VPS e no `HEAD` do `main` (conferido em 15/10: `{"status":"ready","schemaVersion":"068"}`); as PRs #40 e #41 não trazem migration |
 | Distância | o staging roda o mesmo commit do `origin/main` |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `pnpm verify` verde na branch `fix/3ds-desistencia` (14/10, local, sem integração: Docker parado), com **737 testes Java** sem falha. Antes: `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #37 e #38 |
+| Testes Java | `pnpm verify` verde na branch `feat/assinatura-cobranca-real` (15/10, local, sem integração: Docker parado), com **770 testes Java** sem falha. Antes: `pnpm verify` verde na branch `fix/3ds-desistencia` (14/10) com **737 testes Java** sem falha; `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #40 e #41 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **34%** em 13/10 (antes do deploy de 14/10; número novo `(a confirmar)` com `df -h /`); a limpeza automática dispara em 70% |
-| Árvore de trabalho | branch **`fix/3ds-desistencia`** (spec, plano, código da desistência do 3DS e este documento; `.claude/` não versionado) |
+| Árvore de trabalho | branch **`feat/assinatura-cobranca-real`** (cobrança real da assinatura, servidor; spec e plano novos de 15/10; `.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -241,7 +241,12 @@ recusa e assim por diante.
 ### Prioridade alta — antes de operação comercial
 *(do `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`)*
 
-- **Cobrança real da assinatura** — hoje cria transação, não cobra provedor
+- **Cobrança real da assinatura** — hoje cria transação, não cobra provedor.
+  **Em implementação (servidor) na branch `feat/assinatura-cobranca-real`** (PR ainda não aberta): cobrança
+  Pix por ciclo na conta Mercado Pago da Foodie (credenciais por ambiente), webhook idempotente com
+  roteamento próprio, renovação e carência e a migration `V069`. O **trial é ponto aberto** e precisa de
+  conversa antes de virar contrato (spec `docs/superpowers/specs/2026-10-15-assinatura-cobranca-real-design.md`,
+  plano `docs/superpowers/plans/2026-10-15-assinatura-cobranca-real.md`).
 - **Pix/cartão online direto para a loja**: a cobrança, o webhook e o estorno foram provados no staging
   em 05/10 (ver "Pagamentos online"), mas com uma conta só, a da plataforma. A **conta de recebimento
   por loja está implementada** (vinculação OAuth da conta Mercado Pago de cada restaurante, usada na
@@ -398,24 +403,30 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`8eb3206`, schema `068`), com o 3DS (PR #39). O staging é
-publicado pelo **botão do GitHub** ou pelo `release.ps1` no PC (o último deploy, de 14/10 21:31 UTC, foi pelo botão).
+**O que está no ar é o `origin/main` inteiro** (`41a29d9`, schema `068`), com a desistência do 3DS (PR #40) e o
+conserto do Pix sem QR e do formulário do cartão (PR #41). O staging é publicado pelo **botão do GitHub** ou pelo
+`release.ps1` no PC (o último deploy, de 15/10 00:37 UTC, foi pelo botão).
 
 **Roteiro do 3DS no staging (14/10, cartão `PCLXrYCa`):**
 - passaram: `APRO-CHOK` aprovado depois de duas recusas no mesmo pedido (#58); `OTHE-CHNO` recusado com
   `3ds_challenge_failed` e, no mesmo pedido, `APRO-AUTH` aprovado sem verificação (#59); prazo vencido com a
   verificação aberta → pedido cancelado e "Nada foi cobrado" (#60);
-- **falhou: desistir → Pix** (#60). O Mercado Pago recusou o cancelamento com **HTTP 422** durante a verificação
-  (motivo `(a confirmar)`), e a regra 8 da spec de 14/10 respondia 409 — o cliente ficava preso. O cancelamento do prazo
-  vencido também levou 422 (a order segue viva no Mercado Pago; um pagamento atrasado é estornado pelo webhook);
-- achados: `APRO` puro cai na verificação e é recusado (para "cartão comum" use `APRO-AUTH`); o código do
-  simulador vem em cinza e não aceita digitação; o formulário do Mercado Pago deu "Ocorreu um erro" e travou até
-  trocar de aba (#59, nenhuma chamada chegou à API).
+- **falhou: desistir → Pix** (#60). O Mercado Pago recusou o cancelamento com **HTTP 422** durante a verificação, e a
+  regra 8 da spec de 14/10 respondia 409 — o cliente ficava preso. **Corrigido na PR #40:** sem a confirmação do
+  cancelamento, a cobrança vira `cancelled`/`abandoned` e o cliente segue com outro cartão ou Pix; o estorno automático
+  de cobrança anterior paga segura o risco. **Falta só a prova no staging.** O cancelamento do prazo vencido também
+  leva 422 (a order segue viva no Mercado Pago; um pagamento atrasado é estornado pelo webhook);
+- achados: `APRO` puro cai na verificação e é recusado (para "cartão comum" use `APRO-AUTH`); o código do simulador
+  vem em cinza e não aceita digitação; o formulário do Mercado Pago deu "Ocorreu um erro" e travou até trocar de aba
+  (#59, nenhuma chamada chegou à API) — **corrigido na PR #41**; o Pix criado de forma assíncrona voltou sem QR
+  (#61, a API de Orders pode devolver a order sem o QR) e também bloqueava a cobrança no cartão — **corrigido na PR #41**.
 
-**Próximo passo único: a correção da desistência** (branch `fix/3ds-desistencia`): sem a confirmação do
-cancelamento, a cobrança vira `cancelled`/`abandoned` e o cliente segue com outro cartão ou Pix; o estorno
-automático de cobrança anterior paga segura o risco. Falta PR, CI `Verificação`, 1 aprovação, deploy e repetir no
-staging desistir → Pix e `APRO-AUTH` (com prints).
+**Próximo passo único: o roteiro de fechamento do pagamento no staging.** As duas correções (PRs #40 e #41) já estão
+mescladas, no ar e com CI verde; falta repetir o caminho real e tirar os prints (cartão `PCLXrYCa`):
+`APRO-CHOK` → "Usar outro cartão ou Pix" → Pix (o QR agora é gravado mesmo chegando depois, #61); `APRO-AUTH` aprova
+sem verificação; conferir o formulário do cartão destravado depois de "Ocorreu um erro". Depois disso, o pagamento
+com a **conta da loja conectada** é o que resta na fila do dinheiro. Em paralelo, a **cobrança real da
+assinatura** (servidor) está na branch `feat/assinatura-cobranca-real` (§4) — o trial segue como ponto aberto.
 
 **Decisões que nenhum código resolve:**
 - **Conta da empresa** que mantém o sistema: em discussão. O estorno e o chargeback são da loja (14/10) —
@@ -488,8 +499,8 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #39** estão mesclados e
-publicados (`8eb3206`, schema `068`), e o staging roda o mesmo commit do `origin/main`.
+A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #41** estão mesclados e
+publicados (`41a29d9`, schema `068`), e o staging roda o mesmo commit do `origin/main`.
 
 **O que já foi provado no pagamento (com a conta global da plataforma, em 05/10):** Pix (#23) e cartão
 (#26) de ponta a ponta com notificação automática, o estorno pelo admin (#26 ficou `refunded` no Foodie e
@@ -514,14 +525,14 @@ em `/home/deploy/releases/<sha>/`), então as imagens em uso foram **re-tagadas*
 `pre-df503c0` — rollback instantâneo para o release atual sem custo de build. Os backups de banco
 seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar de ~70%.
 
-## 6. Estado da árvore de trabalho (14/10)
+## 6. Estado da árvore de trabalho (15/10)
 
-`origin/main` = **`8eb3206`** (PR #39). O checkout está na branch `fix/3ds-desistencia` (spec, plano, código da desistência do 3DS e este documento;
-o `.claude/` não é versionado). A `main` local não foi atualizada desde 11/10 `(a confirmar)`. Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
+`origin/main` = **`41a29d9`** (PR #41). O checkout está na branch `fix/3ds-desistencia` (já mesclada na PR #40; este documento é editado aqui;
+o `.claude/` não é versionado). A `main` local está em `adb9da2` (PR #36), atrás do `origin/main`. Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
 verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
 conserto no PR #13).
 
-Os **PRs #1 a #39** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
+Os **PRs #1 a #41** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
 os últimos publicados **pelo botão do GitHub**:
 
 | Commit | PR | O que é |
@@ -564,7 +575,9 @@ os últimos publicados **pelo botão do GitHub**:
 | `adb9da2` | #36 | `fix(web)`: ajustes visuais do cabeçalho, notificações, cardápio e Pix |
 | `339190b` | #37 | `fix(web)`: sem janela nativa no site — renomear, estoque, confirmações e avisos |
 | `a65f497` | #38 | `fix(web)`: foco do painel de notificações entra ao abrir e volta ao sino |
-| `8eb3206` | #39 | `feat(api,web)`: verificação do banco (3DS) na página de pagamento do cartão — **é o que está na VPS** (pelo botão do GitHub, 14/10 21:31 UTC) |
+| `8eb3206` | #39 | `feat(api,web)`: verificação do banco (3DS) na página de pagamento do cartão |
+| `3a5bc14` | #40 | `fix(api)`: desistir do 3DS libera nova cobrança sem o cancelamento do Mercado Pago |
+| `41a29d9` | #41 | `fix`: Pix sem QR e formulário do cartão travado na página de pagamento — **é o que está na VPS** (pelo botão do GitHub, 15/10 00:37 UTC) |
 
 **Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
 commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,
