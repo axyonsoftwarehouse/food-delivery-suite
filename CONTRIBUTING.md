@@ -45,4 +45,5 @@ Nada entra na `main` por push direto. Todo trabalho passa por PR:
 
 - Estado do projeto: `docs/ESTADO_ATUAL.md`. Operação da VPS: `docs/RUNBOOK_VPS.md`.
 - QA/homologação: `docs/AVALIACAO_AMBIENTE_QA.md`.
+- Plano de testes (contratos e ida-e-volta): `docs/PLANO_TESTES.md`.
 - Ao mudar comportamento, atualize a documentação no **mesmo PR**.
