@@ -18,6 +18,16 @@ app:
     # Ambiente de testes: só aceita conectar usuários de teste do Mercado Pago (evita ligar uma conta
     # de dinheiro real numa loja de teste — aconteceu no staging em 06/10/2026). Produção: false.
     require-test-accounts: ${PAYMENTS_REQUIRE_TEST_ACCOUNTS:false}
+  subscriptions:
+    # Cobrança real da assinatura da loja (receita da Foodie). Desligada por padrão; ligada no staging
+    # com a conta de teste. Sem a flag ou sem token, o job não cobra de verdade.
+    allow-real-charges: ${SUBSCRIPTIONS_ALLOW_REAL_CHARGES:false}
+    account-access-token: ${SUBSCRIPTIONS_ACCOUNT_ACCESS_TOKEN:}
+    account-public-key: ${SUBSCRIPTIONS_ACCOUNT_PUBLIC_KEY:}
+    # Antecedência da cobrança, carência após o vencimento e intervalo da nova tentativa (dias).
+    remind-before-days: ${SUBSCRIPTIONS_REMIND_BEFORE_DAYS:3}
+    grace-days: ${SUBSCRIPTIONS_GRACE_DAYS:5}
+    retry-every-days: ${SUBSCRIPTIONS_RETRY_EVERY_DAYS:2}
   auth:
     require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
     google:

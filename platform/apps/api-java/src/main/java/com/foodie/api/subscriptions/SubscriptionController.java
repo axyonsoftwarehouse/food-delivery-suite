@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Assinatura SaaS da loja (E20) e recorrência de pedido do cliente (E21). */
@@ -41,13 +42,16 @@ public class SubscriptionController {
     private final AdminPermissionService permissions;
     private final AdminAuditService audit;
     private final JdbcTemplate jdbc;
+    private final SubscriptionChargeRepository charges;
 
-    public SubscriptionController(AuthService auth, EmailVerificationGuard verification, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc) {
+    public SubscriptionController(AuthService auth, EmailVerificationGuard verification, AdminPermissionService permissions, AdminAuditService audit,
+                                  JdbcTemplate jdbc, SubscriptionChargeRepository charges) {
         this.auth = auth;
         this.verification = verification;
         this.permissions = permissions;
         this.audit = audit;
         this.jdbc = jdbc;
+        this.charges = charges;
     }
 
     // ----- E20: pacotes e assinatura da loja -----
@@ -106,17 +110,23 @@ public class SubscriptionController {
         if (restaurant == null) throw new ApiException(400, "Restaurante não encontrado");
         jdbc.update("UPDATE restaurant_subscriptions SET status = 'cancelled' WHERE restaurant_id = ? AND status IN ('trial','active')", body.restaurantId());
         String status = body.trialDays() != null && body.trialDays() > 0 ? "trial" : "active";
+        boolean trial = "trial".equals(status);
         var key = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbc.update(connection -> {
             var statement = connection.prepareStatement(
-                "INSERT INTO restaurant_subscriptions (restaurant_id, package_id, status, ends_at, trial_ends_at) VALUES (?, ?, ?, "
-                    + "DATE_ADD(NOW(), INTERVAL ? DAY), " + (body.trialDays() != null && body.trialDays() > 0 ? "DATE_ADD(NOW(), INTERVAL ? DAY)" : "NULL") + ")",
+                "INSERT INTO restaurant_subscriptions (restaurant_id, package_id, status, ends_at, trial_ends_at, next_charge_at) VALUES (?, ?, ?, "
+                    + "DATE_ADD(NOW(), INTERVAL ? DAY), " + (trial ? "DATE_ADD(NOW(), INTERVAL ? DAY)" : "NULL") + ", "
+                    + (trial ? "DATE_ADD(NOW(), INTERVAL ? DAY)" : "NOW()") + ")",
                 java.sql.Statement.RETURN_GENERATED_KEYS);
             statement.setLong(1, body.restaurantId());
             statement.setLong(2, body.packageId());
             statement.setString(3, status);
             statement.setInt(4, ((Number) pkg.get("period_days")).intValue());
-            if (body.trialDays() != null && body.trialDays() > 0) statement.setInt(5, body.trialDays());
+            if (trial) {
+                // O trial não é cobrado; a primeira cobrança sai quando ele termina (ponto aberto da spec).
+                statement.setInt(5, body.trialDays());
+                statement.setInt(6, body.trialDays());
+            }
             return statement;
         }, key);
         long id = key.getKey().longValue();
@@ -132,6 +142,22 @@ public class SubscriptionController {
         admin(token);
         if (jdbc.update("UPDATE restaurant_subscriptions SET status = ? WHERE id = ?", body.status(), id) == 0) throw new ApiException(404, "Assinatura não encontrada");
         return Map.of("ok", true);
+    }
+
+    /** As cobranças da assinatura de uma loja, para o admin observar (o recibo da loja vem no PR 2). */
+    @GetMapping("/admin/subscription-charges")
+    public List<Map<String, Object>> adminCharges(@CookieValue(value = "foodie_session", required = false) String token,
+                                                  @RequestParam @Positive long restaurantId) {
+        admin(token);
+        return charges.listByRestaurant(restaurantId, 100);
+    }
+
+    /** As cobranças da própria loja. */
+    @GetMapping("/restaurant/subscription/charges")
+    public List<Map<String, Object>> myCharges(@CookieValue(value = "foodie_session", required = false) String token) {
+        User owner = auth.requireUser(token, "restaurant");
+        if (owner.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        return charges.listByRestaurant(owner.restaurantId(), 100);
     }
 
     // ----- E21: recorrência do cliente -----
@@ -246,7 +272,7 @@ public class SubscriptionController {
                                  @Min(0) @Max(100_000_000) int priceCents,
                                  @Min(1) @Max(3650) int periodDays) {}
     public record AssignRequest(@Positive long restaurantId, @Positive long packageId, @Min(0) @Max(365) Integer trialDays) {}
-    public record StatusRequest(@NotBlank @Pattern(regexp = "trial|active|expired|cancelled|paused") String status) {}
+    public record StatusRequest(@NotBlank @Pattern(regexp = "trial|active|expired|cancelled|paused|suspended") String status) {}
     public record SubscriptionRequest(@Positive long restaurantId, @Positive Long addressId,
                                       @Min(1) @Max(90) int frequencyDays,
                                       @Size(max = 255) String notes,
