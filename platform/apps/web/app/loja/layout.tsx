@@ -6,50 +6,77 @@ import { usePathname, useRouter } from 'next/navigation';
 import { money, useApp } from '../app-context';
 import { CustomerProvider, useCustomer } from './customer-context';
 import NotificationsBell from '../NotificationsBell';
-import ThemeToggle from '../ThemeToggle';
+import AddressForm from './address-form';
+import AddressPicker from './address-picker';
 import { Icon, type IconName } from '../icons';
 import { captureReferralLink, usePendingReferral } from './referral';
 
 const nav: { href: string; label: string; icon: IconName }[] = [
   { href: '/loja', label: 'Início', icon: 'home' },
-  { href: '/loja/carrinho', label: 'Carrinho', icon: 'bag' },
   { href: '/loja/pedidos', label: 'Pedidos', icon: 'receipt' },
+  { href: '/loja/carrinho', label: 'Carrinho', icon: 'bag' },
   { href: '/loja/perfil', label: 'Perfil', icon: 'user' },
 ];
+
+function isActive(pathname: string, href: string) {
+  if (href === '/loja') return pathname === '/loja' || pathname.startsWith('/loja/restaurantes/');
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { logout, busy, message } = useApp();
-  const { user, connection, lastSync, localMessage, cartCount, subtotal, fee } = useCustomer();
-  const timeLocale = 'pt-BR';
+  const { message } = useApp();
+  const { user, connection, localMessage, cartCount, subtotal, fee, showAddressForm, setShowAddressForm } = useCustomer();
 
   usePendingReferral();
   const notice = message || localMessage;
-  const firstName = user.name.split(' ')[0];
+  const initial = user.name.trim().charAt(0).toLocaleUpperCase('pt-BR');
+  // O Perfil tem o próprio formulário de endereço, na lista de endereços.
+  const addressPanel = showAddressForm && pathname !== '/loja/perfil';
 
   return <main className="customer-app">
-    <header className="customer-header">
-      <Link className="customer-brand" href="/loja" aria-label="Foodie"><span className="customer-brand-mark"><Icon name="sparkle" /></span>foodie<span>.</span></Link>
-      <nav className="customer-nav" aria-label="Seções">
-        {nav.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href || (item.href === '/loja' && pathname.startsWith('/loja/restaurantes/')) ? 'active' : ''}>
-          <span className="customer-nav-icon"><Icon name={item.icon} />{item.href === '/loja/carrinho' && cartCount > 0 && <span className="customer-nav-badge" key={cartCount} aria-label={`${cartCount} itens`}>{cartCount}</span>}</span>{item.label}
-        </Link>)}
-      </nav>
-      <div className="customer-header-actions">{connection && <span className={`live-status ${connection}`} title={lastSync ? `Sincronizado às ${lastSync.toLocaleTimeString(timeLocale)}` : ''}>{connection === 'online' ? <><span className="m-live-dot" /><span className="live-label">{'ao vivo'}</span></> : <><span className="m-live-dot is-off" /><span className="live-label">{'sem conexão'}</span></>}</span>}<ThemeToggle /><NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} /><span className="customer-greeting" title={user.name}><span className="customer-avatar" aria-hidden="true">{firstName.charAt(0).toLocaleUpperCase('pt-BR')}</span><span className="sr-only">{user.name}</span></span><button className="customer-logout" onClick={logout} disabled={busy}><Icon name="logout" /><span>{'Sair'}</span></button></div>
+    <header className="lj-header">
+      <div className="lj-header-inner">
+        <Link className="lj-brand" href="/loja" aria-label="Foodie, início"><span className="lj-brand-mark"><Icon name="sparkle" size={16} /></span>foodie</Link>
+        <AddressPicker />
+        <nav className="lj-topnav" aria-label="Seções">
+          {nav.map((item) => <Link key={item.href} href={item.href} aria-current={isActive(pathname, item.href) ? 'page' : undefined}>
+            {item.label}{item.href === '/loja/carrinho' && cartCount > 0 && <span className="lj-count">{cartCount}</span>}
+          </Link>)}
+        </nav>
+        <div className="lj-header-actions">
+          <NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} />
+          <Link className="lj-avatar" href="/loja/perfil" aria-label={`Perfil de ${user.name}`}>{initial}</Link>
+        </div>
+      </div>
     </header>
 
-    <div className="customer-content customer-page" key={pathname}>
+    {connection === 'offline' && <p className="lj-offline" role="status">{'Sem conexão. Tentando de novo…'}</p>}
+
+    {addressPanel && <div className="lj-page lj-address-panel">
+      <AddressForm />
+      <button type="button" className="lj-text-button" onClick={() => setShowAddressForm(false)}>{'Cancelar'}</button>
+    </div>}
+
+    <div className="lj-page customer-page" key={pathname}>
       {children}
     </div>
 
-    {notice && <div className="customer-toast" role="status" key={`${notice}-${cartCount}`}><span className="customer-toast-icon"><Icon name="sparkle" size={14} /></span>{notice}</div>}
+    {notice && <div className="customer-toast" role="status" key={`${notice}-${cartCount}`}><span className="customer-toast-icon"><Icon name="check" size={14} /></span>{notice}</div>}
 
-    {cartCount > 0 && pathname !== '/loja/carrinho' && <Link className="customer-cart-dock" href="/loja/carrinho">
-      <span className="customer-cart-dock-icon" key={cartCount}><Icon name="bag" /><span>{cartCount}</span></span>
-      <span className="customer-cart-dock-label">{'Ver carrinho'}<small>{`${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`}</small></span>
-      <strong>{money(subtotal + fee)}<Icon name="arrow-right" /></strong>
+    {cartCount > 0 && pathname !== '/loja/carrinho' && !pathname.includes('/pagamento') && <Link className="lj-cartbar" href="/loja/carrinho">
+      <span className="lj-cartbar-count" key={cartCount}>{cartCount}</span>
+      <span className="lj-cartbar-label">{'Ver carrinho'}</span>
+      <strong>{money(subtotal + fee)}</strong>
     </Link>}
+
+    <nav className="lj-tabbar" aria-label="Seções">
+      {nav.map((item) => <Link key={item.href} href={item.href} aria-current={isActive(pathname, item.href) ? 'page' : undefined}>
+        <span className="lj-tabbar-icon"><Icon name={item.icon} size={22} />{item.href === '/loja/carrinho' && cartCount > 0 && <span className="lj-count" aria-label={`${cartCount} itens`}>{cartCount}</span>}</span>
+        {item.label}
+      </Link>)}
+    </nav>
   </main>;
 }
 

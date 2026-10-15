@@ -6,13 +6,12 @@ import { api, money, useApp } from '../app-context';
 import { Alert, Skeleton } from '../ui';
 import { Icon } from '../icons';
 import { useCustomer } from './customer-context';
-import AddressForm from './address-form';
-import AddressPicker from './address-picker';
+import RestaurantMedia from './restaurant-media';
 import { ReferralBlock } from './referral';
 
 export default function RestaurantMenu() {
   const { busy, setMessage } = useApp();
-  const { catalog, restaurantId, selectedAddress, selectedZone, setCategoryId, showAddressForm, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId } = useCustomer();
+  const { catalog, restaurantId, selectedAddress, selectedZone, setCategoryId, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId } = useCustomer();
   const [chosen, setChosen] = useState<number | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<number[]>([]);
   const [pickerError, setPickerError] = useState('');
@@ -94,69 +93,62 @@ export default function RestaurantMenu() {
   const restaurant = restaurantId ? restaurantById.get(restaurantId) : undefined;
   const covered = !!restaurant && !!selectedAddress && catalog.coverage.some((item) => item.restaurant_id === restaurant.id && item.zone_id === selectedAddress.zone_id);
   const sheetCover = selectedProduct ? visibleProducts.find((product) => product.id === selectedProduct.id) : undefined;
-  const tone = `tone-${(restaurant?.id ?? 0) % 5}`;
 
   return <>
-    <div className="customer-store-top">
-    <section className={`customer-store-banner ${tone} m-rise`} aria-label="Restaurante">
-      <span className="customer-store-pattern" aria-hidden="true" />
-      <Link className="customer-store-back" href="/loja" aria-label="Voltar para restaurantes"><Icon name="arrow-left" size={18} /></Link>
-      <div className="customer-store-head">
-        <span className={`customer-store-mark ${tone}`} aria-hidden="true">{(restaurant?.name ?? 'R').trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
-        <div>
-          {restaurant && <span className={`customer-restaurant-status ${restaurant.open ? 'is-open' : 'is-closed'}`}>{restaurant.open ? 'Aberto agora' : 'Fechado no momento'}</span>}
-          <h1>{restaurant?.name ?? 'Restaurante'}</h1>
-          {covered && selectedZone && <ul className="customer-store-facts">
-            <li><Icon name="bike" size={16} />{`Entrega ${selectedZone.delivery_fee_cents ? money(selectedZone.delivery_fee_cents) : 'grátis'}`}</li>
-            {selectedZone.minimum_order_cents > 0 && <li><Icon name="bag" size={16} />{`Mínimo ${money(selectedZone.minimum_order_cents)}`}</li>}
-            <li><Icon name="map-pin" size={16} />{selectedAddress?.neighborhood}</li>
-          </ul>}
-        </div>
+    <section className="lj-store" aria-label="Restaurante">
+      <div className="lj-store-cover">
+        {restaurant ? <RestaurantMedia restaurant={restaurant} className="lj-store-media" /> : <span className="lj-store-media" />}
+        <Link className="lj-round-button lj-store-back" href="/loja" aria-label="Voltar para restaurantes"><Icon name="arrow-left" size={20} /></Link>
+      </div>
+      <div className="lj-store-info">
+        <h1>{restaurant?.name ?? 'Restaurante'}</h1>
+        {restaurant && <p className="lj-store-sub"><span className={`lj-dot${restaurant.open ? '' : ' is-off'}`} aria-hidden="true" />{restaurant.open ? 'Aberto agora' : 'Fechado agora'}{restaurant.cuisines ? ` · ${restaurant.cuisines}` : ''}</p>}
+        {covered && selectedZone && <dl className="lj-store-facts">
+          <div><dt>{'Entrega'}</dt><dd>{selectedZone.delivery_fee_cents ? money(selectedZone.delivery_fee_cents) : 'Grátis'}</dd></div>
+          <div><dt>{'Pedido mínimo'}</dt><dd>{selectedZone.minimum_order_cents ? money(selectedZone.minimum_order_cents) : 'Sem mínimo'}</dd></div>
+        </dl>}
       </div>
     </section>
 
-    <div className="customer-store-address"><AddressPicker emptyText="Cadastre um endereço para descobrir o cardápio disponível." onChange={() => { setCategoryId(null); setTagId(null); }} /></div>
-    </div>
-
     {restaurant && <ReferralBlock restaurantId={restaurant.id} />}
 
-    {showAddressForm && <AddressForm />}
-
-    <section className="customer-section customer-menu" id="cardapio">
-      {!restaurant || !covered ? <div className="customer-empty m-scale"><span className="customer-empty-icon"><Icon name="utensils" /></span>{!restaurant ? 'Restaurante não encontrado.' : !selectedAddress ? 'Adicione um endereço para ver o cardápio.' : 'Este restaurante não entrega no endereço escolhido.'} <Link href="/loja">{'Ver restaurantes disponíveis'}</Link></div> : <>
-      <label className="customer-search"><span className="sr-only">{'Buscar pratos neste restaurante'}</span><Icon name="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar no cardápio" />{search && <button type="button" className="customer-search-clear" onClick={() => setSearch('')} aria-label="Limpar busca"><Icon name="x" size={16} /></button>}<button type="button" className="customer-link-button" onClick={voiceSearch} aria-label="Buscar por voz"><Icon name="mic" /></button></label>
-      {/* Só os filtros ficam presos no topo: com a busca e duas linhas de chips, a barra cobria um terço da tela. */}
-      <div className="customer-menu-bar">
-        <div className="customer-categories">
-          <div className="customer-chip-group" role="group" aria-label="Filtrar por categoria"><button className={categoryId === null ? 'selected' : ''} onClick={() => setCategoryId(null)}>{'Todos'}</button>{availableCategories.map((category) => <button key={category.id} className={categoryId === category.id ? 'selected' : ''} onClick={() => setCategoryId(category.id)}>{category.name}</button>)}</div>
-          {tags.length > 0 && <><span className="customer-chip-sep" aria-hidden="true" /><div className="customer-chip-group customer-tags" role="group" aria-label="Filtrar por tag">{tags.map((tag) => <button key={tag.id} className={tagId === tag.id ? 'selected' : ''} aria-pressed={tagId === tag.id} onClick={() => setTagId(tagId === tag.id ? null : tag.id)}>{tag.name}{tagId === tag.id && <Icon name="x" size={12} />}</button>)}</div></>}
-        </div>
-      </div>
-      <h2 className="sr-only">{'Cardápio'}</h2>
-      {!selectedAddress ? <div className="customer-empty m-scale"><span className="customer-empty-icon"><Icon name="map-pin" /></span>{'Adicione um endereço para ver os restaurantes que entregam na sua região.'}</div>
-        : searchLoading && !visibleProducts.length ? <div className="customer-product-grid" role="status"><span className="sr-only">{'Buscando pratos disponíveis...'}</span>{[0, 1, 2, 3].map((item) => <div className="customer-skeleton-card" key={item}><div><Skeleton /><Skeleton /><Skeleton /><Skeleton /></div><Skeleton /></div>)}</div>
-        : searchError && !visibleProducts.length ? <div className="customer-empty" role="alert">{searchError}</div>
-        : visibleProducts.length === 0 ? <div className="customer-empty m-scale"><span className="customer-empty-icon"><Icon name="search" /></span>{'Nenhum prato encontrado para essa busca ou endereço.'}</div>
-        : <div className="customer-product-grid">{visibleProducts.map((product, index) => {
-            const restaurant = restaurantById.get(product.restaurant_id);
-            const closed = restaurant?.open === false;
+    <section className="lj-menu" id="cardapio">
+      {!restaurant || !covered ? <div className="lj-empty"><Icon name="utensils" size={28} /><p>{!restaurant ? 'Restaurante não encontrado.' : !selectedAddress ? 'Adicione um endereço para ver o cardápio.' : 'Este restaurante não entrega no endereço escolhido.'}</p><Link className="lj-text-button" href="/loja">{'Ver restaurantes disponíveis'}</Link></div> : <>
+      <label className="lj-search"><Icon name="search" size={18} /><span className="sr-only">{'Buscar pratos neste restaurante'}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar no cardápio" /><button type="button" className="lj-search-voice" onClick={voiceSearch} aria-label="Buscar por voz"><Icon name="mic" size={18} /></button></label>
+      {/* Só as abas ficam presas no topo: a busca e as tags rolam com a página. */}
+      <nav className="lj-tabs" aria-label="Categorias do cardápio">
+        <button type="button" aria-pressed={categoryId === null} onClick={() => setCategoryId(null)}>{'Todos'}</button>
+        {availableCategories.map((category) => <button type="button" key={category.id} aria-pressed={categoryId === category.id} onClick={() => setCategoryId(category.id)}>{category.name}</button>)}
+      </nav>
+      {tags.length > 0 && <div className="lj-chips lj-chips--small" role="group" aria-label="Filtrar por tag">{tags.map((tag) => <button type="button" key={tag.id} aria-pressed={tagId === tag.id} onClick={() => setTagId(tagId === tag.id ? null : tag.id)}>{tag.name}{tagId === tag.id && <Icon name="x" size={12} />}</button>)}</div>}
+      <h2 className="lj-menu-title">{categoryId === null ? 'Cardápio' : availableCategories.find((category) => category.id === categoryId)?.name ?? 'Cardápio'}</h2>
+      {!selectedAddress ? <div className="lj-empty"><Icon name="map-pin" size={28} /><p>{'Adicione um endereço para ver o cardápio.'}</p></div>
+        : searchLoading && !visibleProducts.length ? <div className="lj-products" role="status"><span className="sr-only">{'Buscando pratos disponíveis...'}</span>{[0, 1, 2, 3].map((item) => <div className="lj-product lj-product--skeleton" key={item}><div className="lj-product-text"><Skeleton /><Skeleton /><Skeleton /></div><Skeleton className="lj-product-media" /></div>)}</div>
+        : searchError && !visibleProducts.length ? <div className="lj-empty" role="alert"><p>{searchError}</p></div>
+        : visibleProducts.length === 0 ? <div className="lj-empty"><Icon name="search" size={28} /><p>{'Nenhum prato encontrado.'}</p></div>
+        : <div className="lj-products">{visibleProducts.map((product) => {
+            const productRestaurant = restaurantById.get(product.restaurant_id);
+            const closed = productRestaurant?.open === false;
             const hasVariations = (product.variation_count ?? 0) > 0;
             const fromPrice = product.from_price_cents ?? product.price_cents;
             const favorite = favorites.has(product.id);
-            return <article className={`customer-product-card m-rise${closed ? ' closed' : ''}`} style={{ '--i': Math.min(index, 12) } as React.CSSProperties} key={product.id}>
-              <div className="customer-product-art" aria-hidden="true">
-                {product.image_url ? <img src={product.image_url} alt="" className="customer-product-img" loading="lazy" /> : <span className="customer-product-placeholder"><Icon name="utensils" /></span>}
-                {product.is_combo && <span className="ui-badge ui-badge--info customer-product-tag">{'COMBO'}</span>}
-                {hasVariations && <span className="ui-badge ui-badge--brand customer-product-tag--right">{`${product.variation_count} tamanhos`}</span>}
+            const labels = [product.is_combo ? 'Combo' : '', ...(product.tags ? product.tags.split(',').map((tag) => tag.trim()) : [])].filter(Boolean);
+            return <article className={`lj-product${closed ? ' is-closed' : ''}`} key={product.id}>
+              <div className="lj-product-text">
+                {labels.length > 0 && <span className="lj-product-labels">{labels.join(' · ')}</span>}
+                <h3>{product.name}</h3>
+                {product.description && <p>{product.description}</p>}
+                <span className="lj-product-price">{hasVariations ? `a partir de ${money(fromPrice)}` : money(product.price_cents)}</span>
               </div>
-              <button className={`customer-fav${favorite ? ' is-fav' : ''}`} type="button" aria-pressed={favorite} aria-label={favorite ? `Remover ${product.name} dos favoritos` : `Favoritar ${product.name}`} onClick={() => void toggleFavorite(product.id)}><Icon name="heart" filled={favorite} /></button>
-              <div className="customer-product-body">{(closed || product.tags) && <div className="customer-product-meta">{closed && <span className="ui-badge ui-badge--warning">{'Fechado'}</span>}{product.tags && product.tags.split(',').map((tag, tagIndex) => <span key={tagIndex} className="ui-badge ui-badge--brand">{tag.trim()}</span>)}</div>}<h3>{product.name}</h3><p>{product.description || 'Preparado com cuidado para você.'}</p>
-                <div className="customer-product-footer"><strong>{hasVariations ? <><small>{'a partir de'}</small>{money(fromPrice)}</> : money(product.price_cents)}</strong><button className="customer-add-button" onClick={() => void openProduct(product)} disabled={busy || cartBusy || productLoading || !cartLoaded || closed} title={closed ? 'Restaurante fora do horário de funcionamento' : undefined} aria-label={`${hasVariations ? 'Escolher opção de' : 'Adicionar'} ${product.name}`}>{closed ? 'Fechado' : hasVariations ? <>{'Escolher'}<Icon name="chevron-right" /></> : <><Icon name="plus" />{'Adicionar'}</>}</button></div>
+              <div className="lj-product-media">
+                {product.image_url ? <img src={product.image_url} alt="" loading="lazy" /> : <span className="lj-media-fallback"><Icon name="utensils" size={24} /></span>}
+                <button className={`lj-fav${favorite ? ' is-fav' : ''}`} type="button" aria-pressed={favorite} aria-label={favorite ? `Remover ${product.name} dos favoritos` : `Favoritar ${product.name}`} onClick={() => void toggleFavorite(product.id)}><Icon name="heart" size={16} filled={favorite} /></button>
+                <button className="lj-add" type="button" onClick={() => void openProduct(product)} disabled={busy || cartBusy || productLoading || !cartLoaded || closed} title={closed ? 'Restaurante fora do horário de funcionamento' : undefined} aria-label={`${hasVariations ? 'Escolher opção de' : 'Adicionar'} ${product.name}`}><Icon name="plus" size={18} /></button>
               </div>
             </article>;
           })}</div>}
-      {searchError && visibleProducts.length > 0 && <p role="alert">{searchError}</p>}
-      {nextCursor !== null && <button className="customer-solid-button customer-load-more" onClick={loadMore} disabled={searchLoading}>{searchLoading ? 'Carregando...' : 'Ver mais pratos'}</button>}
+      {searchError && visibleProducts.length > 0 && <p role="alert" className="lj-error">{searchError}</p>}
+      {nextCursor !== null && <button type="button" className="lj-load-more" onClick={loadMore} disabled={searchLoading}>{searchLoading ? 'Carregando...' : 'Ver mais pratos'}</button>}
       </>}
     </section>
 
