@@ -42,6 +42,17 @@ export function money(cents: number) {
 export function minutesSince(createdAt: string) {
   return Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000));
 }
+
+/** JSON com as chaves ordenadas: dois objetos iguais viram a mesma string, mesmo se a ordem das chaves mudar. */
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
 export function roleHome(role: Role) {
   if (role === 'customer') return '/loja';
   // A cozinha tem tela própria, em tela cheia (KDS), fora do painel.
@@ -191,7 +202,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         me?.role === 'restaurant' ? api<{ modules: string[] }>('/restaurant/modules').then((data) => data.modules).catch(() => [] as string[]) : Promise.resolve([] as string[]),
       ]);
       if (version !== refreshVersion.current) return;
-      setCatalog(catalogData);
+      // O poll a cada 8s traz o catálogo como um objeto novo mesmo quando nada mudou. Trocar a referência
+      // re-renderiza a loja inteira e, no cardápio, o Set de cobertura muda de identidade e o efeito de
+      // busca apaga a lista e mostra o "buscando…" (o pisca). Manter a referência quando o conteúdo é igual.
+      setCatalog((previous) => stableStringify(previous) === stableStringify(catalogData) ? previous : catalogData);
       setOrders(orderData);
       setCouriers(courierData);
       setZones(zoneData);
