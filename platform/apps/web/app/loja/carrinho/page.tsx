@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api, money, useApp } from '../../app-context';
 import { useCustomer } from '../customer-context';
 import { Icon } from '../../icons';
+import { Rolling, prefersReducedMotion } from '../motion';
 
 /** Linha de escolha única (rádio) usada em "Como receber" e "Pagamento". */
 function Choice({ selected, label, hint, onClick }: { selected: boolean; label: string; hint?: string; onClick: () => void }) {
@@ -20,6 +21,7 @@ export default function CarrinhoPage() {
   const [firstRunAt, setFirstRunAt] = useState('');
   const [recurringBusy, setRecurringBusy] = useState(false);
   const [recurringMessage, setRecurringMessage] = useState('');
+  const [removing, setRemoving] = useState<string | null>(null);
   const { cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
   const parsedTip = Number(tip.replace(',', '.'));
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
@@ -31,6 +33,13 @@ export default function CarrinhoPage() {
   const payNow = !manual && modality === 'online';
   const checkoutLabel = placing ? 'Processando...' : payNow ? (paymentMethod === 'card' ? 'Pedir e pagar com cartão' : 'Pedir e pagar com Pix') : 'Fazer pedido';
   const atDoor = orderType === 'delivery' ? 'ao entregador' : orderType === 'take_away' ? 'na retirada' : 'no local';
+
+  // O último item de uma linha desliza para fora antes de sumir.
+  function decrease(key: string, productId: number, variationId: number, addonIds: number[], quantity: number) {
+    if (quantity > 1 || prefersReducedMotion()) { void changeQuantity(productId, variationId, addonIds, -1); return; }
+    setRemoving(key);
+    window.setTimeout(() => { void changeQuantity(productId, variationId, addonIds, -1); setRemoving(null); }, 220);
+  }
 
   function payLater(method: 'cash' | 'card' | 'pix') { setManual(false); setModality('on_delivery'); setPaymentMethod(method); }
   function payOnline(method: 'card' | 'pix') { setManual(false); setModality('online'); setPaymentMethod(method); }
@@ -75,15 +84,15 @@ export default function CarrinhoPage() {
     <div className="lj-cart-layout">
       <div className="lj-cart-main">
         <section className="lj-panel" aria-label="Itens">
-          <ul className="lj-items">{cartEntries.map(({ product, quantity, variationId, variationName, addonIds, addonNames, unitPriceCents }) => <li className="lj-item" key={`${product.id}-${variationId}-${addonIds.join('.')}`}>
+          <ul className="lj-items">{cartEntries.map(({ product, quantity, variationId, variationName, addonIds, addonNames, unitPriceCents }) => <li className={`lj-item${removing === `${product.id}-${variationId}-${addonIds.join('.')}` ? ' is-removing' : ''}`} key={`${product.id}-${variationId}-${addonIds.join('.')}`}>
             <div className="lj-item-text">
               <strong>{product.name}</strong>
               {(variationName || addonNames.length > 0) && <small>{[variationName, ...addonNames].filter(Boolean).join(' · ')}</small>}
-              <span>{money(unitPriceCents * quantity)}</span>
+              <Rolling value={money(unitPriceCents * quantity)} className="lj-item-price" />
             </div>
             <div className="lj-stepper">
-              <button type="button" onClick={() => changeQuantity(product.id, variationId, addonIds, -1)} disabled={cartBusy} aria-label={quantity === 1 ? `Remover ${product.name}` : `Remover uma unidade de ${product.name}`}><Icon name={quantity === 1 ? 'trash' : 'minus'} size={15} /></button>
-              <span>{quantity}</span>
+              <button type="button" onClick={() => decrease(`${product.id}-${variationId}-${addonIds.join('.')}`, product.id, variationId, addonIds, quantity)} disabled={cartBusy || removing !== null} aria-label={quantity === 1 ? `Remover ${product.name}` : `Remover uma unidade de ${product.name}`}><Icon name={quantity === 1 ? 'trash' : 'minus'} size={15} /></button>
+              <Rolling value={quantity} />
               <button type="button" onClick={() => changeQuantity(product.id, variationId, addonIds, 1)} disabled={cartBusy} aria-label={`Adicionar uma unidade de ${product.name}`}><Icon name="plus" size={15} /></button>
             </div>
           </li>)}</ul>
@@ -173,24 +182,24 @@ export default function CarrinhoPage() {
           <span className="lj-minimum-track"><span style={{ transform: `scaleX(${minimumProgress})` }} /></span>
         </div>}
         <dl className="lj-totals">
-          <div><dt>{'Subtotal'}</dt><dd>{money(subtotal)}</dd></div>
+          <div><dt>{'Subtotal'}</dt><dd><Rolling value={money(subtotal)} /></dd></div>
           {campaign && <div className="is-discount"><dt>{campaign.name}</dt><dd>−{money(campaign.discountCents)}</dd></div>}
           {appliedCoupon && <div className="is-discount"><dt>{`Cupom ${appliedCoupon.code}`}</dt><dd>−{money(Math.max(0, discount - (campaign?.discountCents ?? 0)))}</dd></div>}
           {orderType === 'delivery' && <div><dt>{'Entrega'}</dt><dd>{selectedZone ? (orderFee ? money(orderFee) : 'Grátis') : '—'}</dd></div>}
           {serviceFee > 0 && <div><dt>{'Serviço'}</dt><dd>{money(serviceFee)}</dd></div>}
           {tipCents > 0 && <div><dt>{'Gorjeta'}</dt><dd>{money(tipCents)}</dd></div>}
-          <div className="lj-total"><dt>{'Total'}</dt><dd>{money(total)}</dd></div>
+          <div className="lj-total"><dt>{'Total'}</dt><dd><Rolling value={money(total)} /></dd></div>
         </dl>
         {orderType === 'delivery' && estimate?.distanceMeters != null && <p className="lj-help">{`Chega em cerca de ${Math.max(1, Math.round((estimate.durationSeconds ?? 0) / 60))} min · ${(estimate.distanceMeters / 1000).toFixed(1)} km`}</p>}
         {orderType === 'delivery' && !cartCovered && <p className="customer-minimum">{'Este restaurante não entrega no endereço selecionado. Escolha outro endereço ou esvazie o carrinho.'}</p>}
         {cartRestaurantClosed && <p className="customer-minimum">{'Este restaurante está fora do horário agora. Agende a entrega ou aguarde a reabertura.'}</p>}
         {orderType === 'delivery' && selectedAddress && !selectedAddress.postal_code && <p className="customer-minimum">{'Este endereço é anterior à validação por CEP. Cadastre-o novamente para continuar.'}</p>}
-        <button type="button" className="lj-checkout" onClick={placeOrder} disabled={checkoutDisabled}><span>{checkoutLabel}</span>{placing ? <span className="m-spinner" /> : <span>{money(total)}</span>}</button>
+        <button type="button" className="lj-checkout" onClick={placeOrder} disabled={checkoutDisabled}><span>{checkoutLabel}</span>{placing ? <span className="m-spinner" /> : <Rolling value={money(total)} />}</button>
       </aside>
     </div>
 
     <div className="lj-checkout-bar">
-      <button type="button" className="lj-checkout" onClick={placeOrder} disabled={checkoutDisabled}><span>{checkoutLabel}</span>{placing ? <span className="m-spinner" /> : <span>{money(total)}</span>}</button>
+      <button type="button" className="lj-checkout" onClick={placeOrder} disabled={checkoutDisabled}><span>{checkoutLabel}</span>{placing ? <span className="m-spinner" /> : <Rolling value={money(total)} />}</button>
     </div>
   </section>;
 }

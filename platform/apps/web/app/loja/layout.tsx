@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { money, useApp } from '../app-context';
@@ -10,6 +10,7 @@ import AddressForm from './address-form';
 import AddressPicker from './address-picker';
 import { Icon, type IconName } from '../icons';
 import { captureReferralLink, usePendingReferral } from './referral';
+import { Rolling, prefersReducedMotion } from './motion';
 
 const nav: { href: string; label: string; icon: IconName }[] = [
   { href: '/loja', label: 'Início', icon: 'home' },
@@ -30,6 +31,18 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { user, connection, localMessage, cartCount, subtotal, fee, showAddressForm, setShowAddressForm } = useCustomer();
 
   usePendingReferral();
+
+  // A barra do carrinho dá um pulinho quando a quantidade sobe (o prato "chega" nela).
+  const cartBar = useRef<HTMLAnchorElement | null>(null);
+  const lastCount = useRef(cartCount);
+  useEffect(() => {
+    const grew = cartCount > lastCount.current;
+    lastCount.current = cartCount;
+    // Espera o voo da foto chegar antes do pulinho.
+    if (!grew || prefersReducedMotion()) return;
+    const timer = window.setTimeout(() => cartBar.current?.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.05)' }, { transform: 'scale(0.98)' }, { transform: 'scale(1)' }], { duration: 420, easing: 'ease-out' }), 520);
+    return () => window.clearTimeout(timer);
+  }, [cartCount]);
   const notice = message || localMessage;
   const initial = user.name.trim().charAt(0).toLocaleUpperCase('pt-BR');
   // O Perfil tem o próprio formulário de endereço, na lista de endereços.
@@ -65,10 +78,10 @@ function Shell({ children }: { children: React.ReactNode }) {
 
     {notice && <div className="customer-toast" role="status" key={`${notice}-${cartCount}`}><span className="customer-toast-icon"><Icon name="check" size={14} /></span>{notice}</div>}
 
-    {cartCount > 0 && pathname !== '/loja/carrinho' && !pathname.includes('/pagamento') && <Link className="lj-cartbar" href="/loja/carrinho">
-      <span className="lj-cartbar-count" key={cartCount}>{cartCount}</span>
+    {cartCount > 0 && pathname !== '/loja/carrinho' && !pathname.includes('/pagamento') && <Link className="lj-cartbar" href="/loja/carrinho" ref={cartBar}>
+      <span className="lj-cartbar-count"><Rolling value={cartCount} /></span>
       <span className="lj-cartbar-label">{'Ver carrinho'}</span>
-      <strong>{money(subtotal + fee)}</strong>
+      <strong><Rolling value={money(subtotal + fee)} /></strong>
     </Link>}
 
     <nav className="lj-tabbar" aria-label="Seções">

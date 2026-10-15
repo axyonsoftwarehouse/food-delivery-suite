@@ -55,7 +55,7 @@ function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId,
     <p className="orders-status-line"><span className="m-live-dot" />{awaiting ? 'Aguardando pagamento' : statusLabels[order.status] ?? order.status}</p>
     {order.scheduled_at && <p className="orders-note"><Icon name="calendar" size={14} />{`Agendado para ${when(order.scheduled_at)}`}</p>}
     <ol className="orders-steps" style={{ '--progress': step / (STEPS.length - 1) } as React.CSSProperties}>
-      {STEPS.map((item, position) => <li key={item.label} className={position < step ? 'is-done' : position === step ? 'is-current' : ''}><span><Icon name={item.icon} size={16} /></span>{item.label}</li>)}
+      {STEPS.map((item, position) => <li key={item.label} className={position < step ? 'is-done' : position === step ? `is-current${item.icon === 'bike' ? ' is-riding' : ''}` : ''}><span><Icon name={item.icon} size={16} /></span>{item.label}</li>)}
     </ol>
     {order.has_delivery_code ? <DeliveryCodeCard orderId={order.id} /> : null}
     <div className="orders-actions">
@@ -70,11 +70,13 @@ function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId,
 function PastOrder({ order, cover, expandedOrderId, setExpandedOrderId }: RowProps) {
   const failed = FAILED.includes(order.status);
   const open = expandedOrderId === order.id;
+  // Entregue há pouco: um check se desenha ao lado do status, uma vez.
+  const justDelivered = order.status === 'delivered' && Date.now() - lastChange(order) < 30 * 60 * 1000;
   return <li className="orders-row">
     <button type="button" className="orders-row-main" aria-expanded={open} onClick={() => setExpandedOrderId(open ? null : order.id)}>
       <RestaurantMedia restaurant={{ name: order.restaurant_name, cover_url: cover }} className="orders-media" />
       <span className="orders-row-text"><strong>{order.restaurant_name}</strong><small>{`${when(order.created_at)} · ${money(order.total_cents)}`}</small></span>
-      <span className={`orders-state${failed ? ' is-failed' : ''}`}>{statusLabels[order.status] ?? order.status}</span>
+      <span className={`orders-state${failed ? ' is-failed' : ''}`}>{justDelivered && <svg className="orders-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>}{statusLabels[order.status] ?? order.status}</span>
       <Icon name="chevron-down" size={18} className="orders-row-chevron" />
     </button>
     {FINISHED.includes(order.status) && <div className="orders-row-foot">
