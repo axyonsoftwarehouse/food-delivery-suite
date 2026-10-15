@@ -40,6 +40,17 @@ class SubscriptionRenewalRunnerTest {
     }
 
     @Test
+    void chargeDueIncludesTheTrial() {
+        // O fim do trial tem de entrar na fila da cobrança (next_charge_at do trial = fim do trial).
+        when(jdbc.query(org.mockito.ArgumentMatchers.<String>argThat(s -> s != null && s.contains("next_charge_at")), any(RowMapper.class)))
+            .thenReturn(List.of());
+
+        runner(5).run();
+
+        verify(jdbc).query(org.mockito.ArgumentMatchers.<String>argThat(s -> s.contains("'trial'")), any(RowMapper.class));
+    }
+
+    @Test
     void pastTheGracePeriodTheSubscriptionExpires() {
         when(jdbc.queryForList(argThat(s -> s != null && s.contains("delinquent_since"))))
             .thenReturn(List.of(Map.of("id", 7L, "restaurant_id", 3L, "delinquent_since", Timestamp.from(Instant.now().minus(Duration.ofDays(10))))));

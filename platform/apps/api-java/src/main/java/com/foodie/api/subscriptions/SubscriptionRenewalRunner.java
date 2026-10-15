@@ -46,19 +46,19 @@ public class SubscriptionRenewalRunner {
         }
     }
 
-    /** Gera a cobrança do próximo período das assinaturas devidas (ativa, ou suspensa para retry). */
+    /** Gera a cobrança do próximo período das assinaturas devidas: ativa, suspensa (retry) ou trial no fim. */
     private void chargeDue() {
         List<Long> due = jdbc.query(
-            "SELECT id FROM restaurant_subscriptions WHERE status IN ('active','suspended') AND next_charge_at <= NOW() ORDER BY next_charge_at, id LIMIT 50",
+            "SELECT id FROM restaurant_subscriptions WHERE status IN ('trial','active','suspended') AND next_charge_at <= NOW() ORDER BY next_charge_at, id LIMIT 50",
             (rs, row) -> rs.getLong(1));
         for (Long id : due) billing.generateForSubscription(id);
     }
 
-    /** Vencida sem pagamento: entra em atraso; passada a carência, expira. */
+    /** Vencida sem pagamento (inclusive no fim do trial): entra em atraso; passada a carência, expira. */
     private void applyDelinquency() {
         List<Map<String, Object>> late = jdbc.queryForList(
             "SELECT id, restaurant_id, delinquent_since FROM restaurant_subscriptions"
-                + " WHERE status IN ('active','suspended') AND ends_at IS NOT NULL AND ends_at < NOW()");
+                + " WHERE status IN ('trial','active','suspended') AND ends_at IS NOT NULL AND ends_at < NOW()");
         Instant limite = Instant.now().minus(Duration.ofDays(graceDays));
         for (Map<String, Object> row : late) {
             long id = ((Number) row.get("id")).longValue();

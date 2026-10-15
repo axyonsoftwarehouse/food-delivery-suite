@@ -28,7 +28,7 @@ class SubscriptionControllerTest {
     private final SubscriptionChargeRepository charges = mock(SubscriptionChargeRepository.class);
 
     private SubscriptionController controller() {
-        return new SubscriptionController(auth, verification, permissions, audit, jdbc, charges);
+        return new SubscriptionController(auth, verification, permissions, audit, jdbc, charges, 15);
     }
 
     @Test

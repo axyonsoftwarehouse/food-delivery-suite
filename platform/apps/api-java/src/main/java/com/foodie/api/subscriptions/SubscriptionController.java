@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,15 +44,18 @@ public class SubscriptionController {
     private final AdminAuditService audit;
     private final JdbcTemplate jdbc;
     private final SubscriptionChargeRepository charges;
+    private final int trialDaysDefault;
 
     public SubscriptionController(AuthService auth, EmailVerificationGuard verification, AdminPermissionService permissions, AdminAuditService audit,
-                                  JdbcTemplate jdbc, SubscriptionChargeRepository charges) {
+                                  JdbcTemplate jdbc, SubscriptionChargeRepository charges,
+                                  @Value("${app.subscriptions.trial-days:15}") int trialDaysDefault) {
         this.auth = auth;
         this.verification = verification;
         this.permissions = permissions;
         this.audit = audit;
         this.jdbc = jdbc;
         this.charges = charges;
+        this.trialDaysDefault = trialDaysDefault;
     }
 
     // ----- E20: pacotes e assinatura da loja -----
@@ -109,7 +113,9 @@ public class SubscriptionController {
         Integer restaurant = jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, body.restaurantId());
         if (restaurant == null) throw new ApiException(400, "Restaurante não encontrado");
         jdbc.update("UPDATE restaurant_subscriptions SET status = 'cancelled' WHERE restaurant_id = ? AND status IN ('trial','active')", body.restaurantId());
-        String status = body.trialDays() != null && body.trialDays() > 0 ? "trial" : "active";
+        // Sem trialDays informado, vale o padrão da instalação (15 dias); 0 significa sem trial.
+        int trialDays = body.trialDays() == null ? trialDaysDefault : body.trialDays();
+        String status = trialDays > 0 ? "trial" : "active";
         boolean trial = "trial".equals(status);
         var key = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbc.update(connection -> {
@@ -121,11 +127,11 @@ public class SubscriptionController {
             statement.setLong(1, body.restaurantId());
             statement.setLong(2, body.packageId());
             statement.setString(3, status);
-            statement.setInt(4, ((Number) pkg.get("period_days")).intValue());
+            // No trial, o período termina no fim do trial: a 1ª cobrança sai ali (ends_at == next_charge_at).
+            statement.setInt(4, trial ? trialDays : ((Number) pkg.get("period_days")).intValue());
             if (trial) {
-                // O trial não é cobrado; a primeira cobrança sai quando ele termina (ponto aberto da spec).
-                statement.setInt(5, body.trialDays());
-                statement.setInt(6, body.trialDays());
+                statement.setInt(5, trialDays);
+                statement.setInt(6, trialDays);
             }
             return statement;
         }, key);
