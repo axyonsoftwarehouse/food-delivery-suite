@@ -53,12 +53,25 @@ class SubscriptionBillingServiceTest {
     }
 
     @Test
-    void trialIsNotCharged_itsAnOpenPoint() {
-        // spec de 15/10/2026, §11: o trial é rascunho; hoje NÃO se cobra o trial.
-        subscription("trial", Instant.parse("2026-10-01T00:00:00Z"));
+    void trialIsNotChargedBeforeItEnds() {
+        // O trial não é cobrado: enquanto o fim (next_charge_at) não chega, nada acontece.
+        subscription("trial", Instant.parse("2030-01-01T00:00:00Z"));
 
         assertTrue(service(true).generateForSubscription(7).isEmpty());
         verify(gateway, never()).create(any(), any());
+    }
+
+    @Test
+    void trialIsChargedAtItsEnd() {
+        // Decisão de 15/10/2026: trial de 15 dias; no fim dele sai a primeira cobrança (Pix).
+        subscription("trial", Instant.parse("2026-10-01T00:00:00Z"));
+        when(charges.insert(anyLong(), anyLong(), anyString(), anyInt(), anyString(), any(), any())).thenReturn(42L);
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDSUB9", "sub-42", 9900, "pending", "pending",
+            "00020126...", "base64", "https://mp/ticket", null));
+
+        assertEquals(Optional.of(42L), service(true).generateForSubscription(7));
+
+        verify(gateway).create(any(), any());
     }
 
     @Test

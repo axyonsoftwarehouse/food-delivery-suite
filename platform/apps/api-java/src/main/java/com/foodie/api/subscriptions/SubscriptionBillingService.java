@@ -19,13 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * A cobrança real da assinatura da loja (spec de 15/10/2026, §7). Gera a cobrança Pix do ciclo na
  * conta da Foodie, reemite o Pix vencido e — no {@link #applyPaid} — renova o período e grava o razão.
- * Cobre só a loja: o trial é ponto aberto (§11).
+ * O trial (15 dias, decisão de 15/10/2026) não é cobrado até terminar: a primeira cobrança sai no fim
+ * dele, quando o {@code next_charge_at} (fim do trial) vence.
  */
 @Service
 public class SubscriptionBillingService {
     private static final Logger log = LoggerFactory.getLogger(SubscriptionBillingService.class);
-    /** Ponto aberto da spec (15/10/2026, §11): hoje o trial NÃO é cobrado. Mudar só aqui quando fechar. */
-    static final boolean TRIAL_IS_CHARGED = false;
 
     private final JdbcTemplate jdbc;
     private final SubscriptionChargeRepository charges;
@@ -46,16 +45,17 @@ public class SubscriptionBillingService {
     }
 
     /**
-     * Gera a cobrança do próximo período (Pix) da assinatura, se for o caso. Não faz nada para trial,
-     * para assinatura não devida, sem trava/credencial, ou com uma cobrança viva válida. Devolve o id da
-     * cobrança criada.
+     * Gera a cobrança do próximo período (Pix) da assinatura, se for o caso. Não faz nada para
+     * assinatura não devida (inclusive o trial antes do fim), sem trava/credencial, ou com uma cobrança
+     * viva válida. Devolve o id da cobrança criada.
      */
     public Optional<Long> generateForSubscription(long subscriptionId) {
         Map<String, Object> row = subscription(subscriptionId);
         if (row == null) return Optional.empty();
         String status = (String) row.get("status");
-        // Cobra a loja ativa e, durante a carência, a suspensa (retry); o trial é ponto aberto (§11).
-        if (!"active".equals(status) && !"suspended".equals(status) && !(TRIAL_IS_CHARGED && "trial".equals(status))) return Optional.empty();
+        // Cobra a loja ativa, a suspensa (carência/retry) e o trial — este só quando o next_charge_at
+        // (fim do trial) vence, conferido logo abaixo. O trial termina sem ter sido cobrado.
+        if (!"active".equals(status) && !"suspended".equals(status) && !"trial".equals(status)) return Optional.empty();
         Instant now = Instant.now();
         Instant next = instant(row.get("next_charge_at"));
         if (next == null || next.isAfter(now)) return Optional.empty();

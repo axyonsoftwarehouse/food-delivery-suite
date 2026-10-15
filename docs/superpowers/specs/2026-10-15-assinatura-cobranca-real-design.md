@@ -129,8 +129,9 @@ FKs com `ON DELETE CASCADE` da assinatura e `RESTRICT`/`CASCADE` da loja (a defi
 
 ## 7. Fluxos
 
-**Ativação/trial.** `assign` (admin) cria a assinatura e define `next_charge_at`. Enquanto
-`status='trial'` e `trial_ends_at` não passou, o job **não** cobra (ver §11 — ponto aberto).
+**Ativação/trial.** `assign` (admin) cria a assinatura e define `next_charge_at`. O trial dura
+**15 dias** (decisão de 15/10/2026, §11): enquanto corre, o job **não** cobra; no **fim do trial**
+(`next_charge_at` = fim do trial) sai a primeira cobrança (Pix), e dali em diante vale o fluxo normal.
 
 **Renovação (job diário).** Para assinatura com `next_charge_at <= NOW()`, `status` em
 `('active','trial')` e sem cobrança viva: gera a cobrança Pix do período seguinte
@@ -181,18 +182,15 @@ permanece `expired` (decisão de reativação é do admin).
 - `preapproval` / assinatura recorrente no cartão; cartão por ciclo (PR 2).
 - Boleto; outros provedores; múltiplas contas; autocadastro/planos públicos.
 
-## 11. Ponto aberto — trial `(a confirmar)`
+## 11. Trial — 15 dias (decisão de 15/10/2026)
 
-**O trial não é uma decisão fechada.** A regra adotada aqui (trial sem meio de pagamento; **o fim do
-trial dispara a primeira cobrança**) é um **rascunho** e **precisa ser conversada com mais calma
-antes de virar contrato**. Perguntas em aberto, no mínimo:
+O teste grátis dura **15 dias** (`SUBSCRIPTIONS_TRIAL_DAYS`, padrão `15`; o admin pode informar outro
+número ao atribuir, e **0** significa sem trial). Enquanto o trial corre, a loja **não é cobrada**; no
+**fim do trial sai a primeira cobrança** (Pix), e a partir daí vale o fluxo normal: pagou → `active`;
+não pagou → carência → `expired`. O período do trial termina no fim dele (`ends_at == next_charge_at`).
 
-- trial dá acesso total ou só a uma parte?
-- a primeira cobrança sai no fim do trial, ou o cartão/Pix é pedido na adesão?
-- o trial pode ser estendido pelo admin? uma vez por loja?
-
-Enquanto isso, o código trata o trial como **pendência explícita** (o job só cobra `active`, e o
-comportamento de fim de trial fica isolado numa constante única, fácil de mudar).
+Fora deste escopo: bloquear o acesso durante/sem pagar (enforcement) e cobrar cartão na adesão (fase 2).
+Estender o trial = o admin reatribuir com mais dias.
 
 ## 12. Testes
 

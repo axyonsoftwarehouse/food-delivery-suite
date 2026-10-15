@@ -25,7 +25,7 @@ Mantenha curto. Se crescer, corte.
 | Testes Java | `pnpm verify` verde na branch `feat/assinatura-cobranca-real` (15/10, local, sem integração: Docker parado), com **770 testes Java** sem falha. Antes: `pnpm verify` verde na branch `fix/3ds-desistencia` (14/10) com **737 testes Java** sem falha; `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #40 e #41 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **34%** em 13/10 (antes do deploy de 14/10; número novo `(a confirmar)` com `df -h /`); a limpeza automática dispara em 70% |
-| Árvore de trabalho | branch **`feat/assinatura-cobranca-real`** (cobrança real da assinatura, servidor; spec e plano novos de 15/10; `.claude/` não versionado) |
+| Árvore de trabalho | branch **`feat/assinatura-trial-15-dias`** (trial de 15 dias: API + painel; `.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -242,11 +242,12 @@ recusa e assim por diante.
 *(do `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`)*
 
 - **Cobrança real da assinatura** — hoje cria transação, não cobra provedor.
-  **Em implementação (servidor) na branch `feat/assinatura-cobranca-real`** (PR ainda não aberta): cobrança
-  Pix por ciclo na conta Mercado Pago da Foodie (credenciais por ambiente), webhook idempotente com
-  roteamento próprio, renovação e carência e a migration `V069`. O **trial é ponto aberto** e precisa de
-  conversa antes de virar contrato (spec `docs/superpowers/specs/2026-10-15-assinatura-cobranca-real-design.md`,
-  plano `docs/superpowers/plans/2026-10-15-assinatura-cobranca-real.md`).
+  **Servidor implementado e no ar** (PR #46, migration `V069`): cobrança Pix por ciclo na conta Mercado
+  Pago da Foodie (credenciais por ambiente), webhook idempotente com roteamento próprio, renovação e
+  carência. O **trial é de 15 dias** (`SUBSCRIPTIONS_TRIAL_DAYS`): não é cobrado enquanto corre e a
+  **primeira cobrança sai no fim dele**. Falta o **roteiro funcional no staging** e as **telas** (PR 2).
+  Spec `docs/superpowers/specs/2026-10-15-assinatura-cobranca-real-design.md`,
+  plano `docs/superpowers/plans/2026-10-15-assinatura-cobranca-real.md`.
 - **Pix/cartão online direto para a loja**: a cobrança, o webhook e o estorno foram provados no staging
   em 05/10 (ver "Pagamentos online"), mas com uma conta só, a da plataforma. A **conta de recebimento
   por loja está implementada** (vinculação OAuth da conta Mercado Pago de cada restaurante, usada na
@@ -426,7 +427,7 @@ mescladas, no ar e com CI verde; falta repetir o caminho real e tirar os prints 
 `APRO-CHOK` → "Usar outro cartão ou Pix" → Pix (o QR agora é gravado mesmo chegando depois, #61); `APRO-AUTH` aprova
 sem verificação; conferir o formulário do cartão destravado depois de "Ocorreu um erro". Depois disso, o pagamento
 com a **conta da loja conectada** é o que resta na fila do dinheiro. Em paralelo, a **cobrança real da
-assinatura** (servidor) está na branch `feat/assinatura-cobranca-real` (§4) — o trial segue como ponto aberto.
+assinatura** (servidor) está **no ar desde a PR #46** (§4); o **trial é de 15 dias** e a primeira cobrança sai no fim dele.
 
 **Decisões que nenhum código resolve:**
 - **Conta da empresa** que mantém o sistema: em discussão. O estorno e o chargeback são da loja (14/10) —

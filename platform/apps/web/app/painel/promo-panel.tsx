@@ -234,7 +234,7 @@ function Subscriptions({ onMessage }: { onMessage: (m: string) => void }) {
   const [periodDays, setPeriodDays] = useState('30');
   const [restaurantId, setRestaurantId] = useState('');
   const [packageId, setPackageId] = useState('');
-  const [trialDays, setTrialDays] = useState('0');
+  const [trialDays, setTrialDays] = useState('15');
   useEffect(() => { api<{ restaurants: { id: number; name: string }[] }>('/catalog').then((data) => setRestaurants(data.restaurants)).catch(() => {}); }, []);
   return <div className="form-grid">
     <form onSubmit={(e) => { e.preventDefault(); void act('/admin/subscription-packages', 'POST', { name, priceCents: Math.round(Number(price.replace(',', '.')) * 100), periodDays: Number(periodDays) }, 'Pacote criado.', reloadPackages, onMessage); setName(''); }}>

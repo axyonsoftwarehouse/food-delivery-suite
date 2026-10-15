@@ -24,6 +24,8 @@ app:
     allow-real-charges: ${SUBSCRIPTIONS_ALLOW_REAL_CHARGES:false}
     account-access-token: ${SUBSCRIPTIONS_ACCOUNT_ACCESS_TOKEN:}
     account-public-key: ${SUBSCRIPTIONS_ACCOUNT_PUBLIC_KEY:}
+    # Duração padrão do teste grátis (dias) quando o admin não informar outra. Decisão de 15/10/2026.
+    trial-days: ${SUBSCRIPTIONS_TRIAL_DAYS:15}
     # Antecedência da cobrança, carência após o vencimento e intervalo da nova tentativa (dias).
     remind-before-days: ${SUBSCRIPTIONS_REMIND_BEFORE_DAYS:3}
     grace-days: ${SUBSCRIPTIONS_GRACE_DAYS:5}
