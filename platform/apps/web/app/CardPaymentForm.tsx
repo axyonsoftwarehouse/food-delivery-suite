@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CardChargeData } from './loja/customer-context';
-
-type BrickError = { type?: string; message?: string; cause?: string };
+import { brickErrorAction, type BrickError } from './online-payment';
 type CardData = {
   token: string;
   payment_method_id?: string;
@@ -53,10 +52,16 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
 }) {
   const containerId = 'foodie-card-form';
   const controle = useRef<BrickController | null>(null);
+  // A criação do Brick em andamento: a próxima tentativa espera por ela (ver o efeito).
+  const criacaoAnterior = useRef<Promise<unknown>>(Promise.resolve());
   const enviar = useRef(onSubmit);
   enviar.current = onSubmit;
   const [estado, setEstado] = useState<'carregando' | 'pronto' | 'erro'>(publicKey ? 'carregando' : 'erro');
   const [mensagem, setMensagem] = useState(publicKey ? '' : 'O pagamento com cartão não está configurado nesta instalação.');
+  // "Recarregar o formulário": cada clique monta um Brick novo, como a troca de aba fazia no #59 (spec de
+  // 14/10/2026, regra 11). Nunca automático: apagaria o que o cliente digitou.
+  const [tentativa, setTentativa] = useState(0);
+  const [podeRecarregar, setPodeRecarregar] = useState(false);
 
   useEffect(() => {
     if (!publicKey) return;
@@ -69,6 +74,9 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
       setMensagem('O Mercado Pago só aceita os dados do cartão em conexão segura (HTTPS). Neste endereço de desenvolvimento, pague com Pix — ou use o endereço publicado.');
       return;
     }
+    setEstado('carregando');
+    setMensagem('');
+    setPodeRecarregar(false);
     let vivo = true;
     // Quando o navegador bloqueia os domínios do Mercado Pago (proteção contra rastreamento rígida do
     // Firefox, Brave, bloqueadores), o SDK quebra por dentro sem chamar onError nem rejeitar a promessa,
@@ -79,9 +87,15 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
       if (!vivo || respondeu) return;
       setEstado('erro');
       setMensagem('O formulário do cartão não carregou. Se o seu navegador bloqueia rastreadores (Firefox em modo rígido, Brave, extensões de bloqueio), libere este site ou use outro navegador. O pedido já foi criado e continua aguardando o pagamento.');
+      setPodeRecarregar(true);
     }, 15000);
-    carregarSdk()
+    // "Recarregar o formulário" com o Brick anterior ainda sendo criado: espera ele terminar (e ser desmontado
+    // abaixo) antes de criar o novo. Senão os dois disputam o mesmo container e o formulário some ou fica em
+    // "Carregando…" (`already_initialized`).
+    criacaoAnterior.current = criacaoAnterior.current
+      .then(() => carregarSdk())
       .then((MercadoPago) => {
+        if (!vivo) return null;
         const mp = new MercadoPago(publicKey, { locale: 'pt-BR' });
         return mp.bricks().create('cardPayment', containerId, {
           initialization: { amount: amountCents / 100, ...(payerEmail ? { payer: { email: payerEmail } } : {}) },
@@ -89,16 +103,21 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
           callbacks: {
             onReady: () => { respondeu = true; if (vivo) setEstado('pronto'); },
             onError: (erro: BrickError) => {
+              // O motivo vai para o console para descobrir a causa no próximo roteiro (o #59 não deixou
+              // rastro). O erro do Brick não traz dados do cartão.
+              console.warn('Formulário do cartão do Mercado Pago:', erro?.type, erro?.cause);
               if (!vivo) return;
+              const acao = brickErrorAction(erro);
+              // Erro ignorado não conta como resposta: se o formulário não ficar pronto, o aviso dos 15 s aparece.
+              if (!acao.show) return;
               respondeu = true;
-              // `already_initialized` acontece quando o React monta o componente duas vezes em
-              // desenvolvimento: o formulário que já está na tela funciona, então isso não é erro
-              // para quem está comprando.
-              if (erro?.cause === 'already_initialized') return;
               setEstado('erro');
-              setMensagem(erro?.message ?? 'Não foi possível carregar o formulário do cartão.');
+              setMensagem(acao.message);
+              setPodeRecarregar(true);
             },
             onSubmit: async (dados: CardData) => {
+              // O cliente conseguiu enviar: o aviso de um erro anterior não vale mais (regra 9).
+              if (vivo) { setEstado('pronto'); setMensagem(''); setPodeRecarregar(false); }
               const resultado = await enviar.current({
                 token: dados.token,
                 paymentMethodId: dados.payment_method_id,
@@ -114,6 +133,7 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
         });
       })
       .then((criado) => {
+        if (!criado) return;
         // Trocou de aba antes de o Brick ficar pronto: desmonta o que chegou atrasado, senão a volta
         // para "Cartão" encontra o container ocupado (dois formulários ou `already_initialized`).
         if (!vivo) { try { criado.unmount(); } catch { /* já desmontado */ } return; }
@@ -124,6 +144,7 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
         respondeu = true;
         setEstado('erro');
         setMensagem(erro instanceof Error ? erro.message : 'Não foi possível carregar o pagamento com cartão.');
+        setPodeRecarregar(true);
       });
     return () => {
       vivo = false;
@@ -132,12 +153,15 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
       try { controle.current?.unmount(); } catch { controle.current = null; }
       controle.current = null;
     };
-  }, [amountCents, publicKey, payerEmail]);
+  }, [amountCents, publicKey, payerEmail, tentativa]);
 
   return <section className="customer-card customer-online-payment">
     {estado === 'carregando' && <p className="form-help">Carregando…</p>}
     <div id={containerId} />
-    {estado === 'erro' && mensagem && <p role="alert" className="customer-minimum">{mensagem}</p>}
+    {estado === 'erro' && mensagem && <div role="alert" className="customer-minimum">
+      <p>{mensagem}</p>
+      {podeRecarregar && <button type="button" className="orders-cancel" onClick={() => setTentativa((n) => n + 1)}>{'Recarregar o formulário'}</button>}
+    </div>}
     <p className="form-help">O número e o código de segurança do cartão são criptografados pelo Mercado Pago no seu navegador — eles não passam pelo Foodie.</p>
   </section>;
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  awaitingOnlinePayment, bankChallenge, cardInReview, deadlineInfo, deadlineText, finalMessage, friendlyError, hasLivePix, parseOrderId, paymentPageState,
+  awaitingOnlinePayment, bankChallenge, brickErrorAction, cardInReview, deadlineInfo, deadlineText, finalMessage, friendlyError, hasLivePix, parseOrderId, paymentPageState, pixGenerating,
 } from './online-payment.ts';
 
 // Datas sem fuso, como a API manda: as duas pontas são lidas no fuso local, então o teste não depende de TZ.
@@ -121,4 +121,26 @@ test('3DS: sem página do banco é análise; recusado, Pix ou vazio não abrem v
   assert.equal(bankChallenge({ ...card, status: 'rejected' }), null);
   assert.equal(bankChallenge({ ...card, method: 'pix' }), null);
   assert.equal(bankChallenge(null), null);
+});
+
+test('Pix sendo gerado: Pix pendente, já criado no provedor e sem código', () => {
+  const base = { method: 'pix', modality: 'online', status: 'pending', external_id: 'ORDPIX1' };
+  assert.equal(pixGenerating({ ...base, image: { qr_code: null, ticket_url: null } }), true);
+  assert.equal(pixGenerating({ ...base, image: null }), true);
+  assert.equal(pixGenerating({ ...base, image: { qr_code: '000201' } }), false);
+  assert.equal(pixGenerating({ ...base, image: { ticket_url: 'https://mp/ticket' } }), false);
+  assert.equal(pixGenerating({ ...base, external_id: null, image: null }), false);
+  assert.equal(pixGenerating({ ...base, status: 'paid', image: null }), false);
+  assert.equal(pixGenerating({ ...base, method: 'card', image: null }), false);
+  assert.equal(pixGenerating(null), false);
+});
+
+test('erro do formulário do cartão: montagem dupla é ignorada, o resto oferece recarregar', () => {
+  assert.deepEqual(brickErrorAction({ type: 'non_critical', cause: 'already_initialized' }), { show: false });
+  assert.deepEqual(brickErrorAction({ type: 'non_critical', cause: 'get_payment_installments_failed', message: 'An error occurred' }),
+    { show: true, message: 'O formulário do cartão teve um problema.' });
+  assert.deepEqual(brickErrorAction({ type: 'critical', cause: 'fields_setup_failed', message: 'Falhou o campo seguro' }),
+    { show: true, message: 'Falhou o campo seguro' });
+  assert.deepEqual(brickErrorAction({ type: 'critical' }), { show: true, message: 'Não foi possível carregar o formulário do cartão.' });
+  assert.deepEqual(brickErrorAction(null), { show: true, message: 'O formulário do cartão teve um problema.' });
 });

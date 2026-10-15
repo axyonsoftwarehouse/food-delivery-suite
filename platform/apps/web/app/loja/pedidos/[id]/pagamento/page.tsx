@@ -9,7 +9,7 @@ import BankChallenge from '../../../../BankChallenge';
 import CardPaymentForm from '../../../../CardPaymentForm';
 import PixPayment, { type PixImage } from '../../../../PixPayment';
 import { Alert, Badge } from '../../../../ui';
-import { bankChallenge, cardInReview, deadlineInfo, deadlineText, finalMessage, friendlyError, hasLivePix, parseOrderId, paymentPageState } from '../../../../online-payment';
+import { bankChallenge, cardInReview, deadlineInfo, deadlineText, finalMessage, friendlyError, hasLivePix, parseOrderId, paymentPageState, pixGenerating } from '../../../../online-payment';
 import { useNow } from '../../../../use-now';
 
 type OnlinePayment = { method: string; modality: string | null; status: string; raw_status?: string | null; external_id?: string | null; pay_deadline?: string | null; rejection_message?: string | null; challenge_url?: string | null; image?: PixImage | null };
@@ -18,6 +18,10 @@ type OrderDetail = { id: number; status: string; restaurant_id: number; restaura
 const POLL_MS = 5000;
 /** Com o desafio do banco na tela, confere na API sem depender do webhook da loja. */
 const CHALLENGE_REFRESH_MS = 15000;
+/** Pix criado e ainda sem código: confere na API até o QR chegar (spec de 14/10/2026 "Pix sem QR", regra 3). */
+const PIX_REFRESH_MS = 3000;
+/** Depois disso, avisa que está demorando e lembra do cartão (regra 6). */
+const PIX_SLOW_MS = 60_000;
 /** Falha de rede ou do provedor: nunca o texto técnico ("Failed to fetch", "HTTP 402 - …"). */
 const PAYMENT_UNAVAILABLE = 'Não foi possível falar com o pagamento agora. Nada foi cobrado; tente de novo.';
 
@@ -43,6 +47,8 @@ export default function PagamentoPedidoPage() {
   const [rejections, setRejections] = useState(0);
   const [checking, setChecking] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  // Quando o Pix começou a ser esperado sem código, para o aviso de demora.
+  const [generatingSince, setGeneratingSince] = useState<number | null>(null);
   const paidHere = useRef(false);
   const pixRequested = useRef(false);
   const alertRef = useRef<HTMLDivElement | null>(null);
@@ -68,6 +74,7 @@ export default function PagamentoPedidoPage() {
   const challengeUrl = bankChallenge(payment);
   const deadline = deadlineInfo(payment?.pay_deadline, now);
   const state = order ? paymentPageState({ orderStatus: order.status, payment, payDeadlineOver: deadline?.over ?? false, paidHere: paidHere.current }) : null;
+  const generating = state === 'pay' && pixGenerating(payment);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { if (state === 'leave') router.replace('/loja/pedidos'); }, [state, router]);
@@ -76,17 +83,28 @@ export default function PagamentoPedidoPage() {
     const timer = window.setInterval(() => void load(), POLL_MS);
     return () => window.clearInterval(timer);
   }, [state, load]);
+  // Conferir na API sem depender do webhook da loja: o resultado do desafio do banco (a cada 15 s) e o QR do
+  // Pix que ainda está sendo gerado (a cada 3 s).
+  const refreshEvery = challengeUrl ? CHALLENGE_REFRESH_MS : generating ? PIX_REFRESH_MS : null;
   useEffect(() => {
-    // O resultado do desafio não pode depender só do webhook da loja: confere na API a cada 15 s.
-    if (state !== 'pay' || !challengeUrl || orderId === null) return;
+    if (state !== 'pay' || refreshEvery === null || orderId === null) return;
+    // Com o Mercado Pago lento, uma conferência não começa antes de a anterior voltar: cada uma segura a linha
+    // do pagamento no servidor enquanto consulta o provedor.
+    let conferindo = false;
     const timer = window.setInterval(() => {
+      if (conferindo) return;
+      conferindo = true;
       void (async () => {
         try { await api(`/orders/${orderId}/payment/online/refresh`, { method: 'POST' }); } catch { /* falha ignorada */ }
         await load();
+        conferindo = false;
       })();
-    }, CHALLENGE_REFRESH_MS);
+    }, refreshEvery);
     return () => window.clearInterval(timer);
-  }, [challengeUrl, state, orderId, load]);
+  }, [refreshEvery, state, orderId, load]);
+  useEffect(() => {
+    setGeneratingSince((since) => (generating ? since ?? Date.now() : null));
+  }, [generating]);
   useEffect(() => {
     // Um aviso de erro antigo (ex.: 409 da desistência) não fica ao lado de um novo estado do pagamento.
     setError('');
@@ -118,7 +136,7 @@ export default function PagamentoPedidoPage() {
   useEffect(() => {
     // Pedido feito com Pix: gera o código ao abrir, uma vez. Depois de uma troca, só pelo botão.
     if (state !== 'pay' || tab !== 'pix' || pixRequested.current || !payment) return;
-    if (payment.method !== 'pix' || hasLivePix(payment) || payment.status !== 'pending') return;
+    if (payment.method !== 'pix' || hasLivePix(payment) || pixGenerating(payment) || payment.status !== 'pending') return;
     pixRequested.current = true;
     void generatePix();
   }, [state, tab, payment, generatePix]);
@@ -177,6 +195,7 @@ export default function PagamentoPedidoPage() {
 
   const final = finalMessage(state, payment.status, order.restaurant_name);
   const livePix = hasLivePix(payment);
+  const pixSlow = generatingSince !== null && now - generatingSince >= PIX_SLOW_MS;
   const inReview = cardInReview(payment);
 
   return <section className="pay-page">
@@ -204,17 +223,24 @@ export default function PagamentoPedidoPage() {
         <button type="button" role="tab" aria-selected={tab === 'pix'} className={tab === 'pix' ? 'selected' : ''} onClick={() => setTab('pix')}>{'Pix'}</button>
       </div>
       {tab === 'card' && <>
-        {livePix && <Alert tone="info">{'O Pix gerado será cancelado.'}</Alert>}
+        {(livePix || generating) && <Alert tone="info">{'O Pix gerado será cancelado.'}</Alert>}
         {config
           ? <CardPaymentForm amountCents={order.total_cents} publicKey={config.publicKey} payerEmail={user?.email} onSubmit={chargeCard} />
           : <p className="form-help">{'Carregando…'}</p>}
       </>}
       {tab === 'pix' && (livePix
         ? <PixPayment image={payment.image} title="Pague com Pix" hint="Aguardando a confirmação do banco…" />
-        : <div className="customer-card customer-online-payment">
-            <p className="form-help">{'Gere o código e pague pelo app do seu banco.'}</p>
-            <button type="button" className="customer-solid-button" disabled={working} onClick={() => void generatePix()}>{working ? 'Gerando…' : 'Gerar o Pix'}</button>
-          </div>)}
+        : generating
+          ? <div className="customer-card customer-online-payment" role="status">
+              <p><strong>{'Gerando o código Pix…'}</strong></p>
+              <p className="form-help">{pixSlow
+                ? 'Está demorando mais que o normal. Você pode continuar esperando aqui ou pagar com cartão.'
+                : 'Não saia desta página; o código aparece aqui em instantes.'}</p>
+            </div>
+          : <div className="customer-card customer-online-payment">
+              <p className="form-help">{'Gere o código e pague pelo app do seu banco.'}</p>
+              <button type="button" className="customer-solid-button" disabled={working} onClick={() => void generatePix()}>{working ? 'Gerando…' : 'Gerar o Pix'}</button>
+            </div>)}
       </>}
       <footer className="pay-foot">
         <button type="button" className="orders-cancel" disabled={busy || working} onClick={() => void cancel()}>{'Cancelar pedido'}</button>

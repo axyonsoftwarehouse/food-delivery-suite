@@ -364,7 +364,7 @@ class OnlinePaymentServiceTest {
         service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200");
 
         org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(jdbc, orderPayments);
-        ordem.verify(jdbc).update(argThat(sql -> sql != null && sql.startsWith("UPDATE order_payments SET status = ?")), eq("paid"), any(), any(), any(), any(), any(), any(), any());
+        ordem.verify(jdbc).update(argThat(sql -> sql != null && sql.startsWith("UPDATE order_payments SET status = ?")), eq("paid"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
         ordem.verify(orderPayments).refundIfPaidOnline(null, 1L, LATE_PAID_NOTE);
     }
 
@@ -762,6 +762,114 @@ class OnlinePaymentServiceTest {
 
         assertEquals(404, error.status());
         verify(gateway, never()).fetch(any(), anyString());
+    }
+
+    private void pixSendoGerado() {
+        payment.put("method", "pix");
+        payment.put("provider", "mercadopago");
+        payment.put("external_id", "ORDPIX1");
+        payment.put("qr_code", null);
+        payment.put("ticket_url", null);
+        payment.put("payment_account_id", 9L);
+        payment.put("customer_id", 7L);
+        payment.put("order_status", "placed");
+        when(accounts.credentialsForAccount(9L)).thenReturn(java.util.Optional.of(loja));
+    }
+
+    @Test
+    void refreshSavesTheQrThatArrivedLater() {
+        pixSendoGerado();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "waiting_transfer",
+            "00020126...", "base64image", "https://www.mercadopago.com.br/payments/1/ticket", null));
+
+        service(true).refresh(customer, 1);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(sql.capture(), values.capture());
+        assertTrue(sql.getValue().contains("qr_code = COALESCE(?, qr_code)"));
+        assertTrue(sql.getValue().contains("WHERE order_id = ? AND status = 'pending'"));
+        assertEquals("pending", values.getValue()[0]);
+        assertEquals("00020126...", values.getValue()[6]);
+        assertEquals("base64image", values.getValue()[7]);
+        assertEquals("https://www.mercadopago.com.br/payments/1/ticket", values.getValue()[8]);
+        assertEquals(1L, values.getValue()[10]);
+    }
+
+    @Test
+    void refreshOfAPixApprovedBeforeTheQrRecordsPaid() {
+        // O caso do #61: o sandbox aprovou o Pix antes de mandar o QR.
+        pixSendoGerado();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).refresh(customer, 1);
+
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        assertEquals("paid", values.getValue()[0]);
+        assertEquals(null, values.getValue()[6]);
+    }
+
+    @Test
+    void webhookSavesTheQrAndNeverErasesIt() {
+        payment.put("external_id", "ORDPIX1");
+        when(gateway.fetch(eq(loja), eq("ORDPIX1"))).thenReturn(new PaymentGateway.Charge(
+            "ORDPIX1", "1", 1000, "pending", "waiting_transfer", "00020126...", "base64image", null, null));
+
+        service(true).handleWebhook("mercadopago", "ORDPIX1", "3588446200");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(sql.capture(), values.capture());
+        // COALESCE: um aviso sem QR (valor null) não apaga o QR já gravado.
+        assertTrue(sql.getValue().contains("qr_code = COALESCE(?, qr_code), qr_code_base64 = COALESCE(?, qr_code_base64),"
+            + " ticket_url = COALESCE(?, ticket_url), expires_at = COALESCE(?, expires_at)"));
+        assertEquals("00020126...", values.getValue()[7]);
+        assertEquals("base64image", values.getValue()[8]);
+        assertEquals(null, values.getValue()[9]);
+        assertEquals(1L, values.getValue()[11]);
+    }
+
+    @Test
+    void askingPixAgainWhileItIsBeingGeneratedChecksAndNeverCreatesAnother() {
+        pixSendoGerado();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "waiting_transfer",
+            "00020126...", "base64image", null, null));
+
+        service(true).startIntent(customer, 1, "pix", null);
+
+        verify(gateway, never()).create(any(), any());
+        ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), values.capture());
+        assertEquals("00020126...", values.getValue()[6]);
+    }
+
+    @Test
+    void cardWhileThePixIsBeingGeneratedCancelsThePixFirst() {
+        pixSendoGerado();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "in_process", null, null, null, null));
+        when(gateway.cancel(loja, "ORDPIX1", "cancel-ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "cancelled", "canceled_by_api", null, null, null, null));
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDCARD1", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, card());
+
+        org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(gateway);
+        ordem.verify(gateway).cancel(loja, "ORDPIX1", "cancel-ORDPIX1");
+        ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+        ordem.verify(gateway).create(eq(loja), request.capture());
+        assertEquals("card", request.getValue().method());
+        assertEquals("order-1-11-retry-ORDPIX1", request.getValue().idempotencyKey());
+    }
+
+    @Test
+    void cardWhileThePixIsBeingGeneratedButAlreadyPaidChargesNothing() {
+        pixSendoGerado();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, card());
+
+        verify(gateway, never()).cancel(any(), anyString(), anyString());
+        verify(gateway, never()).create(any(), any());
     }
 
     private static final String SQL_ABANDONED = "UPDATE order_payments SET status = 'cancelled', raw_status = 'abandoned', challenge_url = NULL, note = ?"

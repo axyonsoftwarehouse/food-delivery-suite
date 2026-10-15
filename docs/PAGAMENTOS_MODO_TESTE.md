@@ -83,7 +83,11 @@ autorizou uma conta real, remova o acesso do Foodie em Aplicativos conectados, n
    Mercado Pago e sem QR Code. A tela mostra o QR Code e o "copia e cola", e **você não precisa pagar
    nada**.
 3. Com o nome `APRO`, o Mercado Pago aprova o Pix sozinho, **em geral entre 2 e 10 minutos**.
-4. Quando o webhook chega, o pedido aparece como **pagamento aprovado** e o restaurante pode aceitá-lo.
+4. O Mercado Pago pode criar o Pix **sem o código** e mandá-lo depois (criação assíncrona; no #61, em 14/10,
+   voltou `in_process` sem QR e o sandbox aprovou em ~20 s). A tela mostra **"Gerando o código Pix…"**,
+   confere a cada 3 s e troca pelo QR quando ele chega. Depois de 60 s, avisa que está demorando e lembra do
+   cartão. Não existe botão para gerar outro.
+5. Quando o webhook chega, o pedido aparece como **pagamento aprovado** e o restaurante pode aceitá-lo.
 
 ## 4. Fazer um pagamento de teste com cartão
 
@@ -126,6 +130,7 @@ Para testar uma **recusa**, use um cliente cujo primeiro nome seja `OTHE` (ou `F
 | Sintoma | Causa provável |
 |---|---|
 | Formulário do cartão não aparece (fica em "Carregando" ou mostra o aviso de bloqueio depois de 15 s) | o navegador está bloqueando o Mercado Pago. Veja a seção 7 |
+| Formulário do cartão mostra "Ocorreu um erro. Por favor, tente novamente mais tarde." | erro não crítico do Mercado Pago (BIN, parcelas, emissor); clique em **"Recarregar o formulário"** e veja o `cause` no console do navegador |
 | "Não foi possível obter a informação de pagamento. Tente outro cartão" | número de cartão que não é de teste do Brasil. Use um da tabela da seção 4 |
 | Não aparece "Pagar agora" no checkout | a loja não tem conta Mercado Pago conectada (seção 0) |
 | Pedido criado, mas sem QR Code | foi escolhido **"Na entrega"** (o padrão), e não **"Pagar agora"** |

@@ -32,11 +32,34 @@ export function awaitingOnlinePayment(order: { status: string; payment_modality?
   return order.status === 'placed' && order.payment_modality === 'online' && order.payment_status !== 'paid';
 }
 
-export type PaymentSnapshot = { method: string; modality: string | null; status: string; external_id?: string | null; challenge_url?: string | null; image?: { qr_code?: string | null } | null };
+export type PaymentSnapshot = { method: string; modality: string | null; status: string; external_id?: string | null; challenge_url?: string | null; image?: { qr_code?: string | null; ticket_url?: string | null } | null };
 
 /** Há um Pix gerado e ainda pagável (a troca para cartão o cancela no provedor, regra 5). */
 export function hasLivePix(payment: PaymentSnapshot | null | undefined) {
   return !!payment && payment.method === 'pix' && payment.status === 'pending' && !!payment.image?.qr_code;
+}
+
+/**
+ * Pix criado no Mercado Pago e ainda sem código: a criação pode ser assíncrona e o QR chega depois (spec de
+ * 14/10/2026 "Pix sem QR", regra 1). A tela espera e confere; não oferece gerar outro.
+ */
+export function pixGenerating(payment: PaymentSnapshot | null | undefined) {
+  return !!payment && payment.method === 'pix' && payment.status === 'pending' && !!payment.external_id
+    && !payment.image?.qr_code && !payment.image?.ticket_url;
+}
+
+export type BrickError = { type?: string; cause?: string; message?: string };
+
+/**
+ * O que a tela faz com um erro do formulário do cartão do Mercado Pago (spec de 14/10/2026, regras 9 e 10).
+ * `already_initialized` é o React montando duas vezes em desenvolvimento: o formulário na tela funciona. Erro
+ * não crítico (BIN, parcelas, emissor…) mantém o formulário e explica com a nossa frase; o crítico usa a
+ * mensagem do Mercado Pago. Os dois oferecem "Recarregar o formulário".
+ */
+export function brickErrorAction(error: BrickError | null | undefined): { show: false } | { show: true; message: string } {
+  if (error?.cause === 'already_initialized') return { show: false };
+  if (error?.type === 'critical') return { show: true, message: error.message ?? 'Não foi possível carregar o formulário do cartão.' };
+  return { show: true, message: 'O formulário do cartão teve um problema.' };
 }
 
 /**
