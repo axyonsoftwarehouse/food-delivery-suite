@@ -32,7 +32,11 @@ Nada entra na `main` por push direto. Todo trabalho passa por PR:
   workflow **Deploy** (botão no GitHub, exige confirmação). O processo tem backup,
   conferência de `/ready` e rollback — ver `platform/deploy/README.md` e
   `docs/RUNBOOK_VPS.md`.
-- Só publicar depois do PR mesclado na `main`.
+- **Só publicar com a `Verificação` verde do commit.** O workflow **Deploy** recusa
+  um commit sem CI verde (confere o run da `Verificação` antes de empacotar).
+- **Não mesclar duas PRs coladas.** Espere a `Verificação` do `main` do primeiro
+  merge antes de mesclar o próximo — é essa validação que o deploy confere. O CI do
+  `main` não cancela mais a validação anterior (`cancel-in-progress: false`).
 
 ## Segredos
 

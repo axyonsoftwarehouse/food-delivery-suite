@@ -11,8 +11,11 @@ on:
   workflow_dispatch:
 
 concurrency:
+  # NÃO cancela: dois merges colados no `main` faziam a validação do primeiro ser
+  # cancelada pelo segundo (15/10/2026), e o deploy podia publicar sem ela. Agora a
+  # validação do `main` sempre conclui; a fila é serial, uma por ref.
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   verify:
