@@ -86,16 +86,24 @@ public class OnlinePaymentService {
         long restaurantId = ((Number) order.get("restaurant_id")).longValue();
 
         List<Map<String, Object>> payments = jdbc.queryForList(
-            "SELECT id, status, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents, payment_account_id FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+            "SELECT id, status, method, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents, payment_account_id FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (payments.isEmpty()) throw new ApiException(409, "Pagamento do pedido não encontrado");
         Map<String, Object> payment = payments.getFirst();
         String paymentStatus = (String) payment.get("status");
         boolean pixAbertoParaCartao = false;
         if ("paid".equals(paymentStatus)) throw new ApiException(409, "Este pedido já está pago");
-        if ("pending".equals(paymentStatus) && (payment.get("qr_code") != null || payment.get("ticket_url") != null)) {
-            // Pix pedindo Pix: devolve o QR que já existe. Pix aberto pedindo cartão: cancela o Pix antes de
-            // cobrar, senão o cliente pode pagar os dois (spec de 11/10/2026, regra 5).
-            if (!"card".equals(method)) return detail(orderId);
+        boolean temCodigo = payment.get("qr_code") != null || payment.get("ticket_url") != null;
+        // Pix criado no provedor e ainda sem QR (criação assíncrona do Mercado Pago, spec de 14/10/2026
+        // "Pix sem QR", regras 5 e 7): é um Pix vivo como o que já tem código.
+        boolean pixSendoGerado = !temCodigo && "pix".equals(payment.get("method")) && payment.get("external_id") != null;
+        if ("pending".equals(paymentStatus) && (temCodigo || pixSendoGerado)) {
+            // Pix pedindo Pix: devolve o QR que já existe — ou confere se ele já chegou, nunca cria outro. Pix
+            // aberto pedindo cartão: cancela o Pix antes de cobrar, senão o cliente pode pagar os dois (spec de
+            // 11/10/2026, regra 5).
+            if (!"card".equals(method)) {
+                if (pixSendoGerado) conferir(orderId, payment);
+                return detail(orderId);
+            }
             pixAbertoParaCartao = true;
         }
         if (!allowDirectOnlineCharges) {
@@ -230,8 +238,12 @@ public class OnlinePaymentService {
             note = "Valor divergente: provedor " + charge.amountCents() + " vs pedido " + due;
         }
         jdbc.update("UPDATE order_payments SET status = ?, raw_status = ?, external_id = ?, note = ?, confirmed_at = IF(? = 'paid', NOW(), confirmed_at),"
-                + " challenge_url = IF(? = 'pending', COALESCE(?, challenge_url), NULL) WHERE order_id = ?",
-            next, charge.rawStatus(), charge.externalId(), note, next, next, charge.challengeUrl(), orderId);
+                + " challenge_url = IF(? = 'pending', COALESCE(?, challenge_url), NULL),"
+                + " qr_code = COALESCE(?, qr_code), qr_code_base64 = COALESCE(?, qr_code_base64),"
+                + " ticket_url = COALESCE(?, ticket_url), expires_at = COALESCE(?, expires_at) WHERE order_id = ?",
+            next, charge.rawStatus(), charge.externalId(), note, next, next, charge.challengeUrl(),
+            charge.qrCode(), charge.qrCodeBase64(), charge.ticketUrl(),
+            charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), orderId);
         // Pagamento aprovado depois de o pedido morrer (Pix pago após cancelar, recusar ou expirar): registra
         // como pago e devolve na mesma transação. Se o estorno falhar, a exceção desfaz tudo e o webhook
         // responde erro (não-2xx) — o Mercado Pago reenvia e tentamos de novo.
@@ -254,21 +266,27 @@ public class OnlinePaymentService {
     @Transactional
     public Map<String, Object> refresh(User actor, long orderId) {
         Map<String, Object> row = pagamentoDoCliente(actor, orderId);
-        if (!"pending".equals(row.get("status")) || !"placed".equals(row.get("order_status"))
-            || !(row.get("external_id") instanceof String charge) || row.get("payment_account_id") == null) {
-            return detail(orderId);
-        }
+        if ("pending".equals(row.get("status")) && "placed".equals(row.get("order_status"))) conferir(orderId, row);
+        return detail(orderId);
+    }
+
+    /**
+     * Consulta no provedor a cobrança pendente de {@code row} e grava o que mudou (status e, no Pix, o QR que
+     * chegou depois). Sem cobrança, sem conta ou com falha no provedor, não muda nada: a atualização da página
+     * e o webhook continuam valendo.
+     */
+    private void conferir(long orderId, Map<String, Object> row) {
+        if (!(row.get("external_id") instanceof String charge) || row.get("payment_account_id") == null) return;
         MerchantCredentials credentials = accounts.credentialsForAccount(((Number) row.get("payment_account_id")).longValue()).orElse(null);
-        if (credentials == null) return detail(orderId);
+        if (credentials == null) return;
         PaymentGateway.Charge atual;
         try {
             atual = gateways.resolve((String) row.get("provider")).fetch(credentials, charge);
         } catch (RuntimeException falha) {
             log.warn("Pedido #{}: a cobrança {} não pôde ser conferida ({})", orderId, charge, falha.getMessage());
-            return detail(orderId);
+            return;
         }
         if (atual != null) gravarResultado(orderId, ((Number) row.get("amount_due_cents")).longValue(), atual);
-        return detail(orderId);
     }
 
     /**
@@ -354,9 +372,16 @@ public class OnlinePaymentService {
             next = "rejected";
             note = "Valor divergente: provedor " + charge.amountCents() + " vs pedido " + due;
         }
+        // O QR do Pix pode chegar depois da criação (criação assíncrona do Mercado Pago, spec de 14/10/2026
+        // "Pix sem QR", regra 4). COALESCE: uma resposta sem QR não apaga o que já foi gravado.
         jdbc.update("UPDATE order_payments SET status = ?, raw_status = ?, note = COALESCE(?, note), confirmed_at = IF(? = 'paid', NOW(), confirmed_at),"
-                + " challenge_url = IF(? = 'pending', COALESCE(?, challenge_url), NULL) WHERE order_id = ? AND status = 'pending'",
-            next, charge.rawStatus(), note, next, next, charge.challengeUrl(), orderId);
+                + " challenge_url = IF(? = 'pending', COALESCE(?, challenge_url), NULL),"
+                + " qr_code = COALESCE(?, qr_code), qr_code_base64 = COALESCE(?, qr_code_base64),"
+                + " ticket_url = COALESCE(?, ticket_url), expires_at = COALESCE(?, expires_at)"
+                + " WHERE order_id = ? AND status = 'pending'",
+            next, charge.rawStatus(), note, next, next, charge.challengeUrl(),
+            charge.qrCode(), charge.qrCodeBase64(), charge.ticketUrl(),
+            charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), orderId);
     }
 
     /**
