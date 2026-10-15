@@ -19,6 +19,10 @@ concurrency:
   group: deploy-staging
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   deploy:
     name: Publicar no staging
@@ -36,6 +40,29 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+
+      # Publicar exige a Verificação verde do commit. Sem isto, dá para publicar um
+      # commit cujo CI do `main` foi cancelado/ainda não terminou (aconteceu em
+      # 15/10/2026, com dois merges colados — a validação foi cancelada pelo
+      # `cancel-in-progress` e o deploy passou na frente).
+      - name: Conferir a validação (Verificação verde do commit)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          echo "Commit a publicar: $SHA"
+          RUNS="$(gh run list --workflow ci.yml --commit "$SHA" --limit 30 --json status,conclusion --jq '.[] | "\(.status):\(.conclusion)"')"
+          echo "$RUNS"
+          if echo "$RUNS" | grep -q '^completed:success$'; then
+            echo "Verificação verde para $SHA."
+            exit 0
+          fi
+          if echo "$RUNS" | grep -qE '^(in_progress|queued|requested|waiting):'; then
+            echo "::error::A Verificação de $SHA ainda está rodando. Aguarde ficar verde e publique de novo."
+          else
+            echo "::error::Sem Verificação verde para $SHA. Rode a Verificação e publique depois."
+          fi
+          exit 1
 
       - name: Empacotar o commit (mesmo `git archive` do release.ps1)
         id: pacote
