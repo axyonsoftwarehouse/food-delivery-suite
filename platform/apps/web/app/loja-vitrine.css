@@ -12,14 +12,19 @@
 .lj-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text); font: 800 22px var(--font-display); letter-spacing: -0.8px; text-decoration: none; }
 .lj-brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--brand-500); color: #fff; }
 
-.lj-address { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 340px; padding: 6px 10px; border: 0; border-radius: 12px; background: none; color: var(--brand-700); font: inherit; text-align: left; cursor: pointer; }
-.lj-address:hover { background: var(--surface-muted); }
-.lj-address:focus-within { box-shadow: 0 0 0 3px var(--focus-ring); }
-.lj-address-text { display: grid; min-width: 0; color: var(--text); }
-.lj-address-text small { color: var(--text-muted); font-size: 12px; font-weight: 500; }
-.lj-address-text strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-.lj-address-chevron { flex: none; color: var(--text-muted); }
-.customer-app .lj-address select { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; font-size: 16px; cursor: pointer; }
+.lj-address-wrap { position: relative; min-width: 0; }
+.lj-address { display: inline-flex; align-items: center; gap: 8px; max-width: 340px; height: 40px; padding: 0 12px 0 10px; border: 0; border-radius: 999px; background: var(--surface-muted); color: var(--brand-700); font: inherit; cursor: pointer; transition: background 0.2s ease; }
+.lj-address:hover, .lj-address[aria-expanded='true'] { background: color-mix(in srgb, var(--text) 8%, var(--surface)); }
+.lj-address:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.lj-address-line { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.lj-address-chevron { flex: none; color: var(--text-muted); transition: transform 0.2s ease; }
+.lj-address[aria-expanded='true'] .lj-address-chevron { transform: rotate(180deg); }
+.lj-sheet-scrim { display: none; }
+.lj-address-menu { position: absolute; z-index: 40; top: calc(100% + 8px); left: 0; width: 340px; padding: 8px 16px 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-lg); animation: m-fade-up 0.2s var(--ease-out); }
+.lj-address-menu h2 { margin: 6px 0 2px; font: 800 16px var(--font-display); }
+.lj-address-menu ul { margin: 0 0 4px; padding: 0; list-style: none; }
+.lj-address-menu li:not(:last-child) .lj-choice { border-bottom: 1px solid var(--border); }
+.lj-sheet-grip { display: none; }
 
 .lj-topnav { display: flex; gap: 2px; margin-left: auto; }
 .lj-topnav a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 10px; color: var(--text-muted); font-size: 14px; font-weight: 600; text-decoration: none; }
@@ -252,7 +257,13 @@
   .lj-page { padding-top: var(--space-5); }
   .lj-brand, .lj-topnav, .lj-avatar { display: none; }
   .lj-header-inner { gap: 8px; }
-  .lj-address { flex: 1; max-width: none; padding: 6px 4px; }
+  .lj-address-wrap { flex: 1; }
+  .lj-address { max-width: 100%; }
+  /* No celular a lista sobe de baixo, sobre um fundo escurecido. */
+  .lj-sheet-scrim { position: fixed; z-index: 60; inset: 0; display: block; border: 0; background: rgb(10 14 11 / 0.45); animation: m-fade-in 0.2s ease; }
+  .lj-address-menu { position: fixed; z-index: 61; top: auto; left: 0; right: 0; bottom: 0; width: auto; padding: 10px 20px calc(16px + env(safe-area-inset-bottom)); border: 0; border-radius: 22px 22px 0 0; animation: m-sheet-up 0.3s var(--ease-out); }
+  .lj-sheet-grip { display: block; width: 40px; height: 4px; margin: 0 auto 10px; border-radius: 999px; background: var(--border-strong); }
+  .lj-address-menu h2 { font-size: 18px; }
 
   .lj-tabbar { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); }
   .lj-tabbar a { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; color: var(--text-muted); font-size: 11px; font-weight: 600; text-decoration: none; }
@@ -296,3 +307,33 @@
 .customer-app .profile-badge { background: var(--warning-soft); color: #8a5a12; }
 .customer-app .profile-badge.is-ok { background: var(--success-soft); color: var(--brand-700); }
 .customer-app .pf-section { border: 0; border-radius: 18px; box-shadow: none; }
+
+/* Pedidos: foto da loja e lista limpa (nome e data/valor à esquerda, status à direita). */
+.orders-media { display: block; flex: 0 0 48px; height: 48px; overflow: hidden; border-radius: 12px; }
+.orders-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.orders-media .lj-media-fallback { font-size: 18px; }
+.customer-app .orders-active { border: 0; border-radius: 20px; box-shadow: none; }
+.customer-app .orders-active-head strong { font: 700 16px var(--font-sans); letter-spacing: 0; }
+.customer-app .orders-active .orders-total { font: 800 19px var(--font-display); }
+.customer-app .orders-list { gap: 0; padding: 0 16px; border-radius: 18px; background: var(--surface); }
+.customer-app .orders-row { padding: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; animation: none; }
+.customer-app .orders-row:last-child { border-bottom: 0; }
+.customer-app .orders-row:hover { box-shadow: none; transform: none; }
+.orders-row-main { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.orders-row-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.orders-row-text strong { overflow: hidden; font-size: 15px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.orders-row-text small { color: var(--text-muted); font-size: 13px; }
+.orders-state { flex: none; max-width: 110px; color: var(--brand-700); font-size: 13px; font-weight: 600; text-align: right; }
+.orders-state.is-failed { color: var(--danger); }
+.orders-row-chevron { flex: none; color: var(--text-muted); transition: transform 0.2s ease; }
+.orders-row-main[aria-expanded='true'] .orders-row-chevron { transform: rotate(180deg); }
+.customer-app .orders-row-foot { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; padding: 0 0 14px 60px; }
+.customer-app .orders-row .order-details { margin: 0 0 14px; }
+.customer-app .orders-section-title { margin: 28px 0 12px; color: var(--text); font: 800 19px var(--font-display); letter-spacing: -0.4px; }
+@media (max-width: 760px) {
+  .customer-app .orders-row-foot { padding-left: 0; }
+}
+/* Reembolso é ação rara: contorno discreto, sem o vermelho cheio. */
+.customer-app .order-details-actions .ui-btn--danger { border: 1px solid var(--border-strong); background: var(--surface); color: var(--danger); }
+.customer-app .order-details-actions .ui-btn--danger:hover:not(:disabled) { border-color: var(--danger); filter: none; }
+.customer-app dl.order-details-summary { max-width: 420px; }

@@ -350,3 +350,11 @@ html[data-theme='dark'] .order-details { background: var(--surface); border-colo
 .support-dialog__action { margin: 0; color: var(--text-muted); }
 .support-dialog__action strong { color: var(--text); }
 .support-banner { position: sticky; top: 0; z-index: 5; }
+
+/* Resumo dos detalhes do pedido (cliente, restaurante e admin): um valor por linha, rótulo à esquerda. */
+dl.order-details-summary, .customer-app dl.order-details-summary { display: grid; justify-content: stretch; gap: 6px; margin: 12px 0 0; padding-top: 12px; border-top: 1px dashed var(--border-strong); }
+dl.order-details-summary > div { display: flex; justify-content: space-between; gap: 12px; }
+dl.order-details-summary dt { color: var(--text-muted); }
+dl.order-details-summary dd { margin: 0; color: var(--text); text-align: right; }
+dl.order-details-summary .is-total { font-weight: 700; }
+dl.order-details-summary .is-total dt { color: var(--text); }
