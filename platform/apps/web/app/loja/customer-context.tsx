@@ -229,6 +229,12 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     setSelectedProduct(null);
   }, [restaurantId]);
 
+  // Outro endereço pode ter outro cardápio: os filtros da categoria e da tag recomeçam.
+  useEffect(() => {
+    setCategoryId(null);
+    setTagId(null);
+  }, [selectedAddressId]);
+
   function applyCart(snapshot: CartSnapshot) {
     setCart(snapshot.items);
     setCartVersion(snapshot.version);

@@ -3,14 +3,31 @@
 import { useCustomer } from './customer-context';
 import { Icon } from '../icons';
 
-/** Seletor de endereço de entrega usado no topo da loja e do cardápio. */
-export default function AddressPicker({ emptyText, onChange }: { emptyText: string; onChange?: () => void }) {
-  const { addresses, selectedAddress, setSelectedAddressId, showAddressForm, setShowAddressForm } = useCustomer();
+const NEW_ADDRESS = 'novo';
 
-  return <div className="customer-location-actions m-rise" style={{ '--i': 1 } as React.CSSProperties}>
-    {addresses.length ? <label className="customer-address-select"><span className="sr-only">{'Entregar em'}</span><Icon name="map-pin" className="customer-address-icon" /><select value={selectedAddress?.id ?? ''} onChange={(event) => { setSelectedAddressId(Number(event.target.value)); onChange?.(); }}>
-      {addresses.map((address) => <option key={address.id} value={address.id}>{address.label} · {address.neighborhood}{address.postal_code ? '' : ' · recadastre com CEP'}</option>)}
-    </select><Icon name="chevron-down" size={18} className="customer-address-chevron" /></label> : <p>{emptyText}</p>}
-    <button className={`customer-add-address${showAddressForm ? ' is-open' : ''}`} onClick={() => setShowAddressForm(!showAddressForm)} aria-label={showAddressForm ? 'Fechar novo endereço' : addresses.length ? 'Adicionar outro endereço' : 'Adicionar endereço'} title={showAddressForm ? 'Fechar' : 'Novo endereço'}><Icon name="plus" size={18} />{!addresses.length && <span>{'Adicionar endereço'}</span>}</button>
-  </div>;
+/** Endereço de entrega no cabeçalho da loja: escolher outro ou cadastrar um novo pela mesma lista. */
+export default function AddressPicker() {
+  const { addresses, selectedAddress, setSelectedAddressId, setShowAddressForm } = useCustomer();
+
+  if (!addresses.length) {
+    return <button type="button" className="lj-address lj-address--empty" onClick={() => setShowAddressForm(true)}>
+      <Icon name="map-pin" size={18} /><span className="lj-address-text"><small>{'Entregar em'}</small><strong>{'Adicionar endereço'}</strong></span>
+    </button>;
+  }
+
+  return <label className="lj-address">
+    <Icon name="map-pin" size={18} />
+    <span className="lj-address-text">
+      <small>{'Entregar em'}</small>
+      <strong>{selectedAddress ? `${selectedAddress.street}, ${selectedAddress.number}` : 'Escolha o endereço'}</strong>
+    </span>
+    <Icon name="chevron-down" size={16} className="lj-address-chevron" />
+    <select aria-label="Endereço de entrega" value={selectedAddress?.id ?? ''} onChange={(event) => {
+      if (event.target.value === NEW_ADDRESS) { setShowAddressForm(true); return; }
+      setSelectedAddressId(Number(event.target.value));
+    }}>
+      {addresses.map((address) => <option key={address.id} value={address.id}>{address.label} · {address.street}, {address.number}{address.postal_code ? '' : ' · recadastre com CEP'}</option>)}
+      <option value={NEW_ADDRESS}>{'+ Novo endereço'}</option>
+    </select>
+  </label>;
 }

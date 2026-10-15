@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useApp } from './app-context';
 import { Icon, type IconName } from './icons';
+import RestaurantMedia from './loja/restaurant-media';
 
 const STEPS: { icon: IconName; title: string; text: string }[] = [
   { icon: 'search', title: 'Escolha', text: 'Encontre o restaurante e o prato que dão vontade.' },
@@ -40,12 +41,10 @@ export default function Home() {
 
     <section className="home-section" id="restaurantes">
       <h2 className="m-rise">{'Restaurantes no Foodie'}</h2>
-      {restaurants.length ? <div className="customer-restaurant-grid">{restaurants.map((restaurant, index) => <Link key={restaurant.id} className={`customer-restaurant-card m-rise${restaurant.open ? '' : ' is-closed'}`} style={{ '--i': index } as React.CSSProperties} href={`/restaurantes/${restaurant.id}`}>
-        <span className={`customer-restaurant-cover tone-${restaurant.id % 5}`} aria-hidden="true"><span className="customer-restaurant-cover-letter">{restaurant.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span><Icon name="sparkle" size={18} className="customer-restaurant-cover-spark" /></span>
-        <span className={`customer-restaurant-status ${restaurant.open ? 'is-open' : 'is-closed'}`}>{restaurant.open ? 'Aberto agora' : 'Fechado no momento'}</span>
-        <span className={`customer-restaurant-mark tone-${restaurant.id % 5}`} aria-hidden="true">{restaurant.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
-        <span className="customer-restaurant-info"><strong>{restaurant.name}</strong></span>
-        <span className="customer-restaurant-arrow" aria-hidden="true"><Icon name="arrow-right" /></span>
+      {restaurants.length ? <div className="lj-grid">{restaurants.map((restaurant) => <Link key={restaurant.id} className={`lj-rest${restaurant.open ? '' : ' is-closed'}`} href={`/restaurantes/${restaurant.id}`}>
+        <span className="lj-rest-frame"><RestaurantMedia restaurant={restaurant} className="lj-rest-media" />{!restaurant.open && <span className="lj-rest-badge">{'Fechado agora'}</span>}</span>
+        <strong className="lj-rest-name">{restaurant.name}</strong>
+        {restaurant.cuisines && <span className="lj-rest-meta">{restaurant.cuisines}</span>}
       </Link>)}</div> : <p className="home-empty">{'Os restaurantes aparecerão aqui em breve.'}</p>}
     </section>
 

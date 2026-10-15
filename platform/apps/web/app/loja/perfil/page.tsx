@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api } from '../../app-context';
+import { api, useApp } from '../../app-context';
+import ThemeToggle from '../../ThemeToggle';
 import { useCustomer } from '../customer-context';
 import AddressForm from '../address-form';
 import RewardsCard from './rewards-card';
@@ -10,6 +11,7 @@ import RecurringOrdersCard from './recurring-orders-card';
 import { Icon } from '../../icons';
 
 export default function PerfilClientePage() {
+  const { logout, busy } = useApp();
   const { user, addresses, showAddressForm, setShowAddressForm } = useCustomer();
   const [security, setSecurity] = useState<{ emailVerified: boolean } | null>(null);
 
@@ -37,5 +39,13 @@ export default function PerfilClientePage() {
 
     <PersonalizationCard />
     <RecurringOrdersCard />
+
+    <section className="pf-section">
+      <div className="pf-head"><h2>{'Conta'}</h2></div>
+      <ul className="pf-list">
+        <li className="pf-row"><span className="pf-icon"><Icon name="moon" size={18} /></span><div><strong>{'Tema escuro'}</strong></div><ThemeToggle /></li>
+        <li className="pf-row"><span className="pf-icon"><Icon name="logout" size={18} /></span><div><strong>{'Sair da conta'}</strong></div><button type="button" className="lj-outline-button" onClick={logout} disabled={busy}>{'Sair'}</button></li>
+      </ul>
+    </section>
   </div>;
 }

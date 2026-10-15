@@ -6,6 +6,7 @@ import './motion.css';
 import './auth.css';
 import './loja.css';
 import './loja-conta.css';
+import './loja-vitrine.css';
 import './entregas.css';
 import './painel.css';
 import './home.css';
