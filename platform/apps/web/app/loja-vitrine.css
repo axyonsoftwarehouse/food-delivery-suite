@@ -337,3 +337,87 @@
 .customer-app .order-details-actions .ui-btn--danger { border: 1px solid var(--border-strong); background: var(--surface); color: var(--danger); }
 .customer-app .order-details-actions .ui-btn--danger:hover:not(:disabled) { border-color: var(--danger); filter: none; }
 .customer-app dl.order-details-summary { max-width: 420px; }
+
+/*
+ * ------------------------------- Movimento -------------------------------
+ * Só responde a uma ação ou a uma mudança de status, de 150 a 300 ms; o único laço é o entregador a
+ * caminho. Em "reduzir movimento" tudo fica parado (fim da seção).
+ */
+@keyframes lj-roll-in { from { opacity: 0; transform: translateY(70%); } }
+@keyframes lj-page-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes lj-sheet-pop { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
+@keyframes lj-sheet-rise { from { transform: translateY(100%); } }
+@keyframes lj-ride { 0%, 100% { transform: translateX(-2px); } 50% { transform: translateX(2px) rotate(-4deg); } }
+
+.customer-page { animation: lj-page-in 0.3s var(--ease-out); }
+
+/* Números que rolam (preço, quantidade, total) */
+.lj-roll { display: inline-flex; overflow: hidden; vertical-align: bottom; }
+.lj-roll > span { display: inline-block; }
+.lj-roll > .is-rolling { animation: lj-roll-in 0.28s var(--ease-out); }
+
+/* Fotos esmaecem ao carregar, sobre um fundo neutro no lugar do vazio */
+:is(.lj-rest-media, .lj-again-media, .lj-store-media, .lj-product-media, .orders-media, .lj-mini-media, .customer-sheet-cover) { --lj-fill: color-mix(in srgb, var(--text) 6%, var(--background)); background-color: var(--lj-fill); }
+.lj-fade-img { opacity: 0; transition: opacity 0.35s ease; }
+.lj-fade-img.is-loaded { opacity: 1; }
+
+/* Prato voando até o carrinho */
+.lj-flyer { position: fixed; z-index: 80; border-radius: 14px; object-fit: cover; box-shadow: 0 8px 20px rgb(0 0 0 / 0.2); pointer-events: none; }
+span.lj-flyer { border-radius: 50%; background: var(--brand-500); }
+.lj-add.is-added { background: var(--brand-500); color: #fff; animation: m-pop 0.35s var(--ease-spring); }
+
+/* Favorito: o coração estoura */
+.lj-fav::after { content: ''; position: absolute; inset: 0; border: 2px solid #d93f45; border-radius: 50%; opacity: 0; pointer-events: none; }
+.lj-fav.is-fav::after { animation: m-burst 0.5s var(--ease-out); }
+
+/* Cardápio: capa com profundidade, barra compacta e sublinhado que desliza */
+.lj-store-cover { overflow: hidden; border-radius: 24px; }
+.lj-store-media img { transform: translateY(calc(var(--lj-parallax, 0) * 0.3px)) scale(calc(1 + var(--lj-parallax, 0) / 2000)); will-change: transform; }
+.lj-sticky { position: sticky; z-index: 12; top: var(--header-h); margin-top: 16px; background: var(--background); }
+.lj-sticky .lj-tabs { position: relative; top: auto; margin: 0; }
+.lj-mini { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.25s var(--ease-out); }
+.lj-mini > div { display: flex; align-items: center; gap: 10px; min-height: 0; overflow: hidden; opacity: 0; transition: opacity 0.2s ease, padding 0.25s var(--ease-out); }
+.lj-sticky.is-compact .lj-mini { grid-template-rows: 1fr; }
+.lj-sticky.is-compact .lj-mini > div { padding: 10px 0 4px; opacity: 1; }
+.lj-mini-media { display: block; flex: 0 0 32px; height: 32px; overflow: hidden; border-radius: 9px; }
+.lj-mini-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lj-mini-media .lj-media-fallback { font-size: 14px; }
+.lj-mini strong { font: 800 16px var(--font-display); letter-spacing: -0.3px; }
+.lj-tabs button[aria-pressed='true'] { border-bottom-color: transparent; }
+.lj-tabs-line { position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 2px; background: var(--text); transition: transform 0.3s var(--ease-out), width 0.3s var(--ease-out); }
+
+/* Ficha do prato sobe com mola */
+.customer-sheet { animation: lj-sheet-pop 0.36s var(--ease-spring); }
+
+/* Carrinho: item removido desliza para fora */
+.lj-item { transition: opacity 0.22s ease, transform 0.22s var(--ease-out); }
+.lj-item.is-removing { opacity: 0; transform: translateX(-24px); }
+
+/* Pedidos: etapas avançam, entregador anda, check se desenha */
+.customer-app .orders-steps::after { transition: width 0.7s var(--ease-out); }
+.orders-steps li.is-riding > span .ui-icon { animation: lj-ride 1.2s ease-in-out infinite; }
+.orders-state { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.orders-check { flex: none; stroke-dasharray: 24; stroke-dashoffset: 24; animation: m-dash 0.6s var(--ease-out) 0.2s forwards; }
+
+/* Toque: o que é clicável afunda um pouco */
+.lj-rest-frame, .lj-chips button, .lj-outline-button, .lj-round-button, .lj-tabbar-icon, .lj-cartbar { transition: transform 0.15s ease; }
+.lj-again-item { transition: box-shadow 0.2s ease, transform 0.15s ease; }
+.lj-checkout { transition: background 0.2s ease, transform 0.15s ease; }
+.lj-rest:active .lj-rest-frame, .lj-again-item:active, .lj-chips button:active, .lj-cartbar:active, .lj-tabbar a:active .lj-tabbar-icon,
+.lj-checkout:active:not(:disabled), .lj-outline-button:active:not(:disabled), .lj-round-button:active:not(:disabled) { transform: scale(0.97); }
+.lj-choice:active, .orders-row-main:active { background: var(--surface-muted); }
+
+@media (max-width: 760px) {
+  .lj-store-cover { border-radius: 0; }
+  .lj-sticky { margin: 12px -16px 0; padding: 0 16px; }
+  .lj-sticky .lj-tabs { margin: 0 -16px; padding: 0 16px; }
+  .customer-sheet { animation: lj-sheet-rise 0.42s cubic-bezier(0.22, 1.12, 0.36, 1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .customer-page, .lj-roll > .is-rolling, .lj-add.is-added, .lj-fav.is-fav::after, .customer-sheet, .orders-steps li.is-riding > span .ui-icon { animation: none; }
+  .orders-check { animation: none; stroke-dashoffset: 0; }
+  .lj-fade-img { opacity: 1; transition: none; }
+  .lj-store-media img { transform: none; }
+  .lj-mini, .lj-mini > div, .lj-tabs-line, .lj-item, .customer-app .orders-steps::after { transition: none; }
+}
