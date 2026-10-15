@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api, money, useApp } from '../app-context';
 import { Alert, Skeleton } from '../ui';
@@ -8,15 +8,47 @@ import { Icon } from '../icons';
 import { useCustomer } from './customer-context';
 import RestaurantMedia from './restaurant-media';
 import { ReferralBlock } from './referral';
+import { FadeImg, Rolling, flyToCart, prefersReducedMotion } from './motion';
 
 export default function RestaurantMenu() {
   const { busy, setMessage } = useApp();
-  const { catalog, restaurantId, selectedAddress, selectedZone, setCategoryId, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId } = useCustomer();
+  const { catalog, restaurantId, selectedAddress, selectedZone, setCategoryId, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId, cartEntries } = useCustomer();
   const [chosen, setChosen] = useState<number | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<number[]>([]);
   const [pickerError, setPickerError] = useState('');
 
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
+  const [justAdded, setJustAdded] = useState<number | null>(null);
+  const [compact, setCompact] = useState(false);
+  const tabsRef = useRef<HTMLElement | null>(null);
+  const [tabLine, setTabLine] = useState<{ left: number; width: number } | null>(null);
+  const titleRef = useRef<HTMLHeadingElement | null>(null);
+  const coverRef = useRef<HTMLDivElement | null>(null);
+
+  // Nome da loja some sob o cabeçalho: aparece a barra compacta acima das abas.
+  useEffect(() => {
+    const title = titleRef.current;
+    if (!title || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => setCompact(!entry.isIntersecting && entry.boundingClientRect.top < 0), { rootMargin: '-72px 0px 0px 0px' });
+    observer.observe(title);
+    return () => observer.disconnect();
+  }, []);
+
+  // A capa desce mais devagar que a página ao rolar (profundidade), só enquanto está na tela.
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    let frame = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const cover = coverRef.current;
+        const y = Math.min(window.scrollY, 400);
+        if (cover) cover.style.setProperty('--lj-parallax', `${y}`);
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(frame); };
+  }, []);
 
   useEffect(() => {
     setChosen(selectedProduct?.variations[0]?.id ?? null);
@@ -87,7 +119,39 @@ export default function RestaurantMenu() {
       if (count > group.max_select) { setPickerError(`Escolha no máximo ${group.max_select} opção(ões) em "${group.name}".`); return; }
     }
     setPickerError('');
+    const product = visibleProducts.find((item) => item.id === selectedProduct.id);
+    if (!cartEntries.length || cartEntries[0].product.restaurant_id === selectedProduct.restaurant_id) flyToCart(document.querySelector('.customer-sheet-cover'), product?.image_url);
     void addSelected(chosenVariation?.id ?? 0, selectedAddons);
+  }
+
+  // Sublinhado das abas desliza até a categoria escolhida, e a aba escolhida rola para o meio.
+  useLayoutEffect(() => {
+    const tabs = tabsRef.current;
+    const active = tabs?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]');
+    if (!tabs || !active) { setTabLine(null); return; }
+    setTabLine({ left: active.offsetLeft, width: active.offsetWidth });
+    tabs.scrollTo({ left: active.offsetLeft - tabs.clientWidth / 2 + active.offsetWidth / 2, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }, [categoryId, availableCategories.length]);
+
+  // Trocar de categoria com a página rolada: a lista nova começa logo abaixo das abas, não fora da tela.
+  function pickCategory(id: number | null) {
+    setCategoryId(id);
+    const sticky = document.querySelector('.lj-sticky');
+    if (!sticky || !compact) return;
+    const header = document.querySelector('.lj-header')?.getBoundingClientRect().height ?? 0;
+    const top = (sticky.parentElement?.querySelector('.lj-search')?.getBoundingClientRect().bottom ?? 0) + window.scrollY - header;
+    window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }
+
+  // Prato sem opções entra direto no carrinho: a foto voa até ele e o "+" vira um check por um instante.
+  function quickAdd(product: (typeof visibleProducts)[number], button: HTMLElement) {
+    const sameStore = !cartEntries.length || cartEntries[0].product.restaurant_id === product.restaurant_id;
+    if (!(product.variation_count ?? 0) && sameStore) {
+      flyToCart(button.closest('.lj-product-media'), product.image_url);
+      setJustAdded(product.id);
+      window.setTimeout(() => setJustAdded((current) => (current === product.id ? null : current)), 900);
+    }
+    void openProduct(product);
   }
 
   const restaurant = restaurantId ? restaurantById.get(restaurantId) : undefined;
@@ -96,12 +160,12 @@ export default function RestaurantMenu() {
 
   return <>
     <section className="lj-store" aria-label="Restaurante">
-      <div className="lj-store-cover">
+      <div className="lj-store-cover" ref={coverRef}>
         {restaurant ? <RestaurantMedia restaurant={restaurant} className="lj-store-media" /> : <span className="lj-store-media" />}
         <Link className="lj-round-button lj-store-back" href="/loja" aria-label="Voltar para restaurantes"><Icon name="arrow-left" size={20} /></Link>
       </div>
       <div className="lj-store-info">
-        <h1>{restaurant?.name ?? 'Restaurante'}</h1>
+        <h1 ref={titleRef}>{restaurant?.name ?? 'Restaurante'}</h1>
         {restaurant && <p className="lj-store-sub"><span className={`lj-dot${restaurant.open ? '' : ' is-off'}`} aria-hidden="true" />{restaurant.open ? 'Aberto agora' : 'Fechado agora'}{restaurant.cuisines ? ` · ${restaurant.cuisines}` : ''}</p>}
         {covered && selectedZone && <dl className="lj-store-facts">
           <div><dt>{'Entrega'}</dt><dd>{selectedZone.delivery_fee_cents ? money(selectedZone.delivery_fee_cents) : 'Grátis'}</dd></div>
@@ -116,10 +180,14 @@ export default function RestaurantMenu() {
       {!restaurant || !covered ? <div className="lj-empty"><Icon name="utensils" size={28} /><p>{!restaurant ? 'Restaurante não encontrado.' : !selectedAddress ? 'Adicione um endereço para ver o cardápio.' : 'Este restaurante não entrega no endereço escolhido.'}</p><Link className="lj-text-button" href="/loja">{'Ver restaurantes disponíveis'}</Link></div> : <>
       <label className="lj-search"><Icon name="search" size={18} /><span className="sr-only">{'Buscar pratos neste restaurante'}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar no cardápio" /><button type="button" className="lj-search-voice" onClick={voiceSearch} aria-label="Buscar por voz"><Icon name="mic" size={18} /></button></label>
       {/* Só as abas ficam presas no topo: a busca e as tags rolam com a página. */}
-      <nav className="lj-tabs" aria-label="Categorias do cardápio">
-        <button type="button" aria-pressed={categoryId === null} onClick={() => setCategoryId(null)}>{'Todos'}</button>
-        {availableCategories.map((category) => <button type="button" key={category.id} aria-pressed={categoryId === category.id} onClick={() => setCategoryId(category.id)}>{category.name}</button>)}
+      <div className={`lj-sticky${compact ? ' is-compact' : ''}`}>
+      {restaurant && <div className="lj-mini" aria-hidden={!compact}><div><RestaurantMedia restaurant={restaurant} className="lj-mini-media" /><strong>{restaurant.name}</strong></div></div>}
+      <nav className="lj-tabs" aria-label="Categorias do cardápio" ref={tabsRef}>
+        {tabLine && <span className="lj-tabs-line" aria-hidden="true" style={{ transform: `translateX(${tabLine.left}px)`, width: tabLine.width }} />}
+        <button type="button" aria-pressed={categoryId === null} onClick={() => pickCategory(null)}>{'Todos'}</button>
+        {availableCategories.map((category) => <button type="button" key={category.id} aria-pressed={categoryId === category.id} onClick={() => pickCategory(category.id)}>{category.name}</button>)}
       </nav>
+      </div>
       {tags.length > 0 && <div className="lj-chips lj-chips--small" role="group" aria-label="Filtrar por tag">{tags.map((tag) => <button type="button" key={tag.id} aria-pressed={tagId === tag.id} onClick={() => setTagId(tagId === tag.id ? null : tag.id)}>{tag.name}{tagId === tag.id && <Icon name="x" size={12} />}</button>)}</div>}
       <h2 className="lj-menu-title">{categoryId === null ? 'Cardápio' : availableCategories.find((category) => category.id === categoryId)?.name ?? 'Cardápio'}</h2>
       {!selectedAddress ? <div className="lj-empty"><Icon name="map-pin" size={28} /><p>{'Adicione um endereço para ver o cardápio.'}</p></div>
@@ -141,9 +209,9 @@ export default function RestaurantMenu() {
                 <span className="lj-product-price">{hasVariations ? `a partir de ${money(fromPrice)}` : money(product.price_cents)}</span>
               </div>
               <div className="lj-product-media">
-                {product.image_url ? <img src={product.image_url} alt="" loading="lazy" /> : <span className="lj-media-fallback"><Icon name="utensils" size={24} /></span>}
+                {product.image_url ? <FadeImg src={product.image_url} alt="" loading="lazy" /> : <span className="lj-media-fallback"><Icon name="utensils" size={24} /></span>}
                 <button className={`lj-fav${favorite ? ' is-fav' : ''}`} type="button" aria-pressed={favorite} aria-label={favorite ? `Remover ${product.name} dos favoritos` : `Favoritar ${product.name}`} onClick={() => void toggleFavorite(product.id)}><Icon name="heart" size={16} filled={favorite} /></button>
-                <button className="lj-add" type="button" onClick={() => void openProduct(product)} disabled={busy || cartBusy || productLoading || !cartLoaded || closed} title={closed ? 'Restaurante fora do horário de funcionamento' : undefined} aria-label={`${hasVariations ? 'Escolher opção de' : 'Adicionar'} ${product.name}`}><Icon name="plus" size={18} /></button>
+                <button className={`lj-add${justAdded === product.id ? ' is-added' : ''}`} type="button" onClick={(event) => quickAdd(product, event.currentTarget)} disabled={busy || cartBusy || productLoading || !cartLoaded || closed} title={closed ? 'Restaurante fora do horário de funcionamento' : undefined} aria-label={`${hasVariations ? 'Escolher opção de' : 'Adicionar'} ${product.name}`}><Icon name={justAdded === product.id ? 'check' : 'plus'} size={18} /></button>
               </div>
             </article>;
           })}</div>}
@@ -155,7 +223,7 @@ export default function RestaurantMenu() {
     {selectedProduct && <div className="ui-modal-backdrop customer-sheet-backdrop" role="presentation" onClick={closeProduct}>
       <div className="customer-sheet" role="dialog" aria-modal="true" aria-label={`Opções de ${selectedProduct.name}`} onClick={(event) => event.stopPropagation()}>
         <div className={`customer-sheet-cover${sheetCover?.image_url ? '' : ' is-empty'}`}>
-          {sheetCover?.image_url ? <img src={sheetCover.image_url} alt="" /> : <Icon name="utensils" size={40} />}
+          {sheetCover?.image_url ? <FadeImg src={sheetCover.image_url} alt="" /> : <Icon name="utensils" size={40} />}
           <span className="customer-sheet-grip" aria-hidden="true" />
           <button type="button" className="customer-sheet-close" onClick={closeProduct} aria-label="Fechar"><Icon name="x" size={18} /></button>
         </div>
@@ -196,7 +264,7 @@ export default function RestaurantMenu() {
         </div>
         <div className="customer-sheet-footer">
           <button type="button" className="customer-sheet-cancel" onClick={closeProduct}>{'Cancelar'}</button>
-          <button type="button" className="customer-solid-button customer-sheet-add m-shine" onClick={confirmAdd} disabled={productLoading || cartBusy || !selectedProduct.variations.length}><span>{'Adicionar'}</span><strong key={chosenPrice}>{money(chosenPrice)}</strong></button>
+          <button type="button" className="customer-solid-button customer-sheet-add" onClick={confirmAdd} disabled={productLoading || cartBusy || !selectedProduct.variations.length}><span>{'Adicionar'}</span><strong><Rolling value={money(chosenPrice)} /></strong></button>
         </div>
       </div>
     </div>}
