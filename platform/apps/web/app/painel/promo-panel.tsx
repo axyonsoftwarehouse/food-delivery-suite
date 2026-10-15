@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, money, useApp } from '../app-context';
+import { uploadFile } from '../files';
 
 type Tab = { id: string; label: string };
 const TABS: Tab[] = [
@@ -74,11 +75,21 @@ function Banners({ onMessage }: { onMessage: (m: string) => void }) {
   const [title, setTitle] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  // A imagem do banner é pública (purpose `product`): sobe e já preenche a URL.
+  async function uploadImage(file: File) {
+    setUploading(true);
+    try { const stored = await uploadFile(file, 'product'); setImageUrl(stored.url); onMessage('Imagem enviada.'); }
+    catch (error) { onMessage(error instanceof Error ? error.message : 'Não foi possível enviar a imagem.'); }
+    finally { setUploading(false); }
+  }
   return <div className="form-grid">
     <form onSubmit={(e) => { e.preventDefault(); void act('/admin/commerce/banners', 'POST', { title, imageUrl, linkUrl }, 'Banner criado.', reload, onMessage); setTitle(''); setImageUrl(''); setLinkUrl(''); }}>
       <h3>Novo banner</h3>
       <label>Título<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} /></label>
       <label>Imagem (URL)<input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} required maxLength={512} /></label>
+      <label>Ou envie a imagem<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadImage(file); e.target.value = ''; }} /></label>
+      {imageUrl && <img src={imageUrl} alt="Prévia do banner" style={{ display: 'block', maxWidth: 320, borderRadius: 12 }} />}
       <label>Link (opcional)<input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} maxLength={512} /></label>
       <button className="secondary-button">Criar banner</button>
     </form>
