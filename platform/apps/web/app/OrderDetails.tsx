@@ -47,7 +47,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
-const date = (value: string) => new Date(value).toLocaleString('pt-BR');
+const date = (value: string) => new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 export default function OrderDetails({ orderId, status }: { orderId: number; status: string }) {
   const { user, permissions, askReason, setMessage } = useApp();
@@ -124,7 +124,16 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
       <div><h3>Itens</h3><ul>{detail.items.map((item, index) => <li key={index}><span>{item.quantity} × {item.name}</span><strong>{money(item.quantity * item.unit_price_cents)}</strong></li>)}</ul></div>
       <div><h3>Andamento</h3><ol>{detail.history.map((event, index) => <li key={index}><strong>{statusLabels[event.to_status] ?? event.to_status}</strong>{event.reason && <em> · {event.reason}</em>}<time dateTime={event.created_at}>{date(event.created_at)}</time></li>)}</ol></div>
     </div>
-    <div className="order-details-summary"><span>Subtotal {money(detail.subtotal_cents)}</span>{detail.campaign_discount_cents > 0 && <span>Campanha {detail.campaign_name}: −{money(detail.campaign_discount_cents)}</span>}{detail.coupon_code && <span>Cupom {detail.coupon_code}: −{money(Math.max(0, detail.discount_cents - detail.campaign_discount_cents))}</span>}{detail.discount_cents > 0 && !detail.campaign_name && !detail.coupon_code && <span>Desconto: −{money(detail.discount_cents)}</span>}<span>Entrega {money(detail.delivery_fee_cents)}</span><strong>Total {money(detail.total_cents)}</strong>{payment && <span>Pagamento {paymentMethods[payment.method] ?? payment.method} · {paymentStatuses[payment.status] ?? payment.status}{payment.change_cents ? ` · troco ${money(payment.change_cents)}` : ''}</span>}</div>
+    {/* Uma linha por valor: na mesma linha, "Subtotal R$ 109,60 Entrega R$ 5,90" lia como um texto só. */}
+    <dl className="order-details-summary">
+      <div><dt>Subtotal</dt><dd>{money(detail.subtotal_cents)}</dd></div>
+      {detail.campaign_discount_cents > 0 && <div><dt>{`Campanha ${detail.campaign_name ?? ''}`.trim()}</dt><dd>−{money(detail.campaign_discount_cents)}</dd></div>}
+      {detail.coupon_code && <div><dt>{`Cupom ${detail.coupon_code}`}</dt><dd>−{money(Math.max(0, detail.discount_cents - detail.campaign_discount_cents))}</dd></div>}
+      {detail.discount_cents > 0 && !detail.campaign_name && !detail.coupon_code && <div><dt>Desconto</dt><dd>−{money(detail.discount_cents)}</dd></div>}
+      <div><dt>Entrega</dt><dd>{money(detail.delivery_fee_cents)}</dd></div>
+      <div className="is-total"><dt>Total</dt><dd>{money(detail.total_cents)}</dd></div>
+      {payment && <div><dt>Pagamento</dt><dd>{paymentMethods[payment.method] ?? payment.method} · {paymentStatuses[payment.status] ?? payment.status}{payment.change_cents ? ` · troco ${money(payment.change_cents)}` : ''}</dd></div>}
+    </dl>
     <div className="order-details-actions">
       <a className="ui-btn ui-btn--secondary ui-btn--sm" href={`/backend/orders/${orderId}/invoice`} target="_blank" rel="noreferrer">Fatura</a>
       <button className="ui-btn ui-btn--secondary ui-btn--sm" type="button" onClick={() => void track()}>Rastrear entrega</button>

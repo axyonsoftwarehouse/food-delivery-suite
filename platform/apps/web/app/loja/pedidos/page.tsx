@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import OrderDetails from '../../OrderDetails';
-import { Order, money, paymentLabel, useApp } from '../../app-context';
+import { Order, money, useApp } from '../../app-context';
 import { awaitingOnlinePayment } from '../../online-payment';
 import { useCustomer } from '../customer-context';
 import ReviewForm from '../ReviewForm';
 import CourierReviewForm from '../courier-review-form';
 import DeliveryCodeCard from '../delivery-code-card';
 import { Icon, type IconName } from '../../icons';
+import RestaurantMedia from '../restaurant-media';
 
 const statusLabels: Record<string, string> = {
   placed: 'Pedido recebido', accepted: 'Em preparo', ready: 'Pronto para entrega',
@@ -35,19 +36,19 @@ const STEPS: { label: string; icon: IconName; statuses: string[] }[] = [
 const stepOf = (status: string) => Math.max(0, STEPS.findIndex((step) => step.statuses.includes(status)));
 const when = (value: string) => new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-type RowProps = { order: Order; index: number; expandedOrderId: number | null; setExpandedOrderId: (value: number | null) => void; cancelOrder: (orderId: number) => Promise<boolean>; busy: boolean };
+type RowProps = { order: Order; index: number; cover: string | null; expandedOrderId: number | null; setExpandedOrderId: (value: number | null) => void; cancelOrder: (orderId: number) => Promise<boolean>; busy: boolean };
 
 function DetailsToggle({ order, expandedOrderId, setExpandedOrderId }: Pick<RowProps, 'order' | 'expandedOrderId' | 'setExpandedOrderId'>) {
   const open = expandedOrderId === order.id;
   return <button className="orders-toggle" aria-expanded={open} onClick={() => setExpandedOrderId(open ? null : order.id)}>{open ? 'Ocultar detalhes' : 'Detalhes'}<Icon name="chevron-down" size={16} /></button>;
 }
 
-function ActiveOrder({ order, index, expandedOrderId, setExpandedOrderId, cancelOrder, busy }: RowProps) {
+function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId, cancelOrder, busy }: RowProps) {
   const step = stepOf(order.status);
   const awaiting = awaitingOnlinePayment(order);
   return <article className="orders-active m-rise" style={{ '--i': index } as React.CSSProperties}>
     <div className="orders-active-head">
-      <span className={`orders-tile tone-${order.restaurant_id % 5}`} aria-hidden="true">{order.restaurant_name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
+      <RestaurantMedia restaurant={{ name: order.restaurant_name, cover_url: cover }} className="orders-media" />
       <div><strong>{order.restaurant_name}</strong><small>{`#${order.id} · ${when(order.created_at)}`}</small></div>
       <strong className="orders-total">{money(order.total_cents)}</strong>
     </div>
@@ -66,26 +67,27 @@ function ActiveOrder({ order, index, expandedOrderId, setExpandedOrderId, cancel
   </article>;
 }
 
-function PastOrder({ order, index, expandedOrderId, setExpandedOrderId }: RowProps) {
+function PastOrder({ order, cover, expandedOrderId, setExpandedOrderId }: RowProps) {
   const failed = FAILED.includes(order.status);
-  return <li className="orders-row m-rise" style={{ '--i': Math.min(index, 10) } as React.CSSProperties}>
-    <div className="orders-row-main">
-      <span className={`orders-tile tone-${order.restaurant_id % 5}`} aria-hidden="true">{order.restaurant_name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
-      <div><strong>{order.restaurant_name}</strong><small>{when(order.created_at)}{order.payment_method ? ` · ${paymentLabel(order)}` : ''}</small></div>
-      <div className="orders-row-side"><strong>{money(order.total_cents)}</strong><span className={`orders-chip${failed ? ' is-failed' : ' is-done'}`}>{statusLabels[order.status] ?? order.status}</span></div>
-    </div>
-    <div className="orders-row-foot">
-      {FINISHED.includes(order.status) && <ReviewForm orderId={order.id} />}
+  const open = expandedOrderId === order.id;
+  return <li className="orders-row">
+    <button type="button" className="orders-row-main" aria-expanded={open} onClick={() => setExpandedOrderId(open ? null : order.id)}>
+      <RestaurantMedia restaurant={{ name: order.restaurant_name, cover_url: cover }} className="orders-media" />
+      <span className="orders-row-text"><strong>{order.restaurant_name}</strong><small>{`${when(order.created_at)} · ${money(order.total_cents)}`}</small></span>
+      <span className={`orders-state${failed ? ' is-failed' : ''}`}>{statusLabels[order.status] ?? order.status}</span>
+      <Icon name="chevron-down" size={18} className="orders-row-chevron" />
+    </button>
+    {FINISHED.includes(order.status) && <div className="orders-row-foot">
+      <ReviewForm orderId={order.id} />
       {order.status === 'delivered' && Date.now() - lastChange(order) < COURIER_REVIEW_WINDOW_MS && <CourierReviewForm orderId={order.id} />}
-      <DetailsToggle order={order} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} />
-    </div>
-    {expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}
+    </div>}
+    {open && <OrderDetails orderId={order.id} status={order.status} />}
   </li>;
 }
 
 export default function PedidosClientePage() {
   const { busy, refresh } = useApp();
-  const { orders, expandedOrderId, setExpandedOrderId, showAllOrders, setShowAllOrders, cancelOrder, loadHistory } = useCustomer();
+  const { orders, restaurantById, expandedOrderId, setExpandedOrderId, showAllOrders, setShowAllOrders, cancelOrder, loadHistory } = useCustomer();
   const [extra, setExtra] = useState<Order[]>([]);
   const [cursor, setCursor] = useState<number | null>(null);
   const [moreAvailable, setMoreAvailable] = useState(true);
@@ -106,6 +108,7 @@ export default function PedidosClientePage() {
   const past = [...orders.filter((order) => !active.includes(order)), ...extra].sort((a, b) => lastChange(b) - lastChange(a) || b.id - a.id);
   const visiblePast = showAllOrders ? past : past.slice(0, 5);
   const rowProps = { expandedOrderId, setExpandedOrderId, cancelOrder, busy };
+  const coverOf = (order: Order) => restaurantById.get(order.restaurant_id)?.cover_url ?? null;
 
   return <section className="orders-page">
     <div className="cart-head m-rise">
@@ -113,11 +116,11 @@ export default function PedidosClientePage() {
       <div className="customer-cart-heading-actions"><button onClick={() => refresh().catch(() => {})} disabled={busy} aria-label="Atualizar pedidos" title="Atualizar"><Icon name="refresh" /></button></div>
     </div>
 
-    {active.length > 0 && <div className="orders-active-list">{active.map((order, index) => <ActiveOrder key={order.id} order={order} index={index} {...rowProps} />)}</div>}
+    {active.length > 0 && <div className="orders-active-list">{active.map((order, index) => <ActiveOrder key={order.id} order={order} index={index} cover={coverOf(order)} {...rowProps} />)}</div>}
 
     {past.length > 0 && <>
       {active.length > 0 && <h2 className="orders-section-title">{'Anteriores'}</h2>}
-      <ul className="orders-list">{visiblePast.map((order, index) => <PastOrder key={order.id} order={order} index={index} {...rowProps} />)}</ul>
+      <ul className="orders-list">{visiblePast.map((order, index) => <PastOrder key={order.id} order={order} index={index} cover={coverOf(order)} {...rowProps} />)}</ul>
       {past.length > 5 && <button className="orders-more" onClick={() => setShowAllOrders(!showAllOrders)}>{showAllOrders ? 'Mostrar menos' : `Ver todos (${past.length})`}</button>}
     </>}
 
