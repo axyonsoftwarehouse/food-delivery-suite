@@ -112,8 +112,11 @@ export default function CozinhaPage() {
           </span>
         </div>
         <div className="kds-bar-actions">
+          {/* A loja chega aqui pelo painel e volta para ele sem perder a sessão; a conta só da
+              cozinha não tem painel, então para ela só existe sair da conta. */}
+          {user.role === 'restaurant' && <Button variant="secondary" size="sm" onClick={() => router.push('/painel')}>{'Voltar ao painel'}</Button>}
           <Button variant="secondary" size="sm" onClick={() => void toggleFullscreen()}>{'Tela cheia'}</Button>
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => void logout()}>{'Sair'}</Button>
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => void logout()}>{'Sair da conta'}</Button>
         </div>
       </header>
 

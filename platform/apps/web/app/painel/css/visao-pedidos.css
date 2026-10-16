@@ -80,8 +80,13 @@
 .shell .vp-map-card .courier-map { height: 520px; border-radius: 12px; box-shadow: none; }
 .shell .vp-map-card .courier-map-wrap { gap: 10px; }
 .vp-map-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0 4px 2px; list-style: none; color: var(--text-muted); font-size: 13px; }
-.vp-map-legend li { display: inline-flex; align-items: center; gap: 6px; }
-.vp-map-legend i { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--border); }
+.vp-map-legend li { display: inline-flex; align-items: center; gap: 6px; line-height: 20px; white-space: nowrap; }
+.vp-map-legend i { flex: none; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--border); }
+/* Em tela estreita os quatro itens não cabem numa linha e o último descia sozinho: vira uma
+   grade 2 × 2, com as bolinhas alinhadas em coluna. */
+@media (max-width: 480px) {
+  .vp-map-legend { display: grid; grid-template-columns: repeat(2, max-content); gap: 6px 24px; }
+}
 [data-theme='dark'] .vp-map-card .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9); }
 .vp-note { margin: 0; padding: 0 4px; color: var(--text-muted); font-size: 14px; line-height: 1.5; }
 .vp-avatar { position: relative; display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%; background: var(--surface-muted); color: var(--text); font: 800 14px var(--font-display); }
