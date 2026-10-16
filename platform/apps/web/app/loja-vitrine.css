@@ -77,6 +77,40 @@
 .lj-section { margin-top: 32px; }
 .lj-section > h2, .lj-panel > h2 { margin: 0 0 14px; font: 800 19px var(--font-display); letter-spacing: -0.4px; }
 
+/* Anúncios: três por vez no computador, dois no tablet, um e pouco no celular. */
+.lj-banners { --lj-banner-gap: 12px; position: relative; margin: 0 0 24px; }
+.lj-banners-track { display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 2 * var(--lj-banner-gap)) / 3); gap: var(--lj-banner-gap); margin: 0; padding: 0; overflow-x: auto; list-style: none; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.lj-banners-track::-webkit-scrollbar { display: none; }
+.lj-banner { scroll-snap-align: start; aspect-ratio: 19 / 10; overflow: hidden; border-radius: 16px; background: color-mix(in srgb, var(--text) 6%, var(--background)); }
+.lj-banner a { display: block; height: 100%; border-radius: inherit; }
+.lj-banner a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+.lj-banner img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s var(--ease-out); user-select: none; }
+.lj-banner a:hover img { transform: scale(1.03); }
+.lj-banners-arrow { position: absolute; top: calc(50% - 14px); z-index: 1; display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--surface); color: var(--text); box-shadow: var(--shadow-md); cursor: pointer; opacity: 0; transform: translateY(-50%); transition: opacity 0.2s ease; }
+.lj-banners-arrow.is-prev { left: -12px; }
+.lj-banners-arrow.is-next { right: -12px; }
+.lj-banners:hover .lj-banners-arrow:not(:disabled), .lj-banners-arrow:focus-visible { opacity: 1; }
+.lj-banners-arrow:disabled { opacity: 0; pointer-events: none; }
+.lj-banners-dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+.lj-banners-dots button { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 999px; background: var(--border-strong); cursor: pointer; transition: width 0.25s var(--ease-out), background-color 0.25s ease; }
+.lj-banners-dots button[aria-current='true'] { width: 22px; background: var(--brand-600); }
+@media (max-width: 1000px) {
+  .lj-banners-track { grid-auto-columns: calc((100% - var(--lj-banner-gap)) / 2); }
+}
+@media (max-width: 760px) {
+  /* Encosta nas bordas da tela e deixa o próximo aparecer, convidando a deslizar. */
+  .lj-banners { --lj-banner-gap: 10px; margin: 0 -16px 20px; }
+  .lj-banners-track { grid-auto-columns: 86%; padding: 0 16px; scroll-padding: 0 16px; }
+  .lj-banner { border-radius: 14px; }
+}
+@media (hover: none) {
+  .lj-banners-arrow { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lj-banner img, .lj-banners-dots button { transition: none; }
+  .lj-banner a:hover img { transform: none; }
+}
+
 .lj-again { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .lj-again-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 10px; border-radius: 16px; background: var(--surface); color: var(--text); text-decoration: none; box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); transition: box-shadow 0.2s ease; }
 .lj-again-item:hover { box-shadow: var(--shadow-md); }
