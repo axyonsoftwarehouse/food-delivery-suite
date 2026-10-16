@@ -4,8 +4,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -20,6 +22,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -58,5 +61,17 @@ class StorefrontControllerTest {
 
         mvc.perform(get("/restaurant/storefront").cookie(new jakarta.servlet.http.Cookie("foodie_session", "k")))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void saveKeepsCoverSentAsSnakeCase() throws Exception {
+        when(auth.requireUser("r", "restaurant", "kitchen")).thenReturn(new User(2, "Loja", "restaurante@demo.local", "restaurant", 1L));
+
+        mvc.perform(put("/restaurant/storefront").cookie(new jakarta.servlet.http.Cookie("foodie_session", "r"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"headline\":\"Oi\",\"about\":\"\",\"cover_url\":\"/foodie-burger-hero.png\",\"whatsapp\":\"\",\"instagram\":\"\",\"published\":true}"))
+            .andExpect(status().isOk());
+
+        verify(jdbc).update(anyString(), eq(1L), eq("Oi"), eq(""), eq("/foodie-burger-hero.png"), eq(""), eq(""), eq(true));
     }
 }
