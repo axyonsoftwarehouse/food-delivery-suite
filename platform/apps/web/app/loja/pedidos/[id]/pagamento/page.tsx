@@ -190,7 +190,7 @@ export default function PagamentoPedidoPage() {
     <div className="pay-final" role="status"><p>{'Pedido não encontrado.'}</p><Link className="customer-solid-button" href="/loja/pedidos">{'Ver meus pedidos'}</Link></div>
   </section>;
   if (!order || !state || state === 'leave' || !payment) return <section className="pay-page">
-    {loadError ? <Alert tone="error">{loadError}</Alert> : <p className="form-help">{'Carregando o pedido…'}</p>}
+    {loadError ? <Alert tone="error">{loadError}</Alert> : <div className="customer-card pay-loading" role="status"><span className="ui-skeleton" /><span className="ui-skeleton" /><span className="ui-skeleton" /><span className="sr-only">{'Carregando o pedido…'}</span></div>}
   </section>;
 
   const final = finalMessage(state, payment.status, order.restaurant_name);
@@ -248,6 +248,7 @@ export default function PagamentoPedidoPage() {
     </>}
 
     {final && <div className={`pay-final${state === 'approved' ? ' is-approved' : ''}`} role="status">
+      {state === 'approved' && <svg className="pay-final-check" width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true"><circle cx="28" cy="28" r="25" stroke="currentColor" strokeWidth="3" /><path d="M17 29l7 7 15-16" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
       <p>{final.text}</p>
       <Link className="customer-solid-button" href={final.href}>{final.button}</Link>
     </div>}

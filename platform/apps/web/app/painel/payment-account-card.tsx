@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from '../app-context';
-import { Alert, Button, Card } from '../ui';
+import { Alert } from '../ui';
+import { Icon } from '../icons';
 
 type Account = { status: 'not_connected' | 'connected' | 'needs_reconnect' | 'disconnected'; nickname?: string | null; providerUserId?: string | null; connectedAt?: string | null };
 
@@ -71,18 +72,39 @@ export default function PaymentAccountCard() {
 
   if (!account) return null;
   const connected = account.status === 'connected';
-  return <Card title="Recebimento online (Mercado Pago)" subtitle="O dinheiro de Pix e cartão online cai direto na conta Mercado Pago da loja.">
-    {notice && <Alert tone={notice.startsWith('Mercado Pago conectado') || notice.startsWith('Mercado Pago desconectado') ? 'success' : 'warning'}>{notice}</Alert>}
-    {account.status === 'needs_reconnect' && <Alert tone="warning">O Mercado Pago recusou a renovação da conexão. O pagamento online está desligado até reconectar.</Alert>}
+  const status = connected
+    ? <span className="pr-badge is-brand"><Icon name="check" size={14} />Conectado</span>
+    : account.status === 'needs_reconnect'
+      ? <span className="pr-badge is-warning">Reconexão necessária</span>
+      : <span className="pr-badge">Não conectado</span>;
+  return <section className="pr-card pr-card--flush eq-flush eq-narrow">
+    <div className="pr-row eq-pay-head">
+      <span className="pr-thumb eq-pay-logo"><Icon name="card" size={22} /></span>
+      <div className="pr-row-main">
+        <strong>Mercado Pago</strong>
+        <span>O dinheiro de Pix e cartão online cai direto na conta Mercado Pago da loja.</span>
+      </div>
+      {status}
+    </div>
+    {(notice || account.status === 'needs_reconnect') && <div className="eq-pay-alerts">
+      {notice && <Alert tone={notice.startsWith('Mercado Pago conectado') || notice.startsWith('Mercado Pago desconectado') ? 'success' : 'warning'}>{notice}</Alert>}
+      {account.status === 'needs_reconnect' && <Alert tone="warning">O Mercado Pago recusou a renovação da conexão. O pagamento online está desligado até reconectar.</Alert>}
+    </div>}
     {connected
       ? <>
-          <p>{`Conta: ${account.nickname ?? '—'} (id ${account.providerUserId ?? '—'})`}{account.connectedAt ? ` · conectada em ${new Date(account.connectedAt).toLocaleString('pt-BR')}` : ''}</p>
-          <p className="form-help">Conta pronta para receber Pix e cartão online. Para cortar o acesso também do lado do Mercado Pago, remova a autorização nas configurações da sua conta Mercado Pago.</p>
-          <Button variant="secondary" disabled={busy} onClick={() => void disconnect()}>Desconectar</Button>
+          <ul className="pr-list">
+            <li className="pr-row"><div className="pr-row-main"><span>Conta</span></div><span className="pr-row-value">{account.nickname ?? '—'}</span></li>
+            <li className="pr-row"><div className="pr-row-main"><span>ID</span></div><span className="pr-row-value pr-num">{account.providerUserId ?? '—'}</span></li>
+            {account.connectedAt && <li className="pr-row"><div className="pr-row-main"><span>Conectada em</span></div><span className="pr-row-value">{new Date(account.connectedAt).toLocaleString('pt-BR')}</span></li>}
+          </ul>
+          <div className="eq-pay-foot">
+            <small className="pr-muted">Para cortar o acesso também do lado do Mercado Pago, remova a autorização nas configurações da sua conta Mercado Pago.</small>
+            <button type="button" className="pr-btn pr-btn--sm pr-btn--danger" disabled={busy} onClick={() => void disconnect()}>Desconectar</button>
+          </div>
         </>
-      : <>
-          <p className="form-help">Com a conta conectada, os clientes pagam com Pix ou cartão na hora do pedido e o dinheiro cai direto na sua conta Mercado Pago. Sem conexão, o checkout oferece só pagamento na entrega e os seus métodos manuais.</p>
-          <Button disabled={busy} onClick={() => void connect()}>{account.status === 'needs_reconnect' ? 'Reconectar' : 'Conectar Mercado Pago'}</Button>
-        </>}
-  </Card>;
+      : <div className="eq-pay-foot">
+          <small className="pr-muted">Sem conexão, o checkout oferece só pagamento na entrega e os seus métodos manuais.</small>
+          <button type="button" className="pr-btn pr-btn--primary" disabled={busy} onClick={() => void connect()}>{account.status === 'needs_reconnect' ? 'Reconectar' : 'Conectar Mercado Pago'}</button>
+        </div>}
+  </section>;
 }

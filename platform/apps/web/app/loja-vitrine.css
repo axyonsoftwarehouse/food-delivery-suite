@@ -421,3 +421,42 @@ span.lj-flyer { border-radius: 50%; background: var(--brand-500); }
   .lj-store-media img { transform: none; }
   .lj-mini, .lj-mini > div, .lj-tabs-line, .lj-item, .customer-app .orders-steps::after { transition: none; }
 }
+
+/* Entrada da lista em sequência (só ao montar) */
+@keyframes lj-enter { from { opacity: 0; transform: translateY(8px); } }
+.customer-app .orders-row.lj-enter { animation: lj-enter 0.28s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
+
+/* Status do pedido mudou com a tela aberta: a linha entra de novo e o fundo acende rápido */
+@keyframes lj-flash { from { background: color-mix(in srgb, var(--brand-400) 18%, transparent); } }
+.customer-app .orders-status-line { margin-inline: -8px; padding: 2px 8px; border-radius: 10px; animation: m-fade-up 0.3s var(--ease-out) both, lj-flash 0.9s ease-out both; }
+
+/* Avaliação: estrelas acendem uma depois da outra */
+.customer-app .review-stars button.on:nth-child(2) { animation-delay: 40ms; }
+.customer-app .review-stars button.on:nth-child(3) { animation-delay: 80ms; }
+.customer-app .review-stars button.on:nth-child(4) { animation-delay: 120ms; }
+.customer-app .review-stars button.on:nth-child(5) { animation-delay: 160ms; }
+
+/* Pix: QR aparece com zoom, cópia confirma com pop, pagamento aprovado desenha o check */
+@keyframes lj-qr-in { from { opacity: 0; transform: scale(0.9); } }
+.customer-qr { animation: lj-qr-in 0.3s var(--ease-out); }
+.pix-copy { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.pix-copy.is-copied, .pf-coupon-code.is-copied { animation: m-pop 0.3s var(--ease-spring); }
+.pf-coupon-code.is-copied { border-style: solid; border-color: var(--brand-500); color: var(--brand-600); }
+.pay-final.is-approved { animation: m-scale-in 0.3s var(--ease-out); }
+.pay-final-check { color: #12b76a; }
+.pay-final-check circle { stroke-dasharray: 158; stroke-dashoffset: 158; animation: m-dash 0.45s var(--ease-out) forwards; }
+.pay-final-check path { stroke-dasharray: 36; stroke-dashoffset: 36; animation: m-dash 0.3s var(--ease-out) 0.4s forwards; }
+.pay-loading { display: grid; gap: 12px; }
+.pay-loading .ui-skeleton { height: 16px; }
+.pay-loading .ui-skeleton:nth-child(1) { width: 40%; height: 28px; }
+.pay-loading .ui-skeleton:nth-child(2) { width: 75%; }
+.pay-loading .ui-skeleton:nth-child(3) { width: 55%; }
+
+/* Lista vazia: o ícone "respira" uma vez, em vez de flutuar sem parar */
+@keyframes lj-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+.customer-app .cart-empty-bag { animation: lj-breathe 1.2s ease-in-out 0.2s 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .customer-app .orders-row.lj-enter, .customer-app .orders-status-line, .customer-app .review-stars button.on, .customer-qr, .pix-copy.is-copied, .pf-coupon-code.is-copied, .pay-final.is-approved, .customer-app .cart-empty-bag { animation: none; }
+  .pay-final-check circle, .pay-final-check path { animation: none; stroke-dashoffset: 0; }
+}
