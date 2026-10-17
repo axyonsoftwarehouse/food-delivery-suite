@@ -6,6 +6,7 @@ import { money, type Restaurant } from '../app-context';
 import { useCustomer } from './customer-context';
 import { Icon } from '../icons';
 import RestaurantMedia from './restaurant-media';
+import BannerCarousel from './banner-carousel';
 
 const FINISHED = ['delivered', 'completed', 'served'];
 
@@ -54,6 +55,8 @@ export default function LojaPage() {
 
   return <>
     <h1 className="lj-hello">{`${greeting()}, ${user.name.split(' ')[0]}`}</h1>
+
+    <BannerCarousel />
 
     {!selectedAddress ? <div className="lj-empty">
       <Icon name="map-pin" size={28} />

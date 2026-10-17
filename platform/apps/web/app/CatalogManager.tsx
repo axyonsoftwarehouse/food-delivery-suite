@@ -5,9 +5,14 @@ import { uploadFile } from './files';
 import { createRequest, SupportCancelled } from './support-request';
 import { useSupportReason } from './SupportReasonDialog';
 import { useApp } from './app-context';
+import { Icon } from './icons';
+import { Drawer, Empty, Switch, Tabs } from './painel/kit';
 
 type Category = { id: number; restaurant_id: number; name: string };
-type Product = { id: number; restaurant_id: number; category_id: number; name: string; description: string; price_cents: number; available: boolean; is_combo?: boolean; stock?: number | null; available_from?: string | null; available_until?: string | null };
+type Product = { id: number; restaurant_id: number; category_id: number; name: string; description: string; price_cents: number; available: boolean; is_combo?: boolean; stock?: number | null; available_from?: string | null; available_until?: string | null; image_url?: string | null };
+type Section = 'products' | 'addons' | 'tags';
+type EditTab = 'data' | 'variations' | 'images' | 'links' | 'combo';
+type Sheet = null | 'category' | 'product' | 'group' | 'tag' | { addonGroupId: number };
 type Catalog = { categories: Category[]; products: Product[] };
 type Draft = { categoryId: number; name: string; price: string; description: string; isCombo: boolean; stock: string; from: string; until: string };
 type ComboItem = { component_product_id: number; quantity: number; name: string };
@@ -41,8 +46,16 @@ function messageOf(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-export default function CatalogManager({ mode, restaurantId, onMessage, onChanged }: Props) {
+export default function CatalogManager({ mode, restaurantId, onMessage: reportMessage, onChanged }: Props) {
   const isSupport = mode === 'support';
+  // O aviso do painel fica atrás do painel lateral; guarda a última mensagem para mostrar dentro dele.
+  const [note, setNote] = useState('');
+  const onMessage = useCallback((message: string) => { reportMessage(message); setNote(message); }, [reportMessage]);
+  const [section, setSection] = useState<Section>('products');
+  const [filterId, setFilterId] = useState(0);
+  const [sheet, setSheet] = useState<Sheet>(null);
+  const [editProductId, setEditProductId] = useState<number | null>(null);
+  const [editTab, setEditTab] = useState<EditTab>('data');
   const { askReason, dialog } = useSupportReason();
   const request = useMemo(() => createRequest(isSupport ? askReason : null), [isSupport, askReason]);
   // No modo suporte o diálogo de motivo já confirma a exclusão (mostrando a ação); não pergunta duas vezes.
@@ -241,10 +254,10 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
     void runDetail(id, () => request(`${productBase}/${id}/variations/${variation.id}`, { method: 'PATCH', body: JSON.stringify({ available: !variation.available }) }), variation.available ? 'Variação pausada.' : 'Variação reativada.');
   }
 
-  function removeVariation(variation: Variation) {
+  async function removeVariation(variation: Variation) {
     if (expandedId === null) return;
     const action = `Excluir a variação "${variation.name}"?`;
-    if (!confirmDelete(action)) return;
+    if (!(await confirmDelete(action))) return;
     const id = expandedId;
     void runDetail(id, () => request(`${productBase}/${id}/variations/${variation.id}`, { method: 'DELETE', action }), 'Variação excluída.');
   }
@@ -285,9 +298,9 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
     setGroupDraft({ name: '', min: '0', max: '1', required: false });
   }
 
-  function removeGroup(group: AddonGroup) {
+  async function removeGroup(group: AddonGroup) {
     const action = `Excluir o grupo "${group.name}" e seus adicionais?`;
-    if (!confirmDelete(action)) return;
+    if (!(await confirmDelete(action))) return;
     void run(() => request(`${groupBase}/${group.id}`, { method: 'DELETE', action }), 'Grupo excluído.');
   }
 
@@ -324,9 +337,9 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
     setTagDraft('');
   }
 
-  function removeTag(tag: Tag) {
+  async function removeTag(tag: Tag) {
     const action = `Excluir a tag "${tag.name}"?`;
-    if (!confirmDelete(action)) return;
+    if (!(await confirmDelete(action))) return;
     void run(() => request(`${tagBase}/${tag.id}`, { method: 'DELETE', action }), 'Tag excluída.');
   }
 
@@ -365,99 +378,289 @@ export default function CatalogManager({ mode, restaurantId, onMessage, onChange
     }), 'Itens do combo atualizados.');
   }
 
-  function detailPanel(product: Product) {
-    return <div className="catalog-detail">
-      <div className="catalog-detail-col">
-        <h4>Variações</h4>
-        {detailLoading ? <p className="form-help">Carregando...</p> : detail?.variations.length ? detail.variations.map((variation) => <div className="catalog-variation" key={variation.id}>
-          <input value={variation.name} onChange={(event) => updateVariationField(variation.id, 'name', event.target.value)} maxLength={80} aria-label="Nome da variação" />
-          <input inputMode="decimal" value={toPrice(variation.price_delta_cents)} onChange={(event) => updateVariationField(variation.id, 'price', event.target.value)} aria-label="Acréscimo em reais" />
-          <button className="secondary-button" disabled={busy} onClick={() => saveVariation(variation)}>Salvar</button>
-          <button className={variation.available ? 'availability-button' : 'availability-button paused'} disabled={busy} onClick={() => toggleVariation(variation)}>{variation.available ? 'Pausar' : 'Reativar'}</button>
-          <button className="availability-button" disabled={busy} onClick={() => removeVariation(variation)}>Excluir</button>
-        </div>) : <p className="form-help">Sem variações: o preço base vale para o prato.</p>}
-        <form className="catalog-variation-form" onSubmit={addVariation}>
-          <input value={newVariation.name} onChange={(event) => setNewVariation({ ...newVariation, name: event.target.value })} placeholder="Nome (ex.: Grande)" minLength={1} maxLength={80} required aria-label="Nova variação" />
-          <input inputMode="decimal" value={newVariation.price} onChange={(event) => setNewVariation({ ...newVariation, price: event.target.value })} placeholder="Acréscimo R$ (opcional)" aria-label="Acréscimo em reais" />
-          <button className="secondary-button" disabled={busy || detailLoading}>Adicionar variação</button>
-        </form>
-      </div>
-      <div className="catalog-detail-col">
-        <h4>Imagens</h4>
-        {imageUrls.length === 0 && <p className="form-help">Sem imagens. A capa aparece no catálogo do cliente.</p>}
-        {imageUrls.map((url, index) => <div className="catalog-image-row" key={index}>
-          <input value={url} onChange={(event) => setImageUrls(imageUrls.map((current, position) => position === index ? event.target.value : current))} placeholder="https://..." aria-label={`URL da imagem ${index + 1}`} />
-          <label className="catalog-cover"><input type="radio" name={`cover-${product.id}`} checked={coverIndex === index} onChange={() => setCoverIndex(index)} /> capa</label>
-          <label className="catalog-cover upload"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" style={{ display: 'none' }} disabled={busy || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(index, file); event.target.value = ''; }} />{uploading ? 'enviando...' : 'enviar'}</label>
-          <button type="button" className="availability-button" disabled={busy} onClick={() => setImageUrls(imageUrls.filter((_, position) => position !== index))}>Remover</button>
-        </div>)}
-        <div className="catalog-detail-actions">
-          <button type="button" className="secondary-button" disabled={busy || imageUrls.length >= 8} onClick={() => setImageUrls([...imageUrls, ''])}>+ Imagem</button>
-          <button type="button" className="secondary-button" disabled={busy || detailLoading} onClick={saveImages}>Salvar imagens</button>
+  const blocked = isSupport && !restaurantId;
+  const categoryName = (id: number) => catalog.categories.find((item) => item.id === id)?.name ?? 'Sem categoria';
+  const countIn = (id: number) => catalog.products.filter((product) => product.category_id === id).length;
+  const filter = catalog.categories.find((item) => item.id === filterId) ?? null;
+  const visible = filter ? catalog.products.filter((product) => product.category_id === filter.id) : catalog.products;
+  const editing = editProductId === null ? null : catalog.products.find((product) => product.id === editProductId) ?? null;
+  const addonGroup = sheet !== null && typeof sheet === 'object' ? groups.find((group) => group.id === sheet.addonGroupId) ?? null : null;
+
+  function openNewProduct() {
+    setNewProduct((current) => ({ ...current, categoryId: filter ? filter.id : current.categoryId }));
+    setSheet('product');
+  }
+
+  function openEditor(product: Product) {
+    if (expandedId !== null && expandedId !== product.id) { setExpandedId(null); setDetail(null); }
+    startEdit(product);
+    setEditProductId(product.id);
+    setEditTab('data');
+    setNote('');
+  }
+
+  function closeEditor() {
+    setEditProductId(null);
+    setEditingId(null);
+    setExpandedId(null);
+    setDetail(null);
+  }
+
+  function pickEditTab(product: Product, tab: EditTab) {
+    setEditTab(tab);
+    if (tab !== 'data' && expandedId !== product.id) void toggleDetail(product);
+  }
+
+  function thumb(product: Product) {
+    return <span className={`pr-thumb${product.available ? '' : ' is-off'}`} aria-hidden="true">
+      {product.image_url ? <img src={product.image_url} alt="" loading="lazy" /> : product.name.slice(0, 1).toUpperCase()}
+    </span>;
+  }
+
+  function trash(label: string, onClick: () => void) {
+    return <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger cm-trash" disabled={busy} onClick={onClick} aria-label={label} title={label}><Icon name="trash" size={16} /></button>;
+  }
+
+  function products() {
+    return <div className="pr-grid-side cm-layout">
+      <nav className="pr-card cm-cats" aria-label="Categorias">
+        <button type="button" className="cm-cat" aria-pressed={filter === null} onClick={() => setFilterId(0)}><span>Todos</span><small>{catalog.products.length}</small></button>
+        {catalog.categories.map((category) => <button type="button" key={category.id} className="cm-cat" aria-pressed={filter?.id === category.id} onClick={() => setFilterId(category.id)}><span>{category.name}</span><small>{countIn(category.id)}</small></button>)}
+        <button type="button" className="cm-cat cm-cat-new" disabled={busy || blocked} onClick={() => setSheet('category')}><Icon name="plus" size={15} />Nova categoria</button>
+      </nav>
+
+      <section className="pr-card pr-card--flush cm-products" aria-label="Produtos">
+        {filter && <div className="cm-products-head">
+          <strong>{filter.name}</strong>
+          <div className="pr-row-actions">
+            <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm" disabled={busy} onClick={() => renameCategory(filter)}>Renomear</button>
+            <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" disabled={busy} onClick={() => void removeCategory(filter)}>Excluir</button>
+          </div>
+        </div>}
+        {loading && !catalog.products.length ? <p className="cm-loading pr-muted">Carregando...</p>
+          : !catalog.categories.length ? <Empty icon="book" action={<button type="button" className="pr-btn pr-btn--primary" disabled={busy || blocked} onClick={() => setSheet('category')}>Nova categoria</button>}>Nenhuma categoria cadastrada.</Empty>
+          : !visible.length ? <Empty icon="utensils" action={<button type="button" className="pr-btn pr-btn--soft" disabled={busy || blocked} onClick={openNewProduct}>Novo produto</button>}>Nenhum produto cadastrado.</Empty>
+          : <div className="pr-table" style={{ '--cols': '48px minmax(0, 1fr) 96px 132px 64px' } as React.CSSProperties}>
+            <div className="pr-table-head"><span /><span>Produto</span><span className="pr-num">Preço</span><span>Situação</span><span /></div>
+            {visible.map((product) => <div className="pr-table-row cm-prow" key={product.id}>
+              {thumb(product)}
+              <div className="pr-row-main cm-pname">
+                <strong>{product.name}{product.is_combo && <span className="pr-badge is-info">Combo</span>}</strong>
+                <span>{filter ? (product.description || '—') : `${categoryName(product.category_id)}${product.description ? ` · ${product.description}` : ''}`}</span>
+              </div>
+              <span className="pr-num cm-price">{money(product.price_cents)}</span>
+              <span className="cm-avail"><Switch on={product.available} disabled={busy} label={product.available ? `Pausar ${product.name}` : `Reativar ${product.name}`} onChange={() => toggleAvailability(product)}>{product.available ? 'Disponível' : 'Pausado'}</Switch></span>
+              <span className="cm-edit"><button type="button" className="pr-btn pr-btn--ghost pr-btn--sm" disabled={busy} onClick={() => openEditor(product)}>Editar</button></span>
+            </div>)}
+          </div>}
+      </section>
+    </div>;
+  }
+
+  function addons() {
+    if (!groups.length) return <div className="pr-card"><Empty icon="plus" action={<button type="button" className="pr-btn pr-btn--soft" disabled={busy || blocked} onClick={() => setSheet('group')}>Novo grupo</button>}>Nenhum grupo. Crie grupos para oferecer adicionais.</Empty></div>;
+    return <div className="cm-groups">{groups.map((group) => <section className="pr-card pr-card--flush" key={group.id} aria-label={group.name}>
+      <div className="cm-group-head">
+        <div className="pr-row-main"><strong>{group.name}</strong><span>{group.required ? 'Obrigatório' : 'Opcional'} · escolha {group.min_select} a {group.max_select}</span></div>
+        <div className="pr-row-actions">
+          <button type="button" className="pr-btn pr-btn--soft pr-btn--sm" disabled={busy} onClick={() => setSheet({ addonGroupId: group.id })}><Icon name="plus" size={15} />Adicional</button>
+          <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" disabled={busy} onClick={() => void removeGroup(group)}>Excluir grupo</button>
         </div>
       </div>
-      <div className="catalog-detail-col addon-link">
-        <h4>Grupos de adicionais deste prato</h4>
-        <label className="catalog-cover">Aplicar a <select value={linkVariationId} onChange={(event) => { const value = Number(event.target.value); setLinkVariationId(value); if (expandedId !== null) void loadAddonLinks(expandedId, value); }}><option value={0}>Todas as variações</option>{detail?.variations.map((variation) => <option key={variation.id} value={variation.id}>{variation.name}</option>)}</select></label>
-        {groups.length ? <div className="addon-link-items">{groups.map((group) => <label className="addon-link-item" key={group.id}><input type="checkbox" checked={linkedGroupIds.includes(group.id)} onChange={() => toggleLinked(group.id)} /> {group.name}</label>)}</div> : <p className="form-help">Crie grupos de adicionais na seção abaixo.</p>}
-        <button type="button" className="secondary-button" disabled={busy} onClick={saveGroupLinks}>Salvar vínculos</button>
+      {group.addons.length ? <ul className="pr-list">{group.addons.map((addon) => <li className="pr-row cm-addon" key={addon.id}>
+        <div className="pr-row-main"><strong>{addon.name}</strong></div>
+        <span className="pr-row-value">{addon.price_cents ? money(addon.price_cents) : 'Grátis'}</span>
+        <Switch on={addon.available} disabled={busy} label={addon.available ? `Pausar ${addon.name}` : `Reativar ${addon.name}`} onChange={() => toggleAddon(addon)} />
+        {trash(`Excluir ${addon.name}`, () => removeAddon(addon))}
+      </li>)}</ul> : <p className="cm-loading pr-muted">Nenhum adicional neste grupo.</p>}
+    </section>)}</div>;
+  }
+
+  function tagList() {
+    return <section className="pr-card pr-card--flush" aria-label="Tags">
+      {tags.length ? <ul className="pr-list">{tags.map((tag) => <li className="pr-row" key={tag.id}>
+        <div className="pr-row-main"><strong>{tag.name}</strong></div>
+        <span className="pr-muted cm-count">{tag.product_count} produto(s)</span>
+        {trash(`Excluir a tag ${tag.name}`, () => void removeTag(tag))}
+      </li>)}</ul> : <Empty icon="star" action={<button type="button" className="pr-btn pr-btn--soft" disabled={busy || blocked} onClick={() => setSheet('tag')}>Nova tag</button>}>Nenhuma tag. Use tags para destacar pratos na busca.</Empty>}
+    </section>;
+  }
+
+  function editorData(product: Product) {
+    return <form id="cm-edit" className="pr-form" onSubmit={(event) => { event.preventDefault(); saveEdit(product.id); closeEditor(); }}>
+      <label className="pr-field">Nome<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} maxLength={160} /></label>
+      <div className="pr-form-row">
+        <label className="pr-field">Preço em R$<input inputMode="decimal" value={draft.price} onChange={(event) => setDraft({ ...draft, price: event.target.value })} /></label>
+        <label className="pr-field">Categoria<select value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: Number(event.target.value) })}>{catalog.categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       </div>
-      <div className="catalog-detail-col addon-link">
-        <h4>Tags deste prato</h4>
-        {tags.length ? <div className="addon-link-items">{tags.map((tag) => <label className="addon-link-item" key={tag.id}><input type="checkbox" checked={linkedTagIds.includes(tag.id)} onChange={() => toggleTagLink(tag.id)} /> {tag.name}</label>)}</div> : <p className="form-help">Crie tags na seção abaixo.</p>}
-        <button type="button" className="secondary-button" disabled={busy} onClick={saveTagLinks}>Salvar tags</button>
+      <label className="pr-field">Descrição<textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} maxLength={500} placeholder="Ingredientes, porção..." /></label>
+      <label className="pr-field">Estoque<input inputMode="numeric" value={draft.stock} onChange={(event) => setDraft({ ...draft, stock: event.target.value })} placeholder="Vazio = ilimitado" /></label>
+      <div className="pr-form-row">
+        <label className="pr-field">Disponível a partir de (opcional)<input type="time" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} title="Deixe em branco para ficar disponível o dia todo" /></label>
+        <label className="pr-field">Disponível até (opcional)<input type="time" value={draft.until} onChange={(event) => setDraft({ ...draft, until: event.target.value })} title="Deixe em branco para ficar disponível o dia todo" /></label>
       </div>
-      <div className="catalog-detail-col addon-link">
-        <h4>Combo inclui</h4>
-        {comboItems.length ? <div className="addon-link-items">{comboItems.map((item) => <span className="combo-admin-item" key={item.component_product_id}>{item.quantity}× {item.name}<button type="button" className="availability-button" disabled={busy} onClick={() => removeComboItem(item.component_product_id)}>Remover</button></span>)}</div> : <p className="form-help">Sem itens. Marque "combo" e monte a composição.</p>}
-        <form className="catalog-variation-form" onSubmit={addComboItem}>
-          <select value={comboDraft.productId} onChange={(event) => setComboDraft({ ...comboDraft, productId: Number(event.target.value) })} aria-label="Produto do combo">
-            <option value={0}>Escolha um produto</option>
-            {catalog.products.filter((item) => item.id !== product.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-          <input inputMode="numeric" value={comboDraft.quantity} onChange={(event) => setComboDraft({ ...comboDraft, quantity: event.target.value })} aria-label="Quantidade" />
-          <button className="secondary-button" disabled={busy || comboDraft.productId < 1}>Adicionar</button>
-        </form>
-        <button type="button" className="secondary-button" disabled={busy} onClick={saveComboItems} style={{ marginTop: 8 }}>Salvar combo</button>
+      <label className="pr-check"><input type="checkbox" checked={draft.isCombo} onChange={(event) => setDraft({ ...draft, isCombo: event.target.checked })} /> É um combo</label>
+    </form>;
+  }
+
+  function editorVariations() {
+    return <div className="cm-sec">
+      {detail?.variations.length ? <ul className="pr-list">{detail.variations.map((variation) => <li className="cm-var" key={variation.id}>
+        <div className="cm-var-fields">
+          <input value={variation.name} onChange={(event) => updateVariationField(variation.id, 'name', event.target.value)} maxLength={80} aria-label="Nome da variação" />
+          <input inputMode="decimal" value={toPrice(variation.price_delta_cents)} onChange={(event) => updateVariationField(variation.id, 'price', event.target.value)} aria-label="Acréscimo em reais" />
+        </div>
+        <div className="cm-var-actions">
+          <Switch on={variation.available} disabled={busy} label={variation.available ? 'Pausar variação' : 'Reativar variação'} onChange={() => toggleVariation(variation)}>{variation.available ? 'Disponível' : 'Pausada'}</Switch>
+          <span className="pr-row-actions">
+            <button type="button" className="pr-btn pr-btn--soft pr-btn--sm" disabled={busy} onClick={() => saveVariation(variation)}>Salvar</button>
+            {trash(`Excluir ${variation.name}`, () => void removeVariation(variation))}
+          </span>
+        </div>
+      </li>)}</ul> : <p className="pr-muted cm-tip">Sem variações: o preço base vale para o prato.</p>}
+      <form className="cm-inline" onSubmit={addVariation}>
+        <h3 className="cm-sec-title">Nova variação</h3>
+        <div className="pr-form-row">
+          <label className="pr-field">Nome<input value={newVariation.name} onChange={(event) => setNewVariation({ ...newVariation, name: event.target.value })} placeholder="Ex.: Grande" minLength={1} maxLength={80} required /></label>
+          <label className="pr-field">Acréscimo R$<input inputMode="decimal" value={newVariation.price} onChange={(event) => setNewVariation({ ...newVariation, price: event.target.value })} placeholder="Opcional" /></label>
+        </div>
+        <button className="pr-btn pr-btn--soft" disabled={busy || detailLoading}><Icon name="plus" size={16} />Adicionar variação</button>
+      </form>
+    </div>;
+  }
+
+  function editorImages(product: Product) {
+    return <div className="cm-sec">
+      {imageUrls.length === 0 && <p className="pr-muted cm-tip">Sem imagens. A capa aparece no catálogo do cliente.</p>}
+      {imageUrls.length > 0 && <ul className="pr-list">{imageUrls.map((url, index) => <li className="cm-img" key={index}>
+        <span className="pr-thumb" aria-hidden="true">{url.trim() ? <img src={url} alt="" /> : <Icon name="file" size={18} />}</span>
+        <div className="cm-img-main">
+          <input value={url} onChange={(event) => setImageUrls(imageUrls.map((current, position) => position === index ? event.target.value : current))} placeholder="https://..." aria-label={`URL da imagem ${index + 1}`} />
+          <div className="cm-img-actions">
+            <label className="pr-check"><input type="radio" name={`cover-${product.id}`} checked={coverIndex === index} onChange={() => setCoverIndex(index)} /> Capa</label>
+            <label className="pr-btn pr-btn--ghost pr-btn--sm cm-upload"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" style={{ display: 'none' }} disabled={busy || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(index, file); event.target.value = ''; }} />{uploading ? 'Enviando...' : 'Enviar arquivo'}</label>
+            <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" disabled={busy} onClick={() => setImageUrls(imageUrls.filter((_, position) => position !== index))}>Remover</button>
+          </div>
+        </div>
+      </li>)}</ul>}
+      <div className="cm-sec-actions">
+        <button type="button" className="pr-btn pr-btn--soft" disabled={busy || imageUrls.length >= 8} onClick={() => setImageUrls([...imageUrls, ''])}><Icon name="plus" size={16} />Imagem</button>
+        <button type="button" className="pr-btn pr-btn--primary" disabled={busy || detailLoading} onClick={saveImages}>Salvar imagens</button>
       </div>
     </div>;
   }
 
-  return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">CARDÁPIO</span><h2>{isSupport ? 'Cardápio da loja' : 'Seu cardápio'}</h2></div><p>Edite nome, preço, descrição e disponibilidade. Cada prato pode ter imagens e variações de tamanho/porção.</p></div>
-    <div className="form-grid">
-      <form onSubmit={addCategory}><h3>Nova categoria</h3><label>Nome<input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} minLength={2} maxLength={120} placeholder="Ex.: Bebidas" required /></label><button className="secondary-button" disabled={busy || (isSupport && !restaurantId)}>Adicionar categoria</button></form>
-      <form onSubmit={addProduct}><h3>Novo produto</h3><label>Categoria<select value={newProduct.categoryId} onChange={(event) => setNewProduct({ ...newProduct, categoryId: Number(event.target.value) })}>{catalog.categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Nome<input value={newProduct.name} onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })} minLength={2} maxLength={160} placeholder="Ex.: Bowl da casa" required /></label><label>Preço em R$<input inputMode="decimal" value={newProduct.price} onChange={(event) => setNewProduct({ ...newProduct, price: event.target.value })} placeholder="29,90" required /></label><label>Descrição<input value={newProduct.description} onChange={(event) => setNewProduct({ ...newProduct, description: event.target.value })} maxLength={500} placeholder="Ingredientes, porção..." /></label><button className="secondary-button" type="button" disabled={busy || aiBusy} onClick={() => void generateDescription()}>{aiBusy ? 'Gerando...' : '✦ Gerar descrição com IA'}</button><button className="secondary-button" disabled={busy || !newProduct.categoryId}>Adicionar produto</button></form>
-    </div>
-    <div className="courier-list" style={{ marginTop: 16 }}><h3>Categorias</h3>{loading ? <p className="form-help">Carregando...</p> : catalog.categories.length ? catalog.categories.map((category) => <div className="courier-row" key={category.id}><div><strong>{category.name}</strong><span>{catalog.products.filter((product) => product.category_id === category.id).length} produto(s)</span></div><div className="courier-actions"><button className="secondary-button" disabled={busy} onClick={() => renameCategory(category)}>Renomear</button><button className="availability-button" disabled={busy} onClick={() => removeCategory(category)}>Excluir</button></div></div>) : <p className="form-help">Nenhuma categoria cadastrada.</p>}</div>
-    <div className="courier-list" style={{ marginTop: 16 }}><h3>Grupos de adicionais</h3>{groups.length ? groups.map((group) => <div className="addon-admin-group" key={group.id}>
-      <div className="courier-row"><div><strong>{group.name}</strong><span>{group.required ? 'obrigatório · ' : ''}{group.min_select}–{group.max_select} · {group.addons.length} adicional(is)</span></div><div className="courier-actions"><button className="availability-button" disabled={busy} onClick={() => removeGroup(group)}>Excluir grupo</button></div></div>
-      {group.addons.map((addon) => <div className="addon-admin-row" key={addon.id}><span>{addon.name}</span><span>{money(addon.price_cents)}</span><button className={addon.available ? 'availability-button paused' : 'availability-button'} disabled={busy} onClick={() => toggleAddon(addon)}>{addon.available ? 'Pausar' : 'Reativar'}</button><button className="availability-button" disabled={busy} onClick={() => removeAddon(addon)}>Excluir</button></div>)}
-      <form className="addon-group-form" onSubmit={(event) => addAddon(event, group.id)}>
-        <input value={addonDraft[group.id]?.name ?? ''} onChange={(event) => setAddonDraft({ ...addonDraft, [group.id]: { name: event.target.value, price: addonDraft[group.id]?.price ?? '' } })} placeholder="Adicional (ex.: Bacon)" maxLength={80} required aria-label="Nome do adicional" />
-        <input inputMode="decimal" value={addonDraft[group.id]?.price ?? ''} onChange={(event) => setAddonDraft({ ...addonDraft, [group.id]: { name: addonDraft[group.id]?.name ?? '', price: event.target.value } })} placeholder="Preço R$" aria-label="Preço do adicional" />
-        <button className="secondary-button" disabled={busy}>Adicionar</button>
+  function editorLinks() {
+    return <div className="cm-sec">
+      <h3 className="cm-sec-title">Grupos de adicionais</h3>
+      <label className="pr-field">Aplicar a<select value={linkVariationId} onChange={(event) => { const value = Number(event.target.value); setLinkVariationId(value); if (expandedId !== null) void loadAddonLinks(expandedId, value); }}><option value={0}>Todas as variações</option>{detail?.variations.map((variation) => <option key={variation.id} value={variation.id}>{variation.name}</option>)}</select></label>
+      {groups.length ? <div className="cm-checks">{groups.map((group) => <label className="pr-check" key={group.id}><input type="checkbox" checked={linkedGroupIds.includes(group.id)} onChange={() => toggleLinked(group.id)} /> {group.name}</label>)}</div> : <p className="pr-muted cm-tip">Crie grupos na aba Adicionais.</p>}
+      <div className="cm-sec-actions"><button type="button" className="pr-btn pr-btn--soft" disabled={busy} onClick={saveGroupLinks}>Salvar vínculos</button></div>
+      <h3 className="cm-sec-title cm-sec-sep">Tags</h3>
+      {tags.length ? <div className="cm-checks">{tags.map((tag) => <label className="pr-check" key={tag.id}><input type="checkbox" checked={linkedTagIds.includes(tag.id)} onChange={() => toggleTagLink(tag.id)} /> {tag.name}</label>)}</div> : <p className="pr-muted cm-tip">Crie tags na aba Tags.</p>}
+      <div className="cm-sec-actions"><button type="button" className="pr-btn pr-btn--soft" disabled={busy} onClick={saveTagLinks}>Salvar tags</button></div>
+    </div>;
+  }
+
+  function editorCombo(product: Product) {
+    return <div className="cm-sec">
+      {comboItems.length ? <ul className="pr-list">{comboItems.map((item) => <li className="pr-row" key={item.component_product_id}>
+        <span className="pr-badge">{item.quantity}×</span>
+        <div className="pr-row-main"><strong>{item.name}</strong></div>
+        <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" disabled={busy} onClick={() => removeComboItem(item.component_product_id)}>Remover</button>
+      </li>)}</ul> : <p className="pr-muted cm-tip">Sem itens. Marque &quot;combo&quot; e monte a composição.</p>}
+      <form className="cm-combo-form" onSubmit={addComboItem}>
+        <label className="pr-field">Produto<select value={comboDraft.productId} onChange={(event) => setComboDraft({ ...comboDraft, productId: Number(event.target.value) })}>
+          <option value={0}>Escolha um produto</option>
+          {catalog.products.filter((item) => item.id !== product.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select></label>
+        <label className="pr-field">Qtd.<input inputMode="numeric" value={comboDraft.quantity} onChange={(event) => setComboDraft({ ...comboDraft, quantity: event.target.value })} /></label>
+        <button className="pr-btn pr-btn--soft" disabled={busy || comboDraft.productId < 1}>Adicionar</button>
       </form>
-    </div>) : <p className="form-help">Nenhum grupo. Crie grupos para oferecer adicionais.</p>}
-      <form className="addon-group-form" onSubmit={createGroup}>
-        <input value={groupDraft.name} onChange={(event) => setGroupDraft({ ...groupDraft, name: event.target.value })} placeholder="Nome do grupo (ex.: Molhos)" maxLength={80} required aria-label="Nome do grupo" />
-        <input inputMode="numeric" value={groupDraft.min} onChange={(event) => setGroupDraft({ ...groupDraft, min: event.target.value })} aria-label="Mínimo" />
-        <input inputMode="numeric" value={groupDraft.max} onChange={(event) => setGroupDraft({ ...groupDraft, max: event.target.value })} aria-label="Máximo" />
-        <label className="catalog-cover"><input type="checkbox" checked={groupDraft.required} onChange={(event) => setGroupDraft({ ...groupDraft, required: event.target.checked })} /> obrigatório</label>
-        <button className="secondary-button" disabled={busy || (isSupport && !restaurantId)}>Criar grupo</button>
-      </form>
+      <div className="cm-sec-actions"><button type="button" className="pr-btn pr-btn--primary" disabled={busy} onClick={saveComboItems}>Salvar combo</button></div>
+    </div>;
+  }
+
+  const editTabs: { id: EditTab; label: string }[] = [
+    { id: 'data', label: 'Dados' }, { id: 'variations', label: 'Variações' }, { id: 'images', label: 'Imagens' },
+    { id: 'links', label: 'Adicionais e tags' }, { id: 'combo', label: 'Combo' },
+  ];
+  const cancel = (close: () => void) => <button type="button" className="pr-btn" onClick={close}>Cancelar</button>;
+  const closeSheet = () => setSheet(null);
+
+  return <div className="cm">
+    <div className="cm-head">
+      <Tabs label="Seções do catálogo" value={section} onChange={setSection} tabs={[
+        { id: 'products', label: 'Produtos', count: catalog.products.length },
+        { id: 'addons', label: 'Adicionais', count: groups.length },
+        { id: 'tags', label: 'Tags', count: tags.length },
+      ]} />
+      <div className="cm-head-actions">
+        {section === 'products' && <button type="button" className="pr-btn pr-btn--primary" disabled={busy || blocked || !catalog.categories.length} onClick={openNewProduct}><Icon name="plus" size={16} />Novo produto</button>}
+        {section === 'addons' && <button type="button" className="pr-btn pr-btn--primary" disabled={busy || blocked} onClick={() => setSheet('group')}><Icon name="plus" size={16} />Novo grupo</button>}
+        {section === 'tags' && <button type="button" className="pr-btn pr-btn--primary" disabled={busy || blocked} onClick={() => setSheet('tag')}><Icon name="plus" size={16} />Nova tag</button>}
+      </div>
     </div>
-    <div className="courier-list" style={{ marginTop: 16 }}><h3>Tags de descoberta</h3>{tags.length ? tags.map((tag) => <div className="courier-row" key={tag.id}><div><strong>{tag.name}</strong><span>{tag.product_count} produto(s)</span></div><div className="courier-actions"><button className="availability-button" disabled={busy} onClick={() => removeTag(tag)}>Excluir</button></div></div>) : <p className="form-help">Nenhuma tag. Use tags para destacar pratos na busca.</p>}
-      <form className="addon-group-form" onSubmit={createTag}>
-        <input value={tagDraft} onChange={(event) => setTagDraft(event.target.value)} placeholder="Nova tag (ex.: Vegano)" maxLength={60} required aria-label="Nome da tag" />
-        <button className="secondary-button" disabled={busy || (isSupport && !restaurantId)}>Criar tag</button>
+    {section === 'products' && products()}
+    {section === 'addons' && addons()}
+    {section === 'tags' && tagList()}
+
+    <Drawer open={sheet === 'category'} title="Nova categoria" onClose={closeSheet} footer={<>{cancel(closeSheet)}<button form="cm-new-category" className="pr-btn pr-btn--primary" disabled={busy || blocked}>Salvar categoria</button></>}>
+      <form id="cm-new-category" className="pr-form" onSubmit={(event) => { addCategory(event); closeSheet(); }}>
+        <label className="pr-field">Nome<input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} minLength={2} maxLength={120} placeholder="Ex.: Bebidas" required autoFocus /></label>
       </form>
-    </div>
-    <div className="restaurant-product-list" style={{ marginTop: 16 }}><h3 style={{ padding: '0 0 8px' }}>Produtos</h3>{catalog.products.length ? catalog.products.map((product) => editingId === product.id
-      ? <div className="restaurant-product-row" key={product.id}><div className="catalog-edit"><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} maxLength={160} aria-label="Nome" /><input inputMode="decimal" value={draft.price} onChange={(event) => setDraft({ ...draft, price: event.target.value })} aria-label="Preço" /><select value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: Number(event.target.value) })} aria-label="Categoria">{catalog.categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><input value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} maxLength={500} placeholder="Descrição" aria-label="Descrição" /><label className="catalog-cover"><input type="checkbox" checked={draft.isCombo} onChange={(event) => setDraft({ ...draft, isCombo: event.target.checked })} /> combo</label><input inputMode="numeric" value={draft.stock} onChange={(event) => setDraft({ ...draft, stock: event.target.value })} placeholder="Estoque (vazio = ilimitado)" aria-label="Estoque" /><input type="time" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} aria-label="Disponível a partir de (opcional)" title="Deixe em branco para ficar disponível o dia todo" /><input type="time" value={draft.until} onChange={(event) => setDraft({ ...draft, until: event.target.value })} aria-label="Disponível até (opcional)" title="Deixe em branco para ficar disponível o dia todo" /></div><div className="courier-actions"><button className="secondary-button" disabled={busy} onClick={() => saveEdit(product.id)}>Salvar</button><button className="availability-button" disabled={busy} onClick={() => setEditingId(null)}>Cancelar</button></div></div>
-      : <div className="restaurant-product-entry" key={product.id}><div className="restaurant-product-row"><div><strong>{product.name}</strong><span>{money(product.price_cents)} · {catalog.categories.find((item) => item.id === product.category_id)?.name ?? 'Sem categoria'} · {product.available ? 'Disponível' : 'Pausado'}</span></div><div className="courier-actions"><button className="secondary-button" disabled={busy} onClick={() => void toggleDetail(product)}>{expandedId === product.id ? 'Ocultar' : 'Variações e imagens'}</button><button className="secondary-button" disabled={busy} onClick={() => startEdit(product)}>Editar</button><button className={product.available ? 'availability-button' : 'availability-button paused'} disabled={busy} onClick={() => toggleAvailability(product)}>{product.available ? 'Pausar' : 'Reativar'}</button><button className="availability-button" disabled={busy} onClick={() => removeProduct(product)}>Excluir</button></div></div>
-        {expandedId === product.id && detailPanel(product)}</div>
-    ) : <div className="empty-state">Nenhum produto cadastrado.</div>}</div>
+    </Drawer>
+
+    <Drawer open={sheet === 'product'} title="Novo produto" onClose={closeSheet} footer={<>{cancel(closeSheet)}<button form="cm-new-product" className="pr-btn pr-btn--primary" disabled={busy || !newProduct.categoryId}>Salvar produto</button></>}>
+      <form id="cm-new-product" className="pr-form" onSubmit={(event) => { addProduct(event); closeSheet(); }}>
+        <label className="pr-field">Nome<input value={newProduct.name} onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })} minLength={2} maxLength={160} placeholder="Ex.: Bowl da casa" required autoFocus /></label>
+        <div className="pr-form-row">
+          <label className="pr-field">Categoria<select value={newProduct.categoryId} onChange={(event) => setNewProduct({ ...newProduct, categoryId: Number(event.target.value) })}>{catalog.categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label className="pr-field">Preço em R$<input inputMode="decimal" value={newProduct.price} onChange={(event) => setNewProduct({ ...newProduct, price: event.target.value })} placeholder="29,90" required /></label>
+        </div>
+        <label className="pr-field">Descrição<textarea value={newProduct.description} onChange={(event) => setNewProduct({ ...newProduct, description: event.target.value })} maxLength={500} placeholder="Ingredientes, porção..." /></label>
+        <div><button className="pr-btn pr-btn--soft pr-btn--sm" type="button" disabled={busy || aiBusy} onClick={() => void generateDescription()}><Icon name="sparkle" size={15} />{aiBusy ? 'Gerando...' : 'Gerar descrição com IA'}</button></div>
+      </form>
+    </Drawer>
+
+    <Drawer open={sheet === 'group'} title="Novo grupo de adicionais" onClose={closeSheet} footer={<>{cancel(closeSheet)}<button form="cm-new-group" className="pr-btn pr-btn--primary" disabled={busy || blocked}>Criar grupo</button></>}>
+      <form id="cm-new-group" className="pr-form" onSubmit={(event) => { createGroup(event); closeSheet(); }}>
+        <label className="pr-field">Nome<input value={groupDraft.name} onChange={(event) => setGroupDraft({ ...groupDraft, name: event.target.value })} placeholder="Ex.: Molhos" maxLength={80} required autoFocus /></label>
+        <div className="pr-form-row">
+          <label className="pr-field">Mínimo<input inputMode="numeric" value={groupDraft.min} onChange={(event) => setGroupDraft({ ...groupDraft, min: event.target.value })} /></label>
+          <label className="pr-field">Máximo<input inputMode="numeric" value={groupDraft.max} onChange={(event) => setGroupDraft({ ...groupDraft, max: event.target.value })} /></label>
+        </div>
+        <label className="pr-check"><input type="checkbox" checked={groupDraft.required} onChange={(event) => setGroupDraft({ ...groupDraft, required: event.target.checked })} /> Obrigatório</label>
+      </form>
+    </Drawer>
+
+    <Drawer open={addonGroup !== null} title={addonGroup ? `Novo adicional · ${addonGroup.name}` : 'Novo adicional'} onClose={closeSheet} footer={<>{cancel(closeSheet)}<button form="cm-new-addon" className="pr-btn pr-btn--primary" disabled={busy}>Adicionar</button></>}>
+      {addonGroup && <form id="cm-new-addon" className="pr-form" onSubmit={(event) => { addAddon(event, addonGroup.id); closeSheet(); }}>
+        <label className="pr-field">Nome<input value={addonDraft[addonGroup.id]?.name ?? ''} onChange={(event) => setAddonDraft({ ...addonDraft, [addonGroup.id]: { name: event.target.value, price: addonDraft[addonGroup.id]?.price ?? '' } })} placeholder="Ex.: Bacon" maxLength={80} required autoFocus /></label>
+        <label className="pr-field">Preço R$<input inputMode="decimal" value={addonDraft[addonGroup.id]?.price ?? ''} onChange={(event) => setAddonDraft({ ...addonDraft, [addonGroup.id]: { name: addonDraft[addonGroup.id]?.name ?? '', price: event.target.value } })} placeholder="0,00" /></label>
+      </form>}
+    </Drawer>
+
+    <Drawer open={sheet === 'tag'} title="Nova tag" onClose={closeSheet} footer={<>{cancel(closeSheet)}<button form="cm-new-tag" className="pr-btn pr-btn--primary" disabled={busy || blocked}>Criar tag</button></>}>
+      <form id="cm-new-tag" className="pr-form" onSubmit={(event) => { createTag(event); closeSheet(); }}>
+        <label className="pr-field">Nome<input value={tagDraft} onChange={(event) => setTagDraft(event.target.value)} placeholder="Ex.: Vegano" maxLength={60} required autoFocus /></label>
+      </form>
+    </Drawer>
+
+    <Drawer open={editing !== null} title={editing?.name ?? 'Editar produto'} onClose={closeEditor} footer={editing && editTab === 'data'
+      ? <><button type="button" className="pr-btn pr-btn--ghost pr-btn--danger cm-foot-left" disabled={busy} onClick={() => void removeProduct(editing)}>Excluir</button>{cancel(closeEditor)}<button form="cm-edit" className="pr-btn pr-btn--primary" disabled={busy}>Salvar</button></>
+      : undefined}>
+      {editing && <>
+        <Tabs label="Partes do produto" value={editTab} onChange={(tab) => pickEditTab(editing, tab)} tabs={editTabs} />
+        {editTab === 'data' ? editorData(editing)
+          : detailLoading || expandedId !== editing.id ? <p className="pr-muted">Carregando...</p>
+          : editTab === 'variations' ? editorVariations()
+          : editTab === 'images' ? editorImages(editing)
+          : editTab === 'links' ? editorLinks()
+          : editorCombo(editing)}
+        {editTab !== 'data' && note && <p className="cm-note" role="status">{note}</p>}
+      </>}
+    </Drawer>
     {dialog}
-  </section>;
+  </div>;
 }

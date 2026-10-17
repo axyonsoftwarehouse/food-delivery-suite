@@ -3,22 +3,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, money, useApp } from '../app-context';
 import { quantityDelta } from '../quantity';
+import { Icon } from '../icons';
+import { Drawer, Empty, Tabs } from './kit';
 
 type Item = { id: number; name: string; unit: string; quantity: number; min_quantity: number; cost_cents: number; supplier_id: number | null; supplier_name: string | null; active: boolean; low: number };
 type Supplier = { id: number; name: string; contact: string; notes: string };
+type Tab = 'items' | 'suppliers' | 'low';
 
 export default function InventoryPanel() {
   const { setMessage } = useApp();
-  const [tab, setTab] = useState('items');
-  return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">ESTOQUE</span><h2>Insumos e fornecedores</h2></div><p>Controle de insumos, movimentações e fornecedores da sua loja.</p></div>
-    <div className="ui-chips" style={{ marginBottom: 16 }}>
-      {[['items', 'Insumos'], ['suppliers', 'Fornecedores'], ['low', 'Baixo estoque']].map(([id, label]) => <button key={id} type="button" className={`ui-chip${tab === id ? ' selected' : ''}`} onClick={() => setTab(id)}>{label}</button>)}
-    </div>
-    {tab === 'items' && <Items onMessage={setMessage} />}
-    {tab === 'suppliers' && <Suppliers onMessage={setMessage} />}
-    {tab === 'low' && <Low onMessage={setMessage} />}
-  </section>;
+  const [tab, setTab] = useState<Tab>('items');
+  const head = (action?: React.ReactNode) => <InventoryTabs tab={tab} onChange={setTab}>{action}</InventoryTabs>;
+  return <div className="inv">
+    {tab === 'items' && <Items onMessage={setMessage} head={head} />}
+    {tab === 'suppliers' && <Suppliers onMessage={setMessage} head={head} />}
+    {tab === 'low' && <Low onMessage={setMessage} head={head} />}
+  </div>;
+}
+
+function InventoryTabs({ tab, onChange, children }: { tab: Tab; onChange: (tab: Tab) => void; children?: React.ReactNode }) {
+  return <div className="cm-head"><Tabs label="Seções do estoque" value={tab} onChange={onChange} tabs={[{ id: 'items', label: 'Insumos' }, { id: 'suppliers', label: 'Fornecedores' }, { id: 'low', label: 'Baixo estoque' }]} />{children && <div className="cm-head-actions">{children}</div>}</div>;
 }
 
 async function act(path: string, method: string, body: unknown, ok: string, reload: () => void, onMessage: (m: string) => void) {
@@ -36,7 +40,11 @@ function useList<T>(path: string, onMessage: (m: string) => void) {
   return { rows, reload: load };
 }
 
-function Items({ onMessage }: { onMessage: (m: string) => void }) {
+function amount(value: number, unit: string) {
+  return `${value.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${unit}`;
+}
+
+function Items({ onMessage, head }: { onMessage: (m: string) => void; head: (action?: React.ReactNode) => React.ReactNode }) {
   const { rows, reload } = useList<Item>('/restaurant/inventory', onMessage);
   const { rows: suppliers } = useList<Supplier>('/restaurant/suppliers', onMessage);
   const [name, setName] = useState('');
@@ -45,6 +53,7 @@ function Items({ onMessage }: { onMessage: (m: string) => void }) {
   const [minQuantity, setMinQuantity] = useState('0');
   const [cost, setCost] = useState('0');
   const [supplierId, setSupplierId] = useState('');
+  const [open, setOpen] = useState(false);
 
   const { askText } = useApp();
   async function move(item: Item) {
@@ -55,43 +64,77 @@ function Items({ onMessage }: { onMessage: (m: string) => void }) {
     await act(`/restaurant/inventory/${item.id}/movement`, 'POST', { delta, reason: 'Ajuste manual' }, 'Estoque movimentado.', reload, onMessage);
   }
 
-  return <div className="form-grid">
-    <form onSubmit={(event) => { event.preventDefault(); void act('/restaurant/inventory', 'POST', { name, unit, quantity: quantity ? Number(quantity.replace(',', '.')) : 0, minQuantity: Number(minQuantity.replace(',', '.')), costCents: Math.round(Number(cost.replace(',', '.')) * 100), supplierId: supplierId ? Number(supplierId) : null }, 'Insumo criado.', reload, onMessage), setName(''); setQuantity(''); }}>
-      <h3>Novo insumo</h3>
-      <label>Nome<input value={name} onChange={(event) => setName(event.target.value)} required minLength={2} /></label>
-      <label>Unidade<input value={unit} onChange={(event) => setUnit(event.target.value)} maxLength={20} /></label>
-      <label>Quantidade inicial<input inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
-      <label>Estoque mínimo<input inputMode="decimal" value={minQuantity} onChange={(event) => setMinQuantity(event.target.value)} /></label>
-      <label>Custo (R$)<input inputMode="decimal" value={cost} onChange={(event) => setCost(event.target.value)} /></label>
-      <label>Fornecedor<select value={supplierId} onChange={(event) => setSupplierId(event.target.value)}><option value="">Sem fornecedor</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
-      <button className="secondary-button">Criar insumo</button>
-    </form>
-    <div className="courier-list"><h3>Insumos</h3>
-      {rows.length ? rows.map((item) => <div className="courier-row" key={item.id}><div><strong>{item.name} {item.low ? '⚠' : ''}</strong><span>{item.quantity} {item.unit} · mín {item.min_quantity} · {money(item.cost_cents)}{item.supplier_name ? ` · ${item.supplier_name}` : ''}</span></div><div className="courier-actions"><button className="secondary-button" onClick={() => void move(item)}>Movimentar</button><button className="availability-button" onClick={() => void act(`/restaurant/inventory/${item.id}`, 'DELETE', undefined, 'Removido.', reload, onMessage)}>Excluir</button></div></div>) : <p className="form-help">Nenhum insumo.</p>}
-    </div>
-  </div>;
+  return <>
+    {head(<button type="button" className="pr-btn pr-btn--primary" onClick={() => setOpen(true)}><Icon name="plus" size={16} />Novo insumo</button>)}
+    <section className="pr-card pr-card--flush" aria-label="Insumos">
+      {rows.length ? <div className="pr-table" style={{ '--cols': 'minmax(0, 1fr) 140px 110px 110px 150px' } as React.CSSProperties}>
+        <div className="pr-table-head"><span>Insumo</span><span className="pr-num">Quantidade</span><span className="pr-num">Mínimo</span><span className="pr-num">Custo</span><span /></div>
+        {rows.map((item) => <div className="pr-table-row inv-row" key={item.id}>
+          <div className="pr-row-main inv-name"><strong>{item.name}</strong>{item.supplier_name && <span>{item.supplier_name}</span>}</div>
+          <span className="pr-num inv-qty">{item.low ? <span className="pr-badge is-warning">Baixo</span> : null}{amount(item.quantity, item.unit)}</span>
+          <span className="inv-meta">
+            <span className="pr-num"><span className="inv-k">Mínimo </span>{amount(item.min_quantity, item.unit)}</span>
+            <span className="pr-num"><span className="inv-k">Custo </span>{money(item.cost_cents)}</span>
+          </span>
+          <div className="inv-actions">
+            <button type="button" className="pr-btn pr-btn--soft pr-btn--sm" onClick={() => void move(item)}>Movimentar</button>
+            <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger cm-trash" aria-label={`Excluir ${item.name}`} title={`Excluir ${item.name}`} onClick={() => void act(`/restaurant/inventory/${item.id}`, 'DELETE', undefined, 'Removido.', reload, onMessage)}><Icon name="trash" size={16} /></button>
+          </div>
+        </div>)}
+      </div> : <Empty icon="box" action={<button type="button" className="pr-btn pr-btn--soft" onClick={() => setOpen(true)}>Novo insumo</button>}>Nenhum insumo.</Empty>}
+    </section>
+    <Drawer open={open} title="Novo insumo" onClose={() => setOpen(false)} footer={<><button type="button" className="pr-btn" onClick={() => setOpen(false)}>Cancelar</button><button form="inv-new-item" className="pr-btn pr-btn--primary">Criar insumo</button></>}>
+      <form id="inv-new-item" className="pr-form" onSubmit={(event) => { event.preventDefault(); void act('/restaurant/inventory', 'POST', { name, unit, quantity: quantity ? Number(quantity.replace(',', '.')) : 0, minQuantity: Number(minQuantity.replace(',', '.')), costCents: Math.round(Number(cost.replace(',', '.')) * 100), supplierId: supplierId ? Number(supplierId) : null }, 'Insumo criado.', reload, onMessage), setName(''); setQuantity(''); setOpen(false); }}>
+        <label className="pr-field">Nome<input value={name} onChange={(event) => setName(event.target.value)} required minLength={2} autoFocus /></label>
+        <div className="pr-form-row">
+          <label className="pr-field">Unidade<input value={unit} onChange={(event) => setUnit(event.target.value)} maxLength={20} /></label>
+          <label className="pr-field">Quantidade inicial<input inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
+        </div>
+        <div className="pr-form-row">
+          <label className="pr-field">Estoque mínimo<input inputMode="decimal" value={minQuantity} onChange={(event) => setMinQuantity(event.target.value)} /></label>
+          <label className="pr-field">Custo (R$)<input inputMode="decimal" value={cost} onChange={(event) => setCost(event.target.value)} /></label>
+        </div>
+        <label className="pr-field">Fornecedor<select value={supplierId} onChange={(event) => setSupplierId(event.target.value)}><option value="">Sem fornecedor</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+      </form>
+    </Drawer>
+  </>;
 }
 
-function Suppliers({ onMessage }: { onMessage: (m: string) => void }) {
+function Suppliers({ onMessage, head }: { onMessage: (m: string) => void; head: (action?: React.ReactNode) => React.ReactNode }) {
   const { rows, reload } = useList<Supplier>('/restaurant/suppliers', onMessage);
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
   const [notes, setNotes] = useState('');
-  return <div className="form-grid">
-    <form onSubmit={(event) => { event.preventDefault(); void act('/restaurant/suppliers', 'POST', { name, contact, notes }, 'Fornecedor criado.', reload, onMessage); setName(''); setContact(''); setNotes(''); }}>
-      <h3>Novo fornecedor</h3>
-      <label>Nome<input value={name} onChange={(event) => setName(event.target.value)} required minLength={2} /></label>
-      <label>Contato<input value={contact} onChange={(event) => setContact(event.target.value)} /></label>
-      <label>Observações<input value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
-      <button className="secondary-button">Criar fornecedor</button>
-    </form>
-    <div className="courier-list"><h3>Fornecedores</h3>
-      {rows.length ? rows.map((supplier) => <div className="courier-row" key={supplier.id}><div><strong>{supplier.name}</strong><span>{supplier.contact}{supplier.notes ? ` · ${supplier.notes}` : ''}</span></div><button className="availability-button" onClick={() => void act(`/restaurant/suppliers/${supplier.id}`, 'DELETE', undefined, 'Removido.', reload, onMessage)}>Excluir</button></div>) : <p className="form-help">Nenhum fornecedor.</p>}
-    </div>
-  </div>;
+  const [open, setOpen] = useState(false);
+  return <>
+    {head(<button type="button" className="pr-btn pr-btn--primary" onClick={() => setOpen(true)}><Icon name="plus" size={16} />Novo fornecedor</button>)}
+    <section className="pr-card pr-card--flush" aria-label="Fornecedores">
+      {rows.length ? <ul className="pr-list">{rows.map((supplier) => <li className="pr-row" key={supplier.id}>
+        <span className="pr-thumb" aria-hidden="true">{supplier.name.slice(0, 1).toUpperCase()}</span>
+        <div className="pr-row-main"><strong>{supplier.name}</strong>{(supplier.contact || supplier.notes) && <span>{supplier.contact}{supplier.contact && supplier.notes ? ' · ' : ''}{supplier.notes}</span>}</div>
+        <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger cm-trash" aria-label={`Excluir ${supplier.name}`} title={`Excluir ${supplier.name}`} onClick={() => void act(`/restaurant/suppliers/${supplier.id}`, 'DELETE', undefined, 'Removido.', reload, onMessage)}><Icon name="trash" size={16} /></button>
+      </li>)}</ul> : <Empty icon="truck" action={<button type="button" className="pr-btn pr-btn--soft" onClick={() => setOpen(true)}>Novo fornecedor</button>}>Nenhum fornecedor.</Empty>}
+    </section>
+    <Drawer open={open} title="Novo fornecedor" onClose={() => setOpen(false)} footer={<><button type="button" className="pr-btn" onClick={() => setOpen(false)}>Cancelar</button><button form="inv-new-supplier" className="pr-btn pr-btn--primary">Criar fornecedor</button></>}>
+      <form id="inv-new-supplier" className="pr-form" onSubmit={(event) => { event.preventDefault(); void act('/restaurant/suppliers', 'POST', { name, contact, notes }, 'Fornecedor criado.', reload, onMessage); setName(''); setContact(''); setNotes(''); setOpen(false); }}>
+        <label className="pr-field">Nome<input value={name} onChange={(event) => setName(event.target.value)} required minLength={2} autoFocus /></label>
+        <label className="pr-field">Contato<input value={contact} onChange={(event) => setContact(event.target.value)} placeholder="Telefone ou e-mail" /></label>
+        <label className="pr-field">Observações<input value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
+      </form>
+    </Drawer>
+  </>;
 }
 
-function Low({ onMessage }: { onMessage: (m: string) => void }) {
+function Low({ onMessage, head }: { onMessage: (m: string) => void; head: (action?: React.ReactNode) => React.ReactNode }) {
   const { rows } = useList<Item>('/restaurant/inventory/low', onMessage);
-  return <div className="postal-range-list">{rows.length ? rows.map((item) => <div key={item.id}><span><strong>{item.name}</strong> · {item.quantity} {item.unit}</span><span>mínimo {item.min_quantity}</span></div>) : <p className="form-help">Nenhum insumo abaixo do mínimo.</p>}</div>;
+  return <>
+    {head()}
+    <section className="pr-card pr-card--flush" aria-label="Baixo estoque">
+      {rows.length ? <ul className="pr-list">{rows.map((item) => <li className="pr-row" key={item.id}>
+        <span className="pr-badge is-warning">Baixo</span>
+        <div className="pr-row-main"><strong>{item.name}</strong><span>mínimo {amount(item.min_quantity, item.unit)}</span></div>
+        <span className="pr-row-value">{amount(item.quantity, item.unit)}</span>
+      </li>)}</ul> : <Empty icon="check">Nenhum insumo abaixo do mínimo.</Empty>}
+    </section>
+  </>;
 }

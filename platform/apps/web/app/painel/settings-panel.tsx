@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, labels, useApp } from '../app-context';
 import { settingsGroupFromSlug } from './configuracoes/sections';
+import { Icon } from '../icons';
 
 type SettingDescriptor = { key: string; label: string; type: string; group: string; value: string };
 
@@ -48,15 +49,14 @@ export default function SettingsPanel({ section }: { section?: string }) {
   if (!user) return null;
 
   if (section === 'conta') {
-    return <section className="panel">
-      <div className="panel-heading"><div><span className="eyebrow">CONTA</span><h2>Configurações</h2></div><p>Seus dados de acesso e status da conta.</p></div>
-      <div className="courier-list">
-        <div className="courier-row"><div><strong>Nome</strong><span>{user.name}</span></div></div>
-        <div className="courier-row"><div><strong>Email</strong><span>{user.email}</span></div></div>
-        <div className="courier-row"><div><strong>Perfil</strong><span>{labels[user.role]}</span></div></div>
-        <div className="courier-row"><div><strong>Email verificado</strong><small className={security?.emailVerified ? 'courier-state approved' : 'courier-state'}>{security ? (security.emailVerified ? 'Verificado' : 'Pendente') : 'Consultando...'}</small></div></div>
-        <div className="courier-row"><div><strong>Sessão</strong><span>Encerre o acesso neste navegador.</span></div><button className="availability-button" onClick={logout} disabled={busy}>Sair</button></div>
-      </div>
+    return <section className="pr-card pr-card--flush eq-flush eq-narrow">
+      <ul className="pr-list">
+        <li className="pr-row"><div className="pr-row-main"><span>Nome</span></div><span className="pr-row-value eq-value">{user.name}</span></li>
+        <li className="pr-row"><div className="pr-row-main"><span>Email</span></div><span className="pr-row-value eq-value">{user.email}</span></li>
+        <li className="pr-row"><div className="pr-row-main"><span>Perfil</span></div><span className="pr-row-value eq-value">{labels[user.role]}</span></li>
+        <li className="pr-row"><div className="pr-row-main"><span>Email verificado</span></div><span className={`pr-badge${security?.emailVerified ? ' is-brand' : security ? ' is-warning' : ''}`}>{security ? (security.emailVerified ? 'Verificado' : 'Pendente') : 'Consultando...'}</span></li>
+        <li className="pr-row"><div className="pr-row-main"><span>Sessão</span><small>Encerre o acesso neste navegador.</small></div><button type="button" className="pr-btn pr-btn--sm" onClick={logout} disabled={busy}><Icon name="logout" size={16} />Sair</button></li>
+      </ul>
     </section>;
   }
 

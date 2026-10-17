@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api, money, useApp } from '../../app-context';
-import { Alert, Badge, Button, Card, EmptyState, Field, SelectInput, Spinner, TextInput } from '../../ui';
+import { Icon } from '../../icons';
+import { Alert } from '../../ui';
+import { Drawer, Empty } from '../kit';
 
 type TicketLine = { productId: number; name: string; priceCents: number; quantity: number };
 type Sale = { id: number; totalCents: number; changeCents: number; customerName: string };
@@ -18,6 +20,7 @@ export default function PosPanel() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'pix'>('cash');
   const [changeFor, setChangeFor] = useState('');
   const [sale, setSale] = useState<Sale | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const products = useMemo(() => {
     const restaurantId = user?.restaurantId ?? -1;
@@ -71,7 +74,7 @@ export default function PosPanel() {
       },
       'Venda registrada.',
     );
-    if (ok) { setTicket([]); setChangeFor(''); }
+    if (ok) { setTicket([]); setChangeFor(''); setSheetOpen(false); }
   }
 
   function printReceipt(result: Sale) {
@@ -94,77 +97,106 @@ export default function PosPanel() {
     win.print();
   }
 
-  return (
-    <div className="team-panel">
-      <Card title="PDV / Balcão" subtitle="Monte a venda, receba o pagamento e imprima o cupom.">
-        <div className="pos-grid">
-          <div className="pos-catalog">
-            <Field label="Buscar prato">
-              <TextInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome do prato" />
-            </Field>
-            {products.length === 0 ? <EmptyState title="Nenhum prato" /> : (
-              <div className="pos-products">
-                {products.map((product) => (
-                  <button key={product.id} type="button" className="pos-product" onClick={() => add(product)}>
-                    <strong>{product.name}</strong>
-                    <span>{money(product.price_cents)}</span>
-                  </button>
-                ))}
+  const itemCount = ticket.reduce((sum, line) => sum + line.quantity, 0);
+  const quantityOf = (productId: number) => ticket.find((line) => line.productId === productId)?.quantity ?? 0;
+  const finishButton = <button type="button" className="pr-btn pr-btn--primary pr-btn--block pdv-finish" disabled={busy || !ticket.length} onClick={() => void finish()}>Finalizar venda</button>;
+
+  function renderTicket(inSheet: boolean) {
+    return <div className="pdv-ticket-body">
+      {!inSheet && <div className="pdv-ticket-head"><h2>Comanda</h2>{itemCount > 0 && <span className="pr-badge is-brand">{itemCount} {itemCount === 1 ? 'item' : 'itens'}</span>}</div>}
+      {ticket.length === 0 ? <Empty icon="receipt">Toque em um prato para adicionar.</Empty> : (
+        <ul className="pr-list pdv-lines">
+          {ticket.map((line) => (
+            <li className="pr-row pdv-line" key={line.productId}>
+              <div className="pr-row-main"><strong>{line.name}</strong><span>{money(line.priceCents)}</span></div>
+              <div className="pdv-stepper">
+                <button type="button" onClick={() => changeQuantity(line.productId, -1)} aria-label={`Remover um ${line.name}`}><Icon name="minus" size={16} /></button>
+                <span aria-live="polite">{line.quantity}</span>
+                <button type="button" onClick={() => changeQuantity(line.productId, 1)} aria-label={`Adicionar um ${line.name}`}><Icon name="plus" size={16} /></button>
               </div>
-            )}
-          </div>
+              <span className="pr-row-value pdv-line-total">{money(line.priceCents * line.quantity)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
-          <div className="pos-ticket">
-            <h3>Comanda {ticket.length ? <Badge tone="info">{ticket.length}</Badge> : null}</h3>
-            {ticket.length === 0 ? <p className="form-help">Toque em um prato para adicionar.</p> : (
-              <ul className="team-list">
-                {ticket.map((line) => (
-                  <li key={line.productId}>
-                    <span><strong>{line.name}</strong> · {money(line.priceCents)}</span>
-                    <span className="table-actions">
-                      <Button variant="ghost" size="sm" onClick={() => changeQuantity(line.productId, -1)}>−</Button>
-                      <span>{line.quantity}</span>
-                      <Button variant="ghost" size="sm" onClick={() => changeQuantity(line.productId, 1)}>+</Button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="customer-totals"><div className="grand-total"><span>Total</span><strong>{money(total)}</strong></div></div>
-
-            <Field label="Tipo">
-              <SelectInput value={orderType} onChange={(event) => setOrderType(event.target.value as 'take_away' | 'dine_in')}>
-                <option value="take_away">Retirada / balcão</option>
-                <option value="dine_in">Consumo no local</option>
-              </SelectInput>
-            </Field>
-            {orderType === 'dine_in' && <>
-              <Field label="Mesa">
-                <SelectInput value={tableId ?? ''} onChange={(event) => setTableId(event.target.value ? Number(event.target.value) : null)}>
-                  <option value="">Escolha a mesa</option>
-                  {tables.map((table) => <option key={table.id} value={table.id}>Mesa {table.number} ({table.capacity})</option>)}
-                </SelectInput>
-              </Field>
-              <Field label="Pessoas">
-                <TextInput type="number" min={1} max={50} value={partySize} onChange={(event) => setPartySize(Number(event.target.value))} />
-              </Field>
-            </>}
-            <Field label="Pagamento">
-              <SelectInput value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as 'cash' | 'card' | 'pix')}>
-                <option value="cash">Dinheiro</option>
-                <option value="card">Cartão</option>
-                <option value="pix">Pix</option>
-              </SelectInput>
-            </Field>
-            {paymentMethod === 'cash' && <Field label="Valor recebido" hint="Para calcular o troco">
-              <TextInput inputMode="decimal" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} placeholder="Ex.: 50,00" />
-            </Field>}
-            <Button variant="primary" block disabled={busy || !ticket.length} onClick={() => void finish()}>Finalizar venda</Button>
-            {sale && <p className="form-help">Última venda #{sale.id} · {money(sale.totalCents)}{sale.changeCents > 0 ? ` · troco ${money(sale.changeCents)}` : ''}</p>}
+      <div className="pr-form pdv-options">
+        <div className="pr-field">Tipo
+          <div className="pr-seg pdv-seg" role="group" aria-label="Tipo">
+            {([['take_away', 'Retirada / balcão'], ['dine_in', 'Consumo no local']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={orderType === value} onClick={() => setOrderType(value)}>{label}</button>)}
           </div>
         </div>
-        {message && <Alert tone="info">{message}</Alert>}
-      </Card>
+        {orderType === 'dine_in' && <div className="pr-form-row pdv-table-row">
+          <label className="pr-field">Mesa
+            <select value={tableId ?? ''} onChange={(event) => setTableId(event.target.value ? Number(event.target.value) : null)}>
+              <option value="">Escolha a mesa</option>
+              {tables.map((table) => <option key={table.id} value={table.id}>Mesa {table.number} ({table.capacity})</option>)}
+            </select>
+          </label>
+          <label className="pr-field">Pessoas
+            <input type="number" min={1} max={50} value={partySize} onChange={(event) => setPartySize(Number(event.target.value))} />
+          </label>
+        </div>}
+        <div className="pr-field">Pagamento
+          <div className="pr-seg pdv-seg" role="group" aria-label="Pagamento">
+            {([['cash', 'Dinheiro'], ['card', 'Cartão'], ['pix', 'Pix']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={paymentMethod === value} onClick={() => setPaymentMethod(value)}>{label}</button>)}
+          </div>
+        </div>
+        {paymentMethod === 'cash' && <label className="pr-field">Valor recebido
+          <input inputMode="decimal" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} placeholder="Para o troco, ex.: 50,00" />
+        </label>}
+      </div>
+
+      <div className="pdv-total"><span>Total</span><strong>{money(total)}</strong></div>
+      {message && <Alert tone="info">{message}</Alert>}
+      {!inSheet && finishButton}
+      {sale && <p className="pdv-last-sale">Última venda #{sale.id} · {money(sale.totalCents)}{sale.changeCents > 0 ? ` · troco ${money(sale.changeCents)}` : ''}</p>}
+    </div>;
+  }
+
+  return (
+    <div className="pdv-page">
+      <div className="pdv-layout">
+        <section className="pdv-catalog" aria-label="Pratos">
+          <label className="pdv-search">
+            <Icon name="search" size={18} />
+            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar prato" aria-label="Buscar prato" />
+          </label>
+          {products.length === 0 ? <div className="pr-card"><Empty icon="search">Nenhum prato</Empty></div> : (
+            <div className="pdv-products">
+              {products.map((product) => {
+                const quantity = quantityOf(product.id);
+                return (
+                  <button key={product.id} type="button" className={`pdv-product${quantity ? ' is-picked' : ''}`} onClick={() => add(product)} aria-label={`${product.name}, ${money(product.price_cents)}${quantity ? `, ${quantity} na comanda` : ''}`}>
+                    <span className="pdv-product-media">
+                      {product.image_url ? <img src={product.image_url} alt="" loading="lazy" /> : <span>{product.name.slice(0, 1)}</span>}
+                      {quantity > 0 && <span className="pdv-product-qty">{quantity}</span>}
+                    </span>
+                    <span className="pdv-product-info">
+                      <strong>{product.name}</strong>
+                      <span>{money(product.price_cents)}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <aside className="pr-card pdv-ticket" aria-label="Comanda">{renderTicket(false)}</aside>
+      </div>
+
+      <div className="pdv-bar">
+        <button type="button" className="pdv-bar-button" onClick={() => setSheetOpen(true)}>
+          <span className="pdv-bar-count">{itemCount}</span>
+          <span className="pdv-bar-label">{itemCount ? 'Ver comanda' : 'Comanda vazia'}</span>
+          <strong>{money(total)}</strong>
+        </button>
+      </div>
+
+      <Drawer open={sheetOpen} title={itemCount ? `Comanda · ${itemCount} ${itemCount === 1 ? 'item' : 'itens'}` : 'Comanda'} onClose={() => setSheetOpen(false)} footer={finishButton}>
+        {renderTicket(true)}
+      </Drawer>
     </div>
   );
 }

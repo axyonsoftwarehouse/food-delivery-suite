@@ -1,0 +1,76 @@
+/*
+ * Financeiro (pf-), Promoções (pm-) e Minha página (pp-) do restaurante, sobre as classes pr- de
+ * painel-vitrine.css.
+ */
+
+/* -------------------------------- Financeiro -------------------------------- */
+.pf-period { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.pf-dates { display: flex; align-items: center; gap: 8px; }
+.shell .pf-dates input { height: 42px; padding: 0 12px; font: 500 14px var(--font-sans); }
+.pf-unit { display: none; }
+.pf-total { background: var(--surface-muted); }
+.pf-rank { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-muted); color: var(--text-muted); font-size: 13px; font-weight: 800; }
+.pf-head-total { color: var(--text-muted); font-size: 14px; white-space: nowrap; }
+.pf-head-total strong { margin-left: 4px; color: var(--text); font-size: 16px; }
+.shell .pf-remove { background: transparent; color: var(--text-muted); }
+.shell .pf-remove:hover { background: var(--danger-soft); color: var(--danger); }
+
+/* Respiro entre o título do bloco e o primeiro campo dos formulários. */
+.pr-card.fpp-form > .pr-card-head { margin-bottom: 16px; }
+
+/* -------------------------------- Promoções -------------------------------- */
+.pm-icon { color: var(--brand-700); background: var(--brand-050); }
+.pm-icon.is-off { color: var(--text-muted); background: var(--surface-muted); }
+.pm-code { letter-spacing: 0.4px; font-variant-numeric: tabular-nums; }
+.pm-type { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 8px; }
+.pm-program-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+/* ------------------------------- Minha página ------------------------------- */
+.pp-cover { position: relative; display: grid; align-content: end; min-height: 220px; overflow: hidden; border-radius: 14px; background: var(--surface-muted); aspect-ratio: 16 / 5; }
+.pp-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pp-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.62)); }
+.pp-cover-text { position: relative; z-index: 1; display: grid; gap: 4px; padding: 22px 24px; color: #fff; }
+.pp-cover-text strong { font: 800 26px/1.15 var(--font-display); letter-spacing: -0.5px; text-wrap: balance; }
+.pp-cover-text span { opacity: 0.85; font-size: 14px; }
+.pp-cover.is-empty { place-items: center; align-content: center; color: var(--text-muted); }
+.pp-cover.is-empty::after { display: none; }
+.pp-cover-empty { display: grid; justify-items: center; gap: 6px; font-size: 14px; }
+.pp-cover-controls { display: flex; align-items: end; gap: 10px; margin-top: 14px; }
+.pp-cover-controls .pr-field { flex: 1; min-width: 0; }
+.pp-upload { position: relative; display: flex; flex: none; }
+.pp-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.shell .pp-upload .pr-btn { height: 44px; }
+.pp-upload input:focus-visible + .pr-btn { box-shadow: 0 0 0 4px var(--focus-ring); }
+.pp-upload input:disabled + .pr-btn { opacity: 0.45; cursor: not-allowed; }
+
+/* --------------------------------- Celular --------------------------------- */
+@media (max-width: 860px) {
+  .pf-toolbar { gap: 10px; }
+  .pf-period, .pf-period > .pr-seg { width: 100%; }
+  .shell .pf-period > .pr-seg button { flex: 1; padding: 0 8px; }
+  .pf-dates { width: 100%; }
+  .shell .pf-dates input { flex: 1; width: 0; min-width: 0; box-sizing: border-box; }
+  .pf-toolbar .pr-toolbar-actions > .pr-seg { width: 100%; }
+  .shell .pf-toolbar .pr-toolbar-actions > .pr-seg button { flex: 1; }
+  .pf-unit { display: inline; }
+  .pf-table .pr-table-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'a c' 'b c'; }
+  .pf-table .pr-table-row > :nth-child(1) { grid-area: a; }
+  .pf-table .pr-table-row > :nth-child(2) { grid-area: b; text-align: left; font-size: 13px; }
+  .pf-table .pr-table-row > :nth-child(3) { grid-area: c; align-self: center; }
+  .pr-row.pf-expense, .pr-row.pm-row { flex-wrap: nowrap; }
+  .pm-row .pr-row-actions { width: auto; flex-wrap: nowrap; }
+  .pp-cover { min-height: 170px; aspect-ratio: 16 / 9; }
+  .pm-type { grid-template-columns: minmax(0, 1fr) 150px; }
+  .pm-ref-row { gap: 6px 14px; }
+  .pm-ref-row > .pr-row-main { flex-basis: 100%; }
+  .pm-ref-row > .pr-row-main > strong { white-space: normal; }
+  .pp-cover-text { padding: 16px; }
+  .pp-cover-text strong { font-size: 20px; }
+  .pp-cover-controls { flex-direction: column; align-items: stretch; }
+  .pp-upload .pr-btn { width: 100%; }
+}
+
+/* No celular a regra .pr-card { padding: 16px } vence .pr-card--flush (mesma especificidade, vem depois). */
+@media (max-width: 860px) {
+  .pr-card.pr-card--flush.fpp { padding: 0; }
+}
