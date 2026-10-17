@@ -2238,7 +2238,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        delete: operations["remove_1"];
         options?: never;
         head?: never;
         patch: operations["change"];
@@ -2796,6 +2796,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["storeLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/restaurant/subscription/charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["myCharges"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4044,6 +4060,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["trail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/subscription-charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminCharges"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11429,6 +11461,33 @@ export interface operations {
             };
         };
     };
+    remove_1: {
+        parameters: {
+            query?: {
+                variationId?: number;
+                addonIds?: number[];
+            };
+            header?: never;
+            path: {
+                productId: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CartSnapshot"];
+                };
+            };
+        };
+    };
     change: {
         parameters: {
             query?: never;
@@ -12905,6 +12964,30 @@ export interface operations {
                     "*/*": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    myCharges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };
@@ -14905,6 +14988,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SupportEntry"][];
+                };
+            };
+        };
+    };
+    adminCharges: {
+        parameters: {
+            query: {
+                restaurantId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };

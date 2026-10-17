@@ -22,7 +22,7 @@ export default function CarrinhoPage() {
   const [recurringBusy, setRecurringBusy] = useState(false);
   const [recurringMessage, setRecurringMessage] = useState('');
   const [removing, setRemoving] = useState<string | null>(null);
-  const { cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
+  const { cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, removeItem, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
   const parsedTip = Number(tip.replace(',', '.'));
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
   const total = subtotal + orderFee - discount + serviceFee + tipCents;
@@ -39,6 +39,13 @@ export default function CarrinhoPage() {
     if (quantity > 1 || prefersReducedMotion()) { void changeQuantity(productId, variationId, addonIds, -1); return; }
     setRemoving(key);
     window.setTimeout(() => { void changeQuantity(productId, variationId, addonIds, -1); setRemoving(null); }, 220);
+  }
+
+  // O botão "Remover" apaga a linha inteira; o "-" do seletor continua tirando uma unidade.
+  function removeLine(key: string, productId: number, variationId: number, addonIds: number[]) {
+    if (prefersReducedMotion()) { void removeItem(productId, variationId, addonIds); return; }
+    setRemoving(key);
+    window.setTimeout(async () => { await removeItem(productId, variationId, addonIds); setRemoving(null); }, 220);
   }
 
   function payLater(method: 'cash' | 'card' | 'pix') { setManual(false); setModality('on_delivery'); setPaymentMethod(method); }
@@ -84,18 +91,26 @@ export default function CarrinhoPage() {
     <div className="lj-cart-layout">
       <div className="lj-cart-main">
         <section className="lj-panel" aria-label="Itens">
-          <ul className="lj-items">{cartEntries.map(({ product, quantity, variationId, variationName, addonIds, addonNames, unitPriceCents }) => <li className={`lj-item${removing === `${product.id}-${variationId}-${addonIds.join('.')}` ? ' is-removing' : ''}`} key={`${product.id}-${variationId}-${addonIds.join('.')}`}>
-            <div className="lj-item-text">
-              <strong>{product.name}</strong>
-              {(variationName || addonNames.length > 0) && <small>{[variationName, ...addonNames].filter(Boolean).join(' · ')}</small>}
-              <Rolling value={money(unitPriceCents * quantity)} className="lj-item-price" />
-            </div>
-            <div className="lj-stepper">
-              <button type="button" onClick={() => decrease(`${product.id}-${variationId}-${addonIds.join('.')}`, product.id, variationId, addonIds, quantity)} disabled={cartBusy || removing !== null} aria-label={quantity === 1 ? `Remover ${product.name}` : `Remover uma unidade de ${product.name}`}><Icon name={quantity === 1 ? 'trash' : 'minus'} size={15} /></button>
-              <Rolling value={quantity} />
-              <button type="button" onClick={() => changeQuantity(product.id, variationId, addonIds, 1)} disabled={cartBusy} aria-label={`Adicionar uma unidade de ${product.name}`}><Icon name="plus" size={15} /></button>
-            </div>
-          </li>)}</ul>
+          <ul className="lj-items">{cartEntries.map(({ product, quantity, variationId, variationName, addonIds, addonNames, unitPriceCents }) => {
+            const key = `${product.id}-${variationId}-${addonIds.join('.')}`;
+            return <li className={`lj-item${removing === key ? ' is-removing' : ''}`} key={key}>
+              <div className="lj-item-text">
+                <strong>{product.name}</strong>
+                {(variationName || addonNames.length > 0) && <small>{[variationName, ...addonNames].filter(Boolean).join(' · ')}</small>}
+                <Rolling value={money(unitPriceCents * quantity)} className="lj-item-price" />
+              </div>
+              <div className="lj-item-actions">
+                <div className="lj-stepper">
+                  <button type="button" onClick={() => decrease(key, product.id, variationId, addonIds, quantity)} disabled={cartBusy || removing !== null} aria-label={`Remover uma unidade de ${product.name}`}><Icon name="minus" size={15} /></button>
+                  <Rolling value={quantity} />
+                  <button type="button" onClick={() => changeQuantity(product.id, variationId, addonIds, 1)} disabled={cartBusy} aria-label={`Adicionar uma unidade de ${product.name}`}><Icon name="plus" size={15} /></button>
+                </div>
+                <button type="button" className="lj-item-remove" onClick={() => removeLine(key, product.id, variationId, addonIds)} disabled={cartBusy || removing !== null} aria-label={`Remover ${product.name} do carrinho`}>
+                  <Icon name="trash" size={13} />{'Remover'}
+                </button>
+              </div>
+            </li>;
+          })}</ul>
           {cartRestaurant && <Link className="lj-text-button" href={`/loja/restaurantes/${cartRestaurant.id}`}><Icon name="plus" size={16} />{'Adicionar mais itens'}</Link>}
         </section>
 

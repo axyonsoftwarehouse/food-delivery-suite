@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -57,6 +58,15 @@ public class CartController {
                                            @Valid @RequestBody DeltaRequest request) {
         if (Math.abs(request.delta()) != 1) throw new ApiException(400, "Alteração de quantidade inválida");
         return cart.change(customer(token), productId, request.variationId() == null ? 0 : request.variationId(), request.addonIds(), request.delta());
+    }
+
+    /** Remove a linha inteira, independente da quantidade (o `PATCH` só altera uma unidade por vez). */
+    @DeleteMapping("/items/{productId}")
+    public CartService.CartSnapshot remove(@CookieValue(value = "foodie_session", required = false) String token,
+                                           @PathVariable @Positive long productId,
+                                           @RequestParam(required = false) Long variationId,
+                                           @RequestParam(required = false) List<Long> addonIds) {
+        return cart.remove(customer(token), productId, variationId == null ? 0 : variationId, addonIds);
     }
 
     @PostMapping("/import")
