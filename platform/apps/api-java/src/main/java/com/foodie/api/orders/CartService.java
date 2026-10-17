@@ -86,6 +86,16 @@ public class CartService {
         return snapshot(customer.id());
     }
 
+    /** Remove a linha do carrinho sem se importar com a quantidade atual (idempotente). */
+    @Transactional
+    public CartSnapshot remove(User customer, long productId, long variationId, List<Long> addonIds) {
+        lock(customer.id());
+        prune(customer.id());
+        jdbc.update("DELETE FROM cart_items WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ?",
+            customer.id(), productId, variationId, AddonService.key(addonIds));
+        return snapshot(customer.id());
+    }
+
     @Transactional
     public CartSnapshot importIfEmpty(User customer, List<CartController.ImportItem> items) {
         lock(customer.id());
