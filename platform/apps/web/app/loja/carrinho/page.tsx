@@ -29,7 +29,7 @@ export default function CarrinhoPage() {
   const cartRestaurant = cartEntries.length ? restaurantById.get(cartEntries[0].product.restaurant_id) : undefined;
   const minimum = selectedZone?.minimum_order_cents ?? 0;
   const minimumProgress = minimum > 0 ? Math.min(1, subtotal / minimum) : 1;
-  const checkoutDisabled = busy || placing || cartBusy || (orderType === 'delivery' && (!selectedAddress?.postal_code || !meetsMinimum || !cartCovered)) || (orderType === 'dine_in' && tableId === null) || (manual && (!manualMethodId || (offlineMethods.find((method) => method.id === manualMethodId)?.requires_proof && !proofUrl.trim()))) || (orderType === 'delivery' && contactPhone.replace(/\D/g, '').length < 10) || (cartRestaurantClosed && !scheduledFor);
+  const checkoutDisabled = busy || placing || cartBusy || cartEntries.some((entry) => !entry.available) || (orderType === 'delivery' && (!selectedAddress?.postal_code || !meetsMinimum || !cartCovered)) || (orderType === 'dine_in' && tableId === null) || (manual && (!manualMethodId || (offlineMethods.find((method) => method.id === manualMethodId)?.requires_proof && !proofUrl.trim()))) || (orderType === 'delivery' && contactPhone.replace(/\D/g, '').length < 10) || (cartRestaurantClosed && !scheduledFor);
   const payNow = !manual && modality === 'online';
   const checkoutLabel = placing ? 'Processando...' : payNow ? (paymentMethod === 'card' ? 'Pedir e pagar com cartão' : 'Pedir e pagar com Pix') : 'Fazer pedido';
   const atDoor = orderType === 'delivery' ? 'ao entregador' : orderType === 'take_away' ? 'na retirada' : 'no local';
@@ -84,16 +84,17 @@ export default function CarrinhoPage() {
     <div className="lj-cart-layout">
       <div className="lj-cart-main">
         <section className="lj-panel" aria-label="Itens">
-          <ul className="lj-items">{cartEntries.map(({ product, quantity, variationId, variationName, addonIds, addonNames, unitPriceCents }) => <li className={`lj-item${removing === `${product.id}-${variationId}-${addonIds.join('.')}` ? ' is-removing' : ''}`} key={`${product.id}-${variationId}-${addonIds.join('.')}`}>
+          <ul className="lj-items">{cartEntries.map(({ product, quantity, variationId, variationName, addonIds, addonNames, unitPriceCents, available, unavailableReason }) => <li className={`lj-item${removing === `${product.id}-${variationId}-${addonIds.join('.')}` ? ' is-removing' : ''}${available ? '' : ' is-unavailable'}`} key={`${product.id}-${variationId}-${addonIds.join('.')}`}>
             <div className="lj-item-text">
               <strong>{product.name}</strong>
               {(variationName || addonNames.length > 0) && <small>{[variationName, ...addonNames].filter(Boolean).join(' · ')}</small>}
+              {!available && <small className="lj-item-unavailable">{unavailableReason ?? 'Indisponível'}</small>}
               <Rolling value={money(unitPriceCents * quantity)} className="lj-item-price" />
             </div>
             <div className="lj-stepper">
               <button type="button" onClick={() => decrease(`${product.id}-${variationId}-${addonIds.join('.')}`, product.id, variationId, addonIds, quantity)} disabled={cartBusy || removing !== null} aria-label={quantity === 1 ? `Remover ${product.name}` : `Remover uma unidade de ${product.name}`}><Icon name={quantity === 1 ? 'trash' : 'minus'} size={15} /></button>
               <Rolling value={quantity} />
-              <button type="button" onClick={() => changeQuantity(product.id, variationId, addonIds, 1)} disabled={cartBusy} aria-label={`Adicionar uma unidade de ${product.name}`}><Icon name="plus" size={15} /></button>
+              <button type="button" onClick={() => changeQuantity(product.id, variationId, addonIds, 1)} disabled={cartBusy || !available} aria-label={`Adicionar uma unidade de ${product.name}`}><Icon name="plus" size={15} /></button>
             </div>
           </li>)}</ul>
           {cartRestaurant && <Link className="lj-text-button" href={`/loja/restaurantes/${cartRestaurant.id}`}><Icon name="plus" size={16} />{'Adicionar mais itens'}</Link>}
@@ -169,7 +170,7 @@ export default function CarrinhoPage() {
             <p className="lj-help">{'Pagamento na entrega; o restaurante aceita cada pedido.'}</p>
             <label className="lj-field lj-field--inline">{'Repetir a cada'}<input type="number" min={1} max={90} value={frequencyDays} onChange={(event) => setFrequencyDays(Number(event.target.value))} />{' dias'}</label>
             <label className="lj-field">{'Primeiro pedido em'}<input type="datetime-local" value={firstRunAt} onChange={(event) => setFirstRunAt(event.target.value)} /></label>
-            <button type="button" className="lj-outline-button" onClick={() => void createRecurring()} disabled={recurringBusy || cartBusy || !selectedAddress?.postal_code || !cartCovered || !meetsMinimum || modality !== 'on_delivery' || manual || cartEntries.some((entry) => entry.addonIds.length > 0) || frequencyDays < 1 || frequencyDays > 90}>{recurringBusy ? 'Salvando...' : 'Criar recorrência'}</button>
+            <button type="button" className="lj-outline-button" onClick={() => void createRecurring()} disabled={recurringBusy || cartBusy || !selectedAddress?.postal_code || !cartCovered || !meetsMinimum || modality !== 'on_delivery' || manual || cartEntries.some((entry) => entry.addonIds.length > 0 || !entry.available) || frequencyDays < 1 || frequencyDays > 90}>{recurringBusy ? 'Salvando...' : 'Criar recorrência'}</button>
             {cartEntries.some((entry) => entry.addonIds.length > 0) && <p className="lj-help">{'Remova os adicionais para criar uma recorrência.'}</p>}
             {recurringMessage && <p role="status" className="lj-help">{recurringMessage} <Link href="/loja/perfil">{'Ver minhas recorrências'}</Link></p>}
           </div>
@@ -177,6 +178,7 @@ export default function CarrinhoPage() {
       </div>
 
       <aside className="lj-panel lj-summary" aria-label="Resumo do pedido" id="resumo">
+        {cartEntries.some((entry) => !entry.available) && <p className="customer-minimum">{'Remova os itens indisponíveis para continuar.'}</p>}
         {orderType === 'delivery' && minimum > 0 && !meetsMinimum && <div className="lj-minimum">
           <span>{`Faltam ${money(minimum - subtotal)} para o pedido mínimo`}</span>
           <span className="lj-minimum-track"><span style={{ transform: `scaleX(${minimumProgress})` }} /></span>
