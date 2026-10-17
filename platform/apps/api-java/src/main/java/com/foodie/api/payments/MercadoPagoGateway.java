@@ -181,7 +181,7 @@ public class MercadoPagoGateway implements PaymentGateway {
         corpo.put("type", "online");
         corpo.put("processing_mode", "automatic");
         corpo.put("total_amount", dinheiro(request.amountCents()));
-        corpo.put("external_reference", String.valueOf(request.orderId()));
+        corpo.put("external_reference", request.externalReference() == null ? String.valueOf(request.orderId()) : request.externalReference());
 
         Map<String, Object> pagador = new LinkedHashMap<>();
         pagador.put("email", request.payerEmail());

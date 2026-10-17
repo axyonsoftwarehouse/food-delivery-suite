@@ -11,7 +11,7 @@ type Staff = { id: number; name: string; email: string; role: string; staffRoleI
 const ACCESS_LABELS: Record<string, string> = { restaurant: 'Responsável', kitchen: 'Cozinha' };
 
 export default function RestaurantTeamPanel() {
-  const { busy, run } = useApp();
+  const { busy, run, user } = useApp();
   const [catalog, setCatalog] = useState<Permission[]>([]);
   const [roles, setRoles] = useState<RestaurantRole[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -55,6 +55,8 @@ export default function RestaurantTeamPanel() {
   }
 
   const groups = Array.from(new Set(catalog.map((item) => item.group)));
+  const ownAccess = staff.find((person) => person.id === user?.id);
+  const canManage = !loading && ownAccess?.role === 'restaurant' && ownAccess.staffRoleId === null;
 
   async function createRole(event: React.FormEvent) {
     event.preventDefault();
@@ -110,7 +112,7 @@ export default function RestaurantTeamPanel() {
   return (
     <div className="team-panel">
       <Card title="Papéis e permissões" subtitle="Crie papéis com as permissões que cada função da equipe precisa.">
-        <form className="form-grid" onSubmit={createRole}>
+        {canManage && <form className="form-grid" onSubmit={createRole}>
           <Field label="Nome do papel">
             <TextInput value={roleName} onChange={(event) => setRoleName(event.target.value)} placeholder="Ex.: Garçom" required />
           </Field>
@@ -131,12 +133,13 @@ export default function RestaurantTeamPanel() {
           <Button type="submit" variant="secondary" disabled={busy || roleName.trim().length < 2}>
             Criar papel
           </Button>
-        </form>
+        </form>}
+        {!loading && !canManage && <p>Só o dono da loja altera papéis e acessos da equipe.</p>}
 
         {loading ? (
           <Spinner />
         ) : roles.length === 0 ? (
-          <EmptyState title="Nenhum papel criado">Sem papel, o acesso usa o padrão do tipo (Cozinha ou Responsável).</EmptyState>
+          <EmptyState title="Nenhum papel criado">Crie um papel antes de cadastrar funcionários do painel.</EmptyState>
         ) : (
           <ul className="team-list">
             {roles.map((role) => (
@@ -144,16 +147,16 @@ export default function RestaurantTeamPanel() {
                 <span>
                   <strong>{role.name}</strong> <Badge tone="info">{role.permissions.length} permissões</Badge>
                 </span>
-                <Button variant="danger" size="sm" disabled={busy} onClick={() => void removeRole(role.id)}>
+                {canManage && <Button variant="danger" size="sm" disabled={busy} onClick={() => void removeRole(role.id)}>
                   Excluir
-                </Button>
+                </Button>}
               </li>
             ))}
           </ul>
         )}
       </Card>
 
-      <Card title="Novo acesso" subtitle="Cadastre um funcionário e vincule um papel.">
+      {canManage && <Card title="Novo acesso" subtitle="Cadastre um funcionário e vincule um papel.">
         <form className="form-grid" onSubmit={createStaff}>
           <Field label="Nome">
             <TextInput value={staffName} onChange={(event) => setStaffName(event.target.value)} required />
@@ -170,9 +173,9 @@ export default function RestaurantTeamPanel() {
               <option value="restaurant">Responsável (painel)</option>
             </SelectInput>
           </Field>
-          <Field label="Papel" hint="Sem papel: usa o padrão do tipo">
-            <SelectInput value={staffRoleId} onChange={(event) => setStaffRoleId(event.target.value)}>
-              <option value="">Padrão do tipo</option>
+          <Field label="Papel" hint={staffAccess === 'restaurant' ? 'Obrigatório para funcionários do painel' : 'Sem papel: usa o padrão da cozinha'}>
+            <SelectInput value={staffRoleId} required={staffAccess === 'restaurant'} onChange={(event) => setStaffRoleId(event.target.value)}>
+              <option value="">{staffAccess === 'restaurant' ? 'Selecione um papel' : 'Padrão da cozinha'}</option>
               {roles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name}
@@ -180,11 +183,11 @@ export default function RestaurantTeamPanel() {
               ))}
             </SelectInput>
           </Field>
-          <Button type="submit" variant="secondary" disabled={busy}>
+          <Button type="submit" variant="secondary" disabled={busy || (staffAccess === 'restaurant' && !staffRoleId)}>
             Criar acesso
           </Button>
         </form>
-      </Card>
+      </Card>}
 
       <Card title="Funcionários">
         {loading ? (
@@ -198,8 +201,8 @@ export default function RestaurantTeamPanel() {
                 <span>
                   <strong>{person.name}</strong> · {person.email} · {ACCESS_LABELS[person.role] ?? person.role}
                 </span>
-                <SelectInput value={person.staffRoleId ?? ''} aria-label={`Papel de ${person.name}`} disabled={busy} onChange={(event) => void assignRole(person.id, event.target.value)}>
-                  <option value="">Padrão do tipo</option>
+                <SelectInput value={person.staffRoleId ?? ''} aria-label={`Papel de ${person.name}`} disabled={busy || !canManage || (person.role === 'restaurant' && person.staffRoleId === null)} onChange={(event) => void assignRole(person.id, event.target.value)}>
+                  {(person.role === 'kitchen' || person.staffRoleId === null) && <option value="">{person.role === 'restaurant' ? 'Dono da loja' : 'Padrão da cozinha'}</option>}
                   {roles.map((role) => (
                     <option key={role.id} value={role.id}>
                       {role.name}

@@ -86,9 +86,12 @@ public class OnlinePaymentService {
         long restaurantId = ((Number) order.get("restaurant_id")).longValue();
 
         List<Map<String, Object>> payments = jdbc.queryForList(
-            "SELECT id, status, method, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents, payment_account_id FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+            "SELECT id, modality, status, method, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents, payment_account_id FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (payments.isEmpty()) throw new ApiException(409, "Pagamento do pedido não encontrado");
         Map<String, Object> payment = payments.getFirst();
+        if (!"online".equals(payment.get("modality"))) {
+            throw new ApiException(409, "Este pedido não foi criado para pagamento online");
+        }
         String paymentStatus = (String) payment.get("status");
         boolean pixAbertoParaCartao = false;
         if ("paid".equals(paymentStatus)) throw new ApiException(409, "Este pedido já está pago");

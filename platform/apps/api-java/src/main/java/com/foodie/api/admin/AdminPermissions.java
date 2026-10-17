@@ -29,6 +29,8 @@ public final class AdminPermissions {
     public static final String AUDIT_VIEW = "audit.view";
     public static final String SUPPORT_VIEW = "support.view";
     public static final String SUPPORT_ACT = "support.act";
+    public static final String FILES_VIEW = "files.view";
+    public static final String FILES_MANAGE = "files.manage";
 
     public record Descriptor(String key, String label, String group) {}
 
@@ -50,7 +52,9 @@ public final class AdminPermissions {
         new Descriptor(SETTINGS_MANAGE, "Gerenciar configurações", "Administração"),
         new Descriptor(AUDIT_VIEW, "Ver trilha administrativa", "Administração"),
         new Descriptor(SUPPORT_VIEW, "Ver lojas no modo suporte", "Suporte"),
-        new Descriptor(SUPPORT_ACT, "Intervir em lojas no modo suporte", "Suporte")
+        new Descriptor(SUPPORT_ACT, "Intervir em lojas no modo suporte", "Suporte"),
+        new Descriptor(FILES_VIEW, "Ver arquivos privados de terceiros", "Arquivos"),
+        new Descriptor(FILES_MANAGE, "Excluir arquivos de terceiros", "Arquivos")
     );
 
     private static final Set<String> ALL = CATALOG.stream().map(Descriptor::key).collect(Collectors.toUnmodifiableSet());
