@@ -1,15 +1,17 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 16/10/2026.
-Correções locais de segurança em 16/10/2026: equipe, modalidade do pagamento,
+Documento vivo. Última atualização: 17/10/2026.
+Correções de segurança em 16/10/2026: equipe, modalidade do pagamento,
 webhook/concorrência da assinatura, fatura e chat; revisão complementar com oito
 correções de concorrência, login, 3DS, arquivos privados e cotas de SMS. Migration
 local `V070` impede excluir papéis ainda atribuídos. Ver
 `CORRECOES_REVISAO_SEGURANCA_2026-10-16.md`. `VERIFY_INTEGRATION=1 pnpm verify`
 passou com Docker em 16/10 (811 testes Java: 799 habituais + 12 com MariaDB real,
 sem falhas ou testes ignorados; 22 testes do site, 21 da cozinha e cinco smokes).
-Ambiente efêmero removido; sem commit/push/deploy. Provedor externo simulado;
-homologação e publicação **(a confirmar)**.
+Após mesclar com a `main`, `pnpm verify` passou em 17/10 (812 testes Java: 800
+executados + 12 de integração ignorados com Docker parado; 22 do site, 21 da
+cozinha e 13 COPYs). Provedor externo simulado; homologação e publicação
+**(a confirmar)**.
 Base: `PLANO_EPICOS.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
