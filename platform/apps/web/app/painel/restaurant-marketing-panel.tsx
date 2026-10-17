@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, useApp } from '../app-context';
+import { uploadFile } from '../files';
 import { Icon, type IconName } from '../icons';
 import { Card, Drawer, Empty, Switch, Tabs, Toolbar } from './kit';
 
@@ -139,11 +140,28 @@ function Ads({ onMessage }: { onMessage: (m: string) => void }) {
   const [type, setType] = useState('image');
   const [mediaUrl, setMediaUrl] = useState('');
   const [targetUrl, setTargetUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+
+  async function uploadMedia(file: File) {
+    setUploading(true);
+    try {
+      const stored = await uploadFile(file, 'product');
+      setMediaUrl(stored.url);
+      onMessage('Imagem enviada.');
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : 'Não foi possível enviar a imagem.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return <ListWithDrawer newLabel="Novo anúncio" formId="pm-ad-form" submitLabel="Criar anúncio" open={open} setOpen={setOpen} empty={rows.length ? null : 'Nenhum anúncio.'} emptyIcon="sparkle"
     form={<form id="pm-ad-form" className="pr-form" onSubmit={(event) => { event.preventDefault(); void act('/restaurant/marketing/advertisements', 'POST', { title, type, mediaUrl, targetUrl }, 'Anúncio criado.', () => { setOpen(false); void reload(); }, onMessage); setTitle(''); setMediaUrl(''); setTargetUrl(''); }}>
       <label className="pr-field">Título<input value={title} onChange={(event) => setTitle(event.target.value)} required minLength={2} /></label>
       <label className="pr-field">Tipo<select value={type} onChange={(event) => setType(event.target.value)}><option value="image">Imagem</option><option value="video">Vídeo</option></select></label>
-      <label className="pr-field">Mídia (URL)<input value={mediaUrl} onChange={(event) => setMediaUrl(event.target.value)} required /></label>
+      <label className="pr-field">Mídia (URL)<input value={mediaUrl} onChange={(event) => setMediaUrl(event.target.value)} placeholder={type === 'video' ? 'https://...' : 'Envie a imagem ou cole uma URL'} required /></label>
+      {type === 'image' && <label className="pr-field">Ou envie a imagem<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadMedia(file); event.target.value = ''; }} /><small className="pr-muted">{uploading ? 'Enviando...' : 'PNG, JPEG, WebP ou GIF até 5 MB'}</small></label>}
+      {type === 'image' && mediaUrl && <img src={mediaUrl} alt="Prévia do anúncio" style={{ display: 'block', maxWidth: 320, borderRadius: 12 }} />}
       <label className="pr-field">Link (opcional)<input value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} /></label>
     </form>}>
     {rows.map((ad) => <Row key={ad.id} icon={ad.type === 'video' ? 'eye' : 'sparkle'} image={ad.type === 'image' ? ad.media_url : null} off={!ad.active} title={ad.title}
