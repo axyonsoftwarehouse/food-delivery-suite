@@ -162,3 +162,20 @@ habituais + 12 com MariaDB real), sem falhas, erros ou testes ignorados**, inclu
 o webhook antecipado com as novas consultas; site, cozinha, tipos/builds, COPYs e
 os cinco smokes. Banco/API efêmeros removidos. Log local:
 `platform/apps/api-java/target/fix-achados-verify-integration.log` (não versionado).
+
+## Conferência das contas `restaurant` no ambiente publicado
+
+Conferência somente leitura no banco do staging (schema `069`, deploy `71d50ee`), em
+17/10/2026:
+
+- 3 contas com papel base `restaurant`, todas com `staff_role_id` nulo: Cozinha Demo
+  (`restaurante@demo.local`), Cantina do Bairro (`restaurante2@demo.local`) e Doceria
+  Estrela (`doceria@demo.local`). Cada uma é a única conta `restaurant` da própria
+  loja, então não há funcionário antigo sem papel a reclassificar nem mais de um
+  candidato a dono na mesma loja.
+- Nenhum `restaurant_role` cadastrado e nenhuma conta `kitchen` no ambiente.
+- As lojas Sushi Nori, Verde Vivo e Burger House não têm conta `restaurant` (dados de
+  demonstração).
+
+Nenhum dado foi alterado. Outros bancos/ambientes de produção, se existirem, exigem a
+mesma conferência **(a confirmar)**.
