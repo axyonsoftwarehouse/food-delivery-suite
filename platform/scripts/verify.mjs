@@ -101,6 +101,7 @@ if (integration) {
       const smokeEnv = { API_PORT: '4101', API_INTERNAL_URL: base, DEMO_PASSWORD: demoPassword };
       run('Smoke: fluxo completo', 'pnpm', ['--filter', '@foodie/tools', 'smoke'], { env: smokeEnv });
       run('Smoke: carrinho', 'pnpm', ['smoke:cart'], { env: smokeEnv });
+      run('Smoke: catálogo (contrato da lista)', 'pnpm', ['smoke:catalog'], { env: smokeEnv });
       run('Smoke: exceções', 'pnpm', ['smoke:exceptions'], { env: smokeEnv });
       run('Smoke: contas', 'pnpm', ['smoke:auth'], { env: smokeEnv });
       run('Smoke: cobertura por CEP', 'pnpm', ['smoke:coverage'], { env: smokeEnv });
