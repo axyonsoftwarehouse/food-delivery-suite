@@ -2804,6 +2804,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/subscription/charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["myCharges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/restaurant/reviews": {
         parameters: {
             query?: never;
@@ -4052,6 +4068,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/subscription-charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminCharges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/rewards/referrals": {
         parameters: {
             query?: never;
@@ -5084,6 +5116,8 @@ export interface components {
             unitPriceCents?: number;
             addonIds?: number[];
             addonNames?: string[];
+            available?: boolean;
+            unavailableReason?: string;
         };
         CartSnapshot: {
             items?: components["schemas"]["CartItem"][];
@@ -12909,6 +12943,30 @@ export interface operations {
             };
         };
     };
+    myCharges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
     restaurantList: {
         parameters: {
             query?: never;
@@ -14905,6 +14963,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SupportEntry"][];
+                };
+            };
+        };
+    };
+    adminCharges: {
+        parameters: {
+            query: {
+                restaurantId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };
