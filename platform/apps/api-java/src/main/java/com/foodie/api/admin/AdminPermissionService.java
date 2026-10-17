@@ -21,10 +21,13 @@ public class AdminPermissionService {
     public Set<String> effective(User user) {
         if (!"admin".equals(user.role())) return Set.of();
         return roles.findRoleForUser(user.id())
-            .map(role -> role.active()
-                ? role.permissions().stream().filter(AdminPermissions::isKnown).collect(java.util.stream.Collectors.toUnmodifiableSet())
-                : Set.<String>of())
-            .orElseGet(AdminPermissions::all);
+            .map(role -> {
+                if (!role.active()) return Set.<String>of();
+                if (role.fullAccess()) return AdminPermissions.all();
+                return role.permissions().stream().filter(AdminPermissions::isKnown).collect(java.util.stream.Collectors.toUnmodifiableSet());
+            })
+            // Fail-closed: sem papel explícito não há acesso administrativo.
+            .orElseGet(Set::of);
     }
 
     public boolean has(User user, String permission) {
