@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from '../app-context';
+import { Card, Empty } from './kit';
 
 type Refund = { id: number; order_id: number; customer_name: string; reason: string | null; note: string; status: string; created_at: string };
-const STATUS: Record<string, string> = { requested: 'aguardando', approved: 'aprovado', rejected: 'recusado' };
+const STATUS: Record<string, string> = { requested: 'Aguardando', approved: 'Aprovado', rejected: 'Recusado' };
+const TONE: Record<string, string> = { requested: 'is-warning', approved: 'is-brand', rejected: 'is-danger' };
 
 /** Pedidos de reembolso dos clientes: quem decide é a loja (o estorno é obrigação dela). */
 export default function RestaurantRefundsPanel() {
@@ -35,9 +37,18 @@ export default function RestaurantRefundsPanel() {
 
   if (!rows.length) return null;
 
-  return <section className="panel"><div className="panel-heading"><div><h2>Reembolsos</h2></div></div>
-    {rows.length ? <div className="postal-range-list">{rows.map((r) => <div key={r.id}><span><strong>#{r.order_id}</strong> · {r.customer_name} · {r.reason ?? 'sem motivo'}{r.note ? ` · ${r.note}` : ''} · {STATUS[r.status] ?? r.status}</span>
-      {r.status === 'requested' && <span style={{ display: 'flex', gap: 8 }}><button className="secondary-button" disabled={busy} onClick={() => void decide(r, 'approve')}>Aprovar</button><button className="availability-button" disabled={busy} onClick={() => void decide(r, 'reject')}>Recusar</button></span>}
-    </div>)}</div> : <p className="form-help">Nenhuma solicitação de reembolso.</p>}
-  </section>;
+  return <Card className="pr-card--flush" title="Reembolsos">
+    {rows.length ? <ul className="pr-list">{rows.map((r) => <li className="pr-row" key={r.id}>
+      <div className="pr-row-main">
+        <strong>#{r.order_id} · {r.customer_name}</strong>
+        <span>{r.reason ?? 'sem motivo'}{r.note ? ` · ${r.note}` : ''}</span>
+      </div>
+      {r.status === 'requested'
+        ? <div className="pr-row-actions">
+            <button className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" disabled={busy} onClick={() => void decide(r, 'reject')}>Recusar</button>
+            <button className="pr-btn pr-btn--soft pr-btn--sm" disabled={busy} onClick={() => void decide(r, 'approve')}>Aprovar</button>
+          </div>
+        : <span className={`pr-badge ${TONE[r.status] ?? ''}`}>{STATUS[r.status] ?? r.status}</span>}
+    </li>)}</ul> : <Empty>Nenhuma solicitação de reembolso.</Empty>}
+  </Card>;
 }

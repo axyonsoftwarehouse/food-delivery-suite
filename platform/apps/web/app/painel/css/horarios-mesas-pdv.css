@@ -1,0 +1,119 @@
+/*
+ * Horários (hr-), Mesas (ms-) e PDV (pdv-) no visual limpo do painel (classes pr- em painel-vitrine.css).
+ */
+
+/* -------------------------------- Horários -------------------------------- */
+.hr-page { display: grid; gap: 16px; min-width: 0; }
+.hr-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.shell .hr-timezone { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 4px 0 12px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--text-muted); }
+.shell .hr-timezone select { height: 38px; min-height: 0; padding: 0 8px; border: 0; background: transparent; color: var(--text); font: 600 14px var(--font-sans); box-shadow: none; }
+.hr-row { align-items: center; }
+.hr-day { flex: 0 0 150px; font-size: 15px; font-weight: 700; }
+.hr-slots { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.hr-slot { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 4px 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-muted); font-size: 14px; }
+.hr-slot-time { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hr-slot-night { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.shell .hr-slot-remove { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer; box-shadow: none; }
+.shell .hr-slot-remove:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+.shell .hr-slot-remove:disabled { opacity: 0.45; cursor: not-allowed; }
+.hr-closed { color: var(--text-faint); font-size: 14px; font-weight: 600; }
+
+@media (max-width: 860px) {
+  .pr-card--flush.hr-card { padding: 0; }
+  .hr-card .pr-row { padding-top: 14px; padding-bottom: 14px; }
+  .shell .hr-timezone { flex: 1; }
+  .shell .hr-timezone select { flex: 1; min-width: 0; }
+  .hr-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .hr-day { grid-column: 1; }
+  .pr-row-actions.hr-row-actions { grid-column: 2; grid-row: 1; width: auto; }
+  .hr-slots { grid-column: 1 / -1; }
+  .hr-slot { height: 40px; }
+  .shell .hr-slot-remove { width: 32px; height: 32px; }
+  .shell .hr-row-actions .pr-btn { height: 40px; }
+  .hr-times { grid-template-columns: 1fr 1fr; }
+}
+
+/* --------------------------------- Mesas --------------------------------- */
+.ms-page { display: grid; gap: 16px; min-width: 0; }
+.ms-loading { display: grid; place-items: center; padding: 40px; }
+.ms-number { background: var(--brand-050); color: var(--brand-700); font-size: 17px; }
+.ms-row.is-off .ms-number { background: var(--surface-muted); color: var(--text-faint); }
+.ms-row.is-off .pr-row-main > strong { color: var(--text-muted); }
+.ms-status { flex: none; width: 170px; }
+.pr-row-actions.ms-actions { flex-wrap: nowrap; gap: 12px; min-width: 300px; }
+.ms-stats .pr-stat-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-actions .pr-switch { min-width: 92px; }
+.shell .ms-delete { background: transparent; color: var(--text-muted); }
+.shell .ms-delete:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+.shell .ms-delete:disabled { opacity: 0.45; cursor: not-allowed; }
+
+@media (max-width: 860px) {
+  .pr-card--flush.ms-card { padding: 0; }
+  .ms-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px 12px; }
+  .ms-status { min-width: 0; }
+  .pr-row-actions.ms-actions { grid-column: 1 / -1; width: auto; min-width: 0; justify-content: flex-end; }
+  .ms-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .ms-stats .pr-stat { padding: 12px 14px; }
+  .ms-stats .pr-stat-value { font-size: 18px; }
+  .ms-status { width: auto; }
+  .ms-actions .pr-switch { order: -1; margin-right: auto; min-height: 40px; }
+  .shell .ms-actions .pr-btn--sm { height: 40px; }
+}
+
+/* ---------------------------------- PDV ---------------------------------- */
+.pdv-page { min-width: 0; }
+.pdv-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+.pdv-catalog { display: grid; gap: 14px; min-width: 0; }
+.shell .pdv-search { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--text-muted); }
+.shell .pdv-search:focus-within { border-color: var(--brand-500); }
+.shell .pdv-search input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: 400 15px var(--font-sans); box-shadow: none; }
+.pdv-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 12px; }
+.shell .pdv-product { display: grid; grid-template-rows: auto 1fr; padding: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); text-align: left; cursor: pointer; box-shadow: none; transition: border-color 0.15s ease, transform 0.15s ease; }
+.shell .pdv-product:hover { border-color: var(--brand-500); }
+.shell .pdv-product:active { transform: scale(0.98); }
+.shell .pdv-product.is-picked { border-color: var(--brand-500); box-shadow: 0 0 0 1px var(--brand-500); }
+.pdv-product-media { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 10; background: var(--surface-muted); color: var(--text-faint); font: 800 26px var(--font-display); }
+.pdv-product-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pdv-product-qty { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 7px; box-sizing: border-box; border-radius: 999px; background: var(--brand-500); color: #fff; font: 800 13px var(--font-sans); }
+.pdv-product-info { display: grid; align-content: start; gap: 4px; padding: 10px 12px 12px; }
+.pdv-product-info strong { display: -webkit-box; overflow: hidden; font-size: 14px; font-weight: 700; line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.pdv-product-info span { color: var(--text-muted); font-size: 14px; font-weight: 600; }
+
+.pdv-ticket { position: sticky; top: 16px; max-height: calc(100dvh - 120px); overflow-y: auto; }
+.pdv-ticket-body { display: grid; gap: 14px; }
+.pdv-ticket-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pdv-ticket-head h2 { margin: 0; font: 800 17px var(--font-display); letter-spacing: -0.3px; }
+.pdv-ticket .pr-empty { padding: 20px 8px; }
+.pdv-lines { border-bottom: 1px solid var(--border); }
+.pr-row.pdv-line { gap: 10px; min-height: 0; flex-wrap: nowrap; }
+.pdv-line .pr-row-main > strong { font-size: 14px; white-space: normal; }
+.pdv-line-total { min-width: 72px; font-size: 14px; }
+.pdv-stepper { display: inline-flex; flex: none; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 999px; }
+.shell .pdv-stepper button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--brand-700); cursor: pointer; box-shadow: none; }
+.shell .pdv-stepper button:hover { background: var(--surface-muted); }
+.pdv-stepper > span { min-width: 20px; font-size: 14px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.pdv-options { gap: 12px; }
+.pdv-seg { display: flex; }
+.shell .pdv-seg button { flex: 1; min-width: 0; padding: 0 8px; }
+.pdv-table-row { grid-template-columns: minmax(0, 1fr) 96px; }
+.pdv-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-top: 4px; }
+.pdv-total span { color: var(--text-muted); font-size: 15px; font-weight: 600; }
+.pdv-total strong { font: 800 26px var(--font-display); letter-spacing: -0.6px; font-variant-numeric: tabular-nums; }
+.shell .pdv-finish { height: 48px; font-size: 15px; }
+.pdv-last-sale { margin: 0; color: var(--text-muted); font-size: 13px; text-align: center; }
+.pdv-bar { display: none; }
+
+@media (max-width: 860px) {
+  .pdv-page { padding-bottom: 84px; }
+  .pdv-layout { grid-template-columns: 1fr; }
+  .pdv-products { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .pdv-ticket { display: none; }
+  .pdv-bar { position: fixed; z-index: 40; right: 0; bottom: 0; left: 0; display: block; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 92%, transparent); border-top: 1px solid var(--border); backdrop-filter: blur(8px); }
+  .shell .pdv-bar-button { display: flex; align-items: center; gap: 12px; width: 100%; height: 52px; padding: 0 16px 0 10px; border: 0; border-radius: 14px; background: var(--brand-500); color: #fff; font: 700 15px var(--font-sans); cursor: pointer; box-shadow: none; }
+  .pdv-bar-count { display: grid; place-items: center; min-width: 32px; height: 32px; padding: 0 8px; box-sizing: border-box; border-radius: 10px; background: rgb(255 255 255 / 0.2); font-size: 14px; }
+  .pdv-bar-label { flex: 1; text-align: left; }
+  .pdv-bar-button strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+  .pr-drawer-body .pdv-ticket-body .pr-row.pdv-line { padding: 12px 0; }
+  .shell .pdv-stepper button { width: 36px; height: 36px; }
+  .shell .pdv-seg button { height: 40px; }
+}

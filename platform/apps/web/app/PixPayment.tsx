@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Icon } from './icons';
 
 /** O Pix que o Mercado Pago devolve — mesmo formato ao cobrar e ao reabrir o pedido depois. */
 export type PixImage = { qr_code?: string | null; qr_code_base64?: string | null; ticket_url?: string | null };
@@ -39,7 +40,7 @@ export default function PixPayment({ image, title = 'Finalize o pagamento', hint
     {desenho && <img className="customer-qr" src={desenho} alt="QR Code do Pix deste pedido" />}
     {codigo && <>
       <label>Pix copia e cola<textarea readOnly rows={3} value={codigo} /></label>
-      <button className="customer-solid-button" type="button" onClick={() => void copiar()}>{copiado ? 'Código copiado' : 'Copiar código Pix'}</button>
+      <button className={`customer-solid-button pix-copy${copiado ? ' is-copied' : ''}`} type="button" onClick={() => void copiar()}>{copiado ? <><Icon name="check" size={18} />{'Código copiado'}</> : 'Copiar código Pix'}</button>
     </>}
     {link && <a className="customer-solid-button" href={link} target="_blank" rel="noreferrer">Abrir no Mercado Pago</a>}
     <p className="form-help">{hint ?? 'A confirmação é automática.'}</p>

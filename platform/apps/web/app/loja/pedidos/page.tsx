@@ -52,7 +52,7 @@ function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId,
       <div><strong>{order.restaurant_name}</strong><small>{`#${order.id} · ${when(order.created_at)}`}</small></div>
       <strong className="orders-total">{money(order.total_cents)}</strong>
     </div>
-    <p className="orders-status-line"><span className="m-live-dot" />{awaiting ? 'Aguardando pagamento' : statusLabels[order.status] ?? order.status}</p>
+    <p className="orders-status-line" key={`${order.status}-${awaiting}`}><span className="m-live-dot" />{awaiting ? 'Aguardando pagamento' : statusLabels[order.status] ?? order.status}</p>
     {order.scheduled_at && <p className="orders-note"><Icon name="calendar" size={14} />{`Agendado para ${when(order.scheduled_at)}`}</p>}
     <ol className="orders-steps" style={{ '--progress': step / (STEPS.length - 1) } as React.CSSProperties}>
       {STEPS.map((item, position) => <li key={item.label} className={position < step ? 'is-done' : position === step ? `is-current${item.icon === 'bike' ? ' is-riding' : ''}` : ''}><span><Icon name={item.icon} size={16} /></span>{item.label}</li>)}
@@ -67,12 +67,12 @@ function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId,
   </article>;
 }
 
-function PastOrder({ order, cover, expandedOrderId, setExpandedOrderId }: RowProps) {
+function PastOrder({ order, index, cover, expandedOrderId, setExpandedOrderId }: RowProps) {
   const failed = FAILED.includes(order.status);
   const open = expandedOrderId === order.id;
   // Entregue há pouco: um check se desenha ao lado do status, uma vez.
   const justDelivered = order.status === 'delivered' && Date.now() - lastChange(order) < 30 * 60 * 1000;
-  return <li className="orders-row">
+  return <li className="orders-row lj-enter" style={{ '--i': Math.min(index, 8) } as React.CSSProperties}>
     <button type="button" className="orders-row-main" aria-expanded={open} onClick={() => setExpandedOrderId(open ? null : order.id)}>
       <RestaurantMedia restaurant={{ name: order.restaurant_name, cover_url: cover }} className="orders-media" />
       <span className="orders-row-text"><strong>{order.restaurant_name}</strong><small>{`${when(order.created_at)} · ${money(order.total_cents)}`}</small></span>

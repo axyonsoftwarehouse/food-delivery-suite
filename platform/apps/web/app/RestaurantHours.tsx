@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createRequest, SupportCancelled } from './support-request';
 import { useSupportReason } from './SupportReasonDialog';
+import { Icon } from './icons';
+import { Drawer, Toolbar } from './painel/kit';
 
 type Interval = { id: number; dayOfWeek: number; opensAt: string; closesAt: string; overnight: boolean };
 type Schedule = { timezone: string; hours: Interval[] };
@@ -14,6 +16,8 @@ type Props = {
 };
 
 const dayNames = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+/** Semana começando na segunda (o dayOfWeek continua 0 = domingo). */
+const weekOrder = [1, 2, 3, 4, 5, 6, 0];
 const timezones = ['America/Fortaleza', 'America/Recife', 'America/Bahia', 'America/Sao_Paulo', 'America/Belem', 'America/Manaus', 'America/Rio_Branco'];
 
 export default function RestaurantHours({ mode, restaurantId, onMessage }: Props) {
@@ -26,6 +30,7 @@ export default function RestaurantHours({ mode, restaurantId, onMessage }: Props
   const [closesAt, setClosesAt] = useState('18:00');
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   const basePath = isSupport ? `/admin/support/restaurants/${restaurantId}` : '/restaurant';
 
@@ -47,6 +52,7 @@ export default function RestaurantHours({ mode, restaurantId, onMessage }: Props
       await request(`${basePath}/hours`, { method: 'POST', body: JSON.stringify({ dayOfWeek: day, opensAt, closesAt }) });
       await load();
       onMessage('Horário cadastrado.');
+      setAdding(false);
     } catch (error) { if (!(error instanceof SupportCancelled)) onMessage(error instanceof Error ? error.message : 'Não foi possível cadastrar o horário.'); }
     finally { setBusy(false); }
   }
@@ -72,27 +78,61 @@ export default function RestaurantHours({ mode, restaurantId, onMessage }: Props
     finally { setBusy(false); }
   }
 
-  const hours = schedule?.hours ?? [];
+  function openAdd(dayOfWeek: number) {
+    setDay(dayOfWeek);
+    setAdding(true);
+  }
 
-  return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">HORÁRIO DE FUNCIONAMENTO</span><h2>Agenda semanal</h2></div><p>Sem horários cadastrados o restaurante aparece sempre aberto. Intervalos que terminam depois da meia-noite são aceitos.</p></div>
-    <div className="form-grid">
-      <form onSubmit={add}>
-        <h3>Adicionar intervalo</h3>
-        <label>Dia<select value={day} onChange={(event) => setDay(Number(event.target.value))}>{dayNames.map((name, index) => <option key={name} value={index}>{name}</option>)}</select></label>
-        <label>Abre<input type="time" required value={opensAt} onChange={(event) => setOpensAt(event.target.value)} /></label>
-        <label>Fecha<input type="time" required value={closesAt} onChange={(event) => setClosesAt(event.target.value)} /></label>
-        <button className="secondary-button" disabled={busy || loading || (isSupport && !restaurantId)}>Adicionar horário</button>
-        <p className="form-help">Ex.: 18:00 às 02:00 fica aberto durante a madrugada do dia seguinte.</p>
+  const hours = schedule?.hours ?? [];
+  const alwaysOpen = !loading && hours.length === 0;
+  const blocked = busy || loading || (isSupport && !restaurantId);
+
+  return <div className="hr-page">
+    <Toolbar hint={alwaysOpen ? 'Sem horários cadastrados, a loja aparece sempre aberta.' : undefined}>
+      {isSupport && schedule && <label className="hr-timezone">
+        <Icon name="clock" size={16} />
+        <span className="hr-sr">Fuso horário</span>
+        <select value={schedule.timezone} onChange={(event) => saveTimezone(event.target.value)} disabled={busy} aria-label="Fuso horário">{timezones.map((zone) => <option key={zone} value={zone}>{zone}</option>)}</select>
+      </label>}
+      <button type="button" className="pr-btn pr-btn--primary" disabled={blocked} onClick={() => openAdd(day)}><Icon name="plus" size={18} />Novo intervalo</button>
+    </Toolbar>
+
+    <section className="pr-card pr-card--flush hr-card" aria-label={isSupport ? 'Horários da loja' : 'Seus horários'} aria-busy={loading}>
+      <ul className="pr-list">
+        {weekOrder.map((dayOfWeek) => {
+          const intervals = hours.filter((interval) => interval.dayOfWeek === dayOfWeek);
+          return <li className="pr-row hr-row" key={dayOfWeek}>
+            <strong className="hr-day">{dayNames[dayOfWeek]}</strong>
+            <div className="hr-slots">
+              {loading && !schedule ? <span className="pr-muted">Carregando horários...</span>
+                : intervals.length ? intervals.map((interval) => <span className="hr-slot" key={interval.id}>
+                  <span className="hr-slot-time">{interval.opensAt} – {interval.closesAt}</span>
+                  {interval.overnight && <span className="hr-slot-night"><Icon name="moon" size={13} />vira a madrugada</span>}
+                  <button type="button" className="hr-slot-remove" disabled={busy} onClick={() => remove(interval.id)} aria-label={`Remover ${dayNames[dayOfWeek]} ${interval.opensAt} às ${interval.closesAt}`} title="Remover"><Icon name="x" size={14} /></button>
+                </span>)
+                : <span className={alwaysOpen ? 'pr-muted' : 'hr-closed'}>{alwaysOpen ? 'Sempre aberto' : 'Fechado'}</span>}
+            </div>
+            <div className="pr-row-actions hr-row-actions">
+              <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm" disabled={blocked} onClick={() => openAdd(dayOfWeek)} aria-label={`Adicionar intervalo: ${dayNames[dayOfWeek]}`}><Icon name="plus" size={16} />Intervalo</button>
+            </div>
+          </li>;
+        })}
+      </ul>
+    </section>
+
+    <Drawer open={adding} title="Novo intervalo" onClose={() => setAdding(false)} footer={<>
+      <button type="button" className="pr-btn" onClick={() => setAdding(false)}>Cancelar</button>
+      <button type="submit" form="hr-add-form" className="pr-btn pr-btn--primary" disabled={blocked}>Adicionar horário</button>
+    </>}>
+      <form id="hr-add-form" className="pr-form" onSubmit={add}>
+        <label className="pr-field">Dia<select value={day} onChange={(event) => setDay(Number(event.target.value))}>{weekOrder.map((index) => <option key={index} value={index}>{dayNames[index]}</option>)}</select></label>
+        <div className="pr-form-row hr-times">
+          <label className="pr-field">Abre<input type="time" required value={opensAt} onChange={(event) => setOpensAt(event.target.value)} /></label>
+          <label className="pr-field">Fecha<input type="time" required value={closesAt} onChange={(event) => setClosesAt(event.target.value)} /></label>
+        </div>
+        <p className="pr-hint">Ex.: 18:00 às 02:00 fica aberto durante a madrugada do dia seguinte.</p>
       </form>
-      <div className="courier-list">
-        <h3>{isSupport ? 'Horários da loja' : 'Seus horários'}</h3>
-        {isSupport && schedule && <label>Fuso horário<select value={schedule.timezone} onChange={(event) => saveTimezone(event.target.value)} disabled={busy}>{timezones.map((zone) => <option key={zone} value={zone}>{zone}</option>)}</select></label>}
-        {loading ? <p className="form-help">Carregando horários...</p>
-          : hours.length ? hours.map((interval) => <div className="courier-row" key={interval.id}><div><strong>{dayNames[interval.dayOfWeek]}</strong><span>{interval.opensAt} às {interval.closesAt}{interval.overnight ? ' · vira o dia' : ''}</span></div><button className="availability-button paused" disabled={busy} onClick={() => remove(interval.id)}>Remover</button></div>)
-          : <p className="form-help">Nenhum horário cadastrado. O restaurante está sempre aberto.</p>}
-      </div>
-    </div>
+    </Drawer>
     {dialog}
-  </section>;
+  </div>;
 }

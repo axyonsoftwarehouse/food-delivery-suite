@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api, money } from '../../app-context';
 import { Icon } from '../../icons';
+import { CountUp } from '../motion';
 
 type Wallet = { balanceCents: number };
 type LedgerEntry = { id: number; kind: string; amount_cents: number; description: string; created_at: string };
@@ -40,13 +41,13 @@ export default function RewardsCard() {
 
   return <section className="pf-section pf-rewards m-rise" style={{ '--i': 1 } as React.CSSProperties}>
     <div className="pf-tiles">
-      <div className="pf-tile tone-0"><Icon name="wallet" size={20} /><small>{'Carteira'}</small><strong>{money(wallet?.balanceCents ?? 0)}</strong></div>
-      <div className="pf-tile tone-3"><Icon name="star" size={20} /><small>{'Pontos'}</small><strong>{loyalty?.points ?? 0}</strong></div>
+      <div className="pf-tile tone-0"><Icon name="wallet" size={20} /><small>{'Carteira'}</small><strong><CountUp value={wallet?.balanceCents ?? 0} format={(cents) => money(Math.round(cents))} /></strong></div>
+      <div className="pf-tile tone-3"><Icon name="star" size={20} /><small>{'Pontos'}</small><strong><CountUp value={loyalty?.points ?? 0} /></strong></div>
     </div>
     {coupons.length > 0 && <><div className="pf-head pf-head--spaced"><h2>{'Meus cupons'}</h2></div><ul className="pf-list">{coupons.map((coupon) => <li className="pf-row" key={coupon.code}>
       <span className="pf-icon"><Icon name="gift" size={18} /></span>
       <div><strong>{discount(coupon)} · {coupon.restaurant_name}</strong><small>{ORIGIN_LABEL[coupon.origin] ?? 'Cupom'}{coupon.min_order_cents > 0 ? ` · pedido mínimo ${money(coupon.min_order_cents)}` : ''}{coupon.expires_at ? ` · até ${new Date(coupon.expires_at).toLocaleDateString('pt-BR')}` : ''}</small></div>
-      <button type="button" className="pf-coupon-code tone-0" onClick={() => void copy(coupon.code)} title="Copiar o código">{copied === coupon.code ? 'Copiado!' : coupon.code}</button>
+      <button type="button" className={`pf-coupon-code tone-0${copied === coupon.code ? ' is-copied' : ''}`} onClick={() => void copy(coupon.code)} title="Copiar o código">{copied === coupon.code ? 'Copiado!' : coupon.code}</button>
     </li>)}</ul></>}
     {entries.length > 0 && <details className="pf-details"><summary>{'Movimentações'}<Icon name="chevron-down" size={16} /></summary><ul className="pf-list">{entries.slice(0, 5).map((entry) => <li className="pf-row" key={entry.id}><div><strong>{KIND_LABEL[entry.kind] ?? entry.kind}</strong><small>{entry.description}</small></div><span className="pf-amount">{money(entry.amount_cents)}</span></li>)}</ul></details>}
   </section>;

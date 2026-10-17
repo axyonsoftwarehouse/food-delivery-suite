@@ -1,5 +1,6 @@
 package com.foodie.api.restaurant;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.foodie.api.ApiException;
 import com.foodie.api.admin.ModuleAccessService;
 import com.foodie.api.auth.AuthService;
@@ -85,9 +86,11 @@ public class StorefrontController {
         return value == null ? "" : value.strip();
     }
 
+    // O painel envia `cover_url` (o mesmo nome da resposta); sem o alias a capa chegava nula e
+    // era gravada vazia.
     public record StorefrontRequest(@Size(max = 160) String headline,
                                     @Size(max = 2000) String about,
-                                    @Size(max = 512) String coverUrl,
+                                    @JsonAlias("cover_url") @Size(max = 512) String coverUrl,
                                     @Size(max = 40) String whatsapp,
                                     @Size(max = 120) String instagram,
                                     @NotNull Boolean published) {}

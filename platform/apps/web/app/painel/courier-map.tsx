@@ -99,6 +99,12 @@ export default function CourierMap({ board }: { board: Board }) {
 
   return <div className="courier-map-wrap">
     <div ref={box} className="courier-map" role="region" aria-label="Mapa dos entregadores" />
-    {unavailable && <p className="courier-map-note" role="status">{'Mapa indisponível agora. A lista abaixo continua atualizada.'}</p>}
+    <ul className="vp-map-legend" aria-hidden="true">
+      <li><i style={{ background: '#111827' }} />{'Sua loja'}</li>
+      <li><i style={{ background: COLORS.available }} />{'Disponível'}</li>
+      <li><i style={{ background: COLORS.delivering }} />{'Em entrega'}</li>
+      <li><i style={{ background: '#6b7280' }} />{'Outros'}</li>
+    </ul>
+    {unavailable && <p className="vp-note" role="status">{'Mapa indisponível agora. A lista abaixo continua atualizada.'}</p>}
   </div>;
 }
