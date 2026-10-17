@@ -6,6 +6,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,13 +48,26 @@ public class ChatController {
 
     @GetMapping("/chat/messages")
     public List<Map<String, Object>> messages(@CookieValue(value = "foodie_session", required = false) String token,
-                                              @RequestParam @Positive long withUser) {
+                                              @RequestParam @Positive long withUser,
+                                              @RequestParam(required = false) @Positive Long beforeId) {
         User me = auth.requireUser(token);
         List<Map<String, Object>> rows = jdbc.queryForList(
             "SELECT id, from_user_id, to_user_id, order_id, body, read_at, created_at FROM chat_messages "
-                + "WHERE (from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?) ORDER BY id LIMIT 200",
-            me.id(), withUser, withUser, me.id());
-        jdbc.update("UPDATE chat_messages SET read_at = NOW() WHERE to_user_id = ? AND from_user_id = ? AND read_at IS NULL", me.id(), withUser);
+                + "WHERE ((from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?))"
+                + " AND (? IS NULL OR id < ?) ORDER BY id DESC LIMIT 200",
+            me.id(), withUser, withUser, me.id(), beforeId, beforeId);
+        rows = new ArrayList<>(rows);
+        Collections.reverse(rows);
+        List<Long> receivedIds = rows.stream()
+            .filter(row -> row.get("to_user_id") instanceof Number recipient && recipient.longValue() == me.id())
+            .map(row -> ((Number) row.get("id")).longValue()).toList();
+        if (!receivedIds.isEmpty()) {
+            List<Object> args = new ArrayList<>();
+            args.add(me.id());
+            args.addAll(receivedIds);
+            String placeholders = String.join(",", Collections.nCopies(receivedIds.size(), "?"));
+            jdbc.update("UPDATE chat_messages SET read_at = NOW() WHERE to_user_id = ? AND read_at IS NULL AND id IN (" + placeholders + ")", args.toArray());
+        }
         return rows;
     }
 

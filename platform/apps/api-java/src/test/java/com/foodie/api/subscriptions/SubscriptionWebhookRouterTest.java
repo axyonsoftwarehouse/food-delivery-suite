@@ -2,6 +2,7 @@ package com.foodie.api.subscriptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -12,6 +13,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.foodie.api.payments.PaymentGateway;
+import com.foodie.api.ApiException;
 import com.foodie.api.payments.PaymentGatewayRegistry;
 import java.time.Instant;
 import java.util.Map;
@@ -43,10 +45,45 @@ class SubscriptionWebhookRouterTest {
     @Test
     void anUnknownChargeFallsThroughToOrders() {
         when(charges.findByExternalId("mercadopago", "ORDX")).thenReturn(Optional.empty());
+        when(charges.hasUnlinkedReservation()).thenReturn(true);
+        when(gateway.fetch(any(), eq("ORDX"))).thenThrow(new ApiException(404, "Não encontrado nesta conta"));
 
         assertTrue(router().route("mercadopago", "ORDX", null).isEmpty());
         verifyNoInteractions(billing);
+        verify(gateway).fetch(any(), eq("ORDX"));
+    }
+
+    @Test
+    void aKnownOrderPaymentDoesNotQueryTheSubscriptionAccount() {
+        when(charges.findByExternalId("mercadopago", "ORDPEDIDO")).thenReturn(Optional.empty());
+        when(charges.isOrderPayment("mercadopago", "ORDPEDIDO")).thenReturn(true);
+        when(charges.hasUnlinkedReservation()).thenReturn(true);
+
+        assertTrue(router().route("mercadopago", "ORDPEDIDO", null).isEmpty());
         verify(gateway, never()).fetch(any(), anyString());
+        verifyNoInteractions(billing);
+    }
+
+    @Test
+    void withoutAnUnlinkedReservationTheProviderIsNotQueried() {
+        when(charges.findByExternalId("mercadopago", "ORDX")).thenReturn(Optional.empty());
+
+        assertTrue(router().route("mercadopago", "ORDX", null).isEmpty());
+        verify(gateway, never()).fetch(any(), anyString());
+        verifyNoInteractions(billing);
+    }
+
+    @Test
+    void aProviderFailureWhileClassifyingDoesNotBlockTheOrderWebhook() {
+        // A reserva sem vínculo é reconciliada pelo runner com a mesma chave; o pedido não pode esperar.
+        when(charges.findByExternalId("mercadopago", "ORDX")).thenReturn(Optional.empty());
+        when(charges.hasUnlinkedReservation()).thenReturn(true);
+        when(gateway.fetch(any(), eq("ORDX"))).thenThrow(new ApiException(502, "Indisponível"));
+
+        assertTrue(router().route("mercadopago", "ORDX", null).isEmpty());
+        when(gateway.fetch(any(), eq("ORDX"))).thenThrow(new IllegalStateException("timeout"));
+        assertTrue(router().route("mercadopago", "ORDX", null).isEmpty());
+        verifyNoInteractions(billing);
     }
 
     @Test
@@ -71,5 +108,32 @@ class SubscriptionWebhookRouterTest {
 
         assertEquals("paid", result.orElseThrow().get("already"));
         verify(gateway, never()).fetch(any(), anyString());
+    }
+
+    @Test
+    void aTemporaryProviderFailureRequestsRetryAndCanLaterConfirmPayment() {
+        when(charges.findByExternalId("mercadopago", "ORDSUB9")).thenReturn(Optional.of(charge("pending")));
+        PaymentGateway.Charge paid = new PaymentGateway.Charge("ORDSUB9", "sub-42", 9900, "paid", "accredited", null, null, null, null);
+        when(gateway.fetch(any(), eq("ORDSUB9"))).thenThrow(new ApiException(502, "Indisponível")).thenReturn(paid);
+        when(billing.applyPaid("mercadopago", "ORDSUB9", paid)).thenReturn(Map.of("ok", true, "status", "paid"));
+        assertEquals(503, assertThrows(ApiException.class, () -> router().route("mercadopago", "ORDSUB9", null)).status());
+        verifyNoInteractions(billing);
+        assertEquals("paid", router().route("mercadopago", "ORDSUB9", null).orElseThrow().get("status"));
+        verify(billing).applyPaid("mercadopago", "ORDSUB9", paid);
+    }
+
+    @Test
+    void missingCredentialsForAKnownChargeRequestRetry() {
+        when(charges.findByExternalId("mercadopago", "ORDSUB9")).thenReturn(Optional.of(charge("pending")));
+        var disabled = new SubscriptionWebhookRouter(charges, billing, new SubscriptionBillingAccount(false, "", ""), gateways);
+        assertEquals(503, assertThrows(ApiException.class, () -> disabled.route("mercadopago", "ORDSUB9", null)).status());
+        verifyNoInteractions(billing);
+    }
+
+    @Test
+    void anEmptyProviderReplyRequestsRetry() {
+        when(charges.findByExternalId("mercadopago", "ORDSUB9")).thenReturn(Optional.of(charge("pending")));
+        assertEquals(503, assertThrows(ApiException.class, () -> router().route("mercadopago", "ORDSUB9", null)).status());
+        verifyNoInteractions(billing);
     }
 }

@@ -62,7 +62,7 @@ public class RoleController {
     @PostMapping("/restaurant/roles")
     public ResponseEntity<RoleRepository.Role> create(@CookieValue(value = "foodie_session", required = false) String token,
                                                        @Valid @RequestBody RoleRequest body) {
-        RoleRepository.Role role = roles.create(manager(token).restaurantId(), body.name(), body.permissions());
+        RoleRepository.Role role = roles.create(owner(token).restaurantId(), body.name(), body.permissions());
         return ResponseEntity.status(201).body(role);
     }
 
@@ -70,13 +70,13 @@ public class RoleController {
     public RoleRepository.Role update(@CookieValue(value = "foodie_session", required = false) String token,
                                       @PathVariable @Positive long id,
                                       @Valid @RequestBody RoleUpdateRequest body) {
-        return roles.update(manager(token).restaurantId(), id, body.name(), body.permissions());
+        return roles.update(owner(token).restaurantId(), id, body.name(), body.permissions());
     }
 
     @DeleteMapping("/restaurant/roles/{id}")
     public Map<String, Boolean> delete(@CookieValue(value = "foodie_session", required = false) String token,
                                        @PathVariable @Positive long id) {
-        roles.delete(manager(token).restaurantId(), id);
+        roles.delete(owner(token).restaurantId(), id);
         return Map.of("ok", true);
     }
 
@@ -88,7 +88,7 @@ public class RoleController {
     @PostMapping("/restaurant/staff")
     public ResponseEntity<RoleRepository.Staff> createStaff(@CookieValue(value = "foodie_session", required = false) String token,
                                                             @Valid @RequestBody StaffRequest body) {
-        RoleRepository.Staff staff = roles.createStaff(manager(token).restaurantId(), body.name(), body.email(), body.password(), body.role(), body.staffRoleId());
+        RoleRepository.Staff staff = roles.createStaff(owner(token).restaurantId(), body.name(), body.email(), body.password(), body.role(), body.staffRoleId());
         return ResponseEntity.status(201).body(staff);
     }
 
@@ -96,7 +96,7 @@ public class RoleController {
     public Map<String, Boolean> assignRole(@CookieValue(value = "foodie_session", required = false) String token,
                                            @PathVariable @Positive long id,
                                            @Valid @RequestBody StaffRoleRequest body) {
-        roles.assignStaffRole(manager(token).restaurantId(), id, body.staffRoleId());
+        roles.assignStaffRole(owner(token).restaurantId(), id, body.staffRoleId());
         return Map.of("ok", true);
     }
 
@@ -104,6 +104,14 @@ public class RoleController {
         User user = auth.requireUser(token, "restaurant", "kitchen");
         if (user.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
         permissions.require(user, Permissions.STAFF_MANAGE);
+        return user;
+    }
+
+    private User owner(String token) {
+        User user = manager(token);
+        if (!"restaurant".equals(user.role()) || permissions.isStaff(user)) {
+            throw new ApiException(403, "Só o dono da loja altera papéis e acessos da equipe");
+        }
         return user;
     }
 

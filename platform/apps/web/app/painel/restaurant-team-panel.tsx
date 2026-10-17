@@ -18,7 +18,7 @@ function initials(name: string) {
 
 /** Funcionários (view "staff") e papéis (view "roles") da loja; os cadastros abrem no painel lateral. */
 export default function RestaurantTeamPanel({ view = 'staff' }: { view?: 'staff' | 'roles' }) {
-  const { busy, run } = useApp();
+  const { busy, run, user } = useApp();
   const [catalog, setCatalog] = useState<Permission[]>([]);
   const [roles, setRoles] = useState<RestaurantRole[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -64,6 +64,8 @@ export default function RestaurantTeamPanel({ view = 'staff' }: { view?: 'staff'
 
   const groups = Array.from(new Set(catalog.map((item) => item.group)));
   const labelOf = new Map(catalog.map((item) => [item.key, item.label]));
+  const ownAccess = staff.find((person) => person.id === user?.id);
+  const canManage = !loading && ownAccess?.role === 'restaurant' && ownAccess.staffRoleId === null;
 
   async function createRole(event: React.FormEvent) {
     event.preventDefault();
@@ -120,18 +122,20 @@ export default function RestaurantTeamPanel({ view = 'staff' }: { view?: 'staff'
 
   return (
     <>
-      <Toolbar hint={view === 'roles' ? 'Sem papel, o acesso usa o padrão do tipo (Cozinha ou Responsável).' : undefined}>
-        {view === 'roles'
+      <Toolbar hint={view === 'roles' ? 'Funcionários do painel precisam de um papel; a cozinha pode usar o padrão.' : undefined}>
+        {canManage && (view === 'roles'
           ? <button type="button" className="pr-btn pr-btn--primary" onClick={() => setDrawer('role')}><Icon name="plus" size={18} />Novo papel</button>
-          : <button type="button" className="pr-btn pr-btn--primary" onClick={() => setDrawer('staff')}><Icon name="plus" size={18} />Novo funcionário</button>}
+          : <button type="button" className="pr-btn pr-btn--primary" onClick={() => setDrawer('staff')}><Icon name="plus" size={18} />Novo funcionário</button>)}
       </Toolbar>
+
+      {!loading && !canManage && <p className="pr-muted">Só o dono da loja altera papéis e acessos da equipe.</p>}
 
       <section className="pr-card pr-card--flush eq-flush">
         {loading ? (
           <div className="eq-loading"><Spinner /></div>
         ) : view === 'roles' ? (
           roles.length === 0 ? (
-            <Empty icon="shield">Nenhum papel criado.</Empty>
+            <Empty icon="shield">Crie um papel antes de cadastrar funcionários do painel.</Empty>
           ) : (
             <ul className="pr-list">
               {roles.map((role) => (
@@ -142,9 +146,11 @@ export default function RestaurantTeamPanel({ view = 'staff' }: { view?: 'staff'
                     <span className="eq-clamp">{role.permissions.map((key) => labelOf.get(key) ?? key).join(' · ') || 'Sem permissões'}</span>
                   </div>
                   <span className="pr-badge is-info">{role.permissions.length} permissões</span>
-                  <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" disabled={busy} onClick={() => void removeRole(role.id)}>
-                    Excluir
-                  </button>
+                  {canManage && (
+                    <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" disabled={busy} onClick={() => void removeRole(role.id)}>
+                      Excluir
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -161,8 +167,8 @@ export default function RestaurantTeamPanel({ view = 'staff' }: { view?: 'staff'
                   <span className="eq-ellipsis">{person.email}</span>
                 </div>
                 <span className={`pr-badge${person.role === 'restaurant' ? ' is-brand' : ''}`}>{ACCESS_LABELS[person.role] ?? person.role}</span>
-                <select className="eq-select" value={person.staffRoleId ?? ''} aria-label={`Papel de ${person.name}`} disabled={busy} onChange={(event) => void assignRole(person.id, event.target.value)}>
-                  <option value="">Padrão do tipo</option>
+                <select className="eq-select" value={person.staffRoleId ?? ''} aria-label={`Papel de ${person.name}`} disabled={busy || !canManage || (person.role === 'restaurant' && person.staffRoleId === null)} onChange={(event) => void assignRole(person.id, event.target.value)}>
+                  {(person.role === 'kitchen' || person.staffRoleId === null) && <option value="">{person.role === 'restaurant' ? 'Dono da loja' : 'Padrão da cozinha'}</option>}
                   {roles.map((role) => (
                     <option key={role.id} value={role.id}>
                       {role.name}
@@ -177,80 +183,84 @@ export default function RestaurantTeamPanel({ view = 'staff' }: { view?: 'staff'
 
       {error && <Alert tone="error">{error}</Alert>}
 
-      <Drawer
-        open={drawer === 'role'}
-        title="Novo papel"
-        onClose={() => setDrawer(null)}
-        footer={<>
-          <button type="button" className="pr-btn" onClick={() => setDrawer(null)}>Cancelar</button>
-          <button type="submit" form="team-role-form" className="pr-btn pr-btn--primary" disabled={busy || roleName.trim().length < 2}>Criar papel</button>
-        </>}
-      >
-        <form id="team-role-form" className="pr-form" onSubmit={createRole}>
-          <label className="pr-field">
-            Nome do papel
-            <input value={roleName} onChange={(event) => setRoleName(event.target.value)} placeholder="Ex.: Garçom" required />
-          </label>
-          {groups.map((group) => (
-            <fieldset key={group} className="eq-perm-group">
-              <legend>{group}</legend>
-              {catalog
-                .filter((item) => item.group === group)
-                .map((item) => (
-                  <label key={item.key} className="pr-check eq-check">
-                    <input type="checkbox" checked={rolePermissions.includes(item.key)} onChange={() => togglePermission(item.key)} />
-                    {item.label}
-                  </label>
-                ))}
-            </fieldset>
-          ))}
-        </form>
-      </Drawer>
+      {canManage && (
+        <Drawer
+          open={drawer === 'role'}
+          title="Novo papel"
+          onClose={() => setDrawer(null)}
+          footer={<>
+            <button type="button" className="pr-btn" onClick={() => setDrawer(null)}>Cancelar</button>
+            <button type="submit" form="team-role-form" className="pr-btn pr-btn--primary" disabled={busy || roleName.trim().length < 2}>Criar papel</button>
+          </>}
+        >
+          <form id="team-role-form" className="pr-form" onSubmit={createRole}>
+            <label className="pr-field">
+              Nome do papel
+              <input value={roleName} onChange={(event) => setRoleName(event.target.value)} placeholder="Ex.: Garçom" required />
+            </label>
+            {groups.map((group) => (
+              <fieldset key={group} className="eq-perm-group">
+                <legend>{group}</legend>
+                {catalog
+                  .filter((item) => item.group === group)
+                  .map((item) => (
+                    <label key={item.key} className="pr-check eq-check">
+                      <input type="checkbox" checked={rolePermissions.includes(item.key)} onChange={() => togglePermission(item.key)} />
+                      {item.label}
+                    </label>
+                  ))}
+              </fieldset>
+            ))}
+          </form>
+        </Drawer>
+      )}
 
-      <Drawer
-        open={drawer === 'staff'}
-        title="Novo funcionário"
-        onClose={() => setDrawer(null)}
-        footer={<>
-          <button type="button" className="pr-btn" onClick={() => setDrawer(null)}>Cancelar</button>
-          <button type="submit" form="team-staff-form" className="pr-btn pr-btn--primary" disabled={busy}>Criar acesso</button>
-        </>}
-      >
-        <form id="team-staff-form" className="pr-form" onSubmit={createStaff}>
-          <label className="pr-field">
-            Nome
-            <input value={staffName} onChange={(event) => setStaffName(event.target.value)} required />
-          </label>
-          <label className="pr-field">
-            Email
-            <input type="email" value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} required />
-          </label>
-          <label className="pr-field">
-            Senha inicial
-            <input type="password" minLength={12} value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} required />
-            <small className="pr-muted">Mínimo de 12 caracteres</small>
-          </label>
-          <label className="pr-field">
-            Tipo de acesso
-            <select value={staffAccess} onChange={(event) => setStaffAccess(event.target.value)}>
-              <option value="kitchen">Cozinha</option>
-              <option value="restaurant">Responsável (painel)</option>
-            </select>
-          </label>
-          <label className="pr-field">
-            Papel
-            <select value={staffRoleId} onChange={(event) => setStaffRoleId(event.target.value)}>
-              <option value="">Padrão do tipo</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
-                </option>
-              ))}
-            </select>
-            <small className="pr-muted">Sem papel: usa o padrão do tipo</small>
-          </label>
-        </form>
-      </Drawer>
+      {canManage && (
+        <Drawer
+          open={drawer === 'staff'}
+          title="Novo funcionário"
+          onClose={() => setDrawer(null)}
+          footer={<>
+            <button type="button" className="pr-btn" onClick={() => setDrawer(null)}>Cancelar</button>
+            <button type="submit" form="team-staff-form" className="pr-btn pr-btn--primary" disabled={busy || (staffAccess === 'restaurant' && !staffRoleId)}>Criar acesso</button>
+          </>}
+        >
+          <form id="team-staff-form" className="pr-form" onSubmit={createStaff}>
+            <label className="pr-field">
+              Nome
+              <input value={staffName} onChange={(event) => setStaffName(event.target.value)} required />
+            </label>
+            <label className="pr-field">
+              Email
+              <input type="email" value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} required />
+            </label>
+            <label className="pr-field">
+              Senha inicial
+              <input type="password" minLength={12} value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} required />
+              <small className="pr-muted">Mínimo de 12 caracteres</small>
+            </label>
+            <label className="pr-field">
+              Tipo de acesso
+              <select value={staffAccess} onChange={(event) => setStaffAccess(event.target.value)}>
+                <option value="kitchen">Cozinha</option>
+                <option value="restaurant">Responsável (painel)</option>
+              </select>
+            </label>
+            <label className="pr-field">
+              Papel
+              <select value={staffRoleId} required={staffAccess === 'restaurant'} onChange={(event) => setStaffRoleId(event.target.value)}>
+                <option value="">{staffAccess === 'restaurant' ? 'Selecione um papel' : 'Padrão da cozinha'}</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
+                  </option>
+                ))}
+              </select>
+              <small className="pr-muted">{staffAccess === 'restaurant' ? 'Obrigatório para funcionários do painel' : 'Sem papel: usa o padrão da cozinha'}</small>
+            </label>
+          </form>
+        </Drawer>
+      )}
     </>
   );
 }

@@ -88,7 +88,8 @@ public class RoleRepository {
             "SELECT id, name, email, role, staff_role_id FROM users WHERE restaurant_id = ? AND role IN ('restaurant','kitchen') ORDER BY name",
             (rs, row) -> {
                 long staffRole = rs.getLong("staff_role_id");
-                return new Staff(rs.getLong("id"), rs.getString("name"), rs.getString("email"), rs.getString("role"), rs.wasNull() ? null : staffRole);
+                Long assignedRole = rs.wasNull() ? null : staffRole;
+                return new Staff(rs.getLong("id"), rs.getString("name"), rs.getString("email"), rs.getString("role"), assignedRole);
             },
             restaurantId
         );
@@ -119,9 +120,10 @@ public class RoleRepository {
 
     public int assignStaffRole(long restaurantId, long userId, Long staffRoleId) {
         if (staffRoleId == null) {
-            return jdbc.update("UPDATE users SET staff_role_id = NULL WHERE id = ? AND restaurant_id = ?", userId, restaurantId);
+            // NULL identifica o dono no acesso restaurant. Só a cozinha pode usar o papel padrão.
+            return jdbc.update("UPDATE users SET staff_role_id = NULL WHERE id = ? AND restaurant_id = ? AND role = 'kitchen'", userId, restaurantId);
         }
-        return jdbc.update("UPDATE users SET staff_role_id = ? WHERE id = ? AND restaurant_id = ?", staffRoleId, userId, restaurantId);
+        return jdbc.update("UPDATE users SET staff_role_id = ? WHERE id = ? AND restaurant_id = ? AND (role = 'kitchen' OR (role = 'restaurant' AND staff_role_id IS NOT NULL))", staffRoleId, userId, restaurantId);
     }
 
     private static List<String> parse(String json) {

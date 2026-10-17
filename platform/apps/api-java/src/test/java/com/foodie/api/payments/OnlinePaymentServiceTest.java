@@ -50,6 +50,7 @@ class OnlinePaymentServiceTest {
         order.put("total_cents", 1000L);
         order.put("status", "placed");
         payment.put("id", 11L);
+        payment.put("modality", "online");
         payment.put("status", "pending");
         payment.put("external_id", null);
         payment.put("qr_code", null);
@@ -71,6 +72,17 @@ class OnlinePaymentServiceTest {
     private PaymentGateway.Charge pixCharge() {
         return new PaymentGateway.Charge("123456", "1", 1000, "pending", "pending", "00020126...",
             "base64image", "https://www.mercadopago.com.br/payments/123456/ticket", null);
+    }
+
+    @Test
+    void onlyOrdersCreatedForOnlinePaymentCanStartACharge() {
+        for (String modality : List.of("on_delivery", "offline")) {
+            payment.put("modality", modality);
+            assertEquals(409, assertThrows(ApiException.class,
+                () -> service(true).startIntent(customer, 1, "pix", null)).status());
+        }
+        verify(gateway, never()).create(any(), any());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
     }
 
     private static final String URL_BANCO = "https://acs.banco.exemplo/desafio/abc";

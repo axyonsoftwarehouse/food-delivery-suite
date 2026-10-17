@@ -95,6 +95,20 @@ class PaymentWebhookControllerTest {
     }
 
     @Test
+    void subscriptionFailureReturns503InsteadOfAcknowledgingTheWebhook() throws Exception {
+        when(gateways.resolve("mercadopago")).thenReturn(gateway);
+        when(gateway.provider()).thenReturn("mercadopago");
+        when(gateway.webhookChargeId(any())).thenReturn(Optional.of("ORDSUB9"));
+        when(gateway.verifyWebhook(any())).thenReturn(true);
+        when(subscriptions.route("mercadopago", "ORDSUB9", null))
+            .thenThrow(new com.foodie.api.ApiException(503, "Reenvie a notificação"));
+        mvc.perform(post("/webhooks/mercadopago").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"order\",\"data\":{\"id\":\"ORDSUB9\"}}"))
+            .andExpect(status().isServiceUnavailable());
+        verify(online, never()).handleWebhook(any(), any(), any());
+    }
+
+    @Test
     void deauthorizationMarksTheStoreToReconnect() throws Exception {
         when(gateways.resolve("mercadopago")).thenReturn(gateway);
         when(gateway.webhookDeauthorization(any())).thenReturn(java.util.Optional.of("3588446200"));

@@ -43,7 +43,11 @@ public class RoleService {
     public void delete(long restaurantId, long id) {
         roles.find(restaurantId, id).orElseThrow(() -> new ApiException(404, "Papel não encontrado"));
         if (roles.assigned(id)) throw new ApiException(409, "Há funcionários com este papel");
-        roles.delete(restaurantId, id);
+        try {
+            roles.delete(restaurantId, id);
+        } catch (org.springframework.dao.DataIntegrityViolationException concurrentAssignment) {
+            throw new ApiException(409, "Há funcionários com este papel");
+        }
     }
 
     public List<RoleRepository.Staff> staff(long restaurantId) {
@@ -52,6 +56,7 @@ public class RoleService {
 
     public RoleRepository.Staff createStaff(long restaurantId, String name, String email, String password, String role, Long staffRoleId) {
         if (role == null || !STAFF_ROLES.contains(role)) throw new ApiException(400, "Papel de acesso inválido");
+        if ("restaurant".equals(role) && staffRoleId == null) throw new ApiException(400, "Funcionário do painel precisa de um papel");
         if (staffRoleId != null) roles.find(restaurantId, staffRoleId).orElseThrow(() -> new ApiException(400, "Papel não encontrado"));
         String normalizedEmail = email == null ? "" : email.toLowerCase(Locale.ROOT).strip();
         if (roles.emailExists(normalizedEmail)) throw new ApiException(409, "Já existe um acesso com este email");

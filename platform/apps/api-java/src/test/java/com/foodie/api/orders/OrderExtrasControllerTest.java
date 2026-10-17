@@ -23,6 +23,8 @@ import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
+import com.foodie.api.permissions.Permissions;
 import com.foodie.api.support.SupportActionService;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -46,6 +48,9 @@ class OrderExtrasControllerTest {
 
     @MockitoBean
     private AdminPermissionService permissions;
+
+    @MockitoBean
+    private PermissionService restaurantPermissions;
 
     @MockitoBean
     private AdminAuditService audit;
@@ -105,6 +110,30 @@ class OrderExtrasControllerTest {
             .andReturn().getResponse().getContentAsByteArray();
         assertTrue(pdf.length > 0);
         assertEquals("%PDF", new String(pdf, 0, 4, StandardCharsets.US_ASCII));
+    }
+
+    @Test
+    void invoiceRejectsAnAdminWithoutOrderOrSupportAccess() throws Exception {
+        User admin = new User(2, "Restrito", "r@demo.local", "admin", null);
+        when(auth.requireUser("s")).thenReturn(admin);
+        doThrow(new ApiException(403, "Acesso não autorizado")).when(permissions)
+            .requireIfAdmin(admin, AdminPermissions.ORDERS_MANAGE, AdminPermissions.SUPPORT_VIEW);
+        mvc.perform(get("/orders/5/invoice").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
+            .andExpect(status().isForbidden());
+        verify(orders, never()).detail(any(), anyLong());
+    }
+
+    @Test
+    void invoiceRejectsStaffWithoutOrdersView() throws Exception {
+        for (String role : List.of("restaurant", "kitchen")) {
+            User staff = new User(8, "Funcionário", "f@demo.local", role, 3L);
+            when(auth.requireUser("s")).thenReturn(staff);
+            doThrow(new ApiException(403, "Acesso não autorizado")).when(restaurantPermissions)
+                .require(staff, Permissions.ORDERS_VIEW);
+            mvc.perform(get("/orders/5/invoice").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
+                .andExpect(status().isForbidden());
+        }
+        verify(orders, never()).detail(any(), anyLong());
     }
 
     @Test
