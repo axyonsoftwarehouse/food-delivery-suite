@@ -16,11 +16,19 @@ class AdminPermissionServiceTest {
     private final AdminPermissionService service = new AdminPermissionService(roles);
 
     @Test
-    void fullAdminHasEveryPermission() {
+    void fullAccessRoleHasEveryPermission() {
         User admin = new User(1, "Admin", "admin@demo.local", "admin", null);
-        when(roles.findRoleForUser(1)).thenReturn(Optional.empty());
+        when(roles.findRoleForUser(1)).thenReturn(Optional.of(
+            new AdminRoleRepository.Role(1, "Acesso total", "", List.of(), true, true)));
         assertThat(service.has(admin, AdminPermissions.ADMIN_MANAGE)).isTrue();
         assertThat(service.has(admin, AdminPermissions.SETTINGS_MANAGE)).isTrue();
+    }
+
+    @Test
+    void adminWithoutARoleIsDenied() {
+        User admin = new User(1, "Admin", "admin@demo.local", "admin", null);
+        when(roles.findRoleForUser(1)).thenReturn(Optional.empty());
+        assertThat(service.effective(admin)).isEmpty();
     }
 
     @Test

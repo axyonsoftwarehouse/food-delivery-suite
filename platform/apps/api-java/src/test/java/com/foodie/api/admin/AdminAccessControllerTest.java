@@ -64,7 +64,7 @@ class AdminAccessControllerTest {
     void createsAdminEmployee() throws Exception {
         when(auth.requireUser("s", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
         doNothing().when(permissions).require(any(), eq(AdminPermissions.ADMIN_MANAGE));
-        when(access.createEmployee(eq("Maria"), eq("maria@demo.local"), eq("senha-bem-longa"), eq(3L)))
+        when(access.createEmployee(eq(1L), eq("Maria"), eq("maria@demo.local"), eq("senha-bem-longa"), eq(3L)))
             .thenReturn(new AdminRoleRepository.Employee(8, "Maria", "maria@demo.local", 3L, false));
 
         mvc.perform(post("/admin/employees").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))

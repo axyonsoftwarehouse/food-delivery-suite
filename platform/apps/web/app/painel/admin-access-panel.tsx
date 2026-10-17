@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from '../app-context';
 
 type AdminPermission = { key: string; label: string; group: string };
-type AdminRole = { id: number; name: string; description: string; permissions: string[]; active: boolean };
+type AdminRole = { id: number; name: string; description: string; permissions: string[]; active: boolean; fullAccess: boolean };
 type AdminEmployee = { id: number; name: string; email: string; adminRoleId: number | null; suspended: boolean };
 
 export default function AdminAccessPanel() {
@@ -33,6 +33,7 @@ export default function AdminAccessPanel() {
       ]);
       setCatalog(permissionData);
       setRoles(roleData);
+      setEmployeeRoleId((current) => current || String(roleData.find((role) => role.fullAccess)?.id ?? ''));
       setEmployees(employeeData);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível carregar a administração.');
@@ -103,6 +104,8 @@ export default function AdminAccessPanel() {
   }
 
   const groups = Array.from(new Set(catalog.map((permission) => permission.group)));
+  const managedRoles = roles.filter((role) => !role.fullAccess);
+  const assignableRoles = roles.filter((role) => role.active);
 
   return <section className="panel">
     <div className="panel-heading">
@@ -131,7 +134,7 @@ export default function AdminAccessPanel() {
 
       <div className="courier-list">
         <h3>{'Papéis'}</h3>
-        {roles.length ? roles.map((role) => <div className="courier-row" key={role.id}>
+        {managedRoles.length ? managedRoles.map((role) => <div className="courier-row" key={role.id}>
           <div>
             <strong>{role.name}</strong>
             <span>{role.permissions.length} {'Permissões'.toLowerCase()} · {role.active ? 'Ativo' : 'Inativo'}</span>
@@ -150,7 +153,7 @@ export default function AdminAccessPanel() {
         <label>{'Nome'}<input value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} required minLength={2} maxLength={120} /></label>
         <label>{'Email'}<input type="email" value={employeeEmail} onChange={(event) => setEmployeeEmail(event.target.value)} required /></label>
         <label>{'Senha inicial'}<input type="password" minLength={12} maxLength={128} value={employeePassword} onChange={(event) => setEmployeePassword(event.target.value)} placeholder="Mínimo de 12 caracteres" required /></label>
-        <label>{'Papel'}<select value={employeeRoleId} onChange={(event) => setEmployeeRoleId(event.target.value)}><option value="">{'Acesso total'}</option>{roles.filter((role) => role.active).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>
+        <label>{'Papel'}<select value={employeeRoleId} onChange={(event) => setEmployeeRoleId(event.target.value)}>{assignableRoles.map((role) => <option key={role.id} value={role.id}>{role.fullAccess ? 'Acesso total' : role.name}</option>)}</select></label>
         <button className="secondary-button" disabled={busy}>{'Criar acesso'}</button>
       </form>
 
@@ -163,8 +166,7 @@ export default function AdminAccessPanel() {
             <small className={employee.suspended ? 'courier-state' : 'courier-state approved'}>{employee.suspended ? 'Suspenso' : employee.adminRoleId ? roles.find((role) => role.id === employee.adminRoleId)?.name ?? '—' : 'Acesso total'}</small>
           </div>
           <select value={employee.adminRoleId ?? ''} aria-label={`Nível de acesso de ${employee.name}`} disabled={busy} onChange={(event) => void changeEmployeeRole(employee, event.target.value)}>
-            <option value="">{'Acesso total'}</option>
-            {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+            {roles.map((role) => <option key={role.id} value={role.id}>{role.fullAccess ? 'Acesso total' : role.name}</option>)}
           </select>
         </div>) : <p className="form-help">{'Nenhum funcionário cadastrado.'}</p>}
       </div>
