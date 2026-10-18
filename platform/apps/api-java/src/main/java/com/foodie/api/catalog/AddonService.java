@@ -66,6 +66,14 @@ public class AddonService {
         return total;
     }
 
+    /** Nome/preço mesmo de adicional que ficou indisponível; usado para exibir o item sem apagar do carrinho. */
+    public List<Map<String, Object>> describe(List<Long> requested) {
+        List<Long> ids = normalize(requested);
+        if (ids.isEmpty()) return List.of();
+        String placeholders = String.join(",", java.util.Collections.nCopies(ids.size(), "?"));
+        return jdbc.queryForList("SELECT id, name, price_cents FROM addons WHERE id IN (" + placeholders + ")", ids.toArray());
+    }
+
     public static String key(List<Long> addonIds) {
         return normalize(addonIds).stream().map(String::valueOf).reduce((a, b) -> a + "," + b).orElse("");
     }
