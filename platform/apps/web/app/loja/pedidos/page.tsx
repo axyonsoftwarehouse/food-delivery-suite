@@ -11,12 +11,7 @@ import CourierReviewForm from '../courier-review-form';
 import DeliveryCodeCard from '../delivery-code-card';
 import { Icon, type IconName } from '../../icons';
 import RestaurantMedia from '../restaurant-media';
-
-const statusLabels: Record<string, string> = {
-  placed: 'Pedido recebido', accepted: 'Em preparo', ready: 'Pronto para entrega',
-  assigned: 'Entregador a caminho', picked_up: 'Saiu para entrega', delivered: 'Entregue',
-  rejected: 'Recusado pelo restaurante', cancelled: 'Cancelado', expired: 'Expirou sem aceite', failed: 'Falha na entrega',
-};
+import { orderStatusLabel } from '../order-status';
 
 /**
  * Janela de avaliação do entregador: 7 dias após a entrega (o servidor decide). A tela só evita o GET em pedido
@@ -52,7 +47,7 @@ function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId,
       <div><strong>{order.restaurant_name}</strong><small>{`#${order.id} · ${when(order.created_at)}`}</small></div>
       <strong className="orders-total">{money(order.total_cents)}</strong>
     </div>
-    <p className="orders-status-line" key={`${order.status}-${awaiting}`}><span className="m-live-dot" />{awaiting ? 'Aguardando pagamento' : statusLabels[order.status] ?? order.status}</p>
+    <p className="orders-status-line" key={`${order.status}-${awaiting}`}><span className="m-live-dot" />{awaiting ? 'Aguardando pagamento' : orderStatusLabel(order.status)}</p>
     {order.scheduled_at && <p className="orders-note"><Icon name="calendar" size={14} />{`Agendado para ${when(order.scheduled_at)}`}</p>}
     <ol className="orders-steps" style={{ '--progress': step / (STEPS.length - 1) } as React.CSSProperties}>
       {STEPS.map((item, position) => <li key={item.label} className={position < step ? 'is-done' : position === step ? `is-current${item.icon === 'bike' ? ' is-riding' : ''}` : ''}><span><Icon name={item.icon} size={16} /></span>{item.label}</li>)}
@@ -76,7 +71,7 @@ function PastOrder({ order, index, cover, expandedOrderId, setExpandedOrderId }:
     <button type="button" className="orders-row-main" aria-expanded={open} onClick={() => setExpandedOrderId(open ? null : order.id)}>
       <RestaurantMedia restaurant={{ name: order.restaurant_name, cover_url: cover }} className="orders-media" />
       <span className="orders-row-text"><strong>{order.restaurant_name}</strong><small>{`${when(order.created_at)} · ${money(order.total_cents)}`}</small></span>
-      <span className={`orders-state${failed ? ' is-failed' : ''}`}>{justDelivered && <svg className="orders-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>}{statusLabels[order.status] ?? order.status}</span>
+      <span className={`orders-state${failed ? ' is-failed' : ''}`}>{justDelivered && <svg className="orders-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>}{orderStatusLabel(order.status)}</span>
       <Icon name="chevron-down" size={18} className="orders-row-chevron" />
     </button>
     {FINISHED.includes(order.status) && <div className="orders-row-foot">

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Address, Catalog, Order, Product, Role, User, Zone, api, useApp } from '../app-context';
 
 type Restaurant = { id: number; name: string; slug: string; open?: boolean };
-type CartItem = { productId: number; variationId: number; quantity: number; restaurantId: number; name: string; priceCents: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[] };
+type CartItem = { productId: number; variationId: number; quantity: number; restaurantId: number; name: string; priceCents: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; available: boolean; unavailableReason: string | null };
 type ProductVariation = { id: number; name: string; price_delta_cents: number; available: boolean };
 type ProductAddon = { id: number; name: string; price_cents: number };
 type ProductAddonGroup = { id: number; name: string; min_select: number; max_select: number; required: boolean; variation_id: number; addons: ProductAddon[] };
@@ -40,7 +40,7 @@ type CustomerValue = {
   searchLoading: boolean;
   searchError: string;
   loadMore: () => Promise<void>;
-  cartEntries: { product: { id: number; name: string; restaurant_id: number; price_cents: number }; variationId: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; quantity: number }[];
+  cartEntries: { product: { id: number; name: string; restaurant_id: number; price_cents: number }; variationId: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; quantity: number; available: boolean; unavailableReason: string | null }[];
   cartCount: number;
   subtotal: number;
   fee: number;
@@ -305,7 +305,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     .filter((coverage) => coverage.zone_id === selectedAddress?.zone_id)
     .map((coverage) => coverage.restaurant_id)), [app.catalog.coverage, selectedAddress?.zone_id]);
   const availableCategories = app.catalog.categories.filter((category) => coveredRestaurants.has(category.restaurant_id) && category.restaurant_id === restaurantId);
-  const cartEntries = cart.map((item) => ({ product: { id: item.productId, name: item.name, restaurant_id: item.restaurantId, price_cents: item.priceCents }, variationId: item.variationId, variationName: item.variationName, unitPriceCents: item.unitPriceCents, addonIds: item.addonIds ?? [], addonNames: item.addonNames ?? [], quantity: item.quantity }));
+  const cartEntries = cart.map((item) => ({ product: { id: item.productId, name: item.name, restaurant_id: item.restaurantId, price_cents: item.priceCents }, variationId: item.variationId, variationName: item.variationName, unitPriceCents: item.unitPriceCents, addonIds: item.addonIds ?? [], addonNames: item.addonNames ?? [], quantity: item.quantity, available: item.available ?? true, unavailableReason: item.unavailableReason ?? null }));
   const cartRestaurantId = cart[0]?.restaurantId;
   const restaurantById = useMemo(() => new Map(app.catalog.restaurants.map((restaurant) => [restaurant.id, restaurant])), [app.catalog.restaurants]);
   const cartRestaurantClosed = cartRestaurantId !== undefined && restaurantById.get(cartRestaurantId)?.open === false;
