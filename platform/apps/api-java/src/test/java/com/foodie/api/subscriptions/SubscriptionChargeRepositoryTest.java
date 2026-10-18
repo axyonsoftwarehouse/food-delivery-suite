@@ -28,7 +28,7 @@ class SubscriptionChargeRepositoryTest {
 
     @Test
     void findsTheLiveChargeOfTheSubscription() {
-        when(jdbc.queryForList(argThat(s -> s != null && s.contains("FROM subscription_charges") && s.contains("status = 'pending'")), any(Object[].class)))
+        when(jdbc.queryForList(argThat(s -> s != null && s.contains("FROM subscription_charges") && s.contains("status IN ('pending','failed')")), any(Object[].class)))
             .thenReturn(List.of(row()));
 
         SubscriptionChargeRepository.Charge charge = repository.findLivePending(7).orElseThrow();

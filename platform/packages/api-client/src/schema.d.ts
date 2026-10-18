@@ -8547,6 +8547,7 @@ export interface operations {
         parameters: {
             query: {
                 withUser: number;
+                beforeId?: number;
             };
             header?: never;
             path?: never;

@@ -27,14 +27,13 @@ class PhoneOtpServiceTest {
     void sendsCodeAndCountsTheRequest() {
         service.request(PHONE, "203.0.113.9");
 
-        verify(repository).registerLoginFailure(Tokens.hash("otp-send:" + PHONE), PhoneOtpService.SEND_PER_PHONE);
-        verify(repository).registerLoginFailure(Tokens.hash("otp-send-ip:203.0.113.9"), PhoneOtpService.SEND_PER_ORIGIN);
+        verify(repository).reserveOtpSend(Tokens.hash("otp-send:" + PHONE), Tokens.hash("otp-send-ip:203.0.113.9"), PhoneOtpService.SEND_PER_PHONE, PhoneOtpService.SEND_PER_ORIGIN);
         verify(sms).send(eq(PHONE), anyString());
     }
 
     @Test
     void refusesToSendWhenPhoneIsLimited() {
-        when(repository.isLoginLimited(Tokens.hash("otp-send:" + PHONE))).thenReturn(true);
+        Mockito.doThrow(new ApiException(429, "Limite por telefone")).when(repository).reserveOtpSend(anyString(), anyString(), anyInt(), anyInt());
 
         assertEquals(429, assertThrows(ApiException.class, () -> service.request(PHONE, "203.0.113.9")).status());
         verify(repository, never()).replaceOtp(anyString(), anyString(), anyInt());
@@ -43,7 +42,7 @@ class PhoneOtpServiceTest {
 
     @Test
     void refusesToSendWhenOriginIsLimited() {
-        when(repository.isLoginLimited(Tokens.hash("otp-send-ip:203.0.113.9"))).thenReturn(true);
+        Mockito.doThrow(new ApiException(429, "Limite por origem")).when(repository).reserveOtpSend(anyString(), anyString(), anyInt(), anyInt());
 
         assertEquals(429, assertThrows(ApiException.class, () -> service.request(PHONE, "203.0.113.9")).status());
         verify(sms, never()).send(anyString(), anyString());

@@ -37,9 +37,13 @@ public class AuthService {
             if (originKey != null) repository.registerLoginFailure(originKey, ORIGIN_THRESHOLD);
             throw new ApiException(401, "Credenciais inválidas");
         }
+        String token = Tokens.random();
+        if (!repository.createSessionIfPasswordCurrent(Tokens.hash(token), credentials.get().user().id(), credentials.get().passwordHash())) {
+            throw new ApiException(401, "Credenciais inválidas");
+        }
         repository.clearLoginFailures(accountKey);
         if (originKey != null) repository.clearLoginFailures(originKey);
-        return newSession(credentials.get().user());
+        return new Login(credentials.get().user(), token);
     }
 
     public Login signup(String name, String email, String password) {
