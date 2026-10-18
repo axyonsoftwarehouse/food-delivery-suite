@@ -1,6 +1,17 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 15/10/2026.
+Documento vivo. Última atualização: 17/10/2026.
+Correções de segurança em 16/10/2026: equipe, modalidade do pagamento,
+webhook/concorrência da assinatura, fatura e chat; revisão complementar com oito
+correções de concorrência, login, 3DS, arquivos privados e cotas de SMS. Migration
+local `V070` impede excluir papéis ainda atribuídos. Ver
+`CORRECOES_REVISAO_SEGURANCA_2026-10-16.md`. `VERIFY_INTEGRATION=1 pnpm verify`
+passou com Docker em 16/10 (811 testes Java: 799 habituais + 12 com MariaDB real,
+sem falhas ou testes ignorados; 22 testes do site, 21 da cozinha e cinco smokes).
+Após mesclar com a `main`, `pnpm verify` passou em 17/10 (812 testes Java: 800
+executados + 12 de integração ignorados com Docker parado; 22 do site, 21 da
+cozinha e 13 COPYs). Provedor externo simulado; homologação e publicação
+**(a confirmar)**.
 Base: `PLANO_EPICOS.md`, `PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`,
 `REFERENCIA_FUNCIONAL.md`, `AVALIACAO_E_PLANO_DE_EVOLUCAO.md`, `.hermes.md`,
 `RUNBOOK_VPS.md` e inspeção do `git log` / do código.
@@ -25,7 +36,7 @@ Mantenha curto. Se crescer, corte.
 | Testes Java | `pnpm verify` verde na branch `feat/assinatura-cobranca-real` (15/10, local, sem integração: Docker parado), com **770 testes Java** sem falha. Antes: `pnpm verify` verde na branch `fix/3ds-desistencia` (14/10) com **737 testes Java** sem falha; `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #40 e #41 |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **34%** em 13/10 (antes do deploy de 14/10; número novo `(a confirmar)` com `df -h /`); a limpeza automática dispara em 70% |
-| Árvore de trabalho | branch **`feat/assinatura-trial-15-dias`** (trial de 15 dias: API + painel; `.claude/` não versionado) |
+| Árvore de trabalho | branch **`fix/seguranca-e-consistencia`** (correções de segurança de 16/10; `.claude/` não versionado) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit

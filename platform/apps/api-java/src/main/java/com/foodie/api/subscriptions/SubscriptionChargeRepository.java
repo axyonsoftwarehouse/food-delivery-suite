@@ -29,14 +29,39 @@ public class SubscriptionChargeRepository {
             provider, externalId).stream().findFirst().map(this::charge);
     }
 
+    /** Serializa pagamentos de cobranças diferentes do mesmo ciclo. Usar dentro de transação. */
+    public void lockSubscription(long subscriptionId) {
+        jdbc.queryForList("SELECT id FROM restaurant_subscriptions WHERE id = ? FOR UPDATE", subscriptionId);
+    }
+
+    /** Leitura atual, depois da trava: não reutiliza o snapshot anterior do isolamento REPEATABLE READ. */
+    public Optional<Charge> findByExternalIdForUpdate(String provider, String externalId) {
+        return jdbc.queryForList("SELECT " + COLUMNS + " FROM subscription_charges WHERE provider = ? AND external_id = ? ORDER BY id DESC LIMIT 1 FOR UPDATE",
+            provider, externalId).stream().findFirst().map(this::charge);
+    }
+
+    /** A cobrança já é de um pedido: o webhook segue para pedidos sem consultar a conta da Foodie. */
+    public boolean isOrderPayment(String provider, String externalId) {
+        return !jdbc.queryForList("SELECT 1 FROM order_payments WHERE provider = ? AND external_id = ? LIMIT 1", provider, externalId).isEmpty();
+    }
+
+    /** Há tentativa reservada sem `external_id` (resposta do provedor ainda não gravada ou perdida)? */
+    public boolean hasUnlinkedReservation() {
+        return !jdbc.queryForList("SELECT 1 FROM subscription_charges WHERE external_id IS NULL AND status IN ('pending','failed') LIMIT 1").isEmpty();
+    }
+
     /** A cobrança viva (ainda `pending`) da assinatura, se houver. */
     public Optional<Charge> findLivePending(long subscriptionId) {
-        return jdbc.queryForList("SELECT " + COLUMNS + " FROM subscription_charges WHERE subscription_id = ? AND status = 'pending' ORDER BY id DESC LIMIT 1",
+        return jdbc.queryForList("SELECT " + COLUMNS + " FROM subscription_charges WHERE subscription_id = ? AND status IN ('pending','failed') ORDER BY id DESC LIMIT 1 FOR UPDATE",
             subscriptionId).stream().findFirst().map(this::charge);
     }
 
     public Optional<Charge> findById(long id) {
         return jdbc.queryForList("SELECT " + COLUMNS + " FROM subscription_charges WHERE id = ?", id).stream().findFirst().map(this::charge);
+    }
+
+    public Optional<Charge> findByIdForUpdate(long id) {
+        return jdbc.queryForList("SELECT " + COLUMNS + " FROM subscription_charges WHERE id = ? FOR UPDATE", id).stream().findFirst().map(this::charge);
     }
 
     /** Grava a cobrança antes de falar com o provedor; devolve o id para completá-la depois. */
@@ -68,7 +93,9 @@ public class SubscriptionChargeRepository {
 
     /** Muda o status; o `paid_at` só é carimbado quando vira `paid` (idempotente). */
     public void markStatus(long id, String status, String rawStatus) {
-        jdbc.update("UPDATE subscription_charges SET status = ?, raw_status = ?, paid_at = IF(? = 'paid', NOW(), paid_at) WHERE id = ?",
+        // Expiração/cancelamento atrasado não desfaz um pagamento confirmado por outro webhook.
+        jdbc.update("UPDATE subscription_charges SET status = ?, raw_status = ?, paid_at = IF(? = 'paid', NOW(), paid_at) WHERE id = ?"
+                + " AND status NOT IN ('paid', 'refunded')",
             status, rawStatus, status, id);
     }
 
@@ -86,7 +113,7 @@ public class SubscriptionChargeRepository {
 
     /** A cobrança que pagou um período, se já houver (protege contra pagar o mesmo período duas vezes). */
     public Optional<Charge> findPaidForPeriod(long subscriptionId, Instant periodStart) {
-        return jdbc.queryForList("SELECT " + COLUMNS + " FROM subscription_charges WHERE subscription_id = ? AND status = 'paid' AND period_start = ? LIMIT 1",
+        return jdbc.queryForList("SELECT " + COLUMNS + " FROM subscription_charges WHERE subscription_id = ? AND status = 'paid' AND period_start = ? LIMIT 1 FOR UPDATE",
             subscriptionId, Timestamp.from(periodStart)).stream().findFirst().map(this::charge);
     }
 
@@ -97,7 +124,7 @@ public class SubscriptionChargeRepository {
 
     /** Quantas cobranças da assinatura já foram pagas (para saber se o próximo razão é `subscribe` ou `renew`). */
     public long countPaid(long subscriptionId) {
-        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM subscription_charges WHERE subscription_id = ? AND status = 'paid'", Long.class, subscriptionId);
+        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM subscription_charges WHERE subscription_id = ? AND status = 'paid' FOR UPDATE", Long.class, subscriptionId);
         return count == null ? 0 : count;
     }
 

@@ -37,8 +37,13 @@ class SubscriptionBillingServiceTest {
     @BeforeEach
     void setUp() {
         when(gateways.resolve(any())).thenReturn(gateway);
+        when(charges.findByIdForUpdate(42)).thenReturn(Optional.of(new SubscriptionChargeRepository.Charge(42, 7, 3, 9900, null, "pending",
+            Instant.parse("2026-10-15T00:00:00Z"), Instant.parse("2026-11-14T00:00:00Z"))));
         when(jdbc.queryForList(argThat(s -> s != null && s.contains("FROM users")), any(Object[].class)))
             .thenReturn(List.of(Map.of("email", "dono@loja.com.br")));
+        when(charges.findByExternalIdForUpdate(anyString(), anyString())).thenAnswer(invocation ->
+            charges.findByExternalId(invocation.getArgument(0), invocation.getArgument(1)));
+        when(charges.markPaid(anyLong(), anyString())).thenReturn(1);
     }
 
     private SubscriptionBillingService service(boolean enabled) {
@@ -109,6 +114,56 @@ class SubscriptionBillingServiceTest {
     }
 
     @Test
+    void aFailedAttemptFromAnAlreadyPaidCycleIsRetiredWithoutANewPix() {
+        // Antes da reserva durável, cada falha virava uma linha `failed` e outra cobrança pagava o ciclo.
+        Instant cycle = Instant.parse("2026-09-15T00:00:00Z");
+        subscription("active", Instant.parse("2030-01-01T00:00:00Z"));
+        when(charges.findLivePending(7)).thenReturn(
+            Optional.of(new SubscriptionChargeRepository.Charge(5, 7, 3, 9900, null, "failed", cycle, cycle.plusSeconds(30 * 86400))),
+            Optional.empty());
+        when(charges.findPaidForPeriod(7, cycle)).thenReturn(Optional.of(
+            new SubscriptionChargeRepository.Charge(6, 7, 3, 9900, "ORDSUB6", "paid", cycle, cycle.plusSeconds(30 * 86400))));
+
+        assertTrue(service(true).generateForSubscription(7).isEmpty());
+
+        verify(charges).markStatus(5, "expired", "superseded_paid_period");
+        verify(charges, never()).markStatus(5, "pending", "retrying_same_attempt");
+        verify(gateway, never()).create(any(), any());
+        verify(notifications, never()).notifyRestaurant(anyLong(), anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void anUnsentReservationOfASubscriptionThatCanNoLongerBeChargedIsClosed() {
+        subscription("cancelled", Instant.parse("2026-10-01T00:00:00Z"));
+        when(charges.findLivePending(7)).thenReturn(Optional.of(new SubscriptionChargeRepository.Charge(
+            42, 7, 3, 9900, null, "pending", Instant.parse("2026-10-15T00:00:00Z"), Instant.parse("2026-11-14T00:00:00Z"))),
+            Optional.empty());
+
+        assertTrue(service(true).generateForSubscription(7).isEmpty());
+
+        verify(charges).markStatus(42, "expired", "subscription_not_chargeable");
+        verify(gateway, never()).create(any(), any());
+        verify(gateway, never()).fetch(any(), anyString());
+    }
+
+    @Test
+    void aSentChargeOfACancelledSubscriptionIsStillReconciledWithTheProvider() {
+        // Com external_id, só o provedor sabe se houve pagamento: não se encerra localmente.
+        subscription("cancelled", Instant.parse("2026-10-01T00:00:00Z"));
+        var sent = new SubscriptionChargeRepository.Charge(42, 7, 3, 9900, "ORDSUB9", "pending",
+            Instant.parse("2026-10-15T00:00:00Z"), Instant.parse("2026-11-14T00:00:00Z"));
+        when(charges.findLivePending(7)).thenReturn(Optional.of(sent));
+        when(charges.findByIdForUpdate(42)).thenReturn(Optional.of(sent));
+        when(gateway.fetch(any(), eq("ORDSUB9"))).thenReturn(
+            new PaymentGateway.Charge("ORDSUB9", "sub-42", 9900, "expired", "expired", null, null, null, null));
+
+        assertTrue(service(true).generateForSubscription(7).isEmpty());
+
+        verify(charges, never()).markStatus(42, "expired", "subscription_not_chargeable");
+        verify(charges).markStatus(42, "expired", "expired");
+    }
+
+    @Test
     void withoutTheFlagNothingIsCharged() {
         subscription("active", Instant.parse("2026-10-01T00:00:00Z"));
 
@@ -162,5 +217,36 @@ class SubscriptionBillingServiceTest {
         assertEquals("ORDSUB9", result.get("refundedDuplicate"));
         verify(gateway).refund(any(), eq("ORDSUB9"), eq("refund-dup-ORDSUB9"));
         verify(charges, never()).markPaid(anyLong(), anyString());
+    }
+
+    @Test
+    void aWebhookThatWaitedForAnotherOneUsesTheCurrentPaymentStatus() {
+        when(charges.findByExternalId("mercadopago", "ORDSUB9")).thenReturn(Optional.of(charge("pending")));
+        when(charges.findByExternalIdForUpdate("mercadopago", "ORDSUB9")).thenReturn(Optional.of(charge("paid")));
+        assertEquals("paid", service(true).applyPaid("mercadopago", "ORDSUB9", paidCharge()).get("already"));
+        var ordered = org.mockito.Mockito.inOrder(charges);
+        ordered.verify(charges).lockSubscription(7);
+        ordered.verify(charges).findByExternalIdForUpdate("mercadopago", "ORDSUB9");
+        verify(charges, never()).markPaid(anyLong(), anyString());
+        org.mockito.Mockito.verifyNoInteractions(notifications);
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void aLostPaymentTransitionCannotWriteAnotherLedgerEntry() {
+        when(charges.findByExternalId("mercadopago", "ORDSUB9")).thenReturn(Optional.of(charge("pending")));
+        when(charges.markPaid(42, "accredited")).thenReturn(0);
+        assertEquals("paid", service(true).applyPaid("mercadopago", "ORDSUB9", paidCharge()).get("already"));
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+        org.mockito.Mockito.verifyNoInteractions(notifications);
+    }
+
+    @Test
+    void aRefundedDuplicateIsNotRefundedOrRecordedAgain() {
+        when(charges.findByExternalId("mercadopago", "ORDSUB9")).thenReturn(Optional.of(charge("pending")));
+        when(charges.findByExternalIdForUpdate("mercadopago", "ORDSUB9")).thenReturn(Optional.of(charge("refunded")));
+        assertEquals("refunded", service(true).applyPaid("mercadopago", "ORDSUB9", paidCharge()).get("already"));
+        verify(gateway, never()).refund(any(), anyString(), anyString());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
     }
 }

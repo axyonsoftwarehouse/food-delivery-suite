@@ -24,6 +24,9 @@ class SubscriptionRenewalRunnerTest {
     private final SubscriptionBillingService billing = mock(SubscriptionBillingService.class);
     private final NotificationService notifications = mock(NotificationService.class);
 
+    @org.junit.jupiter.api.BeforeEach
+    void updatesChangeOneRow() { when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1); }
+
     private SubscriptionRenewalRunner runner(int graceDays) {
         return new SubscriptionRenewalRunner(jdbc, billing, notifications, graceDays);
     }
@@ -69,5 +72,14 @@ class SubscriptionRenewalRunnerTest {
         runner(5).run();
 
         verify(jdbc).update(argThat(s -> s != null && s.contains("status = 'suspended'")), any(Object[].class));
+    }
+
+    @Test
+    void staleDelinquencyDecisionDoesNotNotifyAfterPaymentWonTheRace() {
+        when(jdbc.queryForList(argThat(s -> s != null && s.contains("delinquent_since"))))
+            .thenReturn(List.of(Map.of("id", 7L, "restaurant_id", 3L)));
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(0);
+        runner(5).run();
+        org.mockito.Mockito.verifyNoInteractions(notifications);
     }
 }

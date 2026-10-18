@@ -6,6 +6,8 @@ import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
+import com.foodie.api.permissions.Permissions;
 import com.foodie.api.support.SupportActionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -43,9 +45,10 @@ public class OrderExtrasController {
     private final RefundRequestService refunds;
     private final SupportActionService support;
     private final PaymentService payments;
+    private final PermissionService restaurantPermissions;
 
     public OrderExtrasController(AuthService auth, AdminPermissionService permissions, AdminAuditService audit, JdbcTemplate jdbc, OrderService orders,
-                                RefundRequestService refunds, SupportActionService support, PaymentService payments) {
+                                RefundRequestService refunds, SupportActionService support, PaymentService payments, PermissionService restaurantPermissions) {
         this.auth = auth;
         this.permissions = permissions;
         this.audit = audit;
@@ -54,6 +57,7 @@ public class OrderExtrasController {
         this.refunds = refunds;
         this.support = support;
         this.payments = payments;
+        this.restaurantPermissions = restaurantPermissions;
     }
 
     // ----- E27: fatura -----
@@ -62,6 +66,10 @@ public class OrderExtrasController {
     public ResponseEntity<byte[]> invoice(@CookieValue(value = "foodie_session", required = false) String token,
                                           @PathVariable @Positive long id) {
         User user = auth.requireUser(token);
+        permissions.requireIfAdmin(user, AdminPermissions.ORDERS_MANAGE, AdminPermissions.SUPPORT_VIEW);
+        if ("restaurant".equals(user.role()) || "kitchen".equals(user.role())) {
+            restaurantPermissions.require(user, Permissions.ORDERS_VIEW);
+        }
         byte[] pdf = InvoicePdf.build(orders.detail(user, id));
         return ResponseEntity.ok()
             .contentType(MediaType.APPLICATION_PDF)

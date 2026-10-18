@@ -86,9 +86,12 @@ public class OnlinePaymentService {
         long restaurantId = ((Number) order.get("restaurant_id")).longValue();
 
         List<Map<String, Object>> payments = jdbc.queryForList(
-            "SELECT id, status, method, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents, payment_account_id FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
+            "SELECT id, modality, status, method, provider, external_id, idempotency_key, qr_code, ticket_url, amount_due_cents, payment_account_id FROM order_payments WHERE order_id = ? FOR UPDATE", orderId);
         if (payments.isEmpty()) throw new ApiException(409, "Pagamento do pedido não encontrado");
         Map<String, Object> payment = payments.getFirst();
+        if (!"online".equals(payment.get("modality"))) {
+            throw new ApiException(409, "Este pedido não foi criado para pagamento online");
+        }
         String paymentStatus = (String) payment.get("status");
         boolean pixAbertoParaCartao = false;
         if ("paid".equals(paymentStatus)) throw new ApiException(409, "Este pedido já está pago");
@@ -157,8 +160,9 @@ public class OnlinePaymentService {
         // não faz nada — então a conferência de valor e o confirmed_at do webhook têm de acontecer aqui.
         String note = null;
         if ("paid".equals(status) && charge.amountCents() != due) {
+            refundAmountMismatch(gateway, credentials, charge, due);
             status = "rejected";
-            note = "Valor divergente: provedor " + charge.amountCents() + " vs pedido " + due;
+            note = mismatchNote(charge.amountCents(), due);
         }
         jdbc.update("UPDATE order_payments SET provider = ?, method = ?, external_id = COALESCE(?, external_id), idempotency_key = ?, status = ?, raw_status = ?,"
                 + " qr_code = ?, qr_code_base64 = ?, ticket_url = ?, expires_at = ?, note = ?,"
@@ -180,9 +184,10 @@ public class OnlinePaymentService {
             log.warn("Webhook do Mercado Pago ignorado: conta {} sem loja conectada (loja desconectou ou trocou de conta?) — conferir no painel do Mercado Pago", providerUserId);
             return Map.of("ok", true, "ignored", true);
         }
+        PaymentGateway gateway = gateways.resolve(provider);
         PaymentGateway.Charge charge;
         try {
-            charge = gateways.resolve(provider).fetch(sellers.getFirst(), paymentId);
+            charge = gateway.fetch(sellers.getFirst(), paymentId);
         } catch (ApiException naoEncontrado) {
             // Notificação sobre algo que não é nosso — o próprio painel do Mercado Pago testa o webhook
             // com um pedido fictício ("123456"). Responder erro faria o provedor reenviar para sempre e
@@ -234,8 +239,9 @@ public class OnlinePaymentService {
         String next = charge.status();
         String note = null;
         if ("paid".equals(next) && charge.amountCents() != due) {
+            refundAmountMismatch(gateway, sellers.getFirst(), charge, due);
             next = "rejected";
-            note = "Valor divergente: provedor " + charge.amountCents() + " vs pedido " + due;
+            note = mismatchNote(charge.amountCents(), due);
         }
         jdbc.update("UPDATE order_payments SET status = ?, raw_status = ?, external_id = ?, note = ?, confirmed_at = IF(? = 'paid', NOW(), confirmed_at),"
                 + " challenge_url = IF(? = 'pending', COALESCE(?, challenge_url), NULL),"
@@ -279,14 +285,15 @@ public class OnlinePaymentService {
         if (!(row.get("external_id") instanceof String charge) || row.get("payment_account_id") == null) return;
         MerchantCredentials credentials = accounts.credentialsForAccount(((Number) row.get("payment_account_id")).longValue()).orElse(null);
         if (credentials == null) return;
+        PaymentGateway gateway = gateways.resolve((String) row.get("provider"));
         PaymentGateway.Charge atual;
         try {
-            atual = gateways.resolve((String) row.get("provider")).fetch(credentials, charge);
+            atual = gateway.fetch(credentials, charge);
         } catch (RuntimeException falha) {
             log.warn("Pedido #{}: a cobrança {} não pôde ser conferida ({})", orderId, charge, falha.getMessage());
             return;
         }
-        if (atual != null) gravarResultado(orderId, ((Number) row.get("amount_due_cents")).longValue(), atual);
+        if (atual != null) gravarResultado(orderId, ((Number) row.get("amount_due_cents")).longValue(), atual, gateway, credentials);
     }
 
     /**
@@ -331,7 +338,7 @@ public class OnlinePaymentService {
             return detail(orderId);
         }
         if (resposta != null && ("paid".equals(resposta.status()) || "rejected".equals(resposta.status()))) {
-            gravarResultado(orderId, ((Number) row.get("amount_due_cents")).longValue(), resposta);
+            gravarResultado(orderId, ((Number) row.get("amount_due_cents")).longValue(), resposta, gateway, credentials);
             return detail(orderId);
         }
         if (motivo == null) motivo = resposta == null ? "cobrança não pôde ser consultada" : "cobrança ainda " + resposta.rawStatus();
@@ -365,12 +372,13 @@ public class OnlinePaymentService {
     }
 
     /** Grava o que o provedor disse de uma cobrança ainda pendente, com a mesma conferência de valor do webhook. */
-    private void gravarResultado(long orderId, long due, PaymentGateway.Charge charge) {
+    private void gravarResultado(long orderId, long due, PaymentGateway.Charge charge, PaymentGateway gateway, MerchantCredentials credentials) {
         String next = charge.status() == null || !STATUSES.contains(charge.status()) ? "pending" : charge.status();
         String note = null;
         if ("paid".equals(next) && charge.amountCents() != due) {
+            refundAmountMismatch(gateway, credentials, charge, due);
             next = "rejected";
-            note = "Valor divergente: provedor " + charge.amountCents() + " vs pedido " + due;
+            note = mismatchNote(charge.amountCents(), due);
         }
         // O QR do Pix pode chegar depois da criação (criação assíncrona do Mercado Pago, spec de 14/10/2026
         // "Pix sem QR", regra 4). COALESCE: uma resposta sem QR não apaga o que já foi gravado.
@@ -382,6 +390,20 @@ public class OnlinePaymentService {
             next, charge.rawStatus(), note, next, next, charge.challengeUrl(),
             charge.qrCode(), charge.qrCodeBase64(), charge.ticketUrl(),
             charge.expiresAt() == null ? null : Timestamp.from(charge.expiresAt()), orderId);
+    }
+
+    /** Nunca deixa dinheiro retido: cobrança paga com valor diferente do pedido é estornada na hora. */
+    private void refundAmountMismatch(PaymentGateway gateway, MerchantCredentials credentials, PaymentGateway.Charge charge, long due) {
+        String externalId = charge.externalId();
+        if (externalId == null || externalId.isBlank()) {
+            throw new ApiException(502, "Cobrança paga sem identificador no provedor: reconciliação manual necessária");
+        }
+        gateway.refund(credentials, externalId, "refund-mismatch-" + externalId);
+        log.warn("Cobrança {} paga com valor divergente ({} vs pedido {}); estornada", externalId, charge.amountCents(), due);
+    }
+
+    private static String mismatchNote(long paid, long due) {
+        return "Valor divergente: provedor " + paid + " vs pedido " + due + "; cobrança estornada";
     }
 
     /**
@@ -421,6 +443,12 @@ public class OnlinePaymentService {
         if ("paid".equals(atual.status()) && atual.amountCents() == due) {
             jdbc.update("UPDATE order_payments SET status = 'paid', raw_status = ?, confirmed_at = NOW() WHERE order_id = ? AND status = 'pending'",
                 atual.rawStatus(), orderId);
+            return "paid";
+        }
+        if ("paid".equals(atual.status()) && atual.amountCents() != due) {
+            refundAmountMismatch(gateway, credentials, atual, due);
+            jdbc.update("UPDATE order_payments SET status = 'rejected', raw_status = 'amount_mismatch', note = ? WHERE order_id = ? AND status = 'pending'",
+                mismatchNote(atual.amountCents(), due), orderId);
             return "paid";
         }
         PaymentGateway.Charge cancelada;

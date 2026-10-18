@@ -2,6 +2,7 @@ package com.foodie.api.subscriptions;
 
 import com.foodie.api.notifications.NotificationService;
 import java.time.Duration;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +50,8 @@ public class SubscriptionRenewalRunner {
     /** Gera a cobrança do próximo período das assinaturas devidas: ativa, suspensa (retry) ou trial no fim. */
     private void chargeDue() {
         List<Long> due = jdbc.query(
-            "SELECT id FROM restaurant_subscriptions WHERE status IN ('trial','active','suspended') AND next_charge_at <= NOW() ORDER BY next_charge_at, id LIMIT 50",
+            "SELECT id FROM restaurant_subscriptions WHERE (status IN ('trial','active','suspended') AND next_charge_at <= NOW())"
+                + " OR EXISTS (SELECT 1 FROM subscription_charges c WHERE c.subscription_id = restaurant_subscriptions.id AND c.status IN ('pending','failed')) ORDER BY next_charge_at, id LIMIT 50",
             (rs, row) -> rs.getLong(1));
         for (Long id : due) billing.generateForSubscription(id);
     }
@@ -65,12 +67,14 @@ public class SubscriptionRenewalRunner {
             long restaurantId = ((Number) row.get("restaurant_id")).longValue();
             Instant since = SubscriptionBillingService.instant(row.get("delinquent_since"));
             if (since == null) {
-                jdbc.update("UPDATE restaurant_subscriptions SET status = 'suspended', delinquent_since = NOW() WHERE id = ?", id);
-                notifications.notifyRestaurant(restaurantId, "subscription", "Assinatura em atraso",
+                int changed = jdbc.update("UPDATE restaurant_subscriptions SET status = 'suspended', delinquent_since = NOW() WHERE id = ?"
+                    + " AND status IN ('trial','active','suspended') AND ends_at < NOW() AND delinquent_since IS NULL", id);
+                if (changed > 0) notifications.notifyRestaurant(restaurantId, "subscription", "Assinatura em atraso",
                     "O pagamento da assinatura Foodie está em atraso. Regularize para não perder o acesso.", null);
             } else if (since.isBefore(limite)) {
-                jdbc.update("UPDATE restaurant_subscriptions SET status = 'expired' WHERE id = ?", id);
-                notifications.notifyRestaurant(restaurantId, "subscription", "Assinatura expirada",
+                int changed = jdbc.update("UPDATE restaurant_subscriptions SET status = 'expired' WHERE id = ?"
+                    + " AND status IN ('trial','active','suspended') AND ends_at < NOW() AND delinquent_since < ?", id, Timestamp.from(limite));
+                if (changed > 0) notifications.notifyRestaurant(restaurantId, "subscription", "Assinatura expirada",
                     "A assinatura Foodie expirou. Regularize o pagamento para reativar a loja.", null);
             }
         }

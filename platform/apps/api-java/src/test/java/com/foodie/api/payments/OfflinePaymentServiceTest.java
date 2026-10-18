@@ -48,9 +48,17 @@ class OfflinePaymentServiceTest {
     }
 
     @Test
-    void canSwitchToProofAfterTheOnlineChargeFailed() {
+    void rejectedOnlineAttemptCannotHideAnEarlierLiveBankChallenge() {
         payment.put("status", "rejected");
-        assertEquals("pending", service.submitProof(customer, 1, 3, null, null).get("status"));
+        assertEquals(409, assertThrows(ApiException.class, () -> service.submitProof(customer, 1, 3, null, null)).status());
+    }
+
+    @Test
+    void abandonedBankChallengeCannotSwitchToProofWhileProviderMayStillCharge() {
+        payment.put("status", "cancelled");
+        payment.put("raw_status", "abandoned");
+        assertEquals(409, assertThrows(ApiException.class, () -> service.submitProof(customer, 1, 3, null, null)).status());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
     }
 
     @Test

@@ -5116,6 +5116,8 @@ export interface components {
             unitPriceCents?: number;
             addonIds?: number[];
             addonNames?: string[];
+            available?: boolean;
+            unavailableReason?: string;
         };
         CartSnapshot: {
             items?: components["schemas"]["CartItem"][];
@@ -8554,6 +8556,7 @@ export interface operations {
         parameters: {
             query: {
                 withUser: number;
+                beforeId?: number;
             };
             header?: never;
             path?: never;

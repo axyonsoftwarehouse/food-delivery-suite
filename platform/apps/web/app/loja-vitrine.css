@@ -33,7 +33,7 @@
 .lj-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: var(--brand-500); color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
 .lj-header-actions { display: flex; align-items: center; gap: 8px; }
 .lj-header-actions .notif-button { width: 40px; height: 40px; border: 0; background: var(--surface-muted); }
-.lj-avatar { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--text); color: var(--surface); font-size: 15px; font-weight: 700; text-decoration: none; }
+.lj-avatar { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--brand-050); color: var(--brand-700); font-size: 15px; font-weight: 700; text-decoration: none; }
 .lj-offline { margin: 0; padding: 8px 16px; background: var(--danger-soft); color: var(--danger); font-size: 13px; font-weight: 600; text-align: center; }
 .lj-tabbar { display: none; }
 
@@ -44,7 +44,7 @@
 .lj-text-button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 0; border: 0; background: none; color: var(--brand-700); font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; }
 .lj-text-button:hover { text-decoration: underline; text-underline-offset: 3px; }
 .lj-outline-button { display: inline-flex; align-items: center; justify-content: center; height: 40px; padding: 0 16px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 700; cursor: pointer; }
-.lj-outline-button:hover:not(:disabled) { border-color: var(--text); }
+.lj-outline-button:hover:not(:disabled) { border-color: var(--brand-500); color: var(--brand-700); }
 .lj-outline-button:disabled { opacity: 0.5; cursor: not-allowed; }
 .lj-round-button { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--text); text-decoration: none; cursor: pointer; }
 .lj-round-button:hover:not(:disabled) { border-color: var(--border-strong); }
@@ -63,7 +63,8 @@
 .lj-chips::-webkit-scrollbar { display: none; }
 .lj-chips button { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer; }
 .lj-chips button:hover { border-color: var(--text-muted); }
-.lj-chips button[aria-pressed='true'] { border-color: var(--text); background: var(--text); color: var(--surface); }
+.lj-chips button[aria-pressed='true'] { border-color: var(--brand-500); background: var(--brand-500); color: #fff; font-weight: 600; }
+.lj-chips button[aria-pressed='true']:hover { border-color: var(--brand-600); background: var(--brand-600); }
 .lj-chips--small button { height: 30px; padding: 0 12px; font-size: 13px; }
 
 .lj-empty { display: grid; justify-items: center; gap: 10px; padding: 40px 20px; border-radius: 20px; background: var(--surface); color: var(--text-muted); text-align: center; }
@@ -215,6 +216,8 @@
 .lj-items { margin: 0; padding: 0; list-style: none; }
 .lj-item { display: flex; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border); }
 .lj-item:first-child { padding-top: 0; }
+.lj-item.is-unavailable { opacity: 0.72; }
+.lj-item-unavailable { color: var(--danger); font-size: 12px; font-weight: 700; }
 .lj-item-text { display: grid; flex: 1; gap: 3px; min-width: 0; }
 .lj-item-text strong { font-size: 15px; }
 .lj-item-text small { color: var(--text-muted); font-size: 13px; }
@@ -336,7 +339,7 @@
 /* Perfil no mesmo tom neutro: o cabeçalho deixa de ser um banner verde. */
 .customer-app .profile-hero { padding: 20px; border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: none; }
 .customer-app .profile-hero::after { display: none; }
-.customer-app .profile-avatar { flex-basis: 64px; height: 64px; border: 0; background: var(--text); color: var(--surface); font-size: 26px; box-shadow: none; }
+.customer-app .profile-avatar { flex-basis: 64px; height: 64px; border: 0; background: var(--brand-050); color: var(--brand-700); font-size: 26px; box-shadow: none; }
 .customer-app .profile-id p { color: var(--text-muted); }
 .customer-app .profile-badge { background: var(--warning-soft); color: #8a5a12; }
 .customer-app .profile-badge.is-ok { background: var(--success-soft); color: var(--brand-700); }
@@ -418,7 +421,7 @@ span.lj-flyer { border-radius: 50%; background: var(--brand-500); }
 .lj-mini-media .lj-media-fallback { font-size: 14px; }
 .lj-mini strong { font: 800 16px var(--font-display); letter-spacing: -0.3px; }
 .lj-tabs button[aria-pressed='true'] { border-bottom-color: transparent; }
-.lj-tabs-line { position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 2px; background: var(--text); transition: transform 0.3s var(--ease-out), width 0.3s var(--ease-out); }
+.lj-tabs-line { position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 2px; background: var(--brand-500); transition: transform 0.3s var(--ease-out), width 0.3s var(--ease-out); }
 
 /* Ficha do prato sobe com mola */
 .customer-sheet { animation: lj-sheet-pop 0.36s var(--ease-spring); }

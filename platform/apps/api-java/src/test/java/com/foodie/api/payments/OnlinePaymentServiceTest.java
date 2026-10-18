@@ -50,6 +50,7 @@ class OnlinePaymentServiceTest {
         order.put("total_cents", 1000L);
         order.put("status", "placed");
         payment.put("id", 11L);
+        payment.put("modality", "online");
         payment.put("status", "pending");
         payment.put("external_id", null);
         payment.put("qr_code", null);
@@ -71,6 +72,17 @@ class OnlinePaymentServiceTest {
     private PaymentGateway.Charge pixCharge() {
         return new PaymentGateway.Charge("123456", "1", 1000, "pending", "pending", "00020126...",
             "base64image", "https://www.mercadopago.com.br/payments/123456/ticket", null);
+    }
+
+    @Test
+    void onlyOrdersCreatedForOnlinePaymentCanStartACharge() {
+        for (String modality : List.of("on_delivery", "offline")) {
+            payment.put("modality", modality);
+            assertEquals(409, assertThrows(ApiException.class,
+                () -> service(true).startIntent(customer, 1, "pix", null)).status());
+        }
+        verify(gateway, never()).create(any(), any());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
     }
 
     private static final String URL_BANCO = "https://acs.banco.exemplo/desafio/abc";
@@ -265,8 +277,8 @@ class OnlinePaymentServiceTest {
     }
 
     @Test
-    void cardApprovedWithADifferentAmountIsNotMarkedPaid() {
-        // A mesma conferência que o webhook faz: valor do provedor diferente do devido não vira pago.
+    void cardApprovedWithADifferentAmountIsRefundedAndNotMarkedPaid() {
+        // A mesma conferência que o webhook faz: valor do provedor diferente do devido não vira pago e é estornado.
         when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("999", "1", 900, "paid", "accredited", null, null, null, null));
 
         service(true).startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 1, "CPF", "12345678909"));
@@ -275,8 +287,9 @@ class OnlinePaymentServiceTest {
         verify(jdbc).update(anyString(), values.capture());
         Object[] salvo = values.getValue();
         assertEquals("rejected", salvo[4]);
-        assertEquals("Valor divergente: provedor 900 vs pedido 1000", salvo[10]);
+        assertEquals("Valor divergente: provedor 900 vs pedido 1000; cobrança estornada", salvo[10]);
         assertEquals("rejected", salvo[11]);
+        verify(gateway).refund(loja, "999", "refund-mismatch-999");
     }
 
     @Test
@@ -462,6 +475,27 @@ class OnlinePaymentServiceTest {
         when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(new PaymentGateway.Charge("ORDTST01ABC", "1", 1000, "paid", "accredited", null, null, null, null));
 
         assertEquals("paid", service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200").get("status"));
+    }
+
+    @Test
+    void failedRefundOfADivergentChargeDoesNotMarkItRejected() {
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("999", "1", 900, "paid", "accredited", null, null, null, null));
+        when(gateway.refund(loja, "999", "refund-mismatch-999")).thenThrow(new ApiException(502, "Mercado Pago fora do ar"));
+
+        assertThrows(ApiException.class, () -> service(true)
+            .startIntent(customer, 1, new OnlinePaymentService.Intent("card", null, "tok-123", 1, "CPF", "12345678909")));
+        verify(jdbc, never()).update(argThat(sql -> sql != null && sql.startsWith("UPDATE order_payments")), any(Object[].class));
+    }
+
+    @Test
+    void webhookPaidWithDifferentAmountIsRefundedAndRejected() {
+        when(gateway.fetch(any(), eq("ORDTST01ABC"))).thenReturn(
+            new PaymentGateway.Charge("ORDTST01ABC", "1", 900, "paid", "accredited", null, null, null, null));
+
+        Map<String, Object> result = service(true).handleWebhook("mercadopago", "ORDTST01ABC", "3588446200");
+
+        assertEquals("rejected", result.get("status"));
+        verify(gateway).refund(loja, "ORDTST01ABC", "refund-mismatch-ORDTST01ABC");
     }
 
     @Test
@@ -721,7 +755,7 @@ class OnlinePaymentServiceTest {
     }
 
     @Test
-    void refreshWithADifferentAmountIsNotPaid() {
+    void refreshWithADifferentAmountIsRefundedAndNotPaid() {
         desafioAberto();
         when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 900, "paid", "accredited", null, null, null, null));
 
@@ -730,7 +764,8 @@ class OnlinePaymentServiceTest {
         ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
         verify(jdbc).update(anyString(), values.capture());
         assertEquals("rejected", values.getValue()[0]);
-        assertEquals("Valor divergente: provedor 900 vs pedido 1000", values.getValue()[2]);
+        assertEquals("Valor divergente: provedor 900 vs pedido 1000; cobrança estornada", values.getValue()[2]);
+        verify(gateway).refund(loja, "ORD3DS", "refund-mismatch-ORD3DS");
     }
 
     @Test

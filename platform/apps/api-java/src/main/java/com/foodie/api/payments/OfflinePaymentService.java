@@ -58,7 +58,7 @@ public class OfflinePaymentService {
     @Transactional
     public Map<String, Object> submitProof(User actor, long orderId, long methodId, String proofUrl, String note) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT p.status, p.modality, p.external_id, o.customer_id, o.status AS order_status FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE",
+            "SELECT p.status, p.raw_status, p.modality, p.external_id, o.customer_id, o.status AS order_status FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE",
             orderId
         );
         if (rows.isEmpty()) throw new ApiException(404, "Pagamento não encontrado");
@@ -67,9 +67,10 @@ public class OfflinePaymentService {
         if (CLOSED_ORDER.contains(String.valueOf(row.get("order_status")))) throw new ApiException(409, "Este pedido não aceita mais pagamento");
         String status = String.valueOf(row.get("status"));
         if ("paid".equals(status) || "refunded".equals(status)) throw new ApiException(409, "Este pedido já está pago");
-        // Cobrança online ainda pagável: trocar para comprovante permitiria pagar duas vezes (revisão de 08/10/2026).
-        if ("online".equals(row.get("modality")) && "pending".equals(status) && row.get("external_id") != null) {
-            throw new ApiException(409, "Há uma cobrança online em aberto para este pedido. Pague por ela ou espere ela expirar.");
+        // A modalidade é imutável: pode haver tentativas 3DS anteriores ainda vivas no provedor,
+        // mesmo quando a tentativa mais recente foi recusada. O comprovante exige outro pedido.
+        if ("online".equals(row.get("modality"))) {
+            throw new ApiException(409, "Este pedido usa pagamento online. Pague por Pix/cartão ou cancele e crie outro para pagar por comprovante.");
         }
 
         List<Map<String, Object>> methods = jdbc.queryForList(

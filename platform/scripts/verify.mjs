@@ -53,7 +53,7 @@ run('Testes Java (api-java)', 'mvn', [...mvnOffline, '-q', '-Dmaven.repo.local=.
 // já deixou passar um erro de tipo real (código 0). Aqui a checagem roda sem
 // cache, como num checkout limpo do CI.
 run('Tipos do site (tsc)', 'npx', ['tsc', '--noEmit', '--incremental', 'false'], { cwd: join(root, 'apps/web') });
-run('Testes do site (node --test)', 'node', ['--test', 'app/online-payment.test.ts', 'app/cash.test.ts', 'app/quantity.test.ts'], { cwd: join(root, 'apps/web') });
+run('Testes do site (node --test)', 'node', ['--test', 'app/online-payment.test.ts', 'app/cash.test.ts', 'app/quantity.test.ts', 'app/loja/order-status.test.ts'], { cwd: join(root, 'apps/web') });
 run('Build do site (next build)', 'npm', ['run', 'build'], { cwd: join(root, 'apps/web') });
 run('Tipos do app da cozinha (tsc)', 'pnpm', ['--filter', '@foodie/kitchen', 'typecheck'], { cwd: root });
 run('Testes do app da cozinha (jest)', 'pnpm', ['--filter', '@foodie/kitchen', 'test'], { cwd: root });
@@ -62,13 +62,15 @@ run('Dockerfiles (COPY aponta para arquivo existente)', 'node', ['scripts/check-
 
 // --- Verificação integrada com banco efêmero (opt-in) ---
 if (integration) {
-  const platformEnv = envFile(join(root, '.env'));
-  const toolsEnv = envFile(join(root, 'tools/.env'));
-  const dbPassword = platformEnv.DB_PASSWORD;
-  const dbRootPassword = platformEnv.DB_ROOT_PASSWORD;
-  const demoPassword = toolsEnv.DEMO_PASSWORD ?? platformEnv.DEMO_PASSWORD;
+  // Variáveis explícitas permitem rodar com credenciais efêmeras sem abrir arquivos locais.
+  const platformEnv = process.env.DB_PASSWORD && process.env.DB_ROOT_PASSWORD && process.env.DEMO_PASSWORD
+    ? {} : envFile(join(root, '.env'));
+  const toolsEnv = process.env.DEMO_PASSWORD ? {} : envFile(join(root, 'tools/.env'));
+  const dbPassword = process.env.DB_PASSWORD ?? platformEnv.DB_PASSWORD;
+  const dbRootPassword = process.env.DB_ROOT_PASSWORD ?? platformEnv.DB_ROOT_PASSWORD;
+  const demoPassword = process.env.DEMO_PASSWORD ?? toolsEnv.DEMO_PASSWORD ?? platformEnv.DEMO_PASSWORD;
   if (!dbPassword || !dbRootPassword || !demoPassword) {
-    console.error('\n✖ VERIFY_INTEGRATION=1 exige DB_PASSWORD/DB_ROOT_PASSWORD em platform/.env e DEMO_PASSWORD em platform/tools/.env');
+    console.error('\n✖ VERIFY_INTEGRATION=1 exige DB_PASSWORD, DB_ROOT_PASSWORD e DEMO_PASSWORD no ambiente ou nos arquivos locais de configuração');
     process.exit(1);
   }
   const composeEnv = { ...process.env, DB_PASSWORD: dbPassword, DB_ROOT_PASSWORD: dbRootPassword };
@@ -98,6 +100,11 @@ if (integration) {
       run('Seed demonstrativo no banco de teste', 'pnpm', ['--filter', '@foodie/tools', 'seed'], {
         env: { DB_HOST: '127.0.0.1', DB_PORT: '3308', DB_USER: 'foodie', DB_PASSWORD: dbPassword, DB_NAME: 'foodie_platform', DEMO_PASSWORD: demoPassword },
       });
+      run('Regressões de segurança no MariaDB (concorrência, equipe e chat)', 'mvn',
+        [...mvnOffline, '-q', '-Dmaven.repo.local=.m2-cache', '-Dtest=SecurityDatabaseIntegrationTest', 'test'], {
+          cwd: join(root, 'apps/api-java'),
+          env: { JAVA_HOME: defaultJavaHome, FOODIE_INTEGRATION_DB: '1', DB_PASSWORD: dbPassword },
+        });
       const smokeEnv = { API_PORT: '4101', API_INTERNAL_URL: base, DEMO_PASSWORD: demoPassword };
       run('Smoke: fluxo completo', 'pnpm', ['--filter', '@foodie/tools', 'smoke'], { env: smokeEnv });
       run('Smoke: carrinho', 'pnpm', ['smoke:cart'], { env: smokeEnv });

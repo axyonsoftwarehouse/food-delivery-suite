@@ -1,10 +1,12 @@
 package com.foodie.api.routing;
 
 import com.foodie.api.ApiException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -17,7 +19,12 @@ public class MapboxRoutingProvider implements RoutingProvider {
     public MapboxRoutingProvider(@Value("${app.mapbox.token:}") String token,
                                  @Value("${app.mapbox.base-url:https://api.mapbox.com}") String baseUrl) {
         this.token = token;
-        this.client = RestClient.builder().baseUrl(baseUrl).build();
+        // A rota é chamada dentro da transação do checkout, com produtos travados; sem timeout,
+        // um Mapbox pendurado segura locks e conexão do pool.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(10));
+        this.client = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
     }
 
     @Override
