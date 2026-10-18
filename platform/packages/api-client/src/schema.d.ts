@@ -5242,6 +5242,15 @@ export interface components {
             permissions?: string[];
             active?: boolean;
         };
+        AdminRole: {
+            /** Format: int64 */
+            id?: number;
+            name?: string;
+            description?: string;
+            permissions?: string[];
+            active?: boolean;
+            fullAccess?: boolean;
+        };
         RestaurantRequest: {
             name: string;
             slug: string;
@@ -8547,6 +8556,7 @@ export interface operations {
         parameters: {
             query: {
                 withUser: number;
+                beforeId?: number;
             };
             header?: never;
             path?: never;
@@ -9457,7 +9467,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["Role"][];
+                    "*/*": components["schemas"]["AdminRole"][];
                 };
             };
         };
@@ -9483,7 +9493,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["Role"];
+                    "*/*": components["schemas"]["AdminRole"];
                 };
             };
         };
@@ -11993,7 +12003,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["Role"];
+                    "*/*": components["schemas"]["AdminRole"];
                 };
             };
         };

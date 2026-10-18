@@ -45,11 +45,7 @@ public class PhoneOtpService {
         String normalized = normalize(phone);
         String phoneKey = Tokens.hash("otp-send:" + normalized);
         String originKey = origin == null ? null : Tokens.hash("otp-send-ip:" + origin);
-        if (repository.isLoginLimited(phoneKey) || originKey != null && repository.isLoginLimited(originKey)) {
-            throw new ApiException(429, "Muitos códigos solicitados. Aguarde antes de pedir outro");
-        }
-        repository.registerLoginFailure(phoneKey, SEND_PER_PHONE);
-        if (originKey != null) repository.registerLoginFailure(originKey, SEND_PER_ORIGIN);
+        repository.reserveOtpSend(phoneKey, originKey, SEND_PER_PHONE, SEND_PER_ORIGIN);
         String code = String.format("%06d", RANDOM.nextInt(1_000_000));
         repository.replaceOtp(normalized, Tokens.hash(code), ttlMinutes);
         sms.send(normalized, "Foodie: seu código de acesso é " + code);

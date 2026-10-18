@@ -39,6 +39,37 @@ public class AuthRepository {
         jdbc.update("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))", tokenHash, userId);
     }
 
+    /** Reset anterior rejeita; reset posterior espera esta transação e apaga a sessão. */
+    @org.springframework.transaction.annotation.Transactional
+    public boolean createSessionIfPasswordCurrent(String tokenHash, long userId, String expectedPasswordHash) {
+        jdbc.queryForList("SELECT id FROM users WHERE id = ? FOR UPDATE", userId);
+        return jdbc.update("INSERT INTO sessions (token_hash, user_id, expires_at) "
+            + "SELECT ?, id, DATE_ADD(NOW(), INTERVAL 7 DAY) FROM users "
+            + "WHERE id = ? AND password_hash = ? AND suspended_at IS NULL", tokenHash, userId, expectedPasswordHash) == 1;
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public void reserveOtpSend(String phoneKey, String originKey, int phoneLimit, int originLimit) {
+        if (!reserveRateSlot(phoneKey, phoneLimit) || originKey != null && !reserveRateSlot(originKey, originLimit)) {
+            throw new com.foodie.api.ApiException(429, "Muitos códigos solicitados. Aguarde antes de pedir outro");
+        }
+    }
+
+    private boolean reserveRateSlot(String key, int limit) {
+        // Acquire an exclusive lock even when the bucket already exists; INSERT IGNORE
+        // takes shared duplicate-key locks that can deadlock on the following UPDATE.
+        jdbc.update("INSERT INTO auth_login_limits (subject_hash, failed_attempts, window_started_at, locked_until) "
+            + "VALUES (?, 0, NOW(), NULL) ON DUPLICATE KEY UPDATE subject_hash = VALUES(subject_hash)", key);
+        return jdbc.update("""
+            UPDATE auth_login_limits SET
+              locked_until = IF(IF(window_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE), 1, failed_attempts + 1) >= ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE), NULL),
+              failed_attempts = IF(window_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE), 1, failed_attempts + 1),
+              window_started_at = IF(window_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE), NOW(), window_started_at)
+            WHERE subject_hash = ? AND (window_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+              OR ((locked_until IS NULL OR locked_until <= NOW()) AND failed_attempts < ?))
+            """, limit, key, limit) == 1;
+    }
+
     public void deleteSession(String tokenHash) {
         jdbc.update("DELETE FROM sessions WHERE token_hash = ?", tokenHash);
     }

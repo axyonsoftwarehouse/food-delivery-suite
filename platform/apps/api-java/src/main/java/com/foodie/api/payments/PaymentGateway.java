@@ -67,7 +67,17 @@ public interface PaymentGateway {
      * registrada no painel do app, no evento "Order".
      */
     record ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey,
-                         String cardToken, Integer installments, String docType, String docNumber, String paymentMethodId, String payerFirstName) {
+                         String cardToken, Integer installments, String docType, String docNumber, String paymentMethodId, String payerFirstName,
+                         String externalReference) {
+        public ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey,
+                             String cardToken, Integer installments, String docType, String docNumber, String paymentMethodId, String payerFirstName) {
+            this(orderId, amountCents, method, description, payerEmail, idempotencyKey, cardToken, installments, docType, docNumber, paymentMethodId, payerFirstName, null);
+        }
+
+        public ChargeRequest withExternalReference(String reference) {
+            return new ChargeRequest(orderId, amountCents, method, description, payerEmail, idempotencyKey,
+                cardToken, installments, docType, docNumber, paymentMethodId, payerFirstName, reference);
+        }
         /** Cartão sem a bandeira e sem o nome do pagador (a bandeira vem do formulário quando existe). */
         public ChargeRequest(long orderId, long amountCents, String method, String description, String payerEmail, String idempotencyKey,
                       String cardToken, Integer installments, String docType, String docNumber) {

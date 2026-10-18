@@ -20,10 +20,11 @@ class StorageServiceTest {
     Path directory;
 
     private final FileRepository repository = mock(FileRepository.class);
+    private final com.foodie.api.admin.AdminPermissionService adminPermissions = mock(com.foodie.api.admin.AdminPermissionService.class);
     private final User uploader = new User(3, "Dono", "dono@demo.local", "restaurant", 1L);
 
     private StorageService service(String driver, long maxImage, long maxDocument) {
-        return new StorageService(repository, List.of(new LocalStorageProvider(directory.toString())),
+        return new StorageService(repository, adminPermissions, List.of(new LocalStorageProvider(directory.toString())),
             driver, maxImage, maxDocument, "http://api.local/");
     }
 
@@ -128,5 +129,16 @@ class StorageServiceTest {
         assertThatThrownBy(() -> service("local", 1_000_000, 2_000_000).delete(other, 9))
             .isInstanceOf(ApiException.class)
             .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(403));
+    }
+
+    @Test
+    void restrictedAdminCannotReadOrDeleteAnotherUsersPrivateFile() {
+        var admin = new User(1, "Restrito", "r@demo.local", "admin", null);
+        when(repository.find(10)).thenReturn(Optional.of(new FileRepository.FileRecord(10, "local", "x.pdf", "doc.pdf", "application/pdf", 3, "abc", 3L, "other", "2026-09-27T10:00:00Z")));
+        org.mockito.Mockito.doThrow(new ApiException(403, "Acesso não autorizado")).when(adminPermissions)
+            .require(org.mockito.ArgumentMatchers.eq(admin), org.mockito.ArgumentMatchers.anyString());
+        assertThatThrownBy(() -> service("local", 100, 100).readable(admin, 10)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service("local", 100, 100).delete(admin, 10)).isInstanceOf(ApiException.class);
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).delete(10);
     }
 }

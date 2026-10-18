@@ -44,7 +44,7 @@ public final class Permissions {
         new Descriptor(TABLES_MANAGE, "Gerenciar mesas", "Operação"),
         new Descriptor(POS_MANAGE, "Usar o PDV/balcão", "Operação"),
         new Descriptor(INVENTORY_MANAGE, "Gerenciar estoque e fornecedores", "Operação"),
-        new Descriptor(STAFF_MANAGE, "Gerenciar equipe", "Equipe"),
+        new Descriptor(STAFF_MANAGE, "Consultar equipe", "Equipe"),
         new Descriptor(REPORTS_VIEW, "Ver relatórios", "Relatórios"),
         new Descriptor(PAYMENTS_MANAGE, "Gerenciar pagamentos", "Financeiro"),
         new Descriptor(PROMOTIONS_MANAGE, "Gerenciar promoções", "Promoções"),

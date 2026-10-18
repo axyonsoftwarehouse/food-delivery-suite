@@ -30,6 +30,7 @@ public class StorageService {
     static final int DAILY_UPLOAD_LIMIT = 100;
 
     private final FileRepository repository;
+    private final com.foodie.api.admin.AdminPermissionService adminPermissions;
     private final Map<String, StorageProvider> providers = new HashMap<>();
     private final String driver;
     private final long maxImageBytes;
@@ -37,12 +38,14 @@ public class StorageService {
     private final String publicBaseUrl;
 
     public StorageService(FileRepository repository,
+                          com.foodie.api.admin.AdminPermissionService adminPermissions,
                           List<StorageProvider> availableProviders,
                           @Value("${app.storage.driver:local}") String driver,
                           @Value("${app.storage.max-image-bytes:5242880}") long maxImageBytes,
                           @Value("${app.storage.max-document-bytes:10485760}") long maxDocumentBytes,
                           @Value("${app.storage.public-base-url:http://127.0.0.1:4001}") String publicBaseUrl) {
         this.repository = repository;
+        this.adminPermissions = adminPermissions;
         for (StorageProvider provider : availableProviders) providers.put(provider.name(), provider);
         this.driver = driver == null ? "local" : driver.strip().toLowerCase(Locale.ROOT);
         this.maxImageBytes = maxImageBytes;
@@ -97,6 +100,7 @@ public class StorageService {
         boolean owner = viewer != null && file.uploadedBy() != null && file.uploadedBy() == viewer.id();
         boolean admin = viewer != null && "admin".equals(viewer.role());
         if (!owner && !admin) throw new ApiException(404, "Arquivo não encontrado");
+        if (!owner && admin) adminPermissions.require(viewer, com.foodie.api.admin.AdminPermissions.FILES_VIEW);
         return file;
     }
 
@@ -113,6 +117,7 @@ public class StorageService {
         FileRepository.FileRecord file = record(id);
         boolean owner = file.uploadedBy() != null && file.uploadedBy() == actor.id();
         if (!"admin".equals(actor.role()) && !owner) throw new ApiException(403, "Acesso não autorizado");
+        if (!owner) adminPermissions.require(actor, com.foodie.api.admin.AdminPermissions.FILES_MANAGE);
         provider().delete(file.path());
         repository.delete(id);
     }
