@@ -2238,7 +2238,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        delete: operations["remove_1"];
         options?: never;
         head?: never;
         patch: operations["change"];
@@ -11469,6 +11469,33 @@ export interface operations {
                     "*/*": {
                         [key: string]: boolean;
                     };
+                };
+            };
+        };
+    };
+    remove_1: {
+        parameters: {
+            query?: {
+                variationId?: number;
+                addonIds?: number[];
+            };
+            header?: never;
+            path: {
+                productId: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CartSnapshot"];
                 };
             };
         };

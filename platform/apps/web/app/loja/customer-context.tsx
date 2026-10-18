@@ -54,6 +54,7 @@ type CustomerValue = {
   mutateCart: (path: string, method: string, body: unknown, success: string) => Promise<void>;
   add: (product: Product, variationId?: number, addonIds?: number[]) => Promise<void>;
   changeQuantity: (productId: number, variationId: number, addonIds: number[], delta: number) => Promise<void>;
+  removeItem: (productId: number, variationId: number, addonIds: number[]) => Promise<void>;
   selectedProduct: ProductDetail | null;
   productLoading: boolean;
   openProduct: (product: Product) => Promise<void>;
@@ -381,6 +382,14 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     await mutateCart(`/cart/items/${productId}`, 'PATCH', payload, 'Carrinho atualizado.');
   }
 
+  async function removeItem(productId: number, variationId: number, addonIds: number[]) {
+    const params = new URLSearchParams();
+    if (variationId) params.set('variationId', String(variationId));
+    for (const addonId of addonIds) params.append('addonIds', String(addonId));
+    const query = params.toString();
+    await mutateCart(`/cart/items/${productId}${query ? `?${query}` : ''}`, 'DELETE', undefined, 'Item removido do carrinho.');
+  }
+
   async function openProduct(product: Product) {
     if (!product.variation_count) { await add(product); return; }
     setProductLoading(true);
@@ -563,7 +572,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     connection: app.connection, lastSync: app.lastSync, selectedAddressId, setSelectedAddressId, selectedAddress, selectedZone, restaurantId, availableCategories, restaurantById,
     search, setSearch, categoryId, setCategoryId, visibleProducts, nextCursor, searchLoading, searchError, loadMore,
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
-    cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
+    cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, removeItem, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
     tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor,
     orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
     manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, submitReview, loadHistory,
