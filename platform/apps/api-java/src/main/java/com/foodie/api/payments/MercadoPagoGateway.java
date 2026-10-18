@@ -4,6 +4,7 @@ import com.foodie.api.ApiException;
 import com.foodie.api.payments.accounts.MerchantCredentials;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -13,6 +14,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -44,7 +46,12 @@ public class MercadoPagoGateway implements PaymentGateway {
     public MercadoPagoGateway(@Value("${app.mercadopago.base-url:https://api.mercadopago.com}") String baseUrl,
                               @Value("${app.mercadopago.webhook-secret:}") String webhookSecret) {
         this.webhookSecret = webhookSecret;
-        this.client = RestClient.builder().baseUrl(baseUrl).build();
+        // Cobrança/estorno acontecem dentro de transações com locks de pedido/assinatura; sem timeout,
+        // uma resposta pendurada do provedor prenderia locks, thread e conexão do pool.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(10));
+        this.client = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
     }
 
     /** Cada chamada usa o token da loja (decisão de 05/10/2026: o dinheiro é da loja, não há conta global). */

@@ -496,8 +496,8 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
       <label className="pr-field">Descrição<textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} maxLength={500} placeholder="Ingredientes, porção..." /></label>
       <label className="pr-field">Estoque<input inputMode="numeric" value={draft.stock} onChange={(event) => setDraft({ ...draft, stock: event.target.value })} placeholder="Vazio = ilimitado" /></label>
       <div className="pr-form-row">
-        <label className="pr-field">Disponível a partir de<input type="time" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} /></label>
-        <label className="pr-field">Disponível até<input type="time" value={draft.until} onChange={(event) => setDraft({ ...draft, until: event.target.value })} /></label>
+        <label className="pr-field">Disponível a partir de (opcional)<input type="time" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} title="Deixe em branco para ficar disponível o dia todo" /></label>
+        <label className="pr-field">Disponível até (opcional)<input type="time" value={draft.until} onChange={(event) => setDraft({ ...draft, until: event.target.value })} title="Deixe em branco para ficar disponível o dia todo" /></label>
       </div>
       <label className="pr-check"><input type="checkbox" checked={draft.isCombo} onChange={(event) => setDraft({ ...draft, isCombo: event.target.checked })} /> É um combo</label>
     </form>;

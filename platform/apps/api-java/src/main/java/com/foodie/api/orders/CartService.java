@@ -4,6 +4,7 @@ import com.foodie.api.ApiException;
 import com.foodie.api.auth.Tokens;
 import com.foodie.api.auth.User;
 import com.foodie.api.catalog.AddonService;
+import com.foodie.api.hours.RestaurantHoursService;
 import com.foodie.api.settings.SettingsCatalog;
 import com.foodie.api.settings.SettingsService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -25,20 +26,22 @@ public class CartService {
     private final ObjectMapper json;
     private final SettingsService settings;
     private final CampaignService campaigns;
+    private final RestaurantHoursService hours;
 
-    public CartService(JdbcTemplate jdbc, OrderService orders, AddonService addonService, ObjectMapper json, SettingsService settings, CampaignService campaigns) {
+    public CartService(JdbcTemplate jdbc, OrderService orders, AddonService addonService, ObjectMapper json, SettingsService settings,
+                       CampaignService campaigns, RestaurantHoursService hours) {
         this.jdbc = jdbc;
         this.orders = orders;
         this.addonService = addonService;
         this.json = json;
         this.settings = settings;
         this.campaigns = campaigns;
+        this.hours = hours;
     }
 
-    @Transactional
+    /** Leitura pura: não apaga itens. Disponibilidade é marcada no snapshot e validada no checkout. */
+    @Transactional(readOnly = true)
     public CartSnapshot get(User customer) {
-        lock(customer.id());
-        prune(customer.id());
         return snapshot(customer.id());
     }
 
@@ -57,7 +60,6 @@ public class CartService {
     @Transactional
     public CartSnapshot change(User customer, long productId, long variationId, List<Long> addonIds, int delta) {
         lock(customer.id());
-        prune(customer.id());
         String addonKey = AddonService.key(addonIds);
         List<CartRow> current = rows(customer.id());
         CartRow existing = current.stream()
@@ -89,7 +91,6 @@ public class CartService {
     @Transactional
     public CartSnapshot importIfEmpty(User customer, List<CartController.ImportItem> items) {
         lock(customer.id());
-        prune(customer.id());
         if (!rows(customer.id()).isEmpty()) return snapshot(customer.id());
         Set<String> seen = new HashSet<>();
         Long restaurantId = null;
@@ -124,7 +125,6 @@ public class CartService {
     @Transactional
     public Map<String, Object> checkout(User customer, Long addressId, long expectedTotalCents, String expectedVersion, String idempotencyKey, String paymentMethod, Integer changeForCents, String modality, String couponCode, String scheduledFor, String orderType, Long tableId, Integer partySize, Integer tipCents, String contactPhone) {
         lock(customer.id());
-        prune(customer.id());
         String key = idempotencyKey == null ? null : idempotencyKey.trim();
         if (key != null && !key.isEmpty()) {
             List<Map<String, Object>> saved = jdbc.queryForList("SELECT response FROM order_idempotency WHERE customer_id = ? AND idem_key = ?", customer.id(), key);
@@ -179,10 +179,6 @@ public class CartService {
         jdbc.query("SELECT id FROM users WHERE id = ? FOR UPDATE", rs -> { rs.next(); return null; }, customerId);
     }
 
-    private void prune(long customerId) {
-        jdbc.update("DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id JOIN restaurants r ON r.id = p.restaurant_id WHERE ci.user_id = ? AND (p.available = FALSE OR r.active = FALSE)", customerId);
-    }
-
     private long availableRestaurant(long productId, long variationId) {
         Long restaurantId = findAvailableRestaurant(productId, variationId);
         if (restaurantId == null) throw new ApiException(400, "Produto indisponível");
@@ -206,32 +202,59 @@ public class CartService {
     }
 
     private List<CartRow> rows(long customerId) {
+        List<Object> args = new ArrayList<>();
+        String localTime = hours.localTimeSql("r.timezone", value -> { args.add(value); return "?"; });
+        args.add(customerId);
         return jdbc.query(
             "SELECT ci.product_id, ci.variation_id, ci.addon_key, ci.quantity, p.restaurant_id, p.name, p.price_cents, "
-                + "v.name AS variation_name, COALESCE(v.price_delta_cents, 0) AS variation_delta_cents "
+                + "v.name AS variation_name, COALESCE(v.price_delta_cents, 0) AS variation_delta_cents, "
+                + "p.available AS product_available, r.active AS restaurant_active, "
+                + "CASE WHEN ci.variation_id = 0 THEN TRUE ELSE (v.id IS NOT NULL AND v.available = TRUE) END AS variation_available, "
+                + "(p.available_from IS NULL OR p.available_until IS NULL OR (" + localTime + ") BETWEEN p.available_from AND p.available_until) AS window_ok, "
+                + "p.stock "
                 + "FROM cart_items ci JOIN products p ON p.id = ci.product_id "
+                + "JOIN restaurants r ON r.id = p.restaurant_id "
                 + "LEFT JOIN product_variations v ON v.id = ci.variation_id "
                 + "WHERE ci.user_id = ? ORDER BY ci.updated_at, ci.product_id",
-            (rs, row) -> new CartRow(rs.getLong("product_id"), rs.getLong("variation_id"), rs.getString("addon_key"), rs.getInt("quantity"),
-                rs.getLong("restaurant_id"), rs.getString("name"), rs.getInt("price_cents"), rs.getString("variation_name"), rs.getInt("variation_delta_cents")), customerId
-        );
+            (rs, row) -> {
+                Object stockValue = rs.getObject("stock");
+                Integer stock = stockValue == null ? null : ((Number) stockValue).intValue();
+                int quantity = rs.getInt("quantity");
+                boolean productAvailable = rs.getBoolean("product_available");
+                boolean restaurantActive = rs.getBoolean("restaurant_active");
+                boolean variationAvailable = rs.getBoolean("variation_available");
+                boolean windowOk = rs.getBoolean("window_ok");
+                boolean available = productAvailable && restaurantActive && variationAvailable && windowOk
+                    && (stock == null || stock >= quantity);
+                String reason = available ? null
+                    : !productAvailable || !restaurantActive ? "Produto ou loja indisponível"
+                    : !variationAvailable ? "Variação indisponível"
+                    : !windowOk ? "Fora do horário de disponibilidade"
+                    : "Estoque insuficiente";
+                return new CartRow(rs.getLong("product_id"), rs.getLong("variation_id"), rs.getString("addon_key"), quantity,
+                    rs.getLong("restaurant_id"), rs.getString("name"), rs.getInt("price_cents"), rs.getString("variation_name"),
+                    rs.getInt("variation_delta_cents"), available, reason);
+            }, args.toArray());
     }
 
     private CartSnapshot snapshot(long customerId) {
         List<CartItem> items = new ArrayList<>();
         for (CartRow row : rows(customerId)) {
             List<Long> addonIds = AddonService.parseKey(row.addonKey());
+            boolean addonsAvailable = true;
             List<Map<String, Object>> addons;
             try {
                 addons = addonService.validate(row.productId(), row.variationId(), addonIds);
             } catch (ApiException invalid) {
-                jdbc.update("DELETE FROM cart_items WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ?",
-                    customerId, row.productId(), row.variationId(), row.addonKey());
-                continue;
+                addonsAvailable = false;
+                addons = addonService.describe(addonIds);
             }
             long unit = row.priceCents() + row.variationDelta() + addonService.priceCents(addons);
+            String reason = row.unavailableReason();
+            if (!addonsAvailable) reason = reason == null ? "Adicionais indisponíveis" : reason + "; adicionais indisponíveis";
             items.add(new CartItem(row.productId(), row.variationId(), row.quantity(), row.restaurantId(), row.name(), row.priceCents(),
-                row.variationName(), unit, addonIds, addons.stream().map(addon -> (String) addon.get("name")).toList()));
+                row.variationName(), unit, addonIds, addons.stream().map(addon -> (String) addon.get("name")).toList(),
+                row.available() && addonsAvailable, reason));
         }
         StringBuilder canonical = new StringBuilder();
         for (CartItem item : items) {
@@ -242,7 +265,10 @@ public class CartService {
         return new CartSnapshot(items, Tokens.hash(canonical.toString()).substring(0, 16));
     }
 
-    private record CartRow(long productId, long variationId, String addonKey, int quantity, long restaurantId, String name, int priceCents, String variationName, int variationDelta) {}
-    public record CartItem(long productId, long variationId, int quantity, long restaurantId, String name, int priceCents, String variationName, long unitPriceCents, List<Long> addonIds, List<String> addonNames) {}
+    private record CartRow(long productId, long variationId, String addonKey, int quantity, long restaurantId, String name, int priceCents,
+                           String variationName, int variationDelta, boolean available, String unavailableReason) {}
+    public record CartItem(long productId, long variationId, int quantity, long restaurantId, String name, int priceCents,
+                           String variationName, long unitPriceCents, List<Long> addonIds, List<String> addonNames,
+                           boolean available, String unavailableReason) {}
     public record CartSnapshot(List<CartItem> items, String version) {}
 }

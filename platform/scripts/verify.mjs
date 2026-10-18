@@ -53,7 +53,7 @@ run('Testes Java (api-java)', 'mvn', [...mvnOffline, '-q', '-Dmaven.repo.local=.
 // já deixou passar um erro de tipo real (código 0). Aqui a checagem roda sem
 // cache, como num checkout limpo do CI.
 run('Tipos do site (tsc)', 'npx', ['tsc', '--noEmit', '--incremental', 'false'], { cwd: join(root, 'apps/web') });
-run('Testes do site (node --test)', 'node', ['--test', 'app/online-payment.test.ts', 'app/cash.test.ts', 'app/quantity.test.ts'], { cwd: join(root, 'apps/web') });
+run('Testes do site (node --test)', 'node', ['--test', 'app/online-payment.test.ts', 'app/cash.test.ts', 'app/quantity.test.ts', 'app/loja/order-status.test.ts'], { cwd: join(root, 'apps/web') });
 run('Build do site (next build)', 'npm', ['run', 'build'], { cwd: join(root, 'apps/web') });
 run('Tipos do app da cozinha (tsc)', 'pnpm', ['--filter', '@foodie/kitchen', 'typecheck'], { cwd: root });
 run('Testes do app da cozinha (jest)', 'pnpm', ['--filter', '@foodie/kitchen', 'test'], { cwd: root });
@@ -108,6 +108,7 @@ if (integration) {
       const smokeEnv = { API_PORT: '4101', API_INTERNAL_URL: base, DEMO_PASSWORD: demoPassword };
       run('Smoke: fluxo completo', 'pnpm', ['--filter', '@foodie/tools', 'smoke'], { env: smokeEnv });
       run('Smoke: carrinho', 'pnpm', ['smoke:cart'], { env: smokeEnv });
+      run('Smoke: catálogo (contrato da lista)', 'pnpm', ['smoke:catalog'], { env: smokeEnv });
       run('Smoke: exceções', 'pnpm', ['smoke:exceptions'], { env: smokeEnv });
       run('Smoke: contas', 'pnpm', ['smoke:auth'], { env: smokeEnv });
       run('Smoke: cobertura por CEP', 'pnpm', ['smoke:coverage'], { env: smokeEnv });

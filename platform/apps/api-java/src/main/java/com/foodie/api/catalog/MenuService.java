@@ -33,8 +33,11 @@ public class MenuService {
     }
 
     public List<Map<String, Object>> products(long restaurantId) {
+        // Precisa trazer os mesmos campos que o formulário do painel edita (estoque, combo, janela de
+        // horário): sem eles o formulário abria em branco e, ao salvar, apagava a janela/estoque — o
+        // "Executivo do almoço" (11:00–15:00) sumia do cardápio ao ser editado (15/10/2026).
         return jdbc.queryForList(
-            "SELECT id, restaurant_id, category_id, name, description, price_cents, available FROM products WHERE restaurant_id = ? ORDER BY id DESC",
+            "SELECT id, restaurant_id, category_id, name, description, price_cents, available, is_combo, stock, available_from, available_until FROM products WHERE restaurant_id = ? ORDER BY id DESC",
             restaurantId
         );
     }
