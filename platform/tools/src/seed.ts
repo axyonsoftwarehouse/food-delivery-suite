@@ -146,6 +146,8 @@ try {
   const doceria = await restaurant('Doceria Estrela', 'doceria-estrela');
   for (const id of [cozinha, cantina, doceria]) await db.query('INSERT IGNORE INTO restaurant_zones (restaurant_id, zone_id) VALUES (?, ?)', [id, zoneId]);
 
+  const fullAccessRoles = (await db.query('SELECT id FROM admin_roles WHERE full_access = TRUE AND active = TRUE ORDER BY id LIMIT 1')) as { id: number }[];
+  const adminRoleId = fullAccessRoles[0]?.id ?? null;
   const users = [
     ['Admin Demo', 'admin@demo.local', 'admin', null],
     ['Restaurante Demo', 'restaurante@demo.local', 'restaurant', cozinha],
@@ -155,7 +157,12 @@ try {
     ['Cliente Demo', 'cliente@demo.local', 'customer', null],
   ] as const;
   for (const [name, email, role, restaurantId] of users) {
-    await db.query('INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)', [name, email, hashPassword(password), role, restaurantId]);
+    if (role === 'admin' && adminRoleId == null) throw new Error('Papel de acesso total não configurado; rode as migrations antes do seed.');
+    await db.query('INSERT INTO users (name, email, password_hash, role, restaurant_id, admin_role_id) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)',
+      [name, email, hashPassword(password), role, restaurantId, role === 'admin' ? adminRoleId : null]);
+  }
+  if (adminRoleId != null) {
+    await db.query("UPDATE users SET admin_role_id = ? WHERE role = 'admin' AND admin_role_id IS NULL", [adminRoleId]);
   }
   await db.query("UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE email LIKE '%@demo.local'");
   await db.query("UPDATE users SET courier_approved_at = COALESCE(courier_approved_at, NOW()) WHERE email = 'entregador@demo.local' AND role = 'courier'");

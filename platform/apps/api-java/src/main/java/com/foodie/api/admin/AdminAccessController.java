@@ -56,7 +56,7 @@ public class AdminAccessController {
     public ResponseEntity<AdminRoleRepository.Role> createRole(@CookieValue(value = "foodie_session", required = false) String token,
                                                                 @Valid @RequestBody RoleCreateRequest body) {
         User actor = require(token, AdminPermissions.ADMIN_MANAGE);
-        AdminRoleRepository.Role role = access.createRole(body.name(), body.description(), body.permissions(), body.active());
+        AdminRoleRepository.Role role = access.createRole(actor.id(), body.name(), body.description(), body.permissions(), body.active());
         audit.record(actor, "create", "admin_role", role.id(), "Papel " + role.name());
         return ResponseEntity.status(201).body(role);
     }
@@ -66,7 +66,7 @@ public class AdminAccessController {
                                                @PathVariable @Positive long id,
                                                @Valid @RequestBody RoleUpdateRequest body) {
         User actor = require(token, AdminPermissions.ADMIN_MANAGE);
-        AdminRoleRepository.Role role = access.updateRole(id, body.name(), body.description(), body.permissions(), body.active());
+        AdminRoleRepository.Role role = access.updateRole(actor.id(), id, body.name(), body.description(), body.permissions(), body.active());
         audit.record(actor, "update", "admin_role", id, "Papel " + role.name());
         return role;
     }
@@ -90,7 +90,7 @@ public class AdminAccessController {
     public ResponseEntity<AdminRoleRepository.Employee> createEmployee(@CookieValue(value = "foodie_session", required = false) String token,
                                                                         @Valid @RequestBody EmployeeCreateRequest body) {
         User actor = require(token, AdminPermissions.ADMIN_MANAGE);
-        AdminRoleRepository.Employee employee = access.createEmployee(body.name(), body.email(), body.password(), body.adminRoleId());
+        AdminRoleRepository.Employee employee = access.createEmployee(actor.id(), body.name(), body.email(), body.password(), body.adminRoleId());
         audit.record(actor, "create", "admin_employee", employee.id(), "Funcionário " + employee.name());
         return ResponseEntity.status(201).body(employee);
     }
@@ -100,7 +100,7 @@ public class AdminAccessController {
                                                        @PathVariable @Positive long id,
                                                        @Valid @RequestBody EmployeeUpdateRequest body) {
         User actor = require(token, AdminPermissions.ADMIN_MANAGE);
-        AdminRoleRepository.Employee employee = access.updateEmployee(id, body.name(), body.adminRoleId());
+        AdminRoleRepository.Employee employee = access.updateEmployee(actor.id(), id, body.name(), body.adminRoleId());
         audit.record(actor, "update", "admin_employee", id, "Funcionário " + employee.name());
         return employee;
     }

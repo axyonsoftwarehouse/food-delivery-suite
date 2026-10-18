@@ -2,9 +2,9 @@ package com.foodie.api.admin;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
-import java.sql.Types;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,29 +22,43 @@ public class AdminRoleRepository {
         this.jdbc = jdbc;
     }
 
-    public record Role(long id, String name, String description, List<String> permissions, boolean active) {}
+    /** Nome explícito no OpenAPI: já existe outro `Role` (papel da loja) no contrato. */
+    @Schema(name = "AdminRole")
+    public record Role(long id, String name, String description, List<String> permissions, boolean active, boolean fullAccess) {
+        /** Compatibilidade: papéis criados por teste/legado não são de acesso total. */
+        public Role(long id, String name, String description, List<String> permissions, boolean active) {
+            this(id, name, description, permissions, active, false);
+        }
+    }
 
     public record Employee(long id, String name, String email, Long adminRoleId, boolean suspended) {}
 
     public List<Role> listRoles() {
         return jdbc.query(
-            "SELECT id, name, description, permissions, active FROM admin_roles ORDER BY name",
-            (rs, row) -> mapRole(rs.getLong("id"), rs.getString("name"), rs.getString("description"), rs.getString("permissions"), rs.getBoolean("active"))
+            "SELECT id, name, description, permissions, active, full_access FROM admin_roles ORDER BY name",
+            (rs, row) -> mapRole(rs.getLong("id"), rs.getString("name"), rs.getString("description"), rs.getString("permissions"), rs.getBoolean("active"), rs.getBoolean("full_access"))
         );
     }
 
     public Optional<Role> findRole(long id) {
         return jdbc.query(
-            "SELECT id, name, description, permissions, active FROM admin_roles WHERE id = ?",
-            (rs, row) -> mapRole(rs.getLong("id"), rs.getString("name"), rs.getString("description"), rs.getString("permissions"), rs.getBoolean("active")),
+            "SELECT id, name, description, permissions, active, full_access FROM admin_roles WHERE id = ?",
+            (rs, row) -> mapRole(rs.getLong("id"), rs.getString("name"), rs.getString("description"), rs.getString("permissions"), rs.getBoolean("active"), rs.getBoolean("full_access")),
             id
+        ).stream().findFirst();
+    }
+
+    public Optional<Role> findFullAccessRole() {
+        return jdbc.query(
+            "SELECT id, name, description, permissions, active, full_access FROM admin_roles WHERE full_access = TRUE AND active = TRUE ORDER BY id LIMIT 1",
+            (rs, row) -> mapRole(rs.getLong("id"), rs.getString("name"), rs.getString("description"), rs.getString("permissions"), rs.getBoolean("active"), rs.getBoolean("full_access"))
         ).stream().findFirst();
     }
 
     public Optional<Role> findRoleForUser(long userId) {
         return jdbc.query(
-            "SELECT r.id, r.name, r.description, r.permissions, r.active FROM users u JOIN admin_roles r ON r.id = u.admin_role_id WHERE u.id = ?",
-            (rs, row) -> mapRole(rs.getLong("id"), rs.getString("name"), rs.getString("description"), rs.getString("permissions"), rs.getBoolean("active")),
+            "SELECT r.id, r.name, r.description, r.permissions, r.active, r.full_access FROM users u JOIN admin_roles r ON r.id = u.admin_role_id WHERE u.id = ?",
+            (rs, row) -> mapRole(rs.getLong("id"), rs.getString("name"), rs.getString("description"), rs.getString("permissions"), rs.getBoolean("active"), rs.getBoolean("full_access")),
             userId
         ).stream().findFirst();
     }
@@ -83,6 +97,12 @@ public class AdminRoleRepository {
         return found != null;
     }
 
+    public boolean roleAssignedTo(long roleId, long userId) {
+        Integer found = jdbc.query("SELECT 1 FROM users WHERE admin_role_id = ? AND id = ? LIMIT 1",
+            rs -> rs.next() ? 1 : null, roleId, userId);
+        return found != null;
+    }
+
     public int deleteRole(long id) {
         return jdbc.update("DELETE FROM admin_roles WHERE id = ?", id);
     }
@@ -113,7 +133,7 @@ public class AdminRoleRepository {
         return found != null;
     }
 
-    public long createEmployee(String name, String email, String passwordHash, Long adminRoleId) {
+    public long createEmployee(String name, String email, String passwordHash, long adminRoleId) {
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
@@ -123,23 +143,21 @@ public class AdminRoleRepository {
             statement.setString(1, name);
             statement.setString(2, email);
             statement.setString(3, passwordHash);
-            if (adminRoleId == null) statement.setNull(4, Types.BIGINT); else statement.setLong(4, adminRoleId);
+            statement.setLong(4, adminRoleId);
             return statement;
         }, key);
         return key.getKey().longValue();
     }
 
-    public int updateEmployee(long id, String name, Long adminRoleId) {
-        if (adminRoleId == null) {
-            return jdbc.update("UPDATE users SET name = ?, admin_role_id = NULL WHERE id = ? AND role = 'admin'", name, id);
-        }
+    public int updateEmployee(long id, String name, long adminRoleId) {
         return jdbc.update("UPDATE users SET name = ?, admin_role_id = ? WHERE id = ? AND role = 'admin'", name, adminRoleId, id);
     }
 
-    /** Administradores ativos e sem papel restrito (acesso total). */
+    /** Administradores ativos com o papel explícito de acesso total. */
     public int countFullAdmins() {
         Integer count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM users WHERE role = 'admin' AND suspended_at IS NULL AND admin_role_id IS NULL",
+            "SELECT COUNT(*) FROM users u JOIN admin_roles r ON r.id = u.admin_role_id "
+                + "WHERE u.role = 'admin' AND u.suspended_at IS NULL AND r.full_access = TRUE AND r.active = TRUE",
             Integer.class
         );
         return count == null ? 0 : count;
@@ -153,8 +171,8 @@ public class AdminRoleRepository {
         return count == null ? 0 : count;
     }
 
-    private static Role mapRole(long id, String name, String description, String permissions, boolean active) {
-        return new Role(id, name, description, parse(permissions), active);
+    private static Role mapRole(long id, String name, String description, String permissions, boolean active, boolean fullAccess) {
+        return new Role(id, name, description, parse(permissions), active, fullAccess);
     }
 
     private static List<String> parse(String json) {
