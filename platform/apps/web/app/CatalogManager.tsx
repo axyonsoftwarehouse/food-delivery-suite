@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { uploadFile } from './files';
+import { PhotoPicker } from './painel/photo-picker';
 import { createRequest, SupportCancelled } from './support-request';
 import { useSupportReason } from './SupportReasonDialog';
 import { useApp } from './app-context';
@@ -75,7 +75,7 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
   const [newVariation, setNewVariation] = useState({ name: '', price: '' });
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [coverIndex, setCoverIndex] = useState(0);
-  const [uploading, setUploading] = useState(false);
+  const [newPhotos, setNewPhotos] = useState<{ urls: string[]; cover: number }>({ urls: [], cover: 0 });
   const [aiBusy, setAiBusy] = useState(false);
   const [groups, setGroups] = useState<AddonGroup[]>([]);
   const [groupDraft, setGroupDraft] = useState({ name: '', min: '0', max: '1', required: false });
@@ -176,10 +176,13 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
     event.preventDefault();
     if (isSupport && !restaurantId) return;
     const payload = { categoryId: newProduct.categoryId, name: newProduct.name, description: newProduct.description, priceCents: toCents(newProduct.price) };
-    const path = productBase;
-    const body = payload;
-    void run(() => request(path, { method: 'POST', body: JSON.stringify(body) }), 'Produto cadastrado.');
+    const photos = newPhotos.urls.map((url, index) => ({ url, cover: index === newPhotos.cover }));
+    void run(async () => {
+      const created = await request<{ id?: number }>(productBase, { method: 'POST', body: JSON.stringify(payload) });
+      if (photos.length && created?.id) await request(`${productBase}/${created.id}/images`, { method: 'PUT', body: JSON.stringify({ images: photos }) });
+    }, photos.length ? 'Produto cadastrado com fotos.' : 'Produto cadastrado.');
     setNewProduct({ categoryId: newProduct.categoryId, name: '', price: '', description: '', isCombo: false, stock: '', from: '', until: '' });
+    setNewPhotos({ urls: [], cover: 0 });
   }
 
   function startEdit(product: Product) {
@@ -266,7 +269,7 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
     if (expandedId === null) return;
     const id = expandedId;
     const images = imageUrls.map((url, index) => ({ url, cover: index === coverIndex })).filter((image) => image.url.trim().length > 0);
-    void runDetail(id, () => request(`${productBase}/${id}/images`, { method: 'PUT', body: JSON.stringify({ images }) }), 'Imagens atualizadas.');
+    void runDetail(id, () => request(`${productBase}/${id}/images`, { method: 'PUT', body: JSON.stringify({ images }) }), 'Fotos atualizadas.');
   }
 
   async function generateDescription() {
@@ -278,16 +281,6 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
       onMessage('Descrição sugerida pela IA.');
     } catch (error) { onMessage(messageOf(error, 'Não foi possível gerar a descrição.')); }
     finally { setAiBusy(false); }
-  }
-
-  async function uploadImage(index: number, file: File) {
-    setUploading(true);
-    try {
-      const stored = await uploadFile(file, 'product');
-      setImageUrls((current) => current.map((value, position) => position === index ? stored.url : value));
-      onMessage('Imagem enviada. Salve as imagens para aplicar.');
-    } catch (error) { onMessage(messageOf(error, 'Não foi possível enviar a imagem.')); }
-    finally { setUploading(false); }
   }
 
   function createGroup(event: React.FormEvent<HTMLFormElement>) {
@@ -488,6 +481,10 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
 
   function editorData(product: Product) {
     return <form id="cm-edit" className="pr-form" onSubmit={(event) => { event.preventDefault(); saveEdit(product.id); closeEditor(); }}>
+      <div className="cm-cover">
+        <span className="cm-cover-media" aria-hidden="true">{product.image_url ? <img src={product.image_url} alt="" /> : <Icon name="utensils" size={22} />}</span>
+        <button type="button" className="pr-btn pr-btn--soft pr-btn--sm" onClick={() => pickEditTab(product, 'images')}>{product.image_url ? 'Trocar fotos' : 'Adicionar fotos'}</button>
+      </div>
       <label className="pr-field">Nome<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} maxLength={160} /></label>
       <div className="pr-form-row">
         <label className="pr-field">Preço em R$<input inputMode="decimal" value={draft.price} onChange={(event) => setDraft({ ...draft, price: event.target.value })} /></label>
@@ -529,24 +526,13 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
     </div>;
   }
 
-  function editorImages(product: Product) {
+  function editorImages() {
+    const saved = detail?.images ?? [];
+    const savedCover = Math.max(0, saved.findIndex((image) => image.is_cover));
+    const dirty = saved.length !== imageUrls.length || saved.some((image, index) => image.url !== imageUrls[index]) || (imageUrls.length > 0 && savedCover !== coverIndex);
     return <div className="cm-sec">
-      {imageUrls.length === 0 && <p className="pr-muted cm-tip">Sem imagens. A capa aparece no catálogo do cliente.</p>}
-      {imageUrls.length > 0 && <ul className="pr-list">{imageUrls.map((url, index) => <li className="cm-img" key={index}>
-        <span className="pr-thumb" aria-hidden="true">{url.trim() ? <img src={url} alt="" /> : <Icon name="file" size={18} />}</span>
-        <div className="cm-img-main">
-          <input value={url} onChange={(event) => setImageUrls(imageUrls.map((current, position) => position === index ? event.target.value : current))} placeholder="https://..." aria-label={`URL da imagem ${index + 1}`} />
-          <div className="cm-img-actions">
-            <label className="pr-check"><input type="radio" name={`cover-${product.id}`} checked={coverIndex === index} onChange={() => setCoverIndex(index)} /> Capa</label>
-            <label className="pr-btn pr-btn--ghost pr-btn--sm cm-upload"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" style={{ display: 'none' }} disabled={busy || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(index, file); event.target.value = ''; }} />{uploading ? 'Enviando...' : 'Enviar arquivo'}</label>
-            <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm pr-btn--danger" disabled={busy} onClick={() => setImageUrls(imageUrls.filter((_, position) => position !== index))}>Remover</button>
-          </div>
-        </div>
-      </li>)}</ul>}
-      <div className="cm-sec-actions">
-        <button type="button" className="pr-btn pr-btn--soft" disabled={busy || imageUrls.length >= 8} onClick={() => setImageUrls([...imageUrls, ''])}><Icon name="plus" size={16} />Imagem</button>
-        <button type="button" className="pr-btn pr-btn--primary" disabled={busy || detailLoading} onClick={saveImages}>Salvar imagens</button>
-      </div>
+      <PhotoPicker urls={imageUrls} cover={coverIndex} disabled={busy} onError={onMessage} onChange={(urls, cover) => { setImageUrls(urls); setCoverIndex(cover); }} />
+      {dirty && <div className="cm-sec-actions"><button type="button" className="pr-btn pr-btn--primary" disabled={busy || detailLoading} onClick={saveImages}>Salvar fotos</button></div>}
     </div>;
   }
 
@@ -582,7 +568,7 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
   }
 
   const editTabs: { id: EditTab; label: string }[] = [
-    { id: 'data', label: 'Dados' }, { id: 'variations', label: 'Variações' }, { id: 'images', label: 'Imagens' },
+    { id: 'data', label: 'Dados' }, { id: 'variations', label: 'Variações' }, { id: 'images', label: 'Fotos' },
     { id: 'links', label: 'Adicionais e tags' }, { id: 'combo', label: 'Combo' },
   ];
   const cancel = (close: () => void) => <button type="button" className="pr-btn" onClick={close}>Cancelar</button>;
@@ -613,7 +599,8 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
 
     <Drawer open={sheet === 'product'} title="Novo produto" onClose={closeSheet} footer={<>{cancel(closeSheet)}<button form="cm-new-product" className="pr-btn pr-btn--primary" disabled={busy || !newProduct.categoryId}>Salvar produto</button></>}>
       <form id="cm-new-product" className="pr-form" onSubmit={(event) => { addProduct(event); closeSheet(); }}>
-        <label className="pr-field">Nome<input value={newProduct.name} onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })} minLength={2} maxLength={160} placeholder="Ex.: Bowl da casa" required autoFocus /></label>
+        <div className="pr-field"><span>Fotos</span><PhotoPicker urls={newPhotos.urls} cover={newPhotos.cover} disabled={busy} onError={onMessage} onChange={(urls, cover) => setNewPhotos({ urls, cover })} /></div>
+        <label className="pr-field">Nome<input value={newProduct.name} onChange={(event) => setNewProduct({ ...newProduct, name: event.target.value })} minLength={2} maxLength={160} placeholder="Ex.: Bowl da casa" required /></label>
         <div className="pr-form-row">
           <label className="pr-field">Categoria<select value={newProduct.categoryId} onChange={(event) => setNewProduct({ ...newProduct, categoryId: Number(event.target.value) })}>{catalog.categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="pr-field">Preço em R$<input inputMode="decimal" value={newProduct.price} onChange={(event) => setNewProduct({ ...newProduct, price: event.target.value })} placeholder="29,90" required /></label>
@@ -655,7 +642,7 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
         {editTab === 'data' ? editorData(editing)
           : detailLoading || expandedId !== editing.id ? <p className="pr-muted">Carregando...</p>
           : editTab === 'variations' ? editorVariations()
-          : editTab === 'images' ? editorImages(editing)
+          : editTab === 'images' ? editorImages()
           : editTab === 'links' ? editorLinks()
           : editorCombo(editing)}
         {editTab !== 'data' && note && <p className="cm-note" role="status">{note}</p>}

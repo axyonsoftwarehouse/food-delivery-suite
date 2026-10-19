@@ -36,22 +36,23 @@ export default function GoalCard() {
     } finally { setSaving(false); }
   };
 
-  if (!goal) return <section className="courier-goal courier-row"><div><strong>{'Meta da semana'}</strong><small>{loadFailed ? 'Não foi possível carregar sua meta.' : 'Carregando…'}</small></div></section>;
+  if (!goal) return <section className="courier-goal"><div className="courier-goal-head"><strong>{'Meta da semana'}</strong></div><small>{loadFailed ? 'Não foi possível carregar sua meta.' : 'Carregando…'}</small></section>;
 
   const target = goal.weeklyDeliveries;
   const done = goal.doneThisWeek;
   return <section className="courier-goal" aria-label="Meta da semana">
-    <strong>{'Meta da semana'}</strong>
+    <div className="courier-goal-head">
+      <strong>{'Meta da semana'}</strong>
+      {!editing && <button type="button" className="courier-link-btn" onClick={startEdit}>{target == null ? 'Definir meta' : 'Editar'}</button>}
+    </div>
     {!editing && (target == null ? <>
       <small>{'Defina uma meta para a semana'}</small>
-      <button type="button" onClick={startEdit}>{'Definir meta'}</button>
     </> : <>
-      <small>{`${done} de ${target} entregas esta semana`}</small>
+      <small><b>{done}</b>{` de ${target} entregas esta semana`}</small>
       <div className="courier-progress" role="progressbar" aria-label="Progresso da meta semanal" aria-valuemin={0} aria-valuenow={Math.min(done, target)} aria-valuemax={target}>
         <div style={{ width: `${Math.min(100, (done / target) * 100)}%` }} />
       </div>
       {done >= target && <p className="courier-goal-done">{'Meta batida!'}</p>}
-      <button type="button" onClick={startEdit}>{'Editar'}</button>
     </>)}
     {editing && <form onSubmit={(event) => { event.preventDefault(); void save(value.trim() === '' ? NaN : Number(value)); }}>
       <label>{'Entregas por semana'}

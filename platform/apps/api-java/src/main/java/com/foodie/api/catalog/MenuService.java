@@ -37,7 +37,9 @@ public class MenuService {
         // horário): sem eles o formulário abria em branco e, ao salvar, apagava a janela/estoque — o
         // "Executivo do almoço" (11:00–15:00) sumia do cardápio ao ser editado (15/10/2026).
         return jdbc.queryForList(
-            "SELECT id, restaurant_id, category_id, name, description, price_cents, available, is_combo, stock, available_from, available_until FROM products WHERE restaurant_id = ? ORDER BY id DESC",
+            "SELECT p.id, p.restaurant_id, p.category_id, p.name, p.description, p.price_cents, p.available, p.is_combo, p.stock, p.available_from, p.available_until, "
+                + "(SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.is_cover DESC, pi.sort, pi.id LIMIT 1) AS image_url "
+                + "FROM products p WHERE p.restaurant_id = ? ORDER BY p.id DESC",
             restaurantId
         );
     }

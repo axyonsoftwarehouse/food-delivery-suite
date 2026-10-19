@@ -98,17 +98,25 @@ export default function AgoraPage() {
   if (deliveries === null) return <p className="courier-empty">{'Carregando suas entregas…'}</p>;
   return <>
     {offline && <p className="courier-banner is-warning">{'Sem conexão — tentando de novo'}</p>}
-    {askNotifications && <p className="courier-banner">{'Ative o aviso de entrega nova: toque no sino, no topo, e permita as notificações. Assim você é avisado mesmo com a tela fechada.'}</p>}
+    {askNotifications && <p className="courier-banner">{'Toque no sino e permita as notificações para ser avisado de entrega nova com a tela fechada.'}</p>}
     {shift && <ShiftCard shift={shift} activeDeliveries={deliveries.length} offline={offline}
       locationBlocked={locationStatus === 'blocked' || locationStatus === 'unsupported'} onChanged={setShift} />}
     {current ? <DeliveryCard key={current.id} delivery={current} onChanged={refresh} offline={offline} /> : <div className="courier-empty">
-      <Icon name="bike" size={40} />
+      <span className="courier-empty-icon"><Icon name="bike" size={24} /></span>
       <strong>{'Nenhuma entrega agora'}</strong>
       <span>{'Quando a loja atribuir uma entrega, ela aparece aqui com som e vibração.'}</span>
-      <div className="courier-stats"><div>{'Entregas hoje'}<strong>{day.count}</strong></div><div>{'Ganhos hoje'}<strong>{money(day.cents)}</strong></div></div>
     </div>}
-    {deliveries.length > 1 && <section className="courier-queue"><h2>{'Próximas'}</h2>
-      {deliveries.slice(1).map((item) => <div className="courier-row" key={item.id}><div><strong>{`#${item.id} · ${item.restaurant_name}`}</strong><small>{item.delivery_address_text}</small></div><small>{item.status === 'picked_up' ? 'em rota' : 'a retirar'}</small></div>)}
+    {!current && <div className="courier-stats">
+      <div><span>{'Entregas hoje'}</span><strong>{day.count}</strong></div>
+      <div><span>{'Ganhos hoje'}</span><strong>{money(day.cents)}</strong></div>
+    </div>}
+    {deliveries.length > 1 && <section className="courier-queue"><h2 className="courier-section-title">{'Próximas'}</h2>
+      <div className="courier-list-card">
+        {deliveries.slice(1).map((item) => <div className="courier-item" key={item.id}>
+          <div className="courier-item-main"><strong>{`#${item.id} · ${item.restaurant_name}`}</strong><small>{item.delivery_address_text}</small></div>
+          <span className={`courier-tag${item.status === 'picked_up' ? ' is-brand' : ''}`}>{item.status === 'picked_up' ? 'em rota' : 'a retirar'}</span>
+        </div>)}
+      </div>
     </section>}
   </>;
 }

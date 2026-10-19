@@ -34,7 +34,7 @@ export function ShiftCard({ shift, activeDeliveries, locationBlocked, offline, o
 
   if (!shift.open) {
     if (activeDeliveries > 0) {
-      return <div className="courier-shift is-off"><span>{'Fora do turno'}</span>
+      return <div className="courier-shift is-off"><span className="courier-shift-label"><i aria-hidden="true" />{'Fora do turno'}</span>
         <button type="button" disabled={acting || offline} onClick={() => void start()}>{'Estou disponível'}</button></div>;
     }
     return <section className="courier-shift-card" aria-label="Turno">
@@ -45,7 +45,7 @@ export function ShiftCard({ shift, activeDeliveries, locationBlocked, offline, o
   }
   return <>
     <div className="courier-shift">
-      <span>{shift.startedAt ? `Disponível desde ${shiftTime(shift.startedAt)}` : 'Disponível'}</span>
+      <span className="courier-shift-label"><i aria-hidden="true" />{shift.startedAt ? `Disponível desde ${shiftTime(shift.startedAt)}` : 'Disponível'}</span>
       {!confirming && <button type="button" disabled={acting || offline} onClick={() => setConfirming(true)}>{'Encerrar turno'}</button>}
     </div>
     {confirming && <div className="courier-shift-confirm">

@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, money, useApp } from '../app-context';
 import PaymentsPanel from '../PaymentsPanel';
+import { Icon } from '../icons';
+import { AdminPage, DateRange } from './admin-kit';
+import { Empty, Stat, Tabs } from './kit';
 
 type Expense = { id: number; category: string; description: string; amount_cents: number; incurred_at: string; created_by_name: string | null };
 type LedgerEntry = { id: number; party: string; party_id: number | null; order_id: number | null; kind: string; amount_cents: number; description: string; created_at: string };
@@ -23,18 +26,15 @@ type Earn = { totals: Record<string, number>; buckets: EarnBucket[] };
 export default function FinancePanel() {
   const { setMessage } = useApp();
   const [tab, setTab] = useState('payments');
+  const tabs = [{ id: 'payments', label: 'Pagamentos' }, { id: 'earnings', label: 'Histórico' }, { id: 'expenses', label: 'Despesas' }, { id: 'ledger', label: 'Extrato' }];
 
-  return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">FINANCEIRO</span><h2>Dinheiro da operação</h2></div><p>Pagamentos, histórico financeiro e despesas da plataforma.</p></div>
-    <div className="ui-chips" style={{ marginBottom: 16 }}>
-      {[['payments', 'Pagamentos'], ['earnings', 'Histórico'], ['expenses', 'Despesas'], ['ledger', 'Extrato']].map(([id, label]) =>
-        <button key={id} type="button" className={`ui-chip${tab === id ? ' selected' : ''}`} onClick={() => setTab(id)}>{label}</button>)}
-    </div>
+  return <AdminPage>
+    <Tabs label="Seções do financeiro" tabs={tabs} value={tab} onChange={setTab} />
     {tab === 'payments' && <PaymentsPanel onMessage={setMessage} />}
     {tab === 'earnings' && <EarningsTab onMessage={setMessage} />}
     {tab === 'expenses' && <ExpensesTab onMessage={setMessage} />}
     {tab === 'ledger' && <LedgerTab onMessage={setMessage} />}
-  </section>;
+  </AdminPage>;
 }
 
 
@@ -74,23 +74,29 @@ function ExpensesTab({ onMessage }: { onMessage: (m: string) => void }) {
     finally { setBusy(false); }
   }
 
-  return <div className="form-grid">
-    <form onSubmit={create}>
-      <h3>Nova despesa</h3>
-      <label>Categoria<input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Ex.: embalagem" required minLength={2} maxLength={60} /></label>
-      <label>Descrição<input value={description} onChange={(event) => setDescription(event.target.value)} maxLength={255} /></label>
-      <label>Valor em R$<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label>
-      <label>Data<input type="date" value={incurredAt} onChange={(event) => setIncurredAt(event.target.value)} required /></label>
-      <button className="secondary-button" disabled={busy}>Lançar despesa</button>
-    </form>
-    <div>
-      <div className="ui-chips" style={{ marginBottom: 12 }}><input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} /><input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} /></div>
-      <div className="courier-list">
-        <h3>Total no período: {money(data?.totalCents ?? 0)}</h3>
-        {data?.items.length ? data.items.map((item) => <div className="courier-row" key={item.id}><div><strong>{item.category}</strong><span>{item.description} · {new Date(item.incurred_at).toLocaleDateString('pt-BR')}{item.created_by_name ? ` · ${item.created_by_name}` : ''}</span></div><div className="courier-actions"><strong>{money(item.amount_cents)}</strong><button className="availability-button" disabled={busy} onClick={() => void remove(item)}>Excluir</button></div></div>) : <p className="form-help">Sem despesas no período.</p>}
-      </div>
+  return <>
+    <div className="pr-toolbar ad-period"><DateRange from={from} to={to} onFrom={setFrom} onTo={setTo} /></div>
+    <div className="ad-forms">
+      <form className="pr-card pr-form" onSubmit={create}>
+        <div className="pr-card-head"><h2>Nova despesa</h2></div>
+        <label className="pr-field">Categoria<input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Ex.: embalagem" required minLength={2} maxLength={60} /></label>
+        <label className="pr-field">Descrição<input value={description} onChange={(event) => setDescription(event.target.value)} maxLength={255} /></label>
+        <div className="pr-form-row">
+          <label className="pr-field">Valor em R$<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label>
+          <label className="pr-field">Data<input type="date" value={incurredAt} onChange={(event) => setIncurredAt(event.target.value)} required /></label>
+        </div>
+        <div className="ad-form-foot"><button className="pr-btn pr-btn--primary" disabled={busy}>Lançar despesa</button></div>
+      </form>
+      <section className="pr-card pr-card--flush ad-flush">
+        <div className="pr-card-head"><h2>Despesas</h2><span className="ad-total">Total no período<strong>{money(data?.totalCents ?? 0)}</strong></span></div>
+        {data?.items.length ? <ul className="pr-list">{data.items.map((item) => <li className="pr-row ad-keep" key={item.id}>
+          <div className="pr-row-main"><strong>{item.category}</strong><span>{[item.description, new Date(item.incurred_at).toLocaleDateString('pt-BR'), item.created_by_name].filter(Boolean).join(' · ')}</span></div>
+          <span className="pr-row-value pr-num">{money(item.amount_cents)}</span>
+          <button type="button" className="pr-icon-button ad-remove" aria-label={`Excluir despesa ${item.category}`} title="Excluir" disabled={busy} onClick={() => void remove(item)}><Icon name="trash" size={17} /></button>
+        </li>)}</ul> : <Empty icon="wallet">Sem despesas no período.</Empty>}
+      </section>
     </div>
-  </div>;
+  </>;
 }
 
 function LedgerTab({ onMessage }: { onMessage: (m: string) => void }) {
@@ -113,14 +119,20 @@ function LedgerTab({ onMessage }: { onMessage: (m: string) => void }) {
   useEffect(() => { void load(); }, [load]);
 
   return <>
-    <div className="ui-chips" style={{ marginBottom: 12 }}>
-      <select value={party} aria-label="Parte do extrato" onChange={(event) => setParty(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurante (histórico)</option></select>
-      {party !== 'admin' && <input inputMode="numeric" aria-label="ID da parte" value={partyId} onChange={(event) => setPartyId(event.target.value)} placeholder="ID da parte" />}
-      <input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} />
-      <input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} />
-      <strong>Saldo: {money(data?.balanceCents ?? 0)}</strong>
+    <div className="pr-toolbar">
+      <div className="ad-filter">
+        <select className="ad-select" value={party} aria-label="Parte do extrato" onChange={(event) => setParty(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurante (histórico)</option></select>
+        {party !== 'admin' && <input className="ad-input" inputMode="numeric" aria-label="ID da parte" value={partyId} onChange={(event) => setPartyId(event.target.value)} placeholder="ID da parte" />}
+        <DateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      </div>
     </div>
-    <div className="postal-range-list">{data?.items.length ? data.items.map((entry) => <div key={entry.id}><span><strong>{KIND_LABEL[entry.kind] ?? entry.kind}</strong>{entry.order_id ? ` pedido #${entry.order_id}` : ''} · {entry.description || '—'}</span><span>{money(entry.amount_cents)} · {new Date(entry.created_at).toLocaleString('pt-BR')}</span></div>) : <p className="form-help">Sem lançamentos.</p>}</div>
+    <section className="pr-card pr-card--flush ad-flush">
+      <div className="pr-card-head"><h2>Lançamentos</h2><span className="ad-total">Saldo<strong>{money(data?.balanceCents ?? 0)}</strong></span></div>
+      {data?.items.length ? <ul className="pr-list">{data.items.map((entry) => <li className="pr-row ad-keep" key={entry.id}>
+        <div className="pr-row-main"><strong>{KIND_LABEL[entry.kind] ?? entry.kind}{entry.order_id ? ` · pedido #${entry.order_id}` : ''}</strong><span>{entry.description || '—'} · {new Date(entry.created_at).toLocaleString('pt-BR')}</span></div>
+        <span className="pr-row-value pr-num">{money(entry.amount_cents)}</span>
+      </li>)}</ul> : <Empty icon="receipt">Sem lançamentos.</Empty>}
+    </section>
   </>;
 }
 
@@ -141,16 +153,22 @@ function EarningsTab({ onMessage }: { onMessage: (m: string) => void }) {
   const kinds: [keyof EarnBucket | 'netCents', string][] = [['saleCents', 'Vendas'], ['commissionCents', 'Comissão'], ['refundCents', 'Estornos'], ['netCents', 'Líquido']];
 
   return <>
-    <div className="ui-chips" style={{ marginBottom: 12 }}>
-      <select value={scope} aria-label="Escopo dos ganhos" onChange={(event) => setScope(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurantes (histórico)</option></select>
-      <select value={groupBy} aria-label="Agrupar ganhos por" onChange={(event) => setGroupBy(event.target.value)}><option value="day">Por dia</option><option value="week">Por semana</option><option value="month">Por mês</option></select>
-      <input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} />
-      <input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} />
-      <a className="secondary-button" href={`/backend/admin/reports/export?report=earnings&scope=${scope}&from=${from}&to=${to}`} target="_blank" rel="noreferrer">Exportar CSV</a>
+    <div className="pr-toolbar">
+      <div className="ad-filter">
+        <select className="ad-select" value={scope} aria-label="Escopo dos ganhos" onChange={(event) => setScope(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurantes (histórico)</option></select>
+        <select className="ad-select" value={groupBy} aria-label="Agrupar ganhos por" onChange={(event) => setGroupBy(event.target.value)}><option value="day">Por dia</option><option value="week">Por semana</option><option value="month">Por mês</option></select>
+        <DateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      </div>
+      <div className="pr-toolbar-actions"><a className="pr-btn pr-btn--ghost" href={`/backend/admin/reports/export?report=earnings&scope=${scope}&from=${from}&to=${to}`} target="_blank" rel="noreferrer"><Icon name="file" size={16} />Exportar CSV</a></div>
     </div>
-    <div className="stat-grid" style={{ marginBottom: 16 }}>
-      {kinds.map(([key, label]) => <div className="stat-card" key={key}><span>{label}</span><strong>{money(data?.totals?.[key] ?? 0)}</strong></div>)}
-    </div>
-    <div className="postal-range-list">{data?.buckets.length ? data.buckets.map((bucket) => <div key={bucket.period}><span><strong>{bucket.period}</strong></span><span>{money(bucket.netCents)} · vendas {money(bucket.saleCents)} · comissão {money(bucket.commissionCents)}</span></div>) : <p className="form-help">Sem lançamentos no período.</p>}</div>
+    <section className="pr-stats ad-kpis--4">
+      {kinds.map(([key, label]) => <Stat key={key} label={label} tone={key === 'netCents' ? 'brand' : undefined} value={money(data?.totals?.[key] ?? 0)} />)}
+    </section>
+    <section className="pr-card pr-card--flush ad-flush">
+      {data?.buckets.length ? <ul className="pr-list">{data.buckets.map((bucket) => <li className="pr-row ad-keep" key={bucket.period}>
+        <div className="pr-row-main"><strong>{bucket.period}</strong><span>vendas {money(bucket.saleCents)} · comissão {money(bucket.commissionCents)}</span></div>
+        <span className="pr-row-value pr-num">{money(bucket.netCents)}</span>
+      </li>)}</ul> : <Empty icon="chart">Sem lançamentos no período.</Empty>}
+    </section>
   </>;
 }

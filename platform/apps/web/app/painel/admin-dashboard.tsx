@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, labels, money, useApp } from '../app-context';
+import { AdminPage, DateRange } from './admin-kit';
+import { Card, Empty, Stat } from './kit';
 
 type DashDay = { day: string; orders: number; revenueCents: number; newUsers: number };
 type RankRestaurant = { id: number; name: string; orders: number; revenue: number };
@@ -73,63 +75,56 @@ export default function AdminDashboard() {
 
   const cards = data?.cards;
 
-  return <>
-    <section className="dash-toolbar">
-      <div>
-        <span className="eyebrow">VISÃO GERAL</span>
-        <h2>Painel do negócio</h2>
+  const presets: [string, number][] = [['7 dias', 6], ['30 dias', 29], ['90 dias', 89]];
+
+  return <AdminPage>
+    <div className="pr-toolbar ad-period">
+      <div className="pr-seg" role="group" aria-label="Período">
+        {presets.map(([label, days]) => <button key={days} type="button" aria-pressed={from === isoDaysAgo(days)} onClick={() => { setFrom(isoDaysAgo(days)); setTo(isoDaysAgo(0)); }}>{label}</button>)}
       </div>
-      <div className="dash-range">
-        <button type="button" className={`ui-chip${from === isoDaysAgo(6) ? ' selected' : ''}`} onClick={() => { setFrom(isoDaysAgo(6)); setTo(isoDaysAgo(0)); }}>7 dias</button>
-        <button type="button" className={`ui-chip${from === isoDaysAgo(29) ? ' selected' : ''}`} onClick={() => { setFrom(isoDaysAgo(29)); setTo(isoDaysAgo(0)); }}>30 dias</button>
-        <button type="button" className={`ui-chip${from === isoDaysAgo(89) ? ' selected' : ''}`} onClick={() => { setFrom(isoDaysAgo(89)); setTo(isoDaysAgo(0)); }}>90 dias</button>
-        <input type="date" value={from} max={to} onChange={(event) => setFrom(event.target.value)} aria-label="De" />
-        <input type="date" value={to} min={from} onChange={(event) => setTo(event.target.value)} aria-label="Até" />
-      </div>
+      <DateRange from={from} to={to} onFrom={setFrom} onTo={setTo} bounded />
+    </div>
+
+    <section className="pr-stats ad-kpis">
+      <Stat label="Receita entregue" tone="brand" value={money(cards?.revenueCents ?? 0)} hint={`${cards?.completed ?? 0} pedidos concluídos`} />
+      <Stat label="Pedidos" value={cards?.orders ?? 0} hint={`${cards?.placed ?? 0} aguardando aceite`} />
+      <Stat label="Ticket médio" value={money(cards?.averageTicketCents ?? 0)} hint="por pedido concluído" />
+      <Stat label="Cancelados" value={cards?.canceled ?? 0} hint="recusas e falhas" />
+      <Stat label="Novos clientes" value={cards?.newCustomers ?? 0} hint="no período" />
+      <Stat label="Entregadores ativos" value={cards?.activeCouriers ?? 0} hint="com entregas no período" />
     </section>
 
-    <section className="dash-cards">
-      <div className="dash-card accent"><span>Receita entregue</span><strong>{money(cards?.revenueCents ?? 0)}</strong><small>{cards?.completed ?? 0} pedidos concluídos</small></div>
-      <div className="dash-card"><span>Pedidos</span><strong>{cards?.orders ?? 0}</strong><small>{cards?.placed ?? 0} aguardando aceite</small></div>
-      <div className="dash-card"><span>Ticket médio</span><strong>{money(cards?.averageTicketCents ?? 0)}</strong><small>por pedido concluído</small></div>
-      <div className="dash-card"><span>Cancelados</span><strong>{cards?.canceled ?? 0}</strong><small>recusas e falhas</small></div>
-      <div className="dash-card"><span>Novos clientes</span><strong>{cards?.newCustomers ?? 0}</strong><small>no período</small></div>
-      <div className="dash-card"><span>Entregadores ativos</span><strong>{cards?.activeCouriers ?? 0}</strong><small>com entregas no período</small></div>
-    </section>
-
-    <section className="ui-card dash-chart-card">
-      <header className="ui-card__head">
-        <div><h2 className="ui-card__title">Pedidos e receita por dia</h2><p className="ui-card__subtitle">Barras: pedidos · Linha: receita entregue</p></div>
-        <div className="dash-legend"><span className="dash-legend-bar" /> pedidos <span className="dash-legend-line" /> receita</div>
-      </header>
-      {loading && !data ? <p className="form-help">Carregando...</p> : chart.bars.length ? <>
+    <Card title="Pedidos e receita por dia" className="ad-chart" actions={<div className="dash-legend"><span className="dash-legend-bar" />pedidos<span className="dash-legend-line" />receita</div>}>
+      {loading && !data ? <p className="pr-muted ad-loading">Carregando...</p> : chart.bars.length ? <>
         <svg className="dash-chart" viewBox={`0 0 ${chart.width} ${chart.height}`} preserveAspectRatio="none" role="img" aria-label="Pedidos e receita por dia">
           {chart.bars.map((bar) => <rect key={bar.day.day} className="dash-bar" x={bar.x} y={bar.y} width={bar.w} height={bar.h} rx="2" />)}
           <polyline className="dash-line" points={chart.points} />
         </svg>
         <div className="dash-axis"><span>{data ? shortDay(data.range.from) : ''}</span><span>{data ? shortDay(data.range.to) : ''}</span></div>
-      </> : <p className="form-help">Sem pedidos no período.</p>}
-    </section>
+      </> : <Empty icon="chart">Sem pedidos no período.</Empty>}
+    </Card>
 
-    <section className="dash-rankings">
+    <section className="pr-grid-2">
       <Ranking title="Top restaurantes" empty="Sem dados." rows={(data?.topRestaurants ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.revenue ?? 0), note: `${item.orders} pedidos` }))} />
       <Ranking title="Top pratos" empty="Sem dados." rows={(data?.topProducts ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.revenue ?? 0), note: `${item.quantity ?? 0} un.` }))} />
       <Ranking title="Top zonas" empty="Sem dados." rows={(data?.topZones ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.revenue ?? 0), note: `${item.orders} pedidos` }))} />
       <Ranking title="Top clientes" empty="Sem dados." rows={(data?.topCustomers ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.spend ?? 0), note: `${item.orders} pedidos` }))} />
     </section>
 
-    {cards && Object.keys(cards.byStatus).length > 0 && <section className="ui-card">
-      <header className="ui-card__head"><div><h2 className="ui-card__title">Pedidos por status</h2><p className="ui-card__subtitle">Distribuição no período selecionado</p></div></header>
-      <div className="dash-statuses">
-        {Object.entries(cards.byStatus).map(([status, count]) => <div className="dash-status" key={status}><span className={`dash-dot ${status}`} /><strong>{count}</strong><small>{labels[status] ?? STATUS_LABELS[status] ?? status}</small></div>)}
-      </div>
-    </section>}
-  </>;
+    {cards && Object.keys(cards.byStatus).length > 0 && <Card title="Pedidos por status">
+      <ul className="ad-statuses">
+        {Object.entries(cards.byStatus).map(([status, count]) => <li key={status}><span className={`dash-dot ${status}`} /><span>{labels[status] ?? STATUS_LABELS[status] ?? status}</span><strong>{count}</strong></li>)}
+      </ul>
+    </Card>}
+  </AdminPage>;
 }
 
 function Ranking({ title, empty, rows }: { title: string; empty: string; rows: { key: number; name: string; value: string; note: string }[] }) {
-  return <div className="ui-card">
-    <header className="ui-card__head"><div><h2 className="ui-card__title">{title}</h2></div></header>
-    {rows.length ? <ol className="dash-rank">{rows.map((row, index) => <li key={row.key}><span className="dash-rank-pos">{index + 1}</span><span className="dash-rank-name">{row.name}</span><span className="dash-rank-value">{row.value}<small>{row.note}</small></span></li>)}</ol> : <p className="form-help">{empty}</p>}
-  </div>;
+  return <Card title={title} className="pr-card--flush ad-flush">
+    {rows.length ? <ol className="pr-list">{rows.map((row, index) => <li className="pr-row" key={row.key}>
+      <span className="pf-rank">{index + 1}</span>
+      <span className="pr-row-main"><strong>{row.name}</strong><span>{row.note}</span></span>
+      <span className="pr-row-value pr-num">{row.value}</span>
+    </li>)}</ol> : <Empty icon="chart">{empty}</Empty>}
+  </Card>;
 }
