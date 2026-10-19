@@ -70,7 +70,7 @@ class MercadoPagoRefundTest {
         ApiException erro = assertThrows(ApiException.class, () -> mp.refund(LOJA, "ORDTST01ABC", "refund-order-23"));
 
         assertEquals(502, erro.status());
-        assertEquals("Mercado Pago recusou o estorno: HTTP 400 - order cannot be refunded (status: refunded)", erro.getMessage());
+        assertEquals("Mercado Pago recusou o estorno: HTTP 400 - invalid_order_status: order cannot be refunded (status: refunded)", erro.getMessage());
     }
 
     @Test

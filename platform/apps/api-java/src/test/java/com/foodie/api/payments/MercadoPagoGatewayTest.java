@@ -70,7 +70,8 @@ class MercadoPagoGatewayTest {
         assertEquals("HTTP 401 - Unauthorized use of live credentials",
             MercadoPagoGateway.providerMessage(erro(401, "{\"cause\":[{\"code\":7,\"description\":\"Unauthorized use of live credentials\"}],\"error\":\"unauthorized\"}")));
         // E o formato da API de Orders (03/10): o motivo vem em `errors[]`, com o detalhe do campo.
-        assertEquals("HTTP 400 - Properties not supported (additionalProperties '$.notification_url' not allowed)",
+        // O `code` entra também quando a raiz não tem `message` — é o que se procura na documentação.
+        assertEquals("HTTP 400 - unsupported_properties: Properties not supported (additionalProperties '$.notification_url' not allowed)",
             MercadoPagoGateway.providerMessage(erro(400, "{\"errors\":[{\"code\":\"unsupported_properties\",\"message\":\"Properties not supported\","
                 + "\"details\":[\"additionalProperties '$.notification_url' not allowed\"]}]}")));
         // 14/10: o 422 do cancelamento durante o 3DS chegou só como "Unprocessable Entity" — o código
@@ -80,6 +81,13 @@ class MercadoPagoGatewayTest {
                 + "\"errors\":[{\"code\":\"cannot_cancel_order\",\"message\":\"The order cannot be canceled\"}]}")));
         assertEquals("HTTP 422 - Unprocessable Entity (cannot_cancel_order)",
             MercadoPagoGateway.providerMessage(erro(422, "{\"message\":\"Unprocessable Entity\",\"errors\":[{\"code\":\"cannot_cancel_order\"}]}")));
+        // Com `message` na raiz, o `details[0]` do primeiro erro também entra.
+        assertEquals("HTTP 422 - Unprocessable Entity (cannot_cancel_order: The order cannot be canceled; order status is action_required)",
+            MercadoPagoGateway.providerMessage(erro(422, "{\"message\":\"Unprocessable Entity\",\"errors\":[{\"code\":\"cannot_cancel_order\","
+                + "\"message\":\"The order cannot be canceled\",\"details\":[\"order status is action_required\"]}]}")));
+        // Sem `message` em lugar nenhum, o `code` sozinho ainda diz alguma coisa.
+        assertEquals("HTTP 400 - invalid_field",
+            MercadoPagoGateway.providerMessage(erro(400, "{\"errors\":[{\"code\":\"invalid_field\"}]}")));
         assertEquals("HTTP 500", MercadoPagoGateway.providerMessage(erro(500, "")));
         assertEquals("HTTP 500", MercadoPagoGateway.providerMessage(erro(500, "nao e json")));
     }

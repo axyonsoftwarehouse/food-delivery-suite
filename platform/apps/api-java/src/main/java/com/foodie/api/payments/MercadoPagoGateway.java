@@ -270,7 +270,9 @@ public class MercadoPagoGateway implements PaymentGateway {
                 // A raiz pode trazer só o nome genérico do status ("Unprocessable Entity"): o motivo de verdade
                 // vem no `errors[]` da API de Orders (422 do cancelamento durante o 3DS, 14/10/2026).
                 String erroOrders = primeiroErro(resposta);
-                return situacao + " - " + mensagem + (erroOrders == null ? "" : " (" + erroOrders + ")");
+                String detalhe = primeiroDetalhe(resposta);
+                if (erroOrders == null) return situacao + " - " + mensagem;
+                return situacao + " - " + mensagem + " (" + erroOrders + (detalhe == null ? "" : "; " + detalhe) + ")";
             }
             if (resposta.get("cause") instanceof List<?> causas && !causas.isEmpty() && causas.getFirst() instanceof Map<?, ?> primeira) {
                 Object descricao = primeira.get("description");
@@ -278,14 +280,12 @@ public class MercadoPagoGateway implements PaymentGateway {
             }
             // A API de Orders erra em `errors[]` (não em `message`/`cause`). Sem isto, um campo recusado
             // virava só "HTTP 400" e o motivo — que estava no corpo — ficava invisível.
-            if (resposta.get("errors") instanceof List<?> erros && !erros.isEmpty() && erros.getFirst() instanceof Map<?, ?> erro) {
-                String texto = str(erro.get("message"));
-                String detalhe = erro.get("details") instanceof List<?> detalhes && !detalhes.isEmpty() ? String.valueOf(detalhes.getFirst()) : null;
-                if (texto != null && !texto.isBlank()) {
-                    return situacao + " - " + texto + (detalhe == null || detalhe.isBlank() ? "" : " (" + detalhe + ")");
-                }
-            }
-            return situacao;
+            // A API de Orders erra em `errors[]` (não em `message`/`cause`). Sem isto, um campo recusado
+            // virava só "HTTP 400" e o motivo — que estava no corpo — ficava invisível.
+            String erroOrders = primeiroErro(resposta);
+            if (erroOrders == null) return situacao;
+            String detalhe = primeiroDetalhe(resposta);
+            return situacao + " - " + erroOrders + (detalhe == null ? "" : " (" + detalhe + ")");
         } catch (Exception ignorado) {
             return situacao;
         }
@@ -301,6 +301,14 @@ public class MercadoPagoGateway implements PaymentGateway {
         if (temCodigo && temTexto) return codigo + ": " + texto;
         if (temCodigo) return codigo;
         return temTexto ? texto : null;
+    }
+
+    /** {@code details[0]} do primeiro item de {@code errors[]} (o campo recusado, por exemplo); nulo se faltar. */
+    private static String primeiroDetalhe(Map<String, Object> resposta) {
+        if (!(resposta.get("errors") instanceof List<?> erros) || erros.isEmpty() || !(erros.getFirst() instanceof Map<?, ?> erro)) return null;
+        if (!(erro.get("details") instanceof List<?> detalhes) || detalhes.isEmpty()) return null;
+        String detalhe = str(detalhes.getFirst());
+        return detalhe == null || detalhe.isBlank() ? null : detalhe;
     }
 
     @Override

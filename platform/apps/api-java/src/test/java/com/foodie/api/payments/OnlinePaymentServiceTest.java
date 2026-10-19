@@ -1048,6 +1048,17 @@ class OnlinePaymentServiceTest {
     }
 
     @Test
+    void abandonDoesNotSendTheInternalNoteToTheCustomer() {
+        // A nota leva o texto do Mercado Pago para a loja e o admin; a tela do cliente não a usa.
+        desafioAberto();
+        payment.put("note", "Desistência da verificação; cobrança não cancelada no Mercado Pago: HTTP 422");
+        when(gateway.cancel(any(), anyString(), anyString())).thenThrow(new ApiException(502, "Mercado Pago recusou o cancelamento: HTTP 422"));
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "pending", "pending_challenge", null, null, null, null));
+
+        assertFalse(service(true).abandonChallenge(customer, 1).containsKey("note"));
+    }
+
+    @Test
     void abandonKeepsTheAbandonedChargeAsTheCurrentOne() {
         // O external_id continua o da cobrança abandonada: é isso que faz o webhook tratá-la como "anterior"
         // (e estorná-la se for paga) depois que o cliente pagar de outro jeito.
@@ -1072,6 +1083,43 @@ class OnlinePaymentServiceTest {
         ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
         verify(gateway).create(eq(loja), request.capture());
         assertEquals("order-1-11-retry-ORD3DS", request.getValue().idempotencyKey());
+    }
+
+    @Test
+    void newCardChargeAfterAnAbandonedChallengeDerivesTheKeyFromTheAbandonedOne() {
+        // Mesma regra do Pix, pelo caminho do cartão (token + documento): nova tentativa depois de desistir.
+        payment.put("status", "cancelled");
+        payment.put("raw_status", "abandoned");
+        payment.put("external_id", "ORD3DS");
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDCARD2", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, card());
+
+        verify(gateway, never()).cancel(any(), anyString(), anyString());
+        ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+        verify(gateway).create(eq(loja), request.capture());
+        assertEquals("order-1-11-retry-ORD3DS", request.getValue().idempotencyKey());
+        assertEquals("card", request.getValue().method());
+    }
+
+    @Test
+    void abandonedCardPaidAfterThePixIsRefunded() {
+        // Desistiu da verificação, pagou com Pix e depois o banco aprovou o cartão abandonado: a cobrança
+        // atual é a do Pix (paga) e o cartão vira duplicado — volta sozinho, sem mexer no pagamento atual.
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("status", "paid");
+        row.put("amount_due_cents", 1000L);
+        row.put("external_id", "ORDPIX2");
+        row.put("restaurant_id", 3L);
+        row.put("order_status", "placed");
+        when(jdbc.queryForList(argThat(sql -> sql != null && sql.contains("FOR UPDATE") && sql.contains("JOIN orders")), any(Object[].class))).thenReturn(List.of(row));
+        when(gateway.fetch(loja, "ORD3DS")).thenReturn(new PaymentGateway.Charge("ORD3DS", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        Map<String, Object> result = service(true).handleWebhook("mercadopago", "ORD3DS", "3588446200");
+
+        verify(gateway).refund(loja, "ORD3DS", "refund-dup-ORD3DS");
+        assertEquals("ORD3DS", result.get("refundedDuplicate"));
+        verify(jdbc, never()).update(org.mockito.ArgumentMatchers.startsWith("UPDATE order_payments"), any(Object[].class));
     }
 
     @Test
@@ -1109,7 +1157,8 @@ class OnlinePaymentServiceTest {
         ApiException error = assertThrows(ApiException.class, () -> service(true).abandonChallenge(customer, 1));
 
         assertEquals(409, error.status());
-        assertEquals("Não foi possível cancelar a verificação agora. Tente de novo em instantes.", error.getMessage());
+        // Repetir não resolve (falta a credencial da loja): o texto não convida a tentar de novo.
+        assertEquals("Não foi possível cancelar a verificação. Conclua na página do banco ou fale com a loja.", error.getMessage());
         verify(gateway, never()).cancel(any(), anyString(), anyString());
         verify(jdbc, never()).update(anyString(), any(Object[].class));
     }
