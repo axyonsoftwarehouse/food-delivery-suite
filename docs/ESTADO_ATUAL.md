@@ -1,6 +1,7 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 17/10/2026.
+Documento vivo. Última atualização: 19/10/2026 (retrato do §0, §5 e §6: PRs #42 a #62
+mescladas e publicadas, schema `071`).
 Correções de segurança em 16/10/2026: equipe, modalidade do pagamento,
 webhook/concorrência da assinatura, fatura e chat; revisão complementar com oito
 correções de concorrência, login, 3DS, arquivos privados e cotas de SMS. Migration
@@ -26,17 +27,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`41a29d9`** — merge da PR #41 (Pix sem QR e formulário do cartão travado). A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #41** são os do `axyonsoftwarehouse` |
-| Em revisão | **nada aberto** — a desistência do 3DS foi mesclada na **PR #40** (`3a5bc14`, 14/10 23:29 UTC) e o Pix sem QR na **PR #41** (`41a29d9`, 15/10 00:34 UTC) |
-| `main` local | `adb9da2` — atrás do `origin/main`; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
-| **Código na VPS** | **`41a29d9`** — o `main` inteiro (até a PR #41, Pix sem QR), publicado pelo **botão do GitHub** em **15/10 00:37 UTC** (run `38661127216`, sucesso, `headSha` = `41a29d9`; antes dele, o `3a5bc14` da PR #40, deploy de 14/10 23:59 UTC). Conteúdo do `.deployed` não lido nesta atualização `(a confirmar)` |
-| Schema (`/ready`) | **`068`** na VPS e no `HEAD` do `main` (conferido em 15/10: `{"status":"ready","schemaVersion":"068"}`); as PRs #40 e #41 não trazem migration |
-| Distância | o staging roda o mesmo commit do `origin/main` |
+| `origin/main` | **`297ec38`** — merge da PR #62 (fotos dos pratos no catálogo e visual do admin, entregador e cliente), 19/10 13:56 UTC. A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #62** são os do `axyonsoftwarehouse` |
+| Em revisão | **nada aberto** (conferido em 19/10 com `gh pr list --state open`). De 15/10 a 19/10 entraram as **PRs #42 a #62** (§6) |
+| `main` local | `adb9da2` (PR #36) — 73 commits atrás do `origin/main` em 19/10; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
+| **Código na VPS** | **`297ec38`** — o `main` inteiro (até a PR #62), publicado pelo **botão do GitHub** em **19/10 14:06 UTC** (run `39265931233`, sucesso, `headSha` = `297ec38`; antes dele, o `053ba60` da PR #55, deploy de 18/10 23:44 UTC). Conteúdo do `.deployed` não lido nesta atualização `(a confirmar)` |
+| Schema (`/ready`) | **`071`** na VPS e no `HEAD` do `main` (conferido em 19/10: `{"status":"ready","schemaVersion":"071"}` em `https://api.staging.2.29.42.104.sslip.io/ready`). Migrations novas desde 15/10: `V069` (cobranças da assinatura, PR #46), `V070` (impede excluir papel atribuído, PR #54) e `V071` (papel de acesso total do admin, PR #57) |
+| Distância | o staging roda o mesmo commit do `origin/main`; a home do staging responde 200 (19/10) |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `pnpm verify` verde na branch `feat/assinatura-cobranca-real` (15/10, local, sem integração: Docker parado), com **770 testes Java** sem falha. Antes: `pnpm verify` verde na branch `fix/3ds-desistencia` (14/10) com **737 testes Java** sem falha; `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #40 e #41 |
+| Testes Java | `pnpm verify` verde na branch `feat/assinatura-cobranca-real` (15/10, local, sem integração: Docker parado), com **770 testes Java** sem falha. Antes: `pnpm verify` verde na branch `fix/3ds-desistencia` (14/10) com **737 testes Java** sem falha; `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #40 e #41. Em 19/10, o CI do `main` (`push`, `297ec38`) está **verde**; contagem de testes Java depois das PRs #42 a #62 `(a confirmar)` com `pnpm verify` |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
 | Disco da VPS | **34%** em 13/10 (antes do deploy de 14/10; número novo `(a confirmar)` com `df -h /`); a limpeza automática dispara em 70% |
-| Árvore de trabalho | branch **`fix/seguranca-e-consistencia`** (correções de segurança de 16/10; `.claude/` não versionado) |
+| Árvore de trabalho | branch **`docs/estado-atual-2026-10-19`** (esta atualização, a partir do `297ec38`). Não versionados: `.claude/`, `docs/PLANO_APPS_MOBILE_MARCOS.md` e `docs/PLANO_APPS_MOBILE_NEGOCIO.md` (planos dos apps móveis de 15/10, ainda fora do Git) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -415,9 +416,17 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`41a29d9`, schema `068`), com a desistência do 3DS (PR #40) e o
-conserto do Pix sem QR e do formulário do cartão (PR #41). O staging é publicado pelo **botão do GitHub** ou pelo
-`release.ps1` no PC (o último deploy, de 15/10 00:37 UTC, foi pelo botão).
+**O que está no ar é o `origin/main` inteiro** (`297ec38`, schema `071`, deploy de 19/10 14:06 UTC pelo
+**botão do GitHub**). Além da desistência do 3DS (PR #40) e do conserto do Pix sem QR (PR #41), já estão no ar a
+**cobrança real da assinatura** com trial de 15 dias (PRs #46 e #47), as **correções de segurança e concorrência**
+da revisão de 16/10 (PRs #54 e #57, acesso administrativo fail-closed), o **estorno de cobrança com valor
+divergente** (PR #58), os **limites de tempo nos clientes HTTP externos** (PR #59), o **carrinho que não apaga
+itens na leitura** (PR #60) e a rodada visual da loja, do painel e do catálogo (PRs #42 a #45, #48, #52, #53, #55,
+#61 e #62). Desde a PR #49 o **deploy exige a `Verificação` verde**.
+
+**Ainda vale o roteiro abaixo?** Não há registro de que o roteiro de fechamento do pagamento tenha sido feito
+depois de 15/10 `(a confirmar com o dono do produto)`. Como as PRs #54, #57 e #58 mexeram em pagamento, 3DS e
+acesso, o roteiro deve rodar sobre o `297ec38`.
 
 **Roteiro do 3DS no staging (14/10, cartão `PCLXrYCa`):**
 - passaram: `APRO-CHOK` aprovado depois de duas recusas no mesmo pedido (#58); `OTHE-CHNO` recusado com
@@ -451,8 +460,8 @@ Os pedidos de 14/10 (#58 a #60) repetiram cartão e nova tentativa com a conta d
 novo o estorno pela loja com o **diálogo de motivo** e tirar os prints para o cartão `(a confirmar se ainda é
 exigido depois do roteiro do 3DS)`.
 
-**Depois:** a **cobrança real da assinatura** (hoje cria a transação e não cobra o provedor) e a
-prontidão de produção (SMTP real, backup externo com ensaio de restauração, revisão de CSRF/origem).
+**Depois:** o **roteiro funcional da assinatura** no staging (o servidor está no ar desde a PR #46; as telas da
+PR 2 seguem pendentes, §4) e a prontidão de produção (SMTP real, backup externo com ensaio de restauração, revisão de CSRF/origem).
 
 **Histórico do E48 (encerrado em 01/10):** entregue e publicado (`4760fd3`, schema `054`), com
 `admin_audit_log` vazia na VPS e nenhum papel de admin restrito — todos os admins recebem `support.*`.
@@ -511,8 +520,8 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #41** estão mesclados e
-publicados (`41a29d9`, schema `068`), e o staging roda o mesmo commit do `origin/main`.
+A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #62** estão mesclados e
+publicados (`297ec38`, schema `071`, 19/10), e o staging roda o mesmo commit do `origin/main`.
 
 **O que já foi provado no pagamento (com a conta global da plataforma, em 05/10):** Pix (#23) e cartão
 (#26) de ponta a ponta com notificação automática, o estorno pelo admin (#26 ficou `refunded` no Foodie e
@@ -537,14 +546,15 @@ em `/home/deploy/releases/<sha>/`), então as imagens em uso foram **re-tagadas*
 `pre-df503c0` — rollback instantâneo para o release atual sem custo de build. Os backups de banco
 seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar de ~70%.
 
-## 6. Estado da árvore de trabalho (15/10)
+## 6. Estado da árvore de trabalho (19/10)
 
-`origin/main` = **`41a29d9`** (PR #41). O checkout está na branch `fix/3ds-desistencia` (já mesclada na PR #40; este documento é editado aqui;
-o `.claude/` não é versionado). A `main` local está em `adb9da2` (PR #36), atrás do `origin/main`. Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
+`origin/main` = **`297ec38`** (PR #62). O checkout está na branch `docs/estado-atual-2026-10-19` (este documento é
+editado aqui; o `.claude/` e os dois `docs/PLANO_APPS_MOBILE_*.md` não são versionados). A `main` local está em
+`adb9da2` (PR #36), atrás do `origin/main`. Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
 verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
 conserto no PR #13).
 
-Os **PRs #1 a #41** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
+Os **PRs #1 a #62** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
 os últimos publicados **pelo botão do GitHub**:
 
 | Commit | PR | O que é |
@@ -589,7 +599,28 @@ os últimos publicados **pelo botão do GitHub**:
 | `a65f497` | #38 | `fix(web)`: foco do painel de notificações entra ao abrir e volta ao sino |
 | `8eb3206` | #39 | `feat(api,web)`: verificação do banco (3DS) na página de pagamento do cartão |
 | `3a5bc14` | #40 | `fix(api)`: desistir do 3DS libera nova cobrança sem o cancelamento do Mercado Pago |
-| `41a29d9` | #41 | `fix`: Pix sem QR e formulário do cartão travado na página de pagamento — **é o que está na VPS** (pelo botão do GitHub, 15/10 00:37 UTC) |
+| `41a29d9` | #41 | `fix`: Pix sem QR e formulário do cartão travado na página de pagamento |
+| `72497ee` | #42 | `feat(web)`: loja do cliente com visual limpo, foto das lojas e pagamento em lista única |
+| `5e6c647` | #43 | `fix(web)`: endereço do topo em lista própria e pedidos mais legíveis |
+| `a452e3f` | #44 | `fix(web)`: cardápio para de piscar a cada 8 s no poll do catálogo |
+| `fd8eb76` | #45 | `feat(web)`: loja do cliente com movimento nas ações |
+| `648df32` | #46 | `feat(api)`: cobrança real da assinatura da loja — Pix por ciclo (`V069`) |
+| `71e848c` | #48 | `feat(web)`: subir imagem na capa da loja e no banner |
+| `f1d3043` | #47 | `feat(api,web)`: trial de 15 dias na assinatura da loja |
+| `2b6a67c` | #49 | `ci`: deploy exige `Verificação` verde e o CI do `main` não cancela mais |
+| `3212ba7` | #51 | `docs`: plano de testes de contrato e ida-e-volta |
+| `f4b76a3` | #52 | `feat(web)`: painel do restaurante redesenhado e animações internas do cliente |
+| `71d50ee` | #53 | `fix`: ajustes do painel e banners do cliente |
+| `31b1457` | #50 | `fix(painel)`: lista de produtos devolve estoque, combo e janela de horário |
+| `5f5959e` | #61 | `fix(web)`: status do pedido em português e cores da marca nas ações do cliente |
+| `4b51bcc` | #60 | `fix(carrinho)`: leitura não apaga itens e marca indisponíveis |
+| `ffa152a` | #59 | `fix(http)`: limita conexão e leitura dos clientes externos |
+| `2805ad7` | #58 | `fix(pagamentos)`: estorna cobrança online com valor divergente |
+| `a25fb7e` | #56 | `docs`: análise de causa raiz dos modelos de segurança e pagamento |
+| `8722568` | #54 | `fix(api,web)`: segurança e concorrência da revisão de 16/10 (`V070`) |
+| `b9c701e` | #57 | `fix(api,web)`: acesso administrativo fail-closed com papel explícito (`V071`) |
+| `053ba60` | #55 | `feat(carrinho,painel)`: remover item com um clique e enviar imagem no anúncio |
+| `297ec38` | #62 | `feat`: fotos dos pratos no catálogo e visual do admin, entregador e cliente — **é o que está na VPS** (pelo botão do GitHub, 19/10 14:06 UTC) |
 
 **Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
 commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,
