@@ -275,6 +275,8 @@ public class PaymentService {
         payment.put("image", image);
         payment.put("rejection_message", "rejected".equals(payment.get("status"))
             ? com.foodie.api.payments.PaymentDisplay.rejectionMessage((String) payment.get("raw_status")) : null);
+        // A nota interna (texto do provedor, valor divergente) é da loja e do admin; a tela do cliente não a usa.
+        if (customerView) payment.remove("note");
         Object desafio = payment.remove("challenge_url");
         if (customerView && desafio != null && "online".equals(payment.get("modality")) && "card".equals(payment.get("method"))
             && "pending".equals(payment.get("status"))) {

@@ -317,7 +317,7 @@ public class OnlinePaymentService {
             throw new ApiException(409, "Não há verificação do banco em andamento.");
         }
         MerchantCredentials credentials = accounts.credentialsForAccount(((Number) row.get("payment_account_id")).longValue())
-            .orElseThrow(() -> new ApiException(409, "Não foi possível cancelar a verificação agora. Tente de novo em instantes."));
+            .orElseThrow(() -> new ApiException(409, "Não foi possível cancelar a verificação. Conclua na página do banco ou fale com a loja."));
         PaymentGateway gateway = gateways.resolve((String) row.get("provider"));
         PaymentGateway.Charge resposta;
         String motivo = null;
@@ -498,6 +498,9 @@ public class OnlinePaymentService {
                 + PaymentDisplay.PAY_DEADLINE_COLUMN + " FROM order_payments WHERE order_id = ?", orderId);
         if (rows.isEmpty()) return null;
         Map<String, Object> value = new LinkedHashMap<>(rows.getFirst());
+        // Só o cliente chega aqui (cobrança, conferência, desistência): a nota interna — texto do provedor,
+        // valor divergente — é para a loja e o admin, que a leem no detalhe do pedido.
+        value.remove("note");
         value.remove("qr_code_base64");
         value.put("has_qr_image", rows.getFirst().get("qr_code_base64") != null);
         Map<String, Object> image = new LinkedHashMap<>();

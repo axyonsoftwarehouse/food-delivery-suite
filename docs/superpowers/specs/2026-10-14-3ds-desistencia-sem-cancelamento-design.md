@@ -56,8 +56,9 @@ paga).
       (pedido, cobrança, motivo). Devolve o pagamento como nos casos 2 e 3 — **não responde mais 409**.
    5. Sem verificação aberta continua **409** "Não há verificação do banco em andamento."; pedido de outro
       cliente continua **404**. A conta da loja sem credencial (desconectada no meio do pagamento) continua
-      **409** "Não foi possível cancelar a verificação agora…": sem token, o webhook também não estornaria
-      uma cobrança dupla, então aqui não se libera nada.
+      **409** — desde 14/10 com o texto "Não foi possível cancelar a verificação. Conclua na página do banco
+      ou fale com a loja." (repetir não resolve): sem token, o webhook também não estornaria uma cobrança
+      dupla, então aqui não se libera nada.
    6. O `external_id` gravado continua sendo o da cobrança abandonada até a nova cobrança — é isso que
       faz o webhook reconhecer a abandonada como "anterior" quando a nova existir. Sem nova cobrança, um
       aviso de pago da abandonada passa a regra "só pago muda o que saiu de pendente" e o pedido fica pago,
@@ -67,7 +68,10 @@ paga).
    `status = 'cancelled'` e `challenge_url = NULL`.
 3. **Log do provedor** (`MercadoPagoGateway.providerMessage`): quando o corpo tiver `errors[]`, a mensagem
    inclui o `code` e o `message` do primeiro erro, mesmo que a raiz traga um `message` genérico
-   (ex.: `HTTP 422 - Unprocessable Entity (código: mensagem)`). Sem `errors[]`, fica como hoje.
+   (ex.: `HTTP 422 - Unprocessable Entity (código: mensagem; details[0])`). Sem `message` na raiz, entra
+   `código: mensagem (details[0])`, ou só o `código`. Sem `errors[]`, fica como hoje. A nota com esse texto
+   é da loja e do admin: não volta para o cliente (`OnlinePaymentService.detail` e o detalhe do pedido
+   na visão do cliente).
 4. **Tela:** nada muda. O `abandon` com sucesso já devolve o pagamento `cancelled` e a página volta ao
    formulário com as abas Cartão e Pix.
 

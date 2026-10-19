@@ -56,6 +56,16 @@ class PaymentServiceTest {
     }
 
     @Test
+    void onlyStoreAndAdminSeeTheInternalNote() {
+        Map<String, Object> row = linhaComDesafio();
+        row.put("note", "Valor divergente: provedor 900 vs pedido 1000");
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("AS pay_deadline"), any(Object[].class))).thenAnswer(i -> List.of(new java.util.HashMap<>(row)));
+
+        assertFalse(service.detail(1, true).containsKey("note"));
+        assertEquals("Valor divergente: provedor 900 vs pedido 1000", service.detail(1, false).get("note"));
+    }
+
+    @Test
     void finishedPaymentDoesNotShowTheChallenge() {
         Map<String, Object> row = linhaComDesafio();
         row.put("status", "rejected");
