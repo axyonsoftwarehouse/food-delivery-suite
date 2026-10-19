@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from '../app-context';
+import { Icon } from '../icons';
+import { AdminPage, DateRange } from './admin-kit';
+import { Empty } from './kit';
 
 type AuditEntry = { id: number; actorUserId: number | null; actorName: string | null; action: string; entity: string; entityId: number | null; summary: string; createdAt: string };
 type AuditPage = { items: AuditEntry[]; nextCursor: number | null };
@@ -55,28 +58,23 @@ export default function AdminAuditPanel() {
     finally { setBusy(false); }
   }
 
-  return <section className="panel">
-    <div className="panel-heading">
-      <div><span className="eyebrow">{'ADMINISTRAÇÃO'}</span><h2>{'Trilha administrativa'}</h2></div>
-      <p>{'Registro das ações sensíveis da administração.'}</p>
-    </div>
-    <form onSubmit={(event) => { event.preventDefault(); void load(); }}>
-      <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
-        <label>{'Entidade'}<select value={entity} onChange={(event) => setEntity(event.target.value)}><option value="">{'Todas'}</option>{ENTITIES.map((item) => <option key={item} value={item}>{ENTITY_LABELS[item] ?? item}</option>)}</select></label>
-        <label>{'De'}<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
-        <label>{'Até'}<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
+  return <AdminPage>
+    <form className="pr-toolbar" onSubmit={(event) => { event.preventDefault(); void load(); }}>
+      <div className="ad-filter">
+        <select className="ad-select" aria-label={'Entidade'} value={entity} onChange={(event) => setEntity(event.target.value)}><option value="">{'Todas as entidades'}</option>{ENTITIES.map((item) => <option key={item} value={item}>{ENTITY_LABELS[item] ?? item}</option>)}</select>
+        <DateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
       </div>
-      <button className="secondary-button" disabled={busy}>{'Atualizar'}</button>
+      <div className="pr-toolbar-actions"><button className="pr-btn" disabled={busy}><Icon name="refresh" size={16} />{'Atualizar'}</button></div>
     </form>
-    <div className="postal-range-list" style={{ marginTop: 16 }}>
-      {busy && !items.length ? <p className="form-help">{'Carregando...'}</p> : items.length ? items.map((entry) => <div key={entry.id}>
-        <span>
-          <strong>{ENTITY_LABELS[entry.entity] ?? entry.entity}{entry.entityId ? ` #${entry.entityId}` : ''}</strong>
-          {' · '}{entry.action}{entry.summary ? ` · ${entry.summary}` : ''}
-        </span>
-        <span>{entry.actorName ? `Autor: ${entry.actorName} · ` : ''}{new Date(entry.createdAt).toLocaleString('pt-BR')}</span>
-      </div>) : <p className="form-help">{'Nenhum registro no período.'}</p>}
-    </div>
-    {nextCursor && <button className="secondary-button" style={{ marginTop: 12 }} disabled={busy} onClick={() => void loadMore()}>{'Carregar mais'}</button>}
-  </section>;
+    <section className="pr-card pr-card--flush ad-flush">
+      {busy && !items.length ? <p className="pr-muted ad-loading">{'Carregando...'}</p> : items.length ? <ul className="pr-list">{items.map((entry) => <li className="pr-row" key={entry.id}>
+        <div className="pr-row-main">
+          <strong>{ENTITY_LABELS[entry.entity] ?? entry.entity}{entry.entityId ? ` #${entry.entityId}` : ''} <span className="pr-muted">· {entry.action}</span></strong>
+          {entry.summary && <span>{entry.summary}</span>}
+          <small>{entry.actorName ? `${entry.actorName} · ` : ''}{new Date(entry.createdAt).toLocaleString('pt-BR')}</small>
+        </div>
+      </li>)}</ul> : <Empty icon="file">{'Nenhum registro no período.'}</Empty>}
+      {nextCursor && <div className="ad-more"><button type="button" className="pr-btn pr-btn--ghost" disabled={busy} onClick={() => void loadMore()}>{'Carregar mais'}</button></div>}
+    </section>
+  </AdminPage>;
 }

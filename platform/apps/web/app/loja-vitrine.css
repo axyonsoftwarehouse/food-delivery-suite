@@ -3,6 +3,11 @@
  * ações e a foto da loja ou do prato no lugar de enfeite. Classes com prefixo lj-.
  */
 
+/* Verde das ações do cliente mais vivo, perto do logo: o --brand-500 do painel parecia preto na tela.
+   Ainda deixa o texto branco legível (contraste 4:1, texto em negrito). */
+.customer-app { --brand-500: #15924c; --brand-600: #127f42; --lj-accent: #127f42; }
+[data-theme='dark'] .customer-app { --lj-accent: #6fd69a; }
+
 .lj-page { width: var(--page); margin: 0 auto; padding-top: var(--space-6); }
 .lj-search, .lj-media-fallback { --lj-fill: color-mix(in srgb, var(--text) 6%, var(--background)); }
 
@@ -501,3 +506,27 @@ span.lj-flyer { border-radius: 50%; background: var(--brand-500); }
   .customer-app .orders-row.lj-enter, .customer-app .orders-status-line, .customer-app .review-stars button.on, .customer-qr, .pix-copy.is-copied, .pf-coupon-code.is-copied, .pay-final.is-approved, .customer-app .cart-empty-bag { animation: none; }
   .pay-final-check circle, .pay-final-check path { animation: none; stroke-dashoffset: 0; }
 }
+
+/* Restaurantes e cardápio: entram em sequência; trocar categoria ou tag refaz a entrada */
+.lj-rest.lj-enter, .lj-product.lj-enter { animation: lj-enter 0.3s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.lj-menu-title.lj-enter { animation: lj-enter 0.22s var(--ease-out) both; }
+/* Loja: a capa assenta e o nome sobe logo depois */
+@keyframes lj-settle { from { transform: scale(1.06); } }
+.lj-store-media img { animation: lj-settle 0.5s var(--ease-out); }
+.lj-store-info > * { animation: lj-enter 0.3s var(--ease-out) 0.08s both; }
+.lj-store-info > :nth-child(2) { animation-delay: 0.14s; }
+.lj-store-info > :nth-child(3) { animation-delay: 0.2s; }
+/* Prato: a foto sobe de leve no mouse; a tag escolhida dá um toque */
+.lj-product-media img { transition: transform 0.25s var(--ease-out), box-shadow 0.25s ease; }
+@media (hover: hover) { .lj-product:hover .lj-product-media img { transform: translateY(-3px); box-shadow: 0 10px 22px rgb(0 0 0 / 0.14); } }
+.lj-chips button[aria-pressed='true'] { animation: m-pop 0.25s var(--ease-spring); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lj-rest.lj-enter, .lj-product.lj-enter, .lj-menu-title.lj-enter, .lj-store-media img, .lj-store-info > *, .lj-chips button[aria-pressed='true'] { animation: none; }
+  .lj-product-media img { transition: none; }
+}
+
+/* Destaques em verde em vez do quase-preto: aba ativa, menu ativo e o "+" do prato */
+.lj-tabs button[aria-pressed='true'] { color: var(--lj-accent); }
+.lj-add { color: var(--lj-accent); }
+.lj-topnav a[aria-current='page'] { color: var(--lj-accent); }

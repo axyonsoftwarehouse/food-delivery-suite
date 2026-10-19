@@ -5,7 +5,9 @@ import CatalogManager from '../CatalogManager';
 import RestaurantHours from '../RestaurantHours';
 import { useSupportReason } from '../SupportReasonDialog';
 import { api, useApp } from '../app-context';
-import { Alert, Badge, Button, Card, EmptyState, Field, SelectInput, Tabs } from '../ui';
+import { Icon } from '../icons';
+import { AdminPage } from './admin-kit';
+import { Card, Empty, Stat, Tabs } from './kit';
 import OrdersPanel from './orders-panel';
 
 const APPROVAL_LABELS: Record<string, string> = { approved: 'Aprovada', pending: 'Cadastro pendente', denied: 'Cadastro recusado' };
@@ -55,52 +57,57 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
     finally { setActing(false); }
   }
 
-  if (!profile) return <Card><EmptyState title={'Carregando loja...'} /></Card>;
+  if (!profile) return <section className="pr-card"><p className="pr-muted ad-loading">{'Carregando loja...'}</p></section>;
   const base = `/admin/support/restaurants/${restaurantId}`;
   const pauseText = profile.pause
     ? `Pausada pelo suporte até ${new Date(profile.pause.until).toLocaleString(timeLocale)}: ${profile.pause.reason}`
     : null;
 
-  return <>
-    <div className="support-banner"><Alert tone="warning">{`Modo suporte · alterações feitas em nome de ${profile.name} ficam registradas e visíveis para a loja.`}</Alert></div>
-    <Card title={profile.name} subtitle={`#${profile.id} · ${profile.ownerEmail ?? 'sem responsável'}`}>
-      <Tabs value={tab} onChange={setTab} tabs={[
+  return <AdminPage>
+    <p className="ad-banner" role="note"><Icon name="shield" size={18} />{`Modo suporte · alterações feitas em nome de ${profile.name} ficam registradas e visíveis para a loja.`}</p>
+    <section className="pr-card ad-profile">
+      <div className="ad-profile-head"><h2>{profile.name}</h2><p>{`#${profile.id} · ${profile.ownerEmail ?? 'sem responsável'}`}</p></div>
+      <Tabs label="Seções da loja" value={tab} onChange={setTab} tabs={[
         { id: 'summary', label: 'Resumo' },
         { id: 'orders', label: 'Pedidos' },
         { id: 'catalog', label: 'Cardápio' },
         { id: 'hours', label: 'Horários' },
         { id: 'trail', label: 'Trilha' },
       ]} />
-    </Card>
+    </section>
 
-    {tab === 'summary' && <Card>
-      <div className="stat-grid">
-        <div className="stat-card"><span>{'Cadastro'}</span><strong>{APPROVAL_LABELS[profile.approval] ?? profile.approval}</strong><small>{profile.active ? 'Ativa' : 'Desativada'}</small></div>
-        <div className="stat-card"><span>{'Agora'}</span><strong>{profile.pause ? 'Pausada' : profile.open ? 'Aberta' : 'Fechada'}</strong><small>{profile.timezone ?? 'sem fuso'}</small></div>
-        <div className="stat-card accent"><span>{'Pedidos ativos'}</span><strong>{profile.activeOrders}</strong><small>{`${profile.lateOrders} atrasado(s)`}</small></div>
-        <div className="stat-card"><span>{'Cancelados (7 dias)'}</span><strong>{profile.canceled7d}</strong><small>{`Assinatura: ${profile.subscriptionStatus ?? '—'}`}</small></div>
-        <div className="stat-card"><span>{'Mercado Pago'}</span><strong>{paymentAccount ? (PAYMENT_ACCOUNT_LABELS[paymentAccount.status] ?? paymentAccount.status) : '—'}</strong><small>{paymentAccount?.status === 'connected' ? `${paymentAccount.nickname ?? '—'} · desde ${paymentAccount.connectedAt ? new Date(paymentAccount.connectedAt).toLocaleDateString(timeLocale) : '—'}` : '—'}</small></div>
-      </div>
-      {canAct && paymentAccount?.status === 'connected' && <p><Button variant="secondary" disabled={acting} onClick={() => void intervene('Desconectar Mercado Pago', `${base}/payment-account/disconnect`, 'POST', (reason) => ({ reason }), 'Mercado Pago desconectado.')}>{'Desconectar Mercado Pago'}</Button></p>}
-      <p>{'Módulos:'} {profile.modules.length ? profile.modules.map((key) => <Badge key={key}>{key}</Badge>) : '—'}</p>
-      {pauseText && <Alert tone="warning">{pauseText}</Alert>}
-      {canAct && (profile.pause
-        ? <Button variant="secondary" onClick={() => intervene('Encerrar pausa', `${base}/pause`, 'DELETE', (reason) => ({ reason }), 'Pausa encerrada.')}>{'Encerrar pausa'}</Button>
-        : <div className="form-grid">
-            <Field label={'Duração'}><SelectInput value={minutes} onChange={(event) => setMinutes(Number(event.target.value))}>{PAUSE_OPTIONS.map((value) => <option key={value} value={value}>{value < 60 ? `${value} min` : `${value / 60} h`}</option>)}</SelectInput></Field>
-            <Button variant="danger" onClick={() => intervene('Pausar loja', `${base}/pause`, 'POST', (reason) => ({ minutes, reason }), 'Loja pausada.')}>{'Pausar loja'}</Button>
-          </div>)}
-    </Card>}
+    {tab === 'summary' && <>
+      <section className="pr-stats ad-kpis--5">
+        <Stat label={'Cadastro'} value={APPROVAL_LABELS[profile.approval] ?? profile.approval} hint={profile.active ? 'Ativa' : 'Desativada'} />
+        <Stat label={'Agora'} value={profile.pause ? 'Pausada' : profile.open ? 'Aberta' : 'Fechada'} hint={profile.timezone ?? 'sem fuso'} />
+        <Stat label={'Pedidos ativos'} tone="brand" value={profile.activeOrders} hint={`${profile.lateOrders} atrasado(s)`} />
+        <Stat label={'Cancelados (7 dias)'} value={profile.canceled7d} hint={`Assinatura: ${profile.subscriptionStatus ?? '—'}`} />
+        <Stat label={'Mercado Pago'} value={paymentAccount ? (PAYMENT_ACCOUNT_LABELS[paymentAccount.status] ?? paymentAccount.status) : '—'} hint={paymentAccount?.status === 'connected' ? `${paymentAccount.nickname ?? '—'} · desde ${paymentAccount.connectedAt ? new Date(paymentAccount.connectedAt).toLocaleDateString(timeLocale) : '—'}` : '—'} />
+      </section>
+      <Card>
+        <div className="pr-form">
+          <div className="ad-inline ad-modules"><span className="pr-muted">{'Módulos'}</span><span className="ad-badges">{profile.modules.length ? profile.modules.map((key) => <span className="pr-badge" key={key}>{key}</span>) : '—'}</span></div>
+          {pauseText && <p className="ad-banner">{pauseText}</p>}
+          {canAct && (profile.pause
+            ? <div className="ad-inline"><button type="button" className="pr-btn" onClick={() => intervene('Encerrar pausa', `${base}/pause`, 'DELETE', (reason) => ({ reason }), 'Pausa encerrada.')}>{'Encerrar pausa'}</button></div>
+            : <div className="ad-inline">
+                <label className="pr-field">{'Duração'}<select value={minutes} onChange={(event) => setMinutes(Number(event.target.value))}>{PAUSE_OPTIONS.map((value) => <option key={value} value={value}>{value < 60 ? `${value} min` : `${value / 60} h`}</option>)}</select></label>
+                <button type="button" className="pr-btn pr-btn--danger ad-tall" onClick={() => intervene('Pausar loja', `${base}/pause`, 'POST', (reason) => ({ minutes, reason }), 'Loja pausada.')}>{'Pausar loja'}</button>
+              </div>)}
+          {canAct && paymentAccount?.status === 'connected' && <div className="ad-inline"><button type="button" className="pr-btn" disabled={acting} onClick={() => void intervene('Desconectar Mercado Pago', `${base}/payment-account/disconnect`, 'POST', (reason) => ({ reason }), 'Mercado Pago desconectado.')}>{'Desconectar Mercado Pago'}</button></div>}
+        </div>
+      </Card>
+    </>}
 
     {tab === 'orders' && <OrdersPanel restaurantId={restaurantId} />}
     {tab === 'catalog' && <CatalogManager mode="support" restaurantId={restaurantId} onMessage={setMessage} onChanged={() => { void refresh(); void load(); }} />}
     {tab === 'hours' && <RestaurantHours mode="support" restaurantId={restaurantId} onMessage={setMessage} />}
 
-    {tab === 'trail' && <Card title={'Trilha'}>
-      {trail.length === 0 ? <EmptyState title={'Nenhuma intervenção do suporte.'} /> : <div className="courier-list">
-        {trail.map((entry) => <div className="courier-row" key={entry.id}><div><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString(timeLocale)} · {entry.actorName} · {entry.action}</span>{entry.reason && <span>{`Motivo: ${entry.reason}`}</span>}</div></div>)}
-      </div>}
+    {tab === 'trail' && <Card title={'Trilha'} className="pr-card--flush ad-flush">
+      {trail.length === 0 ? <Empty icon="file">{'Nenhuma intervenção do suporte.'}</Empty> : <ul className="pr-list">
+        {trail.map((entry) => <li className="pr-row" key={entry.id}><div className="pr-row-main"><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString(timeLocale)} · {entry.actorName} · {entry.action}</span>{entry.reason && <span>{`Motivo: ${entry.reason}`}</span>}</div></li>)}
+      </ul>}
     </Card>}
     {dialog}
-  </>;
+  </AdminPage>;
 }

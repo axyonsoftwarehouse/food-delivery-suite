@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, labels, useApp } from '../app-context';
 import { settingsGroupFromSlug } from './configuracoes/sections';
 import { Icon } from '../icons';
+import { AdminPage } from './admin-kit';
 
 type SettingDescriptor = { key: string; label: string; type: string; group: string; value: string };
 
@@ -66,16 +67,17 @@ export default function SettingsPanel({ section }: { section?: string }) {
     return <section className="panel"><div className="panel-heading"><div><span className="eyebrow">SISTEMA</span><h2>Configurações</h2></div><p>Selecione uma seção no menu lateral.</p></div></section>;
   }
 
-  return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">SISTEMA</span><h2>{group}</h2></div><p>Configurações da plataforma aplicadas a toda a operação.</p></div>
-    <form onSubmit={(event) => { event.preventDefault(); void saveGroup(group); }}>
-      <div className="form-grid" style={{ gridTemplateColumns: 'repeat(2,minmax(0,1fr))' }}>
-        {settings.filter((item) => item.group === group).map((item) => item.type === 'bool'
-          ? <label className="check" key={item.key}><input type="checkbox" checked={draft[item.key] === 'true'} onChange={(event) => setDraft({ ...draft, [item.key]: event.target.checked ? 'true' : 'false' })} /> {item.label}</label>
-          : <label key={item.key}>{item.label}<input type={item.type === 'int' ? 'number' : 'text'} value={draft[item.key] ?? ''} onChange={(event) => setDraft({ ...draft, [item.key]: event.target.value })} maxLength={1000} /></label>
-        )}
+  const fields = settings.filter((item) => item.group === group);
+  return <AdminPage>
+    <form className="pr-card pr-form ad-settings" onSubmit={(event) => { event.preventDefault(); void saveGroup(group); }}>
+      <div className="pr-card-head"><h2>{group}</h2></div>
+      <div className="ad-settings-grid">
+        {fields.filter((item) => item.type !== 'bool').map((item) => <label className="pr-field" key={item.key}>{item.label}<input type={item.type === 'int' ? 'number' : 'text'} value={draft[item.key] ?? ''} onChange={(event) => setDraft({ ...draft, [item.key]: event.target.value })} maxLength={1000} /></label>)}
       </div>
-      <button className="secondary-button" disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>
+      {fields.some((item) => item.type === 'bool') && <div className="ad-settings-checks">
+        {fields.filter((item) => item.type === 'bool').map((item) => <label className="pr-check" key={item.key}><input type="checkbox" checked={draft[item.key] === 'true'} onChange={(event) => setDraft({ ...draft, [item.key]: event.target.checked ? 'true' : 'false' })} /> {item.label}</label>)}
+      </div>}
+      <div className="ad-form-foot"><button className="pr-btn pr-btn--primary" disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
     </form>
-  </section>;
+  </AdminPage>;
 }

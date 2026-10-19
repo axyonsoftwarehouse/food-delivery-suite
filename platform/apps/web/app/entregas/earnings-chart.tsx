@@ -36,14 +36,14 @@ export default function EarningsChart() {
 
   return <section className="courier-chart" aria-label="Ganhos por dia">
     <div className="courier-chart-head">
-      <div role="group" aria-label="Período">
-        {([7, 30] as const).map((option) => <button key={option} type="button" aria-pressed={days === option} className={days === option ? 'is-active' : ''} onClick={() => setDays(option)}>{`${option} dias`}</button>)}
+      {series ? <div className="courier-chart-totals"><strong>{money(totals.total)}</strong><small>{`${totals.count} entrega(s) · média ${money(totals.average)}`}</small></div> : <span />}
+      <div className="courier-seg" role="group" aria-label="Período">
+        {([7, 30] as const).map((option) => <button key={option} type="button" aria-pressed={days === option} onClick={() => setDays(option)}>{`${option} dias`}</button>)}
       </div>
     </div>
     {failed && <p className="courier-empty">{'Não foi possível carregar os ganhos.'}</p>}
     {!failed && !series && <p className="courier-empty">{'Carregando…'}</p>}
     {series && <>
-      <div className="courier-chart-totals"><strong>{money(totals.total)}</strong><small>{`${totals.count} entrega(s) · média ${money(totals.average)}`}</small></div>
       <svg viewBox={`0 0 ${W} ${H}`} role="group" aria-label={`Ganhos dos últimos ${days} dias: ${money(totals.total)} em ${totals.count} entregas`}>
         {series.map((day, index) => {
           const feeH = (day.deliveryFeeCents / max) * chartHeight;

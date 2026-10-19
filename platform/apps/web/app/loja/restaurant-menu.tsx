@@ -189,19 +189,19 @@ export default function RestaurantMenu() {
       </nav>
       </div>
       {tags.length > 0 && <div className="lj-chips lj-chips--small" role="group" aria-label="Filtrar por tag">{tags.map((tag) => <button type="button" key={tag.id} aria-pressed={tagId === tag.id} onClick={() => setTagId(tagId === tag.id ? null : tag.id)}>{tag.name}{tagId === tag.id && <Icon name="x" size={12} />}</button>)}</div>}
-      <h2 className="lj-menu-title">{categoryId === null ? 'Cardápio' : availableCategories.find((category) => category.id === categoryId)?.name ?? 'Cardápio'}</h2>
+      <h2 className="lj-menu-title lj-enter" key={`t-${categoryId}`}>{categoryId === null ? 'Cardápio' : availableCategories.find((category) => category.id === categoryId)?.name ?? 'Cardápio'}</h2>
       {!selectedAddress ? <div className="lj-empty"><Icon name="map-pin" size={28} /><p>{'Adicione um endereço para ver o cardápio.'}</p></div>
         : searchLoading && !visibleProducts.length ? <div className="lj-products" role="status"><span className="sr-only">{'Buscando pratos disponíveis...'}</span>{[0, 1, 2, 3].map((item) => <div className="lj-product lj-product--skeleton" key={item}><div className="lj-product-text"><Skeleton /><Skeleton /><Skeleton /></div><Skeleton className="lj-product-media" /></div>)}</div>
         : searchError && !visibleProducts.length ? <div className="lj-empty" role="alert"><p>{searchError}</p></div>
         : visibleProducts.length === 0 ? <div className="lj-empty"><Icon name="search" size={28} /><p>{'Nenhum prato encontrado.'}</p></div>
-        : <div className="lj-products">{visibleProducts.map((product) => {
+        : <div className="lj-products" key={`${categoryId}-${tagId}`}>{visibleProducts.map((product, index) => {
             const productRestaurant = restaurantById.get(product.restaurant_id);
             const closed = productRestaurant?.open === false;
             const hasVariations = (product.variation_count ?? 0) > 0;
             const fromPrice = product.from_price_cents ?? product.price_cents;
             const favorite = favorites.has(product.id);
             const labels = [product.is_combo ? 'Combo' : '', ...(product.tags ? product.tags.split(',').map((tag) => tag.trim()) : [])].filter(Boolean);
-            return <article className={`lj-product${closed ? ' is-closed' : ''}`} key={product.id}>
+            return <article className={`lj-product lj-enter${closed ? ' is-closed' : ''}`} style={{ '--i': Math.min(index, 8) } as React.CSSProperties} key={product.id}>
               <div className="lj-product-text">
                 {labels.length > 0 && <span className="lj-product-labels">{labels.join(' · ')}</span>}
                 <h3>{product.name}</h3>

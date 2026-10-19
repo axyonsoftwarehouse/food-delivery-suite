@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, labels, money, useApp } from '../app-context';
+import { Icon } from '../icons';
+import { AdminPage } from './admin-kit';
+import { Card, Empty, Stat } from './kit';
 
 type CustomerRow = { id: number; name: string; email: string; phone: string | null; created_at: string; suspended: boolean; orders: number; spend_cents: number };
 type OrderRow = { id: number; status: string; order_type: string; total_cents: number; created_at: string };
@@ -64,48 +67,68 @@ export default function CustomersPanel() {
     finally { setBusy(false); }
   }
 
-  return <>
-    <section className="panel">
-      <div className="panel-heading"><div><span className="eyebrow">CLIENTES</span><h2>Base de clientes</h2></div><p>Busque por nome, email ou telefone e abra a ficha do cliente.</p></div>
-      <form className="ui-chips" onSubmit={(event) => { event.preventDefault(); void load(query); }}>
-        <input value={query} aria-label="Buscar por nome, email ou telefone" onChange={(event) => setQuery(event.target.value)} placeholder="Nome, email ou telefone" />
-        <button className="secondary-button" disabled={busy}>Buscar</button>
-        <a className="secondary-button" href="/backend/admin/customers/export" target="_blank" rel="noreferrer">Exportar CSV</a>
-      </form>
-      <div className="postal-range-list" style={{ marginTop: 16 }}>
-        {items.length ? items.map((customer) => <div key={customer.id}>
-          <span><strong>{customer.name}</strong> · {customer.email}{customer.phone ? ` · ${customer.phone}` : ''} · {customer.orders} pedidos · {money(customer.spend_cents)}{customer.suspended ? ' · suspenso' : ''}</span>
-          <button className="secondary-button" disabled={busy} onClick={() => void openDetail(customer.id)}>Abrir</button>
-        </div>) : <p className="form-help">Nenhum cliente encontrado.</p>}
+  const date = (value: string) => new Date(value).toLocaleDateString('pt-BR');
+  // A ficha da API traz em "orders" a lista de pedidos recentes (renderizá-la quebrava a tela); o total vem da lista de clientes.
+  const detailOrders = detail ? (Array.isArray(detail.orders) ? items.find((customer) => customer.id === detail.id)?.orders ?? (detail.orders as unknown[]).length : detail.orders) : 0;
+
+  return <AdminPage>
+    <form className="pr-toolbar" onSubmit={(event) => { event.preventDefault(); void load(query); }}>
+      <div className="ad-filter">
+        <label className="ad-search"><Icon name="search" size={17} /><input type="search" value={query} aria-label="Buscar por nome, email ou telefone" onChange={(event) => setQuery(event.target.value)} placeholder="Nome, email ou telefone" /></label>
+        <button className="pr-btn" disabled={busy}>Buscar</button>
       </div>
-      {nextCursor && <button className="secondary-button" style={{ marginTop: 12 }} disabled={busy} onClick={() => void load(query, nextCursor)}>Carregar mais</button>}
+      <div className="pr-toolbar-actions"><a className="pr-btn pr-btn--ghost" href="/backend/admin/customers/export" target="_blank" rel="noreferrer"><Icon name="file" size={16} />Exportar CSV</a></div>
+    </form>
+
+    <section className="pr-card pr-card--flush ad-flush">
+      {items.length ? <ul className="pr-list">{items.map((customer) => <li className="pr-row" key={customer.id}>
+        <span className={`pr-thumb${customer.suspended ? ' is-off' : ''}`} aria-hidden="true">{customer.name.charAt(0)}</span>
+        <div className="pr-row-main">
+          <strong>{customer.name}</strong>
+          <span>{customer.email}{customer.phone ? ` · ${customer.phone}` : ''}</span>
+          <span>{customer.orders} pedidos · {money(customer.spend_cents)}</span>
+        </div>
+        <div className="pr-row-actions">
+          {customer.suspended && <span className="pr-badge is-danger">suspenso</span>}
+          <button type="button" className="pr-btn pr-btn--sm" disabled={busy} onClick={() => void openDetail(customer.id)}>Abrir</button>
+        </div>
+      </li>)}</ul> : <Empty icon="users">Nenhum cliente encontrado.</Empty>}
+      {nextCursor && <div className="ad-more"><button type="button" className="pr-btn pr-btn--ghost" disabled={busy} onClick={() => void load(query, nextCursor)}>Carregar mais</button></div>}
     </section>
 
-    {detail && <section className="panel">
-      <div className="panel-heading"><div><span className="eyebrow">FICHA</span><h2>{detail.name}</h2></div><p>{detail.email}{detail.phone ? ` · ${detail.phone}` : ''} · desde {new Date(detail.created_at).toLocaleDateString('pt-BR')}</p></div>
-      <div className="stat-grid" style={{ marginBottom: 16 }}>
-        <div className="stat-card"><span>Pedidos</span><strong>{detail.orders}</strong></div>
-        <div className="stat-card accent"><span>Total gasto</span><strong>{money(detail.spend_cents)}</strong></div>
-        <div className="stat-card"><span>Último pedido</span><strong>{detail.last_order_at ? new Date(detail.last_order_at).toLocaleDateString('pt-BR') : '—'}</strong></div>
-        <div className="stat-card"><span>Situação</span><strong>{detail.suspended ? 'Suspenso' : 'Ativo'}</strong><small>{detail.suspended_reason ?? ''}</small></div>
-      </div>
-      <div className="courier-actions" style={{ marginBottom: 16 }}>
-        <button className={detail.suspended ? 'availability-button' : 'availability-button paused'} disabled={busy} onClick={() => void toggleSuspension(detail)}>{detail.suspended ? 'Reativar acesso' : 'Suspender acesso'}</button>
-      </div>
-      <div className="form-grid">
-        <div className="courier-list">
-          <h3>Pedidos recentes</h3>
-          {detail.orders_detail?.length ? detail.orders_detail.map((order) => <div className="courier-row" key={order.id}><div><strong>#{order.id} · {labels[order.status] ?? order.status}</strong><span>{new Date(order.created_at).toLocaleString('pt-BR')}</span></div><strong>{money(order.total_cents)}</strong></div>) : <p className="form-help">Sem pedidos.</p>}
+    {detail && <>
+      <section className="pr-card">
+        <div className="pr-card-head">
+          <div className="ad-profile-head"><h2>{detail.name}</h2><p>{detail.email}{detail.phone ? ` · ${detail.phone}` : ''} · desde {date(detail.created_at)}</p></div>
+          <div className="pr-card-actions"><button type="button" className={`pr-btn pr-btn--sm${detail.suspended ? ' pr-btn--soft' : ' pr-btn--danger'}`} disabled={busy} onClick={() => void toggleSuspension(detail)}>{detail.suspended ? 'Reativar acesso' : 'Suspender acesso'}</button></div>
         </div>
-        <div className="courier-list">
-          <h3>Endereços</h3>
-          {detail.addresses?.length ? detail.addresses.map((address) => <div className="courier-row" key={address.id}><div><strong>{address.label}</strong><span>{address.street}, {address.number} · {address.neighborhood} · {address.zone_name} · {address.city}/{address.state}</span></div></div>) : <p className="form-help">Sem endereços.</p>}
-        </div>
+      </section>
+      <section className="pr-stats ad-kpis--4">
+        <Stat label="Pedidos" value={detailOrders} />
+        <Stat label="Total gasto" tone="brand" value={money(detail.spend_cents)} />
+        <Stat label="Último pedido" value={detail.last_order_at ? date(detail.last_order_at) : '—'} />
+        <Stat label="Situação" tone={detail.suspended ? 'danger' : undefined} value={detail.suspended ? 'Suspenso' : 'Ativo'} hint={detail.suspended_reason ?? undefined} />
+      </section>
+      <div className="pr-grid-2">
+        <Card title="Pedidos recentes" className="pr-card--flush ad-flush">
+          {detail.orders_detail?.length ? <ul className="pr-list">{detail.orders_detail.map((order) => <li className="pr-row" key={order.id}>
+            <div className="pr-row-main"><strong>#{order.id} · {labels[order.status] ?? order.status}</strong><span>{new Date(order.created_at).toLocaleString('pt-BR')}</span></div>
+            <span className="pr-row-value pr-num">{money(order.total_cents)}</span>
+          </li>)}</ul> : <Empty icon="receipt">Sem pedidos.</Empty>}
+        </Card>
+        <Card title="Endereços" className="pr-card--flush ad-flush">
+          {detail.addresses?.length ? <ul className="pr-list">{detail.addresses.map((address) => <li className="pr-row" key={address.id}>
+            <div className="pr-row-main"><strong>{address.label}</strong><span>{address.street}, {address.number} · {address.neighborhood} · {address.zone_name} · {address.city}/{address.state}</span></div>
+          </li>)}</ul> : <Empty icon="map-pin">Sem endereços.</Empty>}
+        </Card>
       </div>
-      <div className="ui-card" style={{ marginTop: 16 }}>
-        <header className="ui-card__head"><div><h2 className="ui-card__title">Carteira</h2><p className="ui-card__subtitle">Saldo: {money(wallet?.balanceCents ?? 0)} · só leitura (cashback das lojas)</p></div></header>
-        <div className="postal-range-list">{wallet?.items.length ? wallet.items.map((entry) => <div key={entry.id}><span><strong>{KIND_LABEL[entry.kind] ?? entry.kind}</strong> · {entry.description || '—'}</span><span>{money(entry.amount_cents)} · {new Date(entry.created_at).toLocaleString('pt-BR')}</span></div>) : <p className="form-help">Sem lançamentos.</p>}</div>
-      </div>
-    </section>}
-  </>;
+      <Card title="Carteira" className="pr-card--flush ad-flush" actions={<span className="ad-total">Saldo<strong>{money(wallet?.balanceCents ?? 0)}</strong></span>}>
+        <p className="ad-help ad-help--flush">Só leitura · cashback das lojas</p>
+        {wallet?.items.length ? <ul className="pr-list">{wallet.items.map((entry) => <li className="pr-row" key={entry.id}>
+          <div className="pr-row-main"><strong>{KIND_LABEL[entry.kind] ?? entry.kind}</strong><span>{entry.description || '—'} · {new Date(entry.created_at).toLocaleString('pt-BR')}</span></div>
+          <span className="pr-row-value pr-num">{money(entry.amount_cents)}</span>
+        </li>)}</ul> : <Empty icon="wallet">Sem lançamentos.</Empty>}
+      </Card>
+    </>}
+  </AdminPage>;
 }

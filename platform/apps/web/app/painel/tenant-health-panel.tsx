@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, money, useApp } from '../app-context';
+import { AdminPage, DateRange } from './admin-kit';
+import { Card, Empty, Stat } from './kit';
 
 type Tenant = { id: number; name: string; active: boolean; approval: string; orders: number; gmvCents: number; averageTicketCents: number; cancelRatePercent: number; lastOrderAt: string | null; subscriptionStatus: string | null; alert: string | null };
 type Health = { from: string; to: string; totals: { restaurants: number; orders: number; gmvCents: number }; tenants: Tenant[] };
@@ -24,20 +26,26 @@ export default function TenantHealthPanel() {
   }, [from, to, setMessage]);
   useEffect(() => { void load(); }, [load]);
 
-  return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">LOJAS</span><h2>Saúde das lojas</h2></div><p>Observação da operação via Foodie e da assinatura — sem acessar custos, estoque ou clientes da loja.</p></div>
-    <div className="ui-chips" style={{ marginBottom: 16 }}><input type="date" value={from} aria-label="De" onChange={(event) => setFrom(event.target.value)} /><input type="date" value={to} aria-label="Até" onChange={(event) => setTo(event.target.value)} /></div>
-    <section className="dash-cards" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
-      <div className="dash-card"><span>Lojas</span><strong>{data?.totals.restaurants ?? 0}</strong></div>
-      <div className="dash-card"><span>Pedidos na plataforma</span><strong>{data?.totals.orders ?? 0}</strong></div>
-      <div className="dash-card accent"><span>GMV da plataforma</span><strong>{money(data?.totals.gmvCents ?? 0)}</strong></div>
+  return <AdminPage>
+    <div className="pr-toolbar ad-period"><DateRange from={from} to={to} onFrom={setFrom} onTo={setTo} /></div>
+    <section className="pr-stats ad-kpis">
+      <Stat label="Lojas" value={data?.totals.restaurants ?? 0} />
+      <Stat label="Pedidos na plataforma" value={data?.totals.orders ?? 0} />
+      <Stat label="GMV da plataforma" tone="brand" value={money(data?.totals.gmvCents ?? 0)} />
     </section>
-    <div className="postal-range-list">{data?.tenants.length ? data.tenants.map((tenant) => <div key={tenant.id}>
-      <span>
-        <strong>{tenant.name}</strong> · {tenant.active ? 'aberta' : 'fechada'} · {tenant.orders} pedidos · {money(tenant.gmvCents)} · ticket {money(tenant.averageTicketCents)}
-        {tenant.cancelRatePercent > 0 ? ` · cancel. ${tenant.cancelRatePercent}%` : ''}{tenant.subscriptionStatus ? ` · assinatura ${tenant.subscriptionStatus}` : ''}
-      </span>
-      <span>{tenant.alert ? `⚠ ${tenant.alert}` : ''}{tenant.lastOrderAt ? ` último ${new Date(tenant.lastOrderAt).toLocaleDateString('pt-BR')}` : ''}</span>
-    </div>) : <p className="form-help">Nenhuma loja cadastrada.</p>}</div>
-  </section>;
+    <Card title="Saúde das lojas" className="pr-card--flush ad-flush">
+      {data?.tenants.length ? <ul className="pr-list">{data.tenants.map((tenant) => <li className="pr-row" key={tenant.id}>
+        <span className={`pr-thumb${tenant.active ? '' : ' is-off'}`} aria-hidden="true">{tenant.name.charAt(0)}</span>
+        <div className="pr-row-main">
+          <strong>{tenant.name}</strong>
+          <span>{[`${tenant.orders} pedidos`, `ticket ${money(tenant.averageTicketCents)}`, tenant.cancelRatePercent > 0 ? `cancel. ${tenant.cancelRatePercent}%` : '', tenant.subscriptionStatus ? `assinatura ${tenant.subscriptionStatus}` : '', tenant.lastOrderAt ? `último ${new Date(tenant.lastOrderAt).toLocaleDateString('pt-BR')}` : ''].filter(Boolean).join(' · ')}</span>
+          {tenant.alert && <span className="ad-badges"><span className="pr-badge is-warning">{tenant.alert}</span></span>}
+        </div>
+        <div className="ad-row-side">
+          <span className={`pr-badge${tenant.active ? ' is-brand' : ''}`}>{tenant.active ? 'aberta' : 'fechada'}</span>
+          <span className="pr-row-value pr-num">{money(tenant.gmvCents)}</span>
+        </div>
+      </li>)}</ul> : <Empty icon="store">Nenhuma loja cadastrada.</Empty>}
+    </Card>
+  </AdminPage>;
 }

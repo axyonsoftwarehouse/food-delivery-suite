@@ -30,23 +30,23 @@ export default function PerfilPage() {
   }, []);
   return <>
     <h1 className="courier-section-title">{profile?.name}</h1>
-    <div className="courier-queue">
-      {!profile && <p className="courier-empty">{profileFailed ? 'Não foi possível carregar seus dados. Tente de novo.' : 'Carregando…'}</p>}
-      {profile && <>
-      <div className="courier-row"><div><strong>{profile?.restaurant_name ?? 'Sem loja'}</strong><small>{profile?.restaurant_name ? 'Você entrega para esta loja.' : 'Peça à loja ou ao suporte para ligar seu acesso a uma loja.'}</small></div></div>
-      <div className="courier-row"><div><strong>{'Veículo'}</strong><small>{profile?.vehicle_type ? `${VEHICLE[profile.vehicle_type] ?? profile.vehicle_type}${profile.vehicle_plate ? ` · ${profile.vehicle_plate}` : ''}` : 'Não informado'}</small></div></div>
-      <div className="courier-row"><div><strong>{'E-mail'}</strong><small>{profile?.email}</small></div></div>
-      </>}
-      <ReputationCard />
-      <div className="courier-row"><div><strong>{'Localização'}</strong><small>{status === 'blocked'
+    {!profile && <p className="courier-empty">{profileFailed ? 'Não foi possível carregar seus dados. Tente de novo.' : 'Carregando…'}</p>}
+    {profile && <section className="courier-list-card" aria-label="Seus dados">
+      <div className="courier-item"><div className="courier-item-main"><strong>{profile.restaurant_name ?? 'Sem loja'}</strong><small>{profile.restaurant_name ? 'Você entrega para esta loja.' : 'Peça à loja ou ao suporte para ligar seu acesso a uma loja.'}</small></div></div>
+      <div className="courier-item"><div className="courier-item-main"><strong>{'Veículo'}</strong><small>{profile.vehicle_type ? `${VEHICLE[profile.vehicle_type] ?? profile.vehicle_type}${profile.vehicle_plate ? ` · ${profile.vehicle_plate}` : ''}` : 'Não informado'}</small></div></div>
+      <div className="courier-item"><div className="courier-item-main"><strong>{'E-mail'}</strong><small>{profile.email}</small></div></div>
+    </section>}
+    <ReputationCard />
+    <section className="courier-list-card" aria-label="Permissões">
+      <div className="courier-item"><div className="courier-item-main"><strong>{'Localização'}</strong><small>{status === 'blocked'
         ? 'Bloqueada. No Chrome: cadeado na barra de endereço → Permissões → Localização → Permitir. No Safari: Ajustes → Safari → Localização → Permitir.'
         : status === 'unsupported' ? 'Este navegador não oferece localização; o cliente não verá o rastreio.'
         : 'Compartilhada só durante o turno e as entregas.'}</small></div></div>
-      <div className="courier-row"><div><strong>{'Notificações'}</strong><small>{notifications === 'granted' ? 'Ativas: você recebe aviso de entrega nova com a tela fechada.'
+      <div className="courier-item"><div className="courier-item-main"><strong>{'Notificações'}</strong><small>{notifications === 'granted' ? 'Ativas: você recebe aviso de entrega nova com a tela fechada.'
         : notifications === 'denied' ? 'Bloqueadas no navegador. Libere nas permissões do site para receber aviso de entrega nova.'
         : notifications === 'unsupported' ? 'Este navegador não oferece notificações.' : 'Toque no sino, no topo, para ativar o aviso de entrega nova.'}</small></div></div>
-      {install ? <button type="button" className="courier-primary" onClick={() => { const event = install; setInstall(null); void event.prompt(); }}>{'Instalar na tela inicial'}</button>
-        : ios && <div className="courier-row"><div><strong>{'Instalar'}</strong><small>{'No Safari: toque em Compartilhar → Adicionar à Tela de Início'}</small></div></div>}
-    </div>
+      {!install && ios && <div className="courier-item"><div className="courier-item-main"><strong>{'Instalar'}</strong><small>{'No Safari: toque em Compartilhar → Adicionar à Tela de Início'}</small></div></div>}
+    </section>
+    {install && <button type="button" className="courier-primary" onClick={() => { const event = install; setInstall(null); void event.prompt(); }}>{'Instalar na tela inicial'}</button>}
   </>;
 }

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from '../app-context';
+import { AdminPage } from './admin-kit';
+import { Card, Empty } from './kit';
 
 type AdminPermission = { key: string; label: string; group: string };
 type AdminRole = { id: number; name: string; description: string; permissions: string[]; active: boolean; fullAccess: boolean };
@@ -107,69 +109,67 @@ export default function AdminAccessPanel() {
   const managedRoles = roles.filter((role) => !role.fullAccess);
   const assignableRoles = roles.filter((role) => role.active);
 
-  return <section className="panel">
-    <div className="panel-heading">
-      <div><span className="eyebrow">{'ADMINISTRAÇÃO'}</span><h2>{'Papéis e acessos administrativos'}</h2></div>
-      <p>{'Defina papéis com permissões e crie acessos de funcionários da administração.'}</p>
-    </div>
-    <div className="form-grid">
-      <form onSubmit={createRole}>
-        <h3>{'Criar papel'}</h3>
-        <label>{'Nome do papel'}<input value={roleName} onChange={(event) => setRoleName(event.target.value)} placeholder="Ex.: Suporte" required minLength={2} maxLength={80} /></label>
-        <label>{'Descrição'}<input value={roleDescription} onChange={(event) => setRoleDescription(event.target.value)} placeholder="O que este papel faz" maxLength={255} /></label>
-        <fieldset className="permission-groups">
+  return <AdminPage>
+    <h2 className="ad-section">{'Papéis e acessos administrativos'}</h2>
+    <div className="ad-forms">
+      <form className="pr-card pr-form" onSubmit={createRole}>
+        <div className="pr-card-head"><h2>{'Criar papel'}</h2></div>
+        <label className="pr-field">{'Nome do papel'}<input value={roleName} onChange={(event) => setRoleName(event.target.value)} placeholder="Ex.: Suporte" required minLength={2} maxLength={80} /></label>
+        <label className="pr-field">{'Descrição'}<input value={roleDescription} onChange={(event) => setRoleDescription(event.target.value)} placeholder="O que este papel faz" maxLength={255} /></label>
+        <fieldset className="ad-checks">
           <legend>{'Permissões'}</legend>
-          {groups.map((group) => <div key={group} className="permission-group">
+          {groups.map((group) => <div key={group} className="ad-check-group">
             <strong>{group}</strong>
             {catalog.filter((permission) => permission.group === group).map((permission) => (
-              <label className="check" key={permission.key}>
+              <label className="pr-check" key={permission.key}>
                 <input type="checkbox" checked={rolePermissions.includes(permission.key)} onChange={() => togglePermission(permission.key)} />
                 {permission.label}
               </label>
             ))}
           </div>)}
         </fieldset>
-        <button className="secondary-button" disabled={busy}>{'Criar papel'}</button>
+        <div className="ad-form-foot"><button className="pr-btn pr-btn--primary" disabled={busy}>{'Criar papel'}</button></div>
       </form>
 
-      <div className="courier-list">
-        <h3>{'Papéis'}</h3>
-        {managedRoles.length ? managedRoles.map((role) => <div className="courier-row" key={role.id}>
-          <div>
+      <Card title={'Papéis'} className="pr-card--flush ad-flush">
+        {managedRoles.length ? <ul className="pr-list">{managedRoles.map((role) => <li className="pr-row ad-keep" key={role.id}>
+          <div className="pr-row-main">
             <strong>{role.name}</strong>
             <span>{role.permissions.length} {'Permissões'.toLowerCase()} · {role.active ? 'Ativo' : 'Inativo'}</span>
           </div>
-          <div className="courier-actions">
-            <button className={role.active ? 'availability-button' : 'availability-button paused'} disabled={busy} onClick={() => void toggleRole(role)}>{role.active ? 'Desativar' : 'Ativar'}</button>
-            <button className="availability-button" disabled={busy} onClick={() => void removeRole(role)}>{'Excluir'}</button>
+          <div className="pr-row-actions">
+            <button type="button" className={`pr-btn pr-btn--sm${role.active ? '' : ' pr-btn--soft'}`} disabled={busy} onClick={() => void toggleRole(role)}>{role.active ? 'Desativar' : 'Ativar'}</button>
+            <button type="button" className="pr-btn pr-btn--sm pr-btn--ghost pr-btn--danger" disabled={busy} onClick={() => void removeRole(role)}>{'Excluir'}</button>
           </div>
-        </div>) : <p className="form-help">{'Nenhum papel cadastrado.'}</p>}
-      </div>
+        </li>)}</ul> : <Empty icon="shield">{'Nenhum papel cadastrado.'}</Empty>}
+      </Card>
     </div>
 
-    <div className="form-grid" style={{ marginTop: 24 }}>
-      <form onSubmit={createEmployee}>
-        <h3>{'Criar acesso'}</h3>
-        <label>{'Nome'}<input value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} required minLength={2} maxLength={120} /></label>
-        <label>{'Email'}<input type="email" value={employeeEmail} onChange={(event) => setEmployeeEmail(event.target.value)} required /></label>
-        <label>{'Senha inicial'}<input type="password" minLength={12} maxLength={128} value={employeePassword} onChange={(event) => setEmployeePassword(event.target.value)} placeholder="Mínimo de 12 caracteres" required /></label>
-        <label>{'Papel'}<select value={employeeRoleId} onChange={(event) => setEmployeeRoleId(event.target.value)}>{assignableRoles.map((role) => <option key={role.id} value={role.id}>{role.fullAccess ? 'Acesso total' : role.name}</option>)}</select></label>
-        <button className="secondary-button" disabled={busy}>{'Criar acesso'}</button>
+    <div className="ad-forms">
+      <form className="pr-card pr-form" onSubmit={createEmployee}>
+        <div className="pr-card-head"><h2>{'Criar acesso'}</h2></div>
+        <label className="pr-field">{'Nome'}<input value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} required minLength={2} maxLength={120} /></label>
+        <label className="pr-field">{'Email'}<input type="email" value={employeeEmail} onChange={(event) => setEmployeeEmail(event.target.value)} required /></label>
+        <div className="pr-form-row">
+          <label className="pr-field">{'Senha inicial'}<input type="password" minLength={12} maxLength={128} value={employeePassword} onChange={(event) => setEmployeePassword(event.target.value)} placeholder="Mínimo de 12 caracteres" required /></label>
+          <label className="pr-field">{'Papel'}<select value={employeeRoleId} onChange={(event) => setEmployeeRoleId(event.target.value)}>{assignableRoles.map((role) => <option key={role.id} value={role.id}>{role.fullAccess ? 'Acesso total' : role.name}</option>)}</select></label>
+        </div>
+        <div className="ad-form-foot"><button className="pr-btn pr-btn--primary" disabled={busy}>{'Criar acesso'}</button></div>
       </form>
 
-      <div className="courier-list">
-        <h3>{'Funcionários do admin'}</h3>
-        {employees.length ? employees.map((employee) => <div className="courier-row" key={employee.id}>
-          <div>
+      <Card title={'Funcionários do admin'} className="pr-card--flush ad-flush">
+        {employees.length ? <ul className="pr-list">{employees.map((employee) => <li className="pr-row ad-keep" key={employee.id}>
+          <span className="pr-thumb" aria-hidden="true">{employee.name.charAt(0)}</span>
+          <div className="pr-row-main">
             <strong>{employee.name}</strong>
             <span>{employee.email}</span>
-            <small className={employee.suspended ? 'courier-state' : 'courier-state approved'}>{employee.suspended ? 'Suspenso' : employee.adminRoleId ? roles.find((role) => role.id === employee.adminRoleId)?.name ?? '—' : 'Acesso total'}</small>
+            {employee.suspended && <span className="ad-badges"><span className="pr-badge is-danger">{'Suspenso'}</span></span>}
           </div>
-          <select value={employee.adminRoleId ?? ''} aria-label={`Nível de acesso de ${employee.name}`} disabled={busy} onChange={(event) => void changeEmployeeRole(employee, event.target.value)}>
+          <select className="ad-row-select" value={employee.adminRoleId ?? ''} aria-label={`Nível de acesso de ${employee.name}`} disabled={busy} onChange={(event) => void changeEmployeeRole(employee, event.target.value)}>
             {roles.map((role) => <option key={role.id} value={role.id}>{role.fullAccess ? 'Acesso total' : role.name}</option>)}
           </select>
-        </div>) : <p className="form-help">{'Nenhum funcionário cadastrado.'}</p>}
-      </div>
+        </li>)}</ul> : <Empty icon="users">{'Nenhum funcionário cadastrado.'}</Empty>}
+      </Card>
     </div>
-  </section>;
+  </AdminPage>;
 }

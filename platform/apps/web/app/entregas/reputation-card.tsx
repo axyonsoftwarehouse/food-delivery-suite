@@ -14,18 +14,18 @@ export default function ReputationCard() {
     return () => { cancelled = true; };
   }, []);
 
-  if (!data) return <div className="courier-row"><div><strong>{'Reputação'}</strong><small>{failed ? 'Não foi possível carregar sua reputação.' : 'Carregando…'}</small></div></div>;
-  return <>
-    <div className="courier-row"><div>
+  if (!data) return <section className="courier-list-card" aria-label="Reputação"><div className="courier-item"><div className="courier-item-main"><strong>{'Reputação'}</strong><small>{failed ? 'Não foi possível carregar sua reputação.' : 'Carregando…'}</small></div></div></section>;
+  return <section className="courier-list-card" aria-label="Reputação">
+    <div className="courier-item"><div className="courier-item-main">
       <strong>{'Reputação'}</strong>
       <small>{ratingSummary(data.average, data.count, data.minReviewsToShow)}</small>
       <small>{`Concluídas em 30 dias: ${data.completed30d} · Falhas: ${data.failed30d}`}</small>
     </div></div>
-    {(data.recent ?? []).map((review) => <div key={`${review.orderId}-${review.createdAt}`} className="courier-row"><div>
-      <strong role="img" aria-label={`${review.rating} de 5 estrelas`}>{stars(review.rating)}</strong>
-      {review.comment && <small>{review.comment}</small>}
+    {(data.recent ?? []).map((review) => <div key={`${review.orderId}-${review.createdAt}`} className="courier-item"><div className="courier-item-main">
+      <strong className="courier-stars" role="img" aria-label={`${review.rating} de 5 estrelas`}>{stars(review.rating)}</strong>
+      {review.comment && <span>{review.comment}</span>}
       <small>{`Pedido #${review.orderId}`}</small>
     </div></div>)}
-    {(data.recent ?? []).length === 0 && <div className="courier-row"><div><small>{'Nenhum comentário ainda.'}</small></div></div>}
-  </>;
+    {(data.recent ?? []).length === 0 && <div className="courier-item"><div className="courier-item-main"><small>{'Nenhum comentário ainda.'}</small></div></div>}
+  </section>;
 }

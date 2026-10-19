@@ -15,6 +15,7 @@ import './painel/css/fin-promo-pagina.css';
 import './painel/css/equipe-config.css';
 import './painel/css/visao-pedidos.css';
 import './painel/css/catalogo-estoque.css';
+import './painel/css/admin.css';
 import './home.css';
 import './cozinha.css';
 import { AppProvider } from './app-context';

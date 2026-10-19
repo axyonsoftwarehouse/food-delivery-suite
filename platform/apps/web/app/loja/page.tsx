@@ -88,9 +88,9 @@ export default function LojaPage() {
         {restaurants.length === 0 ? <div className="lj-empty">
           <Icon name="search" size={28} />
           <p>{covered.length ? 'Nada encontrado com esse filtro.' : 'Ainda não há restaurantes entregando neste endereço.'}</p>
-        </div> : <div className="lj-grid">{restaurants.map((restaurant) => {
+        </div> : <div className="lj-grid">{restaurants.map((restaurant, index) => {
           const kinds = cuisinesOf(restaurant).slice(0, 2).join(', ');
-          return <Link key={restaurant.id} className={`lj-rest${restaurant.open ? '' : ' is-closed'}`} href={`/loja/restaurantes/${restaurant.id}`}>
+          return <Link key={restaurant.id} className={`lj-rest lj-enter${restaurant.open ? '' : ' is-closed'}`} style={{ '--i': Math.min(index, 8) } as React.CSSProperties} href={`/loja/restaurantes/${restaurant.id}`}>
             <span className="lj-rest-frame">
               <RestaurantMedia restaurant={restaurant} className="lj-rest-media" />
               {!restaurant.open && <span className="lj-rest-badge">{'Fechado agora'}</span>}

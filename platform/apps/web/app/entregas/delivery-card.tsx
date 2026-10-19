@@ -87,22 +87,23 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
   return <article className="courier-card" aria-label={`Pedido #${delivery.id}`}>
     <div className="courier-steps"><span className={pickup ? 'is-current' : 'is-done'}>{'1 · Retirar'}</span><span className={pickup ? '' : 'is-current'}>{'2 · Entregar'}</span></div>
     <div className="courier-where">
-      <small>{target.title} · {target.name} · {`Pedido #${delivery.id}`}{distanceLabel(delivery.distance_meters) ? ` · ${distanceLabel(delivery.distance_meters)}` : ''}</small>
+      <small>{target.title} · {target.name}</small>
       <strong>{target.address}</strong>
+      <span className="courier-where-meta">{`Pedido #${delivery.id}`}{distanceLabel(delivery.distance_meters) ? ` · ${distanceLabel(delivery.distance_meters)}` : ''}</span>
     </div>
     <div className="courier-actions-row">
       <a href={route.maps} target="_blank" rel="noreferrer"><Icon name="map-pin" />{'Maps'}</a>
       <a href={route.waze} target="_blank" rel="noreferrer"><Icon name="map-pin" />{'Waze'}</a>
       {primaryPhone ? <a href={primaryPhone.tel}><Icon name="phone" />{'Ligar'}</a> : <span className="courier-actions-muted">{'Telefone não informado'}</span>}
     </div>
-    {primaryPhone && <a className="courier-banner" href={primaryPhone.whatsapp} target="_blank" rel="noreferrer">{pickup ? 'WhatsApp da loja' : 'WhatsApp do cliente'}</a>}
-    {otherPhone && <div className="courier-row"><span>{pickup ? `Cliente (${delivery.customer_name ?? 'sem nome'})` : `Loja (${delivery.restaurant_name})`}</span><span className="courier-row-links"><a href={otherPhone.tel}><Icon name="phone" />{'Ligar'}</a><a href={otherPhone.whatsapp} target="_blank" rel="noreferrer">{'WhatsApp'}</a></span></div>}
+    {primaryPhone && <a className="courier-soft-btn" href={primaryPhone.whatsapp} target="_blank" rel="noreferrer">{pickup ? 'WhatsApp da loja' : 'WhatsApp do cliente'}</a>}
+    {otherPhone && <div className="courier-contact"><span>{pickup ? `Cliente (${delivery.customer_name ?? 'sem nome'})` : `Loja (${delivery.restaurant_name})`}</span><span className="courier-row-links"><a href={otherPhone.tel}><Icon name="phone" />{'Ligar'}</a><a href={otherPhone.whatsapp} target="_blank" rel="noreferrer">{'WhatsApp'}</a></span></div>}
     <div className={`courier-pay${collect > 0 ? '' : ' is-paid'}`}>
       {collect > 0
         ? `Receber ${money(collect)} ${methodLabel}${delivery.change_for_cents ? ` · troco para ${money(delivery.change_for_cents)}` : ''}`
         : delivery.payment_modality === 'online' ? 'Já pago online' : 'Já pago — não cobre nada na entrega'}
     </div>
-    <details><summary>{`${delivery.items.length} ${delivery.items.length === 1 ? 'item' : 'itens'}`}</summary>
+    <details className="courier-items"><summary>{`${delivery.items.length} ${delivery.items.length === 1 ? 'item' : 'itens'}`}<Icon name="chevron-down" size={16} /></summary>
       <ul>{delivery.items.map((item, index) => <li key={index}>{item.quantity}× {item.name}{item.variation_name ? ` (${item.variation_name})` : ''}</li>)}</ul></details>
     {pickup
       ? <button className="courier-primary" disabled={acting || offline} onClick={() => void act(() => status('pickup'), 'Pedido retirado. Boa entrega!')}>{'Retirei o pedido'}</button>
@@ -120,7 +121,7 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
                   </div>
                   {change > 0 && <small>{`Troco: ${money(change)}`}</small>}
                 </>
-              : <p>{`Confirma que recebeu ${money(collect)} ${methodLabel}?`}</p>}
+              : <p className="courier-confirm-text">{`Confirma que recebeu ${money(collect)} ${methodLabel}?`}</p>}
             <button className="courier-primary" type="submit" disabled={acting || offline}>{'Confirmar entrega'}</button>
             <button type="button" className="courier-back" disabled={acting} onClick={() => setPayOpen(false)}>{'Voltar'}</button>
           </form>

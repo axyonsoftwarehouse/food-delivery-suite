@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, money, useApp } from './app-context';
+import { Icon } from './icons';
+import { AdminPage } from './painel/admin-kit';
+import { Empty } from './painel/kit';
 
 type Coupon = {
   id: number;
@@ -31,12 +34,20 @@ export default function CouponsPanel() {
 
   useEffect(() => { void load(); }, [load]);
 
-  return <section className="panel">
-    <div className="panel-heading"><div><span className="eyebrow">PROMOÇÕES</span><h2>Cupons</h2></div><p>Cupons são criados pela própria loja, que banca o desconto. Aqui você acompanha os cupons de todas as lojas.</p></div>
-    <div className="courier-list">
-      {loading ? <p className="form-help">Carregando...</p> : coupons.length ? coupons.map((coupon) => <div className="courier-row" key={coupon.id}>
-        <div><strong>{coupon.code}</strong><span>{coupon.restaurant_name} · {coupon.discount_type === 'percent' ? `${coupon.discount_value}%` : money(coupon.discount_value)} · mínimo {money(coupon.min_order_cents)} · usos {coupon.used_count}{coupon.max_uses ? `/${coupon.max_uses}` : ''} · {coupon.active ? 'ativo' : 'inativo'}{coupon.expires_at ? ` · até ${new Date(coupon.expires_at).toLocaleDateString('pt-BR')}` : ''}</span></div>
-      </div>) : <p className="form-help">Nenhum cupom cadastrado.</p>}
-    </div>
-  </section>;
+  return <AdminPage>
+    <p className="pr-hint">Cupons são criados pela própria loja, que banca o desconto. Aqui você acompanha os cupons de todas as lojas.</p>
+    <section className="pr-card pr-card--flush ad-flush">
+      {loading ? <p className="pr-muted ad-loading">Carregando...</p> : coupons.length ? <ul className="pr-list">{coupons.map((coupon) => <li className="pr-row ad-keep" key={coupon.id}>
+        <span className={`pr-thumb pm-icon${coupon.active ? '' : ' is-off'}`} aria-hidden="true"><Icon name="ticket" size={20} /></span>
+        <div className="pr-row-main">
+          <strong className="pm-code">{coupon.code}</strong>
+          <span>{coupon.restaurant_name} · mínimo {money(coupon.min_order_cents)} · usos {coupon.used_count}{coupon.max_uses ? `/${coupon.max_uses}` : ''}{coupon.expires_at ? ` · até ${new Date(coupon.expires_at).toLocaleDateString('pt-BR')}` : ''}</span>
+        </div>
+        <div className="ad-row-side">
+          <span className={`pr-badge${coupon.active ? ' is-brand' : ''}`}>{coupon.active ? 'ativo' : 'inativo'}</span>
+          <span className="pr-row-value pr-num">{coupon.discount_type === 'percent' ? `${coupon.discount_value}%` : money(coupon.discount_value)}</span>
+        </div>
+      </li>)}</ul> : <Empty icon="ticket">Nenhum cupom cadastrado.</Empty>}
+    </section>
+  </AdminPage>;
 }
