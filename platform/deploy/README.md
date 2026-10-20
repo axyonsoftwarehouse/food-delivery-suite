@@ -153,7 +153,7 @@ Timers: Foodie **06:00 UTC**; Storyverse **06:30 UTC**; `Persistent=true`.
 1. `rclone copy` do último prefixo do bucket para um diretório temporário.
 2. `age -d -i <chave-privada> arquivo.age > arquivo`.
 3. Foodie: `bash restore.sh backups/<dump>.sql` em banco descartável; confira `/ready`.
-4. Storyverse: `pg_restore` em banco descartável; extraia `media.tar.gz`; confira a API.
+4. Storyverse: antes do `pg_restore`, crie os roles `authenticated` e `storyverse_api` no cluster de destino (`CREATE ROLE ... NOLOGIN`); o dump não inclui roles. Depois rode `pg_restore` em banco descartável; extraia `media.tar.gz`; confira a API.
 5. Registre o resultado no `RUNBOOK_VPS.md`.
 
 ## Limites antes da produção pública
