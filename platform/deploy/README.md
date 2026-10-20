@@ -118,6 +118,14 @@ DEMO_PASSWORD='uma-senha-forte' docker compose --profile tools run --rm seed
 - Alertas sugeridos: `/ready` indisponível, taxa de respostas 5xx acima do limiar e contêineres `db`/`api` fora de `healthy`.
 - Metas de carga do piloto: p95 < 800 ms e erros < 1% (`pnpm load`).
 
+### Sentry (erros de aplicação)
+
+- **API:** `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE` e `SENTRY_TRACES_SAMPLE_RATE` (padrão `0`; só erros). Sem `SENTRY_DSN`, o SDK fica desligado.
+- **Sem editar o `.env`:** crie `deploy/sentry.env` (modo `600`) com essas chaves. O `deploy.sh` carrega o arquivo automaticamente via `--env-file` e o `rsync` o preserva entre releases.
+- **Site:** `NEXT_PUBLIC_SENTRY_DSN` entra como **build arg** do `web`; `NEXT_PUBLIC_SENTRY_ENVIRONMENT` e `NEXT_PUBLIC_SENTRY_RELEASE` acompanham o build. O `deploy.sh` exporta `SENTRY_RELEASE=<sha>` para API e site.
+- **PII:** o site descarta `user`, `request` e mascara chaves sensíveis em `extra`/`contexts`/`tags`; a API descarta `user`, `request`, `extra` e `breadcrumbs`. Não envie corpo de requisição para o Sentry.
+- **Projetos:** `foodie-api` e `foodie-web` na organização `axyon-software-house`. O painel do Sentry é o destino; a tela interna do admin é uma etapa posterior.
+
 ## Limites antes da produção pública
 
 Esta é uma base de homologação, não autorização para exposição comercial. Proteção de contas, recuperação, pagamento na entrega, estados excepcionais do pedido, observabilidade e backup/restauração já estão implementados. Antes de expor comercialmente ainda faltam: um provedor de email real (hoje o link de verificação/recuperação sai no log), a revisão de origem/CSRF nos domínios finais, o ensaio de restauração e um teste de carga na própria VPS.

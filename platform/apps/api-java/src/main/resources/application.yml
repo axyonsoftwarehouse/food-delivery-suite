@@ -100,6 +100,13 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:}
+  release: ${SENTRY_RELEASE:}
+  send-default-pii: false
+  max-request-body-size: none
+  traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:0.0}
 logging:
   pattern:
     console: "%d{HH:mm:ss.SSS} %-5level [%X{requestId:-sem-id}] %logger{36} - %msg%n"

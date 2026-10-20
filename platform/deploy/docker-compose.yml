@@ -41,6 +41,10 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 4001
       COOKIE_SECURE: "true"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       DB_HOST: db
       DB_PORT: 3306
       DB_USER: foodie
@@ -78,9 +82,18 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         API_INTERNAL_URL: http://api:4001
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
+        NEXT_PUBLIC_SENTRY_RELEASE: ${SENTRY_RELEASE:-}
     restart: unless-stopped
     environment:
       API_INTERNAL_URL: http://api:4001
+      SENTRY_DSN_WEB: ${NEXT_PUBLIC_SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+      NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
+      NEXT_PUBLIC_SENTRY_RELEASE: ${SENTRY_RELEASE:-}
     depends_on:
       api:
         condition: service_healthy

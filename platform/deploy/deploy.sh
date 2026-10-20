@@ -53,6 +53,7 @@ fi
 
 [ -n "$PACKAGE" ] || die "uso: bash $0 <pacote.tar> <sha> [sha256]"
 [ -n "$SHA" ]     || die "informe o sha do release"
+export SENTRY_RELEASE="$SHA"
 [ -f "$PACKAGE" ] || die "pacote não encontrado: $PACKAGE"
 [ -d "$TREE" ]    || die "pasta da plataforma não encontrada: $TREE"
 [ -f "$DEPLOY_DIR/.env" ] || die "falta $DEPLOY_DIR/.env — sem ele o compose não sobe"
@@ -139,7 +140,13 @@ if [ -n "$CADDY_RUNNING" ]; then
   PROFILE_ARGS=(--profile public)
   info "perfil 'public' (Caddy) está ativo — será mantido"
 fi
-dc() { ( cd "$DEPLOY_DIR" && docker compose "${PROFILE_ARGS[@]}" "$@" ); }
+
+ENV_FILE_ARGS=(--env-file "$DEPLOY_DIR/.env")
+if [ -f "$DEPLOY_DIR/sentry.env" ]; then
+  ENV_FILE_ARGS+=(--env-file "$DEPLOY_DIR/sentry.env")
+  info "sentry.env: carregado de $DEPLOY_DIR/sentry.env"
+fi
+dc() { ( cd "$DEPLOY_DIR" && docker compose "${PROFILE_ARGS[@]}" "${ENV_FILE_ARGS[@]}" "$@" ); }
 
 normalize() { local v; v="$(printf '%s' "$1" | sed 's/^0*//')"; if [ -z "$v" ]; then v=0; fi; printf '%s' "$v"; }
 
@@ -171,6 +178,7 @@ say "Guardando o código atual em $SNAP"
 tar -cf "$SNAP" -C "$TREE" \
   --exclude=./deploy/backups \
   --exclude=./deploy/.env \
+  --exclude=./deploy/*.env \
   --exclude=./node_modules \
   --exclude=./.deployed \
   . 2>/dev/null
@@ -197,6 +205,7 @@ tar -xf "$PACKAGE" -C "$INCOMING"
 if command -v rsync >/dev/null 2>&1; then
   rsync -a --delete \
     --exclude='deploy/.env' \
+    --exclude='deploy/*.env' \
     --exclude='deploy/backups/' \
     --exclude='.deployed' \
     "$INCOMING"/ "$TREE"/
