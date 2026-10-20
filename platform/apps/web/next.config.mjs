@@ -1,3 +1,5 @@
+import { withSentryConfig } from '@sentry/nextjs/config';
+
 /** @type {import('next').NextConfig} */
 const config = {
   async rewrites() {
@@ -6,4 +8,9 @@ const config = {
   },
 };
 
-export default config;
+export default withSentryConfig(config, {
+  org: 'axyon-software-house',
+  project: 'foodie-web',
+  silent: true,
+  sourcemaps: { disable: true },
+});

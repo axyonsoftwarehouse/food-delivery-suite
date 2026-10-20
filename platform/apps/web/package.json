@@ -11,6 +11,7 @@
     "start": "next start --hostname 127.0.0.1 --port 3001"
   },
   "dependencies": {
+    "@sentry/nextjs": "11.8.0",
     "leaflet": "1.9.4",
     "next": "16.3.6",
     "react": "19.3.0",

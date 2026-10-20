@@ -6,13 +6,22 @@ COPY apps/web apps/web
 COPY tools/package.json tools/package.json
 RUN pnpm install --frozen-lockfile
 ARG API_INTERNAL_URL=http://api:4001
+ARG NEXT_PUBLIC_SENTRY_DSN=
+ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT=
+ARG NEXT_PUBLIC_SENTRY_RELEASE=
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=$NEXT_PUBLIC_SENTRY_ENVIRONMENT
+ENV NEXT_PUBLIC_SENTRY_RELEASE=$NEXT_PUBLIC_SENTRY_RELEASE
 RUN pnpm --filter @foodie/web build
 
 FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 ENV API_INTERNAL_URL=http://api:4001
+ENV SENTRY_DSN_WEB=
+ENV SENTRY_ENVIRONMENT=
+ENV SENTRY_RELEASE=
 RUN corepack enable
 COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=build /app/node_modules ./node_modules
