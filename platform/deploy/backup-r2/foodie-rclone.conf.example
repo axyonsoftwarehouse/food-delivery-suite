@@ -1,0 +1,8 @@
+[foodie-r2]
+type = s3
+provider = Cloudflare
+access_key_id = PREENCHER
+secret_access_key = PREENCHER
+endpoint = https://PREENCHER_ACCOUNT_ID.r2.cloudflarestorage.com
+region = auto
+acl = private

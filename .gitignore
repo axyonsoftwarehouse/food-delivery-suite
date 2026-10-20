@@ -21,6 +21,10 @@ yarn-debug.log*
 .env.local
 .env.*.local
 platform/deploy/*.env
+platform/deploy/backup-r2/*.env
+platform/deploy/backup-r2/*.conf
+platform/deploy/backup-r2/*.pub
+platform/deploy/backup-r2/*.key
 
 # ===== Flutter / Dart =====
 **/build/
