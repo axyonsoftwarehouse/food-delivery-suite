@@ -126,6 +126,36 @@ DEMO_PASSWORD='uma-senha-forte' docker compose --profile tools run --rm seed
 - **PII:** o site descarta `user`, `request` e mascara chaves sensíveis em `extra`/`contexts`/`tags`; a API descarta `user`, `request`, `extra` e `breadcrumbs`. Não envie corpo de requisição para o Sentry.
 - **Projetos:** `foodie-api` e `foodie-web` na organização `axyon-software-house`. O painel do Sentry é o destino; a tela interna do admin é uma etapa posterior.
 
+### Backup externo no Cloudflare R2
+
+O runner fica em `deploy/backup-r2/` e cobre **Foodie** e **Storyverse**:
+
+- **Foodie:** banco MariaDB (via `backup.sh`), volume `foodie-staging_foodie_uploads`, `.env`, `docker-compose.yml` e `Caddyfile`.
+- **Storyverse:** `database.dump`, `media.tar.gz`, `.env`, `docker-compose.yml` e `schema.sql`.
+- Tudo é cifrado com `age` antes de subir; o R2 recebe só `.age` + `SHA256SUMS`.
+- Retenção no R2: lifecycle de **7 dias** por bucket. Local: Foodie 7 dias; Storyverse mantém os 14 dias do `backup.sh` dele.
+
+**Instalação (na VPS):**
+
+1. Crie os buckets `foodie-backups` e `storyverse-backups` no R2.
+2. Crie um token R2 por bucket (Object Read & Write, escopo no bucket) e preencha `foodie-rclone.conf`/`storyverse-rclone.conf` em `/home/deploy/backup-r2/` (modo 600).
+3. Gere uma chave `age` por projeto no seu PC (KeePassXC + cópia offline). No VPS fica só a pública em `foodie-age.pub`/`storyverse-age.pub`.
+4. Preencha `foodie.env`/`storyverse.env`; `HEALTHCHECK_URL` é opcional.
+5. Rode `sudo bash deploy/backup-r2/install.sh`. Ele instala `age`/`rclone`, copia o runner/units e habilita os timers quando as configs estão completas.
+6. Teste: `sudo systemctl start foodie-backup-r2.service` e `journalctl -u foodie-backup-r2.service -n 100 --no-pager`.
+
+Timers: Foodie **06:00 UTC**; Storyverse **06:30 UTC**; `Persistent=true`.
+
+**Healthchecks.io:** crie um check por projeto (diário, carência de 1 h) e cole a URL em `HEALTHCHECK_URL`; o runner faz `/start`, a raiz no sucesso e `/fail` no erro.
+
+**Ensaio de restauração (mensal):**
+
+1. `rclone copy` do último prefixo do bucket para um diretório temporário.
+2. `age -d -i <chave-privada> arquivo.age > arquivo`.
+3. Foodie: `bash restore.sh backups/<dump>.sql` em banco descartável; confira `/ready`.
+4. Storyverse: `pg_restore` em banco descartável; extraia `media.tar.gz`; confira a API.
+5. Registre o resultado no `RUNBOOK_VPS.md`.
+
 ## Limites antes da produção pública
 
 Esta é uma base de homologação, não autorização para exposição comercial. Proteção de contas, recuperação, pagamento na entrega, estados excepcionais do pedido, observabilidade e backup/restauração já estão implementados. Antes de expor comercialmente ainda faltam: um provedor de email real (hoje o link de verificação/recuperação sai no log), a revisão de origem/CSRF nos domínios finais, o ensaio de restauração e um teste de carga na própria VPS.

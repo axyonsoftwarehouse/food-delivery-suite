@@ -1,0 +1,16 @@
+[Unit]
+Description=Foodie R2 backup
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/backup-r2
+ExecStart=/home/deploy/backup-r2/run-backup.sh foodie
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=1800
