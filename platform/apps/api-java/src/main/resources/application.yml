@@ -30,6 +30,12 @@ app:
     remind-before-days: ${SUBSCRIPTIONS_REMIND_BEFORE_DAYS:3}
     grace-days: ${SUBSCRIPTIONS_GRACE_DAYS:5}
     retry-every-days: ${SUBSCRIPTIONS_RETRY_EVERY_DAYS:2}
+  sentry:
+    api-url: ${SENTRY_API_URL:https://sentry.io/api/0}
+    org-slug: ${SENTRY_ORG_SLUG:axyon-software-house}
+    projects: ${SENTRY_PROJECTS:foodie-api,foodie-web}
+    api-token: ${SENTRY_API_TOKEN:}
+    cache-seconds: ${SENTRY_CACHE_SECONDS:60}
   auth:
     require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
     google:

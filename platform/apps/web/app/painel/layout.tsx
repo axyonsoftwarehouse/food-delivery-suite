@@ -31,6 +31,7 @@ const CONFIG_CHILDREN: Record<'admin' | 'restaurant', SubItem[]> = {
 const menuFor: Record<string, Item[]> = {
   admin: [
     { href: '/painel', label: 'Visão geral', icon: 'home' },
+    { href: '/painel/observabilidade', label: 'Observabilidade', icon: 'activity', permission: 'dashboard.view' },
     { href: '/painel/zonas', label: 'Zonas e cobertura', icon: 'map-pin' },
     { href: '/painel/relatorios', label: 'Relatórios', icon: 'chart' },
     { href: '/painel/clientes', label: 'Clientes', icon: 'users' },

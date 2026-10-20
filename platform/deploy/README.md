@@ -124,7 +124,8 @@ DEMO_PASSWORD='uma-senha-forte' docker compose --profile tools run --rm seed
 - **Sem editar o `.env`:** crie `deploy/sentry.env` (modo `600`) com essas chaves. O `deploy.sh` carrega o arquivo automaticamente via `--env-file` e o `rsync` o preserva entre releases.
 - **Site:** `NEXT_PUBLIC_SENTRY_DSN` entra como **build arg** do `web`; `NEXT_PUBLIC_SENTRY_ENVIRONMENT` e `NEXT_PUBLIC_SENTRY_RELEASE` acompanham o build. O `deploy.sh` exporta `SENTRY_RELEASE=<sha>` para API e site.
 - **PII:** o site descarta `user`, `request` e mascara chaves sensíveis em `extra`/`contexts`/`tags`; a API descarta `user`, `request`, `extra` e `breadcrumbs`. Não envie corpo de requisição para o Sentry.
-- **Projetos:** `foodie-api` e `foodie-web` na organização `axyon-software-house`. O painel do Sentry é o destino; a tela interna do admin é uma etapa posterior.
+- **Projetos:** `foodie-api` e `foodie-web` na organização `axyon-software-house`.
+- **Painel do admin:** `SENTRY_API_TOKEN` é um **Personal Token somente leitura** (`org:read`, `project:read`, `event:read`); `SENTRY_ORG_SLUG`, `SENTRY_PROJECTS`, `SENTRY_API_URL` e `SENTRY_CACHE_SECONDS` completam a configuração. O endpoint `/admin/sentry` é somente leitura e o token não vai para o navegador.
 
 ### Backup externo no Cloudflare R2
 

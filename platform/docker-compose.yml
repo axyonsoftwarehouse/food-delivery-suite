@@ -10,6 +10,11 @@ services:
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+      SENTRY_API_URL: ${SENTRY_API_URL:-https://sentry.io/api/0}
+      SENTRY_ORG_SLUG: ${SENTRY_ORG_SLUG:-axyon-software-house}
+      SENTRY_PROJECTS: ${SENTRY_PROJECTS:-foodie-api,foodie-web}
+      SENTRY_API_TOKEN: ${SENTRY_API_TOKEN:-}
+      SENTRY_CACHE_SECONDS: ${SENTRY_CACHE_SECONDS:-60}
       DB_HOST: db
       DB_PORT: 3306
       DB_USER: foodie
