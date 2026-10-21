@@ -63,12 +63,15 @@ public class PhoneOtpService {
             throw new ApiException(401, "Código inválido ou expirado");
         }
         repository.clearLoginFailures(wrongKey);
-        User user = repository.findByPhone(normalized).orElseGet(() -> {
-            String displayName = name == null || name.isBlank()
-                ? "Cliente " + normalized.substring(Math.max(0, normalized.length() - 4))
-                : name.strip();
-            return repository.createCustomerWithPhone(displayName, normalized, passwords.hash(Tokens.random()));
-        });
+        // Contas antigas podem ter o telefone sem o "+"; mantém compatibilidade na leitura.
+        User user = repository.findByPhone(normalized)
+            .or(() -> repository.findByPhone(normalized.substring(1)))
+            .orElseGet(() -> {
+                String displayName = name == null || name.isBlank()
+                    ? "Cliente " + normalized.substring(Math.max(0, normalized.length() - 4))
+                    : name.strip();
+                return repository.createCustomerWithPhone(displayName, normalized, passwords.hash(Tokens.random()));
+            });
         // Telefone de conta operacional (admin, loja, entregador) não abre sessão por SMS: essas contas
         // entram com email e senha.
         if (!"customer".equals(user.role())) throw new ApiException(403, "Esta conta entra com email e senha");
@@ -80,8 +83,13 @@ public class PhoneOtpService {
 
     private static String normalize(String phone) {
         if (phone == null) throw new ApiException(400, "Telefone obrigatório");
-        String digits = phone.replaceAll("[^0-9+]", "");
-        if (digits.length() < 8 || digits.length() > 20) throw new ApiException(400, "Telefone inválido");
-        return digits;
+        String raw = phone.strip();
+        String digits = raw.replaceAll("\\D", "");
+        if (digits.startsWith("00")) digits = digits.substring(2);
+        // Sem indicativo internacional, 10/11 dígitos são DDD + número no Brasil.
+        boolean international = raw.startsWith("+") || raw.startsWith("00");
+        if (!international && (digits.length() == 10 || digits.length() == 11)) digits = "55" + digits;
+        if (digits.length() < 10 || digits.length() > 15) throw new ApiException(400, "Telefone inválido");
+        return "+" + digits;
     }
 }
