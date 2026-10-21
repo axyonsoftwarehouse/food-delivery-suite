@@ -10,7 +10,7 @@ Sobe Prometheus + Alertmanager + blackbox-exporter **na rede interna** `foodie-s
 2. Renderize o config do Alertmanager com os valores e suba a pilha a partir de `platform/monitoring`:
 
    ```
-   ./render.sh      # gera alertmanager.rendered.yml (fora do Git; 644 para o contêiner ler, .env fica 600)
+   ./render.sh      # gera alertmanager.rendered.yml (fora do Git; 600, montado via Docker secret)
    docker compose up -d
    ```
 

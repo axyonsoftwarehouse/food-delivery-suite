@@ -30,11 +30,13 @@ export default function PaymentAccountCard() {
   }, [setMessage]);
 
   useEffect(() => {
-    // Volta da autorização: ?mercadopago=confirmar&token=... (a conexão só acontece quando esta sessão, a do
-    // dono que iniciou, confirma) ou ?mercadopago=erro&motivo=...
-    const params = new URLSearchParams(window.location.search);
-    const result = params.get('mercadopago');
-    const token = params.get('token');
+    // Volta da autorização: #mercadopago=confirmar&token=... (o fragmento não vai ao servidor) ou
+    // #mercadopago=erro&motivo=... O formato antigo com ? é aceito para não quebrar links em aberto.
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const search = new URLSearchParams(window.location.search);
+    const result = hash.get('mercadopago') ?? search.get('mercadopago');
+    const token = hash.get('token') ?? search.get('token');
+    const reason = hash.get('motivo') ?? search.get('motivo');
     if (result) window.history.replaceState(null, '', window.location.pathname);
     if (result === 'confirmar' && token) {
       setBusy(true);
@@ -47,7 +49,7 @@ export default function PaymentAccountCard() {
         .finally(() => setBusy(false));
       return;
     }
-    if (result) setNotice(RETURN_MESSAGES[params.get('motivo') ?? 'falha'] ?? RETURN_MESSAGES.falha);
+    if (result) setNotice(RETURN_MESSAGES[reason ?? 'falha'] ?? RETURN_MESSAGES.falha);
     void load();
   }, [load, setMessage]);
 

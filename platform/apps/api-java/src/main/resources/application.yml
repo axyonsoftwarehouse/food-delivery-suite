@@ -38,6 +38,8 @@ app:
     cache-seconds: ${SENTRY_CACHE_SECONDS:60}
   auth:
     require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
+    # Sessão absoluta; encurtou de 7 para 3 dias. O usuário refaz o login quando expirar.
+    session-days: ${SESSION_DAYS:3}
     google:
       client-id: ${GOOGLE_CLIENT_ID:}
       base-url: ${GOOGLE_BASE_URL:https://oauth2.googleapis.com}
