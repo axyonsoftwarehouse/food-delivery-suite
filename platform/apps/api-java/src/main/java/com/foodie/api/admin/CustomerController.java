@@ -122,6 +122,7 @@ public class CustomerController {
 
     private static String csvText(Object value) {
         String text = value == null ? "" : String.valueOf(value);
+        if (!text.isEmpty() && "=+-@\t\r".indexOf(text.charAt(0)) >= 0) text = "'" + text;
         if (text.contains(",") || text.contains("\"") || text.contains("\n")) {
             return '"' + text.replace("\"", "\"\"") + '"';
         }

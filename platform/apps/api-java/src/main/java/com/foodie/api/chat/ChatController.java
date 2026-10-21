@@ -1,5 +1,7 @@
 package com.foodie.api.chat;
 
+import com.foodie.api.admin.AdminPermissionService;
+import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
 import jakarta.validation.Valid;
@@ -26,11 +28,13 @@ public class ChatController {
     private final AuthService auth;
     private final JdbcTemplate jdbc;
     private final ChatPolicy policy;
+    private final AdminPermissionService adminPermissions;
 
-    public ChatController(AuthService auth, JdbcTemplate jdbc, ChatPolicy policy) {
+    public ChatController(AuthService auth, JdbcTemplate jdbc, ChatPolicy policy, AdminPermissionService adminPermissions) {
         this.auth = auth;
         this.jdbc = jdbc;
         this.policy = policy;
+        this.adminPermissions = adminPermissions;
     }
 
     @GetMapping("/chat/conversations")
@@ -84,6 +88,8 @@ public class ChatController {
     public ResponseEntity<Map<String, Object>> send(@CookieValue(value = "foodie_session", required = false) String token,
                                                     @Valid @RequestBody MessageRequest body) {
         User me = auth.requireUser(token);
+        // Admin fala em nome do suporte; admin restrito/inativo não pode usar a rota para contatar usuários.
+        if ("admin".equals(me.role())) adminPermissions.require(me, AdminPermissions.SUPPORT_ACT);
         policy.requireCanSend(me, body.toUserId(), body.orderId());
         var key = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbc.update(connection -> {
