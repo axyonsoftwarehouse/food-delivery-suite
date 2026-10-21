@@ -43,7 +43,13 @@ public class AuthController {
     @PostMapping("/auth/login")
     public ResponseEntity<User> login(HttpServletRequest request, @Valid @RequestBody LoginRequest body) {
         AuthService.Login login = auth.login(body.email(), body.password(), clientIp(request));
-        verification.requireVerified(login.user());
+        try {
+            verification.requireVerified(login.user());
+        } catch (RuntimeException error) {
+            // A sessão foi criada antes da checagem de email; não a deixa órfã no banco.
+            auth.logout(login.token());
+            throw error;
+        }
         return ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, cookie(login.token(), Duration.ofDays(7)).toString())
             .header(TOKEN_HEADER, login.token())
@@ -52,12 +58,10 @@ public class AuthController {
 
     @PostMapping("/auth/signup")
     public ResponseEntity<User> signup(HttpServletRequest request, @Valid @RequestBody SignupRequest body) {
-        AuthService.Login signup = auth.signup(body.name(), body.email(), body.password(), clientIp(request));
-        account.sendVerification(signup.user());
-        return ResponseEntity.status(201)
-            .header(HttpHeaders.SET_COOKIE, cookie(signup.token(), Duration.ofDays(7)).toString())
-            .header(TOKEN_HEADER, signup.token())
-            .body(signup.user());
+        User customer = auth.signup(body.name(), body.email(), body.password(), clientIp(request));
+        account.sendVerification(customer);
+        // Sem sessão até o email ser confirmado: o cadastro não prova que quem digitou o endereço é o dono.
+        return ResponseEntity.status(201).body(customer);
     }
 
     @PostMapping("/auth/social/google")

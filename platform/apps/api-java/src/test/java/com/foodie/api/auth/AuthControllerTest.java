@@ -2,6 +2,7 @@ package com.foodie.api.auth;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -54,8 +55,24 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.restaurantId").value(org.hamcrest.Matchers.nullValue()))
             .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("foodie_session=")))
             .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly")))
+            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("Secure")))
             .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("SameSite=Lax")))
             .andExpect(header().string("X-Foodie-Token", "a".repeat(64)));
+    }
+
+    @Test
+    void unverifiedLoginDoesNotLeaveAnOrphanSession() throws Exception {
+        var user = new User(7, "Cliente", "cliente@demo.local", "customer", null);
+        String token = "e".repeat(64);
+        when(auth.login(eq("cliente@demo.local"), eq("test-password-123"), any())).thenReturn(new AuthService.Login(user, token));
+        doThrow(new ApiException(403, "Confirme seu email para continuar")).when(verification).requireVerified(user);
+
+        mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"cliente@demo.local\",\"password\":\"test-password-123\"}"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("Confirme seu email para continuar"));
+
+        verify(auth).logout(token);
     }
 
     @Test
@@ -87,16 +104,17 @@ class AuthControllerTest {
     }
 
     @Test
-    void signupCreatesOnlyCustomerSession() throws Exception {
+    void signupCreatesTheAccountWithoutASession() throws Exception {
         var customer = new User(9, "Nova Cliente", "nova@demo.local", "customer", null);
         when(auth.signup(eq("Nova Cliente"), eq("nova@demo.local"), eq("test-password-123"), any()))
-            .thenReturn(new AuthService.Login(customer, "b".repeat(64)));
+            .thenReturn(customer);
 
         mvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Nova Cliente\",\"email\":\"nova@demo.local\",\"password\":\"test-password-123\"}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.role").value("customer"))
-            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("foodie_session=")));
+            .andExpect(header().doesNotExist("Set-Cookie"))
+            .andExpect(header().doesNotExist("X-Foodie-Token"));
         verify(account).sendVerification(customer);
     }
 
