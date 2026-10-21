@@ -43,7 +43,13 @@ public class AuthController {
     @PostMapping("/auth/login")
     public ResponseEntity<User> login(HttpServletRequest request, @Valid @RequestBody LoginRequest body) {
         AuthService.Login login = auth.login(body.email(), body.password(), clientIp(request));
-        verification.requireVerified(login.user());
+        try {
+            verification.requireVerified(login.user());
+        } catch (RuntimeException error) {
+            // A sessão foi criada antes da checagem de email; não a deixa órfã no banco.
+            auth.logout(login.token());
+            throw error;
+        }
         return ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, cookie(login.token(), Duration.ofDays(7)).toString())
             .header(TOKEN_HEADER, login.token())
