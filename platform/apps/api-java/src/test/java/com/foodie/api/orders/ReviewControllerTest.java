@@ -30,6 +30,9 @@ class ReviewControllerTest {
     @MockitoBean
     private ReviewService reviews;
 
+    @MockitoBean
+    private com.foodie.api.admin.AdminPermissionService adminPermissions;
+
     @Test
     void customerReviewsDeliveredOrder() throws Exception {
         when(auth.requireUser("session", "customer")).thenReturn(new User(7, "Cliente", "cliente@demo.local", "customer", null));

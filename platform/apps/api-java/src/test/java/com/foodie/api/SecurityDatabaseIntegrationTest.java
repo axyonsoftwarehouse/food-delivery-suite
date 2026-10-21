@@ -143,7 +143,7 @@ class SecurityDatabaseIntegrationTest {
         for (int i = 0; i < 205; i++) ids.add(insert("INSERT INTO chat_messages (from_user_id, to_user_id, body) VALUES (?, ?, ?)", sender, recipient, "Mensagem " + i));
         var auth = mock(AuthService.class);
         when(auth.requireUser("s")).thenReturn(new User(recipient, "Destino", "d@demo.local", "kitchen", restaurantId));
-        var chat = new ChatController(auth, jdbc, mock(ChatPolicy.class));
+        var chat = new ChatController(auth, jdbc, mock(ChatPolicy.class), mock(com.foodie.api.admin.AdminPermissionService.class));
         var page = chat.messages("s", sender, null);
         assertEquals(200, page.size());
         assertEquals(ids.get(5).longValue(), ((Number) page.getFirst().get("id")).longValue());

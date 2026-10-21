@@ -91,7 +91,11 @@ export default function PosPanel() {
     ].filter(Boolean);
     const win = window.open('', '_blank', 'width=380,height=600');
     if (!win) return;
-    win.document.write(`<pre style="font-family:monospace;font-size:12px;white-space:pre-wrap">${lines.join('\n')}</pre>`);
+    // Nome de produto é texto: criar o nó e usar textContent evita HTML/script injetado no recibo.
+    const pre = win.document.createElement('pre');
+    pre.style.cssText = 'font-family:monospace;font-size:12px;white-space:pre-wrap';
+    pre.textContent = lines.join('\n');
+    win.document.body.appendChild(pre);
     win.document.close();
     win.focus();
     win.print();

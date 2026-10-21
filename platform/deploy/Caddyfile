@@ -1,4 +1,17 @@
+(security_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), microphone=(self), geolocation=(self)"
+        Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+        -Server
+    }
+}
+
 {$FOODIE_DOMAIN} {
+    import security_headers
     encode zstd gzip
     reverse_proxy web:3001 {
         # Descarta um X-Forwarded-For enviado pelo cliente; os limites por IP leem este cabeçalho.
@@ -7,13 +20,18 @@
 }
 
 api.{$FOODIE_DOMAIN} {
+    import security_headers
     encode zstd gzip
+    # Actuator e documentação da API não são públicos; o monitoramento acessa a rede interna.
+    @internal path /actuator* /v3/api-docs* /swagger-ui*
+    respond @internal 404
     reverse_proxy api:4001 {
         header_up X-Forwarded-For {http.request.remote.host}
     }
 }
 
 cliente.{$FOODIE_DOMAIN}, restaurante.{$FOODIE_DOMAIN}, entregador.{$FOODIE_DOMAIN}, admin.{$FOODIE_DOMAIN} {
+    import security_headers
     encode zstd gzip
     reverse_proxy web:3001 {
         header_up X-Forwarded-For {http.request.remote.host}

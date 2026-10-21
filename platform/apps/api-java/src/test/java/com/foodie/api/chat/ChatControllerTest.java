@@ -1,13 +1,16 @@
 package com.foodie.api.chat;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,6 +22,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -36,6 +40,9 @@ class ChatControllerTest {
 
     @MockitoBean
     private ChatPolicy policy;
+
+    @MockitoBean
+    private com.foodie.api.admin.AdminPermissionService adminPermissions;
 
     @Test
     void conversationsRequireLogin() throws Exception {
@@ -91,5 +98,18 @@ class ChatControllerTest {
         mvc.perform(get("/chat/messages").param("withUser", "9").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
             .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
         verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void adminSendingChatNeedsSupportPermission() throws Exception {
+        var admin = new User(1, "Admin", "admin@demo.local", "admin", null);
+        when(auth.requireUser("s")).thenReturn(admin);
+        doThrow(new ApiException(403, "Acesso não autorizado")).when(adminPermissions).require(admin, "support.act");
+
+        mvc.perform(post("/chat/messages").cookie(new jakarta.servlet.http.Cookie("foodie_session", "s"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"toUserId\":9,\"body\":\"oi\"}"))
+            .andExpect(status().isForbidden());
+        verify(policy, never()).requireCanSend(any(), anyLong(), any());
     }
 }

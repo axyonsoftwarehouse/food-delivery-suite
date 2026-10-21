@@ -2,6 +2,8 @@ package com.foodie.api.storage;
 
 import com.foodie.api.ApiException;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
+import com.foodie.api.permissions.Permissions;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
@@ -31,6 +33,7 @@ public class StorageService {
 
     private final FileRepository repository;
     private final com.foodie.api.admin.AdminPermissionService adminPermissions;
+    private final PermissionService restaurantPermissions;
     private final Map<String, StorageProvider> providers = new HashMap<>();
     private final String driver;
     private final long maxImageBytes;
@@ -39,6 +42,7 @@ public class StorageService {
 
     public StorageService(FileRepository repository,
                           com.foodie.api.admin.AdminPermissionService adminPermissions,
+                          PermissionService restaurantPermissions,
                           List<StorageProvider> availableProviders,
                           @Value("${app.storage.driver:local}") String driver,
                           @Value("${app.storage.max-image-bytes:5242880}") long maxImageBytes,
@@ -46,6 +50,7 @@ public class StorageService {
                           @Value("${app.storage.public-base-url:http://127.0.0.1:4001}") String publicBaseUrl) {
         this.repository = repository;
         this.adminPermissions = adminPermissions;
+        this.restaurantPermissions = restaurantPermissions;
         for (StorageProvider provider : availableProviders) providers.put(provider.name(), provider);
         this.driver = driver == null ? "local" : driver.strip().toLowerCase(Locale.ROOT);
         this.maxImageBytes = maxImageBytes;
@@ -64,6 +69,8 @@ public class StorageService {
         if (PUBLIC_PURPOSES.contains(normalizedPurpose)) {
             // Arquivo público fica acessível a qualquer um pelo número: só imagem de catálogo, enviada por quem cuida dele.
             if (uploader == null || !CATALOG_ROLES.contains(uploader.role())) throw new ApiException(403, "Acesso não autorizado");
+            if ("admin".equals(uploader.role())) adminPermissions.require(uploader, com.foodie.api.admin.AdminPermissions.CATALOG_MANAGE);
+            else restaurantPermissions.require(uploader, Permissions.CATALOG_MANAGE);
             if (!image) throw new ApiException(400, "Foto de produto deve ser uma imagem");
         }
         if (uploader != null && repository.countUploadedSince(uploader.id(), 24) >= DAILY_UPLOAD_LIMIT) {
