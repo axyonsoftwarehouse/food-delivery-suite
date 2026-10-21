@@ -55,6 +55,11 @@ jobs:
       - name: Dependências (pnpm)
         run: pnpm install --frozen-lockfile
 
+      # Falha só em vulnerabilidade crítica de produção; as altas transitivas do
+      # tooling da cozinha ainda não têm versão corrigida publicada.
+      - name: Auditoria de dependências (crítica)
+        run: pnpm audit --prod --audit-level critical
+
       # O verify integrado sobe um banco efêmero (docker-compose.test.yml) e lê as
       # senhas de platform/.env e platform/tools/.env, que não são versionados. São
       # descartáveis: o banco nasce e morre dentro do job. Os secrets são opcionais —
