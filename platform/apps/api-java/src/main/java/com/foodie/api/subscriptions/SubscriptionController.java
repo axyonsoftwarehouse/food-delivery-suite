@@ -8,15 +8,19 @@ import com.foodie.api.admin.AdminPermissions;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.EmailVerificationGuard;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
+import com.foodie.api.permissions.Permissions;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
@@ -44,10 +48,14 @@ public class SubscriptionController {
     private final AdminAuditService audit;
     private final JdbcTemplate jdbc;
     private final SubscriptionChargeRepository charges;
+    private final PermissionService restaurantPermissions;
+    private final SubscriptionBillingService billing;
+    private final SubscriptionBillingAccount account;
     private final int trialDaysDefault;
 
     public SubscriptionController(AuthService auth, EmailVerificationGuard verification, AdminPermissionService permissions, AdminAuditService audit,
-                                  JdbcTemplate jdbc, SubscriptionChargeRepository charges,
+                                  JdbcTemplate jdbc, SubscriptionChargeRepository charges, PermissionService restaurantPermissions,
+                                  SubscriptionBillingService billing, SubscriptionBillingAccount account,
                                   @Value("${app.subscriptions.trial-days:15}") int trialDaysDefault) {
         this.auth = auth;
         this.verification = verification;
@@ -55,6 +63,9 @@ public class SubscriptionController {
         this.audit = audit;
         this.jdbc = jdbc;
         this.charges = charges;
+        this.restaurantPermissions = restaurantPermissions;
+        this.billing = billing;
+        this.account = account;
         this.trialDaysDefault = trialDaysDefault;
     }
 
@@ -163,7 +174,72 @@ public class SubscriptionController {
     public List<Map<String, Object>> myCharges(@CookieValue(value = "foodie_session", required = false) String token) {
         User owner = auth.requireUser(token, "restaurant");
         if (owner.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        restaurantPermissions.require(owner, Permissions.PAYMENTS_MANAGE);
         return charges.listByRestaurant(owner.restaurantId(), 100);
+    }
+
+    /** Plano atual da loja, a cobrança viva e a public key do cartão (a tela de assinatura, spec §9). */
+    @GetMapping("/restaurant/subscription")
+    public Map<String, Object> mySubscription(@CookieValue(value = "foodie_session", required = false) String token) {
+        User owner = auth.requireUser(token, "restaurant");
+        if (owner.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        restaurantPermissions.require(owner, Permissions.PAYMENTS_MANAGE);
+        return subscriptionSnapshot(owner.restaurantId());
+    }
+
+    /** Cobra o ciclo no cartão, com o token gerado pelo Brick no navegador. */
+    @PostMapping("/restaurant/subscription/charges")
+    public Map<String, Object> chargeCard(@CookieValue(value = "foodie_session", required = false) String token,
+                                          @Valid @RequestBody CardChargeRequest body) {
+        User owner = auth.requireUser(token, "restaurant");
+        if (owner.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        restaurantPermissions.require(owner, Permissions.PAYMENTS_MANAGE);
+        billing.chargeCard(currentSubscriptionId(owner.restaurantId()),
+            new SubscriptionBillingService.CardIntent(body.cardToken(), body.installments(), body.docType(), body.docNumber(),
+                body.paymentMethodId(), body.payerEmail()));
+        return subscriptionSnapshot(owner.restaurantId());
+    }
+
+    /** Confere no provedor o resultado do cartão (3DS/análise) sem depender do webhook. */
+    @PostMapping("/restaurant/subscription/charges/{id}/refresh")
+    public Map<String, Object> refreshCard(@CookieValue(value = "foodie_session", required = false) String token,
+                                           @PathVariable @Positive long id) {
+        User owner = auth.requireUser(token, "restaurant");
+        if (owner.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        restaurantPermissions.require(owner, Permissions.PAYMENTS_MANAGE);
+        billing.refreshCard(owner.restaurantId(), id);
+        return subscriptionSnapshot(owner.restaurantId());
+    }
+
+    /** Desiste do desafio 3DS e libera outro cartão ou Pix. */
+    @PostMapping("/restaurant/subscription/charges/{id}/abandon")
+    public Map<String, Object> abandonCard(@CookieValue(value = "foodie_session", required = false) String token,
+                                           @PathVariable @Positive long id) {
+        User owner = auth.requireUser(token, "restaurant");
+        if (owner.restaurantId() == null) throw new ApiException(403, "Acesso não autorizado");
+        restaurantPermissions.require(owner, Permissions.PAYMENTS_MANAGE);
+        billing.abandonCard(owner.restaurantId(), id);
+        return subscriptionSnapshot(owner.restaurantId());
+    }
+
+    private Map<String, Object> subscriptionSnapshot(long restaurantId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+            "SELECT rs.id, p.name AS package_name, p.price_cents, p.period_days, rs.status, rs.starts_at, rs.ends_at, rs.trial_ends_at, rs.next_charge_at, rs.delinquent_since "
+                + "FROM restaurant_subscriptions rs JOIN subscription_packages p ON p.id = rs.package_id "
+                + "WHERE rs.restaurant_id = ? ORDER BY rs.id DESC LIMIT 1", restaurantId);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("subscription", rows.isEmpty() ? null : rows.getFirst());
+        result.put("charge", charges.findLiveByRestaurant(restaurantId).orElse(null));
+        result.put("publicKey", account.publicKey());
+        result.put("cardEnabled", account.cardEnabled());
+        return result;
+    }
+
+    private long currentSubscriptionId(long restaurantId) {
+        List<Long> ids = jdbc.query("SELECT id FROM restaurant_subscriptions WHERE restaurant_id = ? AND status IN ('trial','active','suspended') ORDER BY id DESC LIMIT 1",
+            (rs, row) -> rs.getLong(1), restaurantId);
+        if (ids.isEmpty()) throw new ApiException(409, "A loja não tem assinatura em cobrança");
+        return ids.getFirst();
     }
 
     // ----- E21: recorrência do cliente -----
@@ -279,6 +355,12 @@ public class SubscriptionController {
                                  @Min(1) @Max(3650) int periodDays) {}
     public record AssignRequest(@Positive long restaurantId, @Positive long packageId, @Min(0) @Max(365) Integer trialDays) {}
     public record StatusRequest(@NotBlank @Pattern(regexp = "trial|active|expired|cancelled|paused|suspended") String status) {}
+    public record CardChargeRequest(@NotBlank @Size(max = 255) String cardToken,
+                                    @Min(1) @Max(24) Integer installments,
+                                    @NotBlank @Pattern(regexp = "CPF|CNPJ") String docType,
+                                    @NotBlank @Size(max = 30) String docNumber,
+                                    @Size(max = 64) String paymentMethodId,
+                                    @Email @Size(max = 255) String payerEmail) {}
     public record SubscriptionRequest(@Positive long restaurantId, @Positive Long addressId,
                                       @Min(1) @Max(90) int frequencyDays,
                                       @Size(max = 255) String notes,

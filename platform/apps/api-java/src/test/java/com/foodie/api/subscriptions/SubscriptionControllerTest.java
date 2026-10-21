@@ -1,9 +1,11 @@
 package com.foodie.api.subscriptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -13,8 +15,10 @@ import com.foodie.api.admin.AdminPermissionService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.EmailVerificationGuard;
 import com.foodie.api.auth.User;
+import com.foodie.api.permissions.PermissionService;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -26,9 +30,12 @@ class SubscriptionControllerTest {
     private final AdminAuditService audit = mock(AdminAuditService.class);
     private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
     private final SubscriptionChargeRepository charges = mock(SubscriptionChargeRepository.class);
+    private final PermissionService restaurantPermissions = mock(PermissionService.class);
+    private final SubscriptionBillingService billing = mock(SubscriptionBillingService.class);
+    private final SubscriptionBillingAccount account = mock(SubscriptionBillingAccount.class);
 
     private SubscriptionController controller() {
-        return new SubscriptionController(auth, verification, permissions, audit, jdbc, charges, 15);
+        return new SubscriptionController(auth, verification, permissions, audit, jdbc, charges, restaurantPermissions, billing, account, 15);
     }
 
     @Test
@@ -46,6 +53,46 @@ class SubscriptionControllerTest {
         ApiException error = assertThrows(ApiException.class, () -> controller().myCharges("t"));
 
         assertEquals(403, error.status());
+    }
+
+    @Test
+    void aStaffMemberWithoutPaymentsPermissionCannotSeeThePlan() {
+        when(auth.requireUser("t", "restaurant")).thenReturn(new User(6, "Atendente", "atendente@loja.com", "restaurant", 3L));
+        doThrow(new ApiException(403, "Acesso não autorizado"))
+            .when(restaurantPermissions).require(any(User.class), any(String[].class));
+
+        ApiException error = assertThrows(ApiException.class, () -> controller().mySubscription("t"));
+
+        assertEquals(403, error.status());
+    }
+
+    @Test
+    void theStoreSeesItsPlanAndTheLivePixCharge() {
+        when(auth.requireUser("t", "restaurant")).thenReturn(new User(5, "Dono", "dono@loja.com", "restaurant", 3L));
+        when(jdbc.queryForList(any(String.class), any(Object[].class)))
+            .thenReturn(List.of(Map.of("id", 7L, "package_name", "Plano Essencial", "status", "active")));
+        when(charges.findLiveByRestaurant(3L)).thenReturn(Optional.of(Map.of("id", 9L, "status", "pending", "qr_code", "000201")));
+        when(account.publicKey()).thenReturn("pk-test");
+        when(account.cardEnabled()).thenReturn(true);
+
+        Map<String, Object> result = controller().mySubscription("t");
+
+        assertEquals("Plano Essencial", ((Map<?, ?>) result.get("subscription")).get("package_name"));
+        assertEquals("pending", ((Map<?, ?>) result.get("charge")).get("status"));
+        assertEquals("pk-test", result.get("publicKey"));
+        assertEquals(true, result.get("cardEnabled"));
+    }
+
+    @Test
+    void theStoreWithoutSubscriptionGetsAnEmptyPlan() {
+        when(auth.requireUser("t", "restaurant")).thenReturn(new User(5, "Dono", "dono@loja.com", "restaurant", 3L));
+        when(jdbc.queryForList(any(String.class), any(Object[].class))).thenReturn(List.of());
+        when(charges.findLiveByRestaurant(3L)).thenReturn(Optional.empty());
+
+        Map<String, Object> result = controller().mySubscription("t");
+
+        assertNull(result.get("subscription"));
+        assertNull(result.get("charge"));
     }
 
     @Test

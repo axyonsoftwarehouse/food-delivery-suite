@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import CatalogManager from '../CatalogManager';
 import RestaurantHours from '../RestaurantHours';
 import { useSupportReason } from '../SupportReasonDialog';
-import { api, useApp } from '../app-context';
+import { api, money, useApp } from '../app-context';
 import { Icon } from '../icons';
+import { badgeClass, chargeStatus, dateTime, methodLabel, period, type SubscriptionCharge } from '../subscription-format';
 import { AdminPage } from './admin-kit';
 import { Card, Empty, Stat, Tabs } from './kit';
 import OrdersPanel from './orders-panel';
@@ -72,6 +73,7 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
         { id: 'orders', label: 'Pedidos' },
         { id: 'catalog', label: 'Cardápio' },
         { id: 'hours', label: 'Horários' },
+        ...(permissions.includes('settings.manage') ? [{ id: 'subscription', label: 'Assinatura' }] : []),
         { id: 'trail', label: 'Trilha' },
       ]} />
     </section>
@@ -103,6 +105,8 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
     {tab === 'catalog' && <CatalogManager mode="support" restaurantId={restaurantId} onMessage={setMessage} onChanged={() => { void refresh(); void load(); }} />}
     {tab === 'hours' && <RestaurantHours mode="support" restaurantId={restaurantId} onMessage={setMessage} />}
 
+    {tab === 'subscription' && permissions.includes('settings.manage') && <SubscriptionCharges restaurantId={restaurantId} onMessage={setMessage} />}
+
     {tab === 'trail' && <Card title={'Trilha'} className="pr-card--flush ad-flush">
       {trail.length === 0 ? <Empty icon="file">{'Nenhuma intervenção do suporte.'}</Empty> : <ul className="pr-list">
         {trail.map((entry) => <li className="pr-row" key={entry.id}><div className="pr-row-main"><strong>{entry.summary}</strong><span>{new Date(entry.createdAt).toLocaleString(timeLocale)} · {entry.actorName} · {entry.action}</span>{entry.reason && <span>{`Motivo: ${entry.reason}`}</span>}</div></li>)}
@@ -110,4 +114,36 @@ export default function SupportProfile({ restaurantId }: { restaurantId: number 
     </Card>}
     {dialog}
   </AdminPage>;
+}
+
+function SubscriptionCharges({ restaurantId, onMessage }: { restaurantId: number; onMessage: (message: string) => void }) {
+  const [charges, setCharges] = useState<SubscriptionCharge[] | null>(null);
+
+  const load = useCallback(async () => {
+    try { setCharges(await api<SubscriptionCharge[]>(`/admin/subscription-charges?restaurantId=${restaurantId}`)); }
+    catch (error) { onMessage(error instanceof Error ? error.message : 'Não foi possível carregar as cobranças da assinatura.'); setCharges([]); }
+  }, [restaurantId, onMessage]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  return <Card title={'Cobranças da assinatura'} className="pr-card--flush ad-flush">
+    {charges === null
+      ? <p className="pr-muted ad-loading">{'Carregando cobranças...'}</p>
+      : charges.length === 0
+        ? <Empty icon="receipt">{'Nenhuma cobrança emitida para esta loja.'}</Empty>
+        : <ul className="pr-list">{charges.map((charge) => {
+            const status = chargeStatus(charge.status);
+            return <li className="pr-row" key={charge.id}>
+              <div className="pr-row-main">
+                <strong>{period(charge.period_start, charge.period_end)}</strong>
+                <span>{[
+                  methodLabel(charge.method),
+                  charge.paid_at ? `pago em ${dateTime(charge.paid_at)}` : charge.expires_at ? `vence em ${dateTime(charge.expires_at)}` : `criada em ${dateTime(charge.created_at)}`,
+                ].filter(Boolean).join(' · ')}</span>
+              </div>
+              {status && <span className={badgeClass(status.tone)}>{status.label}</span>}
+              <span className="pr-row-value pr-num">{money(charge.amount_cents)}</span>
+            </li>;
+          })}</ul>}
+  </Card>;
 }

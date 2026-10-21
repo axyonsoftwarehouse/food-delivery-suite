@@ -124,6 +124,7 @@ export default function CardPaymentForm({ amountCents, publicKey, payerEmail, on
                 installments: dados.installments,
                 docType: dados.payer?.identification?.type,
                 docNumber: dados.payer?.identification?.number,
+                payerEmail: dados.payer?.email,
               });
               // Recusado: rejeitar devolve o formulário para o cliente tentar outro cartão. O motivo é
               // mostrado pela página, em destaque e acima do formulário (spec de 11/10, regra 10).

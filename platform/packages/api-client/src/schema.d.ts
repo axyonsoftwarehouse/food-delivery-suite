@@ -356,6 +356,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/subscription/charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["myCharges"];
+        put?: never;
+        post: operations["chargeCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/restaurant/subscription/charges/{id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["refreshCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/restaurant/subscription/charges/{id}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["abandonCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/restaurant/staff": {
         parameters: {
             query?: never;
@@ -2804,14 +2852,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/restaurant/subscription/charges": {
+    "/restaurant/subscription": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["myCharges"];
+        get: operations["mySubscription"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4084,6 +4132,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/sentry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["summary_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/rewards/referrals": {
         parameters: {
             query?: never;
@@ -4379,7 +4443,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["summary_2"];
+        get: operations["summary_3"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4818,6 +4882,15 @@ export interface components {
             name: string;
             contact?: string;
             notes?: string;
+        };
+        CardChargeRequest: {
+            cardToken: string;
+            /** Format: int32 */
+            installments?: number;
+            docType: string;
+            docNumber: string;
+            paymentMethodId?: string;
+            payerEmail?: string;
         };
         StaffRequest: {
             name: string;
@@ -5550,6 +5623,37 @@ export interface components {
             summary?: string;
             reason?: string;
             createdAt?: string;
+        };
+        IssueSummary: {
+            shortId?: string;
+            title?: string;
+            /** Format: int64 */
+            count?: number;
+            level?: string;
+            lastSeen?: string;
+            url?: string;
+        };
+        ProjectSummary: {
+            slug?: string;
+            name?: string;
+            /** Format: int64 */
+            issues?: number;
+            /** Format: int64 */
+            events?: number;
+            url?: string;
+            topIssues?: components["schemas"]["IssueSummary"][];
+        };
+        Summary: {
+            configured?: boolean;
+            available?: boolean;
+            organization?: string;
+            generatedAt?: string;
+            /** Format: int64 */
+            totalIssues?: number;
+            /** Format: int64 */
+            totalEvents?: number;
+            projects?: components["schemas"]["ProjectSummary"][];
+            message?: string;
         };
     };
     responses: never;
@@ -6680,6 +6784,110 @@ export interface operations {
                 "application/json": components["schemas"]["SupplierRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    myCharges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    chargeCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardChargeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    refreshCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    abandonCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
@@ -12980,7 +13188,7 @@ export interface operations {
             };
         };
     };
-    myCharges: {
+    mySubscription: {
         parameters: {
             query?: never;
             header?: never;
@@ -12999,7 +13207,7 @@ export interface operations {
                 content: {
                     "*/*": {
                         [key: string]: unknown;
-                    }[];
+                    };
                 };
             };
         };
@@ -15030,6 +15238,28 @@ export interface operations {
             };
         };
     };
+    summary_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Summary"];
+                };
+            };
+        };
+    };
     referrals_1: {
         parameters: {
             query?: never;
@@ -15500,7 +15730,7 @@ export interface operations {
             };
         };
     };
-    summary_2: {
+    summary_3: {
         parameters: {
             query?: {
                 from?: string;

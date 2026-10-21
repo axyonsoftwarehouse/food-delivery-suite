@@ -56,6 +56,22 @@ public class SubscriptionChargeRepository {
             subscriptionId).stream().findFirst().map(this::charge);
     }
 
+    /**
+     * A cobrança viva com os campos que o cartão precisa (método, QR e desafio do banco). A tela usa
+     * isso para decidir entre Pix, cartão e 3DS.
+     */
+    public Optional<Map<String, Object>> findLivePendingRow(long subscriptionId) {
+        return jdbc.queryForList("SELECT id, method, status, external_id, period_start, period_end, challenge_url"
+                + " FROM subscription_charges WHERE subscription_id = ? AND status IN ('pending','failed') ORDER BY id DESC LIMIT 1 FOR UPDATE",
+            subscriptionId).stream().findFirst();
+    }
+
+    /** Visão de uma cobrança para as ações do lojista (consultar o provedor e desistir do desafio). */
+    public Optional<Map<String, Object>> findView(long id) {
+        return jdbc.queryForList("SELECT id, subscription_id, restaurant_id, method, status, external_id, challenge_url"
+                + " FROM subscription_charges WHERE id = ?", id).stream().findFirst();
+    }
+
     public Optional<Charge> findById(long id) {
         return jdbc.queryForList("SELECT " + COLUMNS + " FROM subscription_charges WHERE id = ?", id).stream().findFirst().map(this::charge);
     }
@@ -94,9 +110,17 @@ public class SubscriptionChargeRepository {
     /** Muda o status; o `paid_at` só é carimbado quando vira `paid` (idempotente). */
     public void markStatus(long id, String status, String rawStatus) {
         // Expiração/cancelamento atrasado não desfaz um pagamento confirmado por outro webhook.
-        jdbc.update("UPDATE subscription_charges SET status = ?, raw_status = ?, paid_at = IF(? = 'paid', NOW(), paid_at) WHERE id = ?"
+        jdbc.update("UPDATE subscription_charges SET status = ?, raw_status = ?, paid_at = IF(? = 'paid', NOW(), paid_at), challenge_url = NULL WHERE id = ?"
                 + " AND status NOT IN ('paid', 'refunded')",
             status, rawStatus, status, id);
+    }
+
+    /** A cobrança de cartão aguarda o desafio 3DS: guarda a página do banco e o estado bruto do provedor. */
+    public void markChallenge(long id, String rawStatus, String challengeUrl) {
+        // Não ressuscita cobrança cancelada/expirada: o pagamento atrasado é honrado por markPaid, não aqui.
+        jdbc.update("UPDATE subscription_charges SET status = 'pending', raw_status = ?, challenge_url = ? WHERE id = ?"
+                + " AND status IN ('pending', 'failed')",
+            rawStatus, challengeUrl, id);
     }
 
     /** O Pix venceu sem pagamento: a cobrança viva morre para uma nova poder ser emitida (spec §7). */
@@ -107,7 +131,7 @@ public class SubscriptionChargeRepository {
 
     /** Marca como paga uma cobrança ainda em aberto (transição idempotente: só age se estava pendente). */
     public int markPaid(long id, String rawStatus) {
-        return jdbc.update("UPDATE subscription_charges SET status = 'paid', raw_status = ?, paid_at = NOW() WHERE id = ? AND status <> 'paid'",
+        return jdbc.update("UPDATE subscription_charges SET status = 'paid', raw_status = ?, paid_at = NOW(), challenge_url = NULL WHERE id = ? AND status <> 'paid'",
             rawStatus, id);
     }
 
@@ -118,8 +142,16 @@ public class SubscriptionChargeRepository {
     }
 
     public List<Map<String, Object>> listByRestaurant(long restaurantId, int limit) {
-        return jdbc.queryForList("SELECT id, subscription_id, method, amount_cents, status, raw_status, period_start, period_end, paid_at, created_at"
+        return jdbc.queryForList("SELECT id, subscription_id, method, amount_cents, status, raw_status, period_start, period_end, paid_at, expires_at, created_at"
             + " FROM subscription_charges WHERE restaurant_id = ? ORDER BY id DESC LIMIT ?", restaurantId, limit);
+    }
+
+    /** A cobrança viva da loja, com o QR/link do Pix para a tela de pagamento. */
+    public Optional<Map<String, Object>> findLiveByRestaurant(long restaurantId) {
+        return jdbc.queryForList("SELECT id, subscription_id, method, amount_cents, status, raw_status, period_start, period_end,"
+                + " qr_code, qr_code_base64, ticket_url, expires_at, challenge_url, created_at"
+                + " FROM subscription_charges WHERE restaurant_id = ? AND status IN ('pending','failed') ORDER BY id DESC LIMIT 1", restaurantId)
+            .stream().findFirst();
     }
 
     /** Quantas cobranças da assinatura já foram pagas (para saber se o próximo razão é `subscribe` ou `renew`). */

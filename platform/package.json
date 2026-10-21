@@ -15,6 +15,7 @@
     "smoke:catalog": "node tests/catalog-smoke.mjs",
     "smoke:exceptions": "node tests/order-exceptions-smoke.mjs",
     "smoke:auth": "node tests/auth-smoke.mjs",
-    "smoke:coverage": "node tests/coverage-smoke.mjs"
+    "smoke:coverage": "node tests/coverage-smoke.mjs",
+    "smoke:subscription": "node tests/subscription-smoke.mjs"
   }
 }

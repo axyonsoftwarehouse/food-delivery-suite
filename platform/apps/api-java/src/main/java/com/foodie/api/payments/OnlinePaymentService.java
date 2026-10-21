@@ -474,7 +474,7 @@ public class OnlinePaymentService {
      * Barrar antes evita um 502 sem explicação na tela do cliente.
      */
     /** Primeiro nome do pagador — o Mercado Pago usa esse campo nos resultados predefinidos de teste. */
-    static String primeiroNome(String nome) {
+    public static String primeiroNome(String nome) {
         if (nome == null) return null;
         String limpo = nome.trim();
         if (limpo.isEmpty()) return null;
@@ -482,7 +482,7 @@ public class OnlinePaymentService {
         return espaco > 0 ? limpo.substring(0, espaco) : limpo;
     }
 
-    static boolean emailValido(String email) {
+    public static boolean emailValido(String email) {
         if (email == null || email.isBlank()) return false;
         String[] partes = email.trim().split("@", -1);
         if (partes.length != 2 || partes[0].isBlank() || partes[1].isBlank()) return false;

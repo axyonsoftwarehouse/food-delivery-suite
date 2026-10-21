@@ -68,3 +68,9 @@
   .eq-pay-head .pr-row-main { flex-basis: calc(100% - 62px); }
   .eq-courier .pr-row-actions { margin-left: -8px; }
 }
+
+.as-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 640px) {
+  .as-actions { width: 100%; flex-direction: column; }
+  .as-actions .pr-btn { width: 100%; }
+}

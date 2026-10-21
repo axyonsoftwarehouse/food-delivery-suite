@@ -8,12 +8,13 @@ import { useEffect, useRef } from 'react';
  * diz que acabou — o resultado a página confere com a API. O iframe fica montado durante a conferência:
  * recarregá-lo reiniciaria o desafio.
  */
-export default function BankChallenge({ url, checking, leaving, onComplete, onLeave }: {
+export default function BankChallenge({ url, checking, leaving, onComplete, onLeave, leaveLabel = 'Usar outro cartão ou Pix' }: {
   url: string;
   checking: boolean;
   leaving: boolean;
   onComplete: () => void;
   onLeave: () => void;
+  leaveLabel?: string;
 }) {
   const frame = useRef<HTMLIFrameElement | null>(null);
   const terminou = useRef(onComplete);
@@ -38,7 +39,7 @@ export default function BankChallenge({ url, checking, leaving, onComplete, onLe
       ? <iframe ref={frame} src={url} title="Verificação do seu banco" className="pay-challenge-frame" />
       : <p className="form-help" role="alert">{'Não foi possível abrir a página do banco. Use outro cartão ou o Pix.'}</p>}
     <button type="button" className="orders-cancel" disabled={leaving || checking} onClick={onLeave}>
-      {leaving ? 'Cancelando…' : 'Usar outro cartão ou Pix'}
+      {leaving ? 'Cancelando…' : leaveLabel}
     </button>
   </section>;
 }
