@@ -1,0 +1,15 @@
+[Unit]
+Description=Foodie safe disk cleanup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/foodie-platform/deploy
+ExecStart=/bin/bash /home/deploy/foodie-platform/deploy/cleanup/limpar-disco-agendado.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=900

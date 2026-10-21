@@ -75,6 +75,8 @@ app:
     from: ${MAIL_FROM:}
   mercadopago:
     webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
+    # Janela aceita para o `ts` da assinatura (o provedor manda em milissegundos). Fora dela, 401.
+    webhook-tolerance-seconds: ${MERCADOPAGO_WEBHOOK_TOLERANCE_SECONDS:300}
     base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
     # A URL de notificação NÃO é configurável por ambiente: a API de Orders recusa
     # `notification_url` no corpo (400 unsupported_properties) e o Mercado Pago chama a URL
