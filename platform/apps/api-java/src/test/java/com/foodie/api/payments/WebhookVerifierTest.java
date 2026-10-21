@@ -77,6 +77,19 @@ class WebhookVerifierTest {
     }
 
     @Test
+    void rejectsTimestampsOutsideTheToleranceWindow() {
+        long now = 1_700_000_000_000L;
+        long tolerance = 300_000L;
+
+        assertTrue(WebhookVerifier.fresh(String.valueOf(now), now, tolerance));
+        assertTrue(WebhookVerifier.fresh(String.valueOf(now - tolerance + 1), now, tolerance));
+        assertFalse(WebhookVerifier.fresh(String.valueOf(now - tolerance - 1), now, tolerance));
+        assertFalse(WebhookVerifier.fresh(String.valueOf(now + tolerance + 1), now, tolerance));
+        assertFalse(WebhookVerifier.fresh(null, now, tolerance));
+        assertFalse(WebhookVerifier.fresh("nao-e-numero", now, tolerance));
+    }
+
+    @Test
     void withoutSecretRejectsVerification() {
         // Falha fechada: sem segredo não há como conferir a assinatura, então recusa. Antes disto a
         // verificação era pulada e qualquer origem era aceita.

@@ -40,6 +40,20 @@ public final class WebhookVerifier {
         return false;
     }
 
+    /**
+     * O {@code ts} do provedor vem em milissegundos. Uma assinatura válida só vale perto do presente:
+     * sem isto, uma notificação capturada podia ser reenviada para sempre.
+     */
+    public static boolean fresh(String ts, long nowMillis, long toleranceMillis) {
+        if (ts == null || ts.isBlank()) return false;
+        try {
+            long value = Long.parseLong(ts.trim());
+            return value >= nowMillis - toleranceMillis && value <= nowMillis + toleranceMillis;
+        } catch (NumberFormatException invalid) {
+            return false;
+        }
+    }
+
     private static boolean matches(String secret, String manifest, String v1) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");

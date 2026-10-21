@@ -98,7 +98,7 @@ class MercadoPagoGatewayTest {
         // "id:" vazio e a desvinculacao assinada corretamente era recusada.
         String secret = "segredo-de-teste";
         String requestId = "req-connect";
-        String ts = "1759700000000";
+        String ts = String.valueOf(System.currentTimeMillis());
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         String v1 = HexFormat.of().formatHex(mac.doFinal(("id:3588446200;request-id:" + requestId + ";ts:" + ts + ";").getBytes(StandardCharsets.UTF_8)));
@@ -108,6 +108,51 @@ class MercadoPagoGatewayTest {
             Map.of());
 
         assertTrue(new MercadoPagoGateway("https://api.mercadopago.com", secret).verifyWebhook(notificacao));
+    }
+
+    @Test
+    void staleSignatureIsRejected() throws Exception {
+        String secret = "segredo-de-teste";
+        String requestId = "req-old";
+        String ts = String.valueOf(System.currentTimeMillis() - 10 * 60 * 1000L);
+        String v1 = assinatura(secret, "ORD1", requestId, ts);
+        PaymentGateway.WebhookRequest notificacao = new PaymentGateway.WebhookRequest(
+            Map.of("x-request-id", requestId, "x-signature", "ts=" + ts + ",v1=" + v1),
+            Map.of("type", "order", "data", Map.of("id", "ORD1")), Map.of());
+
+        assertFalse(new MercadoPagoGateway("https://api.mercadopago.com", secret).verifyWebhook(notificacao));
+    }
+
+    @Test
+    void deauthorizationRequiresTheSignedAccountId() {
+        MercadoPagoGateway gateway = new MercadoPagoGateway("https://api.mercadopago.com", "segredo-de-teste");
+
+        // user_id do corpo diverge do data.id assinado: não é desvinculação.
+        assertTrue(gateway.webhookDeauthorization(new PaymentGateway.WebhookRequest(
+            Map.of(), Map.of("type", "mp-connect", "action", "application.deauthorized",
+                "user_id", 111L, "data", Map.of("id", "222")), Map.of())).isEmpty());
+        // Ambos iguais, com o id vindo da query assinada.
+        assertEquals(java.util.Optional.of("222"), gateway.webhookDeauthorization(new PaymentGateway.WebhookRequest(
+            Map.of(), Map.of("type", "mp-connect", "action", "application.deauthorized",
+                "user_id", 222L, "data", Map.of("id", "222")), Map.of("data.id", "222"))));
+    }
+
+    @Test
+    void chargeIdFromTheBodyCannotDifferFromTheSignedQueryId() {
+        MercadoPagoGateway gateway = new MercadoPagoGateway("https://api.mercadopago.com", "segredo-de-teste");
+
+        assertTrue(gateway.webhookChargeId(new PaymentGateway.WebhookRequest(
+            Map.of(), Map.of("type", "order", "data", Map.of("id", "ORD-A")), Map.of("data.id", "ORD-B"))).isEmpty());
+        assertEquals(java.util.Optional.of("ORD-A"), gateway.webhookChargeId(new PaymentGateway.WebhookRequest(
+            Map.of(), Map.of("type", "order", "data", Map.of("id", "ORD-A")), Map.of("data.id", "ord-a"))));
+        assertTrue(gateway.webhookChargeId(new PaymentGateway.WebhookRequest(
+            Map.of(), Map.of("type", "order", "data", Map.of("id", "../admin")), Map.of())).isEmpty());
+    }
+
+    private static String assinatura(String secret, String dataId, String requestId, String ts) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        return HexFormat.of().formatHex(mac.doFinal(WebhookVerifier.manifest(dataId, requestId, ts).getBytes(StandardCharsets.UTF_8)));
     }
 
     @Test

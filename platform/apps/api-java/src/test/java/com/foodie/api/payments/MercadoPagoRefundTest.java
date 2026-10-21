@@ -102,7 +102,8 @@ class MercadoPagoRefundTest {
         assertEquals(java.util.Optional.of("3588446200"), mp.webhookAccountId(new PaymentGateway.WebhookRequest(java.util.Map.of(),
             java.util.Map.of("type", "order", "user_id", 3588446200L, "data", java.util.Map.of("id", "ORD1")))));
         assertEquals(java.util.Optional.of("3588446200"), mp.webhookDeauthorization(new PaymentGateway.WebhookRequest(java.util.Map.of(),
-            java.util.Map.of("type", "mp-connect", "action", "application.deauthorized", "user_id", 3588446200L))));
+            java.util.Map.of("type", "mp-connect", "action", "application.deauthorized", "user_id", 3588446200L,
+                "data", java.util.Map.of("id", "3588446200")))));
         assertEquals(java.util.Optional.empty(), mp.webhookDeauthorization(new PaymentGateway.WebhookRequest(java.util.Map.of(),
             java.util.Map.of("type", "mp-connect", "action", "application.authorized", "user_id", 3588446200L))));
     }
