@@ -32,6 +32,20 @@ class PhoneOtpServiceTest {
     }
 
     @Test
+    void normalizesBrazilianPhoneWithoutCountryCode() {
+        service.request("(85) 99999-9999", "203.0.113.9");
+
+        verify(repository).reserveOtpSend(Tokens.hash("otp-send:+5585999999999"), Tokens.hash("otp-send-ip:203.0.113.9"), PhoneOtpService.SEND_PER_PHONE, PhoneOtpService.SEND_PER_ORIGIN);
+        verify(sms).send(eq("+5585999999999"), anyString());
+    }
+
+    @Test
+    void rejectsTooShortPhone() {
+        assertEquals(400, assertThrows(ApiException.class, () -> service.request("1234", "203.0.113.9")).status());
+        verify(repository, never()).reserveOtpSend(anyString(), anyString(), anyInt(), anyInt());
+    }
+
+    @Test
     void refusesToSendWhenPhoneIsLimited() {
         Mockito.doThrow(new ApiException(429, "Limite por telefone")).when(repository).reserveOtpSend(anyString(), anyString(), anyInt(), anyInt());
 

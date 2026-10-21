@@ -47,7 +47,8 @@ public class AccountService {
 
     public void forgotPassword(String email, String origin) {
         String normalized = email.toLowerCase(Locale.ROOT);
-        String accountKey = Tokens.hash("forgot:" + normalized);
+        // A trava por conta inclui a origem: um IP não consegue bloquear a recuperação da vítima.
+        String accountKey = Tokens.hash("forgot:" + normalized + (origin == null ? "" : ":" + origin));
         String originKey = origin == null ? null : Tokens.hash("forgot-ip:" + origin);
         if (repository.isLoginLimited(accountKey) || originKey != null && repository.isLoginLimited(originKey)) {
             throw new ApiException(429, "Muitas tentativas. Aguarde antes de tentar novamente");
