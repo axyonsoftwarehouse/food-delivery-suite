@@ -43,7 +43,13 @@ public class AuthService {
             throw new ApiException(401, "Credenciais inválidas");
         }
         String token = Tokens.random();
-        if (!repository.createSessionIfPasswordCurrent(Tokens.hash(token), credentials.get().user().id(), credentials.get().passwordHash())) {
+        String passwordHash = credentials.get().passwordHash();
+        if (passwords.needsRehash(passwordHash)) {
+            // Migração transparente: o login válido no formato antigo troca para o custo atual.
+            passwordHash = passwords.hash(password);
+            repository.updatePassword(credentials.get().user().id(), passwordHash);
+        }
+        if (!repository.createSessionIfPasswordCurrent(Tokens.hash(token), credentials.get().user().id(), passwordHash)) {
             throw new ApiException(401, "Credenciais inválidas");
         }
         repository.clearLoginFailures(accountKey);

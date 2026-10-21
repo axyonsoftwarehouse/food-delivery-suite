@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
@@ -14,9 +16,16 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class AuthRepository {
     private final JdbcTemplate jdbc;
+    private final int sessionDays;
 
     public AuthRepository(JdbcTemplate jdbc) {
+        this(jdbc, 3);
+    }
+
+    @Autowired
+    public AuthRepository(JdbcTemplate jdbc, @Value("${app.auth.session-days:3}") int sessionDays) {
         this.jdbc = jdbc;
+        this.sessionDays = Math.max(1, sessionDays);
     }
 
     public Optional<Credentials> findCredentials(String email) {
@@ -36,7 +45,8 @@ public class AuthRepository {
     }
 
     public void createSession(String tokenHash, long userId) {
-        jdbc.update("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))", tokenHash, userId);
+        jdbc.update("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? DAY))",
+            tokenHash, userId, sessionDays);
     }
 
     /** Reset anterior rejeita; reset posterior espera esta transação e apaga a sessão. */
@@ -44,8 +54,8 @@ public class AuthRepository {
     public boolean createSessionIfPasswordCurrent(String tokenHash, long userId, String expectedPasswordHash) {
         jdbc.queryForList("SELECT id FROM users WHERE id = ? FOR UPDATE", userId);
         return jdbc.update("INSERT INTO sessions (token_hash, user_id, expires_at) "
-            + "SELECT ?, id, DATE_ADD(NOW(), INTERVAL 7 DAY) FROM users "
-            + "WHERE id = ? AND password_hash = ? AND suspended_at IS NULL", tokenHash, userId, expectedPasswordHash) == 1;
+            + "SELECT ?, id, DATE_ADD(NOW(), INTERVAL ? DAY) FROM users "
+            + "WHERE id = ? AND password_hash = ? AND suspended_at IS NULL", tokenHash, sessionDays, userId, expectedPasswordHash) == 1;
     }
 
     @org.springframework.transaction.annotation.Transactional

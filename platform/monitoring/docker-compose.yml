@@ -20,9 +20,10 @@ services:
     image: prom/alertmanager:v0.28.0
     restart: unless-stopped
     command:
-      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --config.file=/run/secrets/alertmanager_config
+    secrets:
+      - alertmanager_config
     volumes:
-      - ./alertmanager.rendered.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
     networks: [foodie]
 
@@ -43,3 +44,7 @@ networks:
 volumes:
   prometheus_data:
   alertmanager_data:
+
+secrets:
+  alertmanager_config:
+    file: ./alertmanager.rendered.yml

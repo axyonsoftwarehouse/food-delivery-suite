@@ -14,6 +14,6 @@ class PaymentOAuthCallbackControllerDefaultUrlTest {
         when(accounts.receiveCallback("c", "s", null)).thenReturn(new PaymentAccountService.Callback("confirmar", "tok"));
         ResponseEntity<Void> response = new PaymentOAuthCallbackController(accounts, "").callback("c", "s", null);
         assertTrue(response.getHeaders().getLocation().toString()
-            .startsWith("http://127.0.0.1:3001/painel/configuracoes?"));
+            .startsWith("http://127.0.0.1:3001/painel/configuracoes#mercadopago=confirmar"));
     }
 }
