@@ -335,11 +335,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function signup(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setMessage('');
     try {
-      await api<User>('/auth/signup', { method: 'POST', body: JSON.stringify({ name: signupName, email, password }) });
-      // O cadastro não abre sessão: o email precisa ser confirmado antes do primeiro login.
+      await api<{ ok: boolean }>('/auth/signup', { method: 'POST', body: JSON.stringify({ name: signupName, email }) });
+      // O cadastro não abre sessão e a senha só é definida na confirmação do email.
       setPassword('');
       setAuthMode('login');
-      setMessage('Conta criada. Confirme seu email para entrar.');
+      setMessage('Conta criada. Confirme seu email e defina sua senha para entrar.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Erro no cadastro'); }
     finally { setBusy(false); }
   }

@@ -3,6 +3,7 @@ package com.foodie.api.auth;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -104,18 +105,28 @@ class AuthControllerTest {
     }
 
     @Test
-    void signupCreatesTheAccountWithoutASession() throws Exception {
+    void signupCreatesTheAccountWithoutASessionOrPassword() throws Exception {
         var customer = new User(9, "Nova Cliente", "nova@demo.local", "customer", null);
-        when(auth.signup(eq("Nova Cliente"), eq("nova@demo.local"), eq("test-password-123"), any()))
-            .thenReturn(customer);
+        when(auth.signup(eq("Nova Cliente"), eq("nova@demo.local"), any())).thenReturn(Optional.of(customer));
 
         mvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Nova Cliente\",\"email\":\"nova@demo.local\",\"password\":\"test-password-123\"}"))
+                .content("{\"name\":\"Nova Cliente\",\"email\":\"nova@demo.local\"}"))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.role").value("customer"))
+            .andExpect(jsonPath("$.ok").value(true))
             .andExpect(header().doesNotExist("Set-Cookie"))
             .andExpect(header().doesNotExist("X-Foodie-Token"));
         verify(account).sendVerification(customer);
+    }
+
+    @Test
+    void signupOfAnExistingEmailLooksTheSameAndDoesNotResendVerification() throws Exception {
+        when(auth.signup(eq("Nova Cliente"), eq("existe@demo.local"), any())).thenReturn(Optional.empty());
+
+        mvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Nova Cliente\",\"email\":\"existe@demo.local\"}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.ok").value(true));
+        verify(account, never()).sendVerification(any());
     }
 
     @Test
@@ -139,12 +150,12 @@ class AuthControllerTest {
     }
 
     @Test
-    void verifyEmailDelegatesToAccountService() throws Exception {
+    void verifyEmailDelegatesThePasswordToAccountService() throws Exception {
         mvc.perform(post("/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"token\":\"verify-token\"}"))
+                .content("{\"token\":\"verify-token\",\"password\":\"test-password-123\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.ok").value(true));
-        verify(account).verifyEmail("verify-token");
+        verify(account).verifyEmail("verify-token", "test-password-123");
     }
 
     @Test

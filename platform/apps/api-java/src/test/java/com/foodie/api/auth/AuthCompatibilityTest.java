@@ -71,7 +71,7 @@ class AuthCompatibilityTest {
         when(repository.reserveSignup(anyString(), eq(30))).thenReturn(true);
         when(repository.createCustomer(anyString(), anyString(), anyString())).thenReturn(user);
 
-        assertEquals(user, service.signup("Cliente", "cliente@demo.local", "test-password-123", "203.0.113.10"));
+        assertEquals(Optional.of(user), service.signup("Cliente", "cliente@demo.local", "203.0.113.10"));
 
         verify(repository).reserveSignup(anyString(), eq(30));
         verify(repository, never()).clearLoginFailures(anyString());
@@ -85,8 +85,19 @@ class AuthCompatibilityTest {
         when(repository.reserveSignup(anyString(), eq(30))).thenReturn(false);
 
         assertEquals(429, assertThrows(ApiException.class,
-            () -> service.signup("Cliente", "cliente@demo.local", "test-password-123", "203.0.113.10")).status());
+            () -> service.signup("Cliente", "cliente@demo.local", "203.0.113.10")).status());
         verify(repository, never()).createCustomer(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void duplicateSignupReturnsEmptyInsteadOfRevealingTheAccount() {
+        AuthRepository repository = Mockito.mock(AuthRepository.class);
+        AuthService service = new AuthService(repository, new PasswordVerifier());
+        when(repository.reserveSignup(anyString(), eq(30))).thenReturn(true);
+        when(repository.createCustomer(anyString(), anyString(), anyString()))
+            .thenThrow(new org.springframework.dao.DuplicateKeyException("email"));
+
+        assertEquals(Optional.empty(), service.signup("Cliente", "existe@demo.local", "203.0.113.10"));
     }
 
     @Test

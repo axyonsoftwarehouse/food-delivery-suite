@@ -57,11 +57,10 @@ public class AuthController {
     }
 
     @PostMapping("/auth/signup")
-    public ResponseEntity<User> signup(HttpServletRequest request, @Valid @RequestBody SignupRequest body) {
-        User customer = auth.signup(body.name(), body.email(), body.password(), clientIp(request));
-        account.sendVerification(customer);
-        // Sem sessão até o email ser confirmado: o cadastro não prova que quem digitou o endereço é o dono.
-        return ResponseEntity.status(201).body(customer);
+    public ResponseEntity<Map<String, Boolean>> signup(HttpServletRequest request, @Valid @RequestBody SignupRequest body) {
+        auth.signup(body.name(), body.email(), clientIp(request)).ifPresent(account::sendVerification);
+        // Sem sessão até o email ser confirmado. A resposta é a mesma para email novo ou já existente.
+        return ResponseEntity.status(201).body(Map.of("ok", true));
     }
 
     @PostMapping("/auth/social/google")
@@ -110,7 +109,7 @@ public class AuthController {
 
     @PostMapping("/auth/verify-email")
     public Map<String, Boolean> verifyEmail(@Valid @RequestBody VerifyRequest body) {
-        account.verifyEmail(body.token());
+        account.verifyEmail(body.token(), body.password());
         return Map.of("ok", true);
     }
 
@@ -150,9 +149,9 @@ public class AuthController {
 
     public record LoginRequest(@NotBlank @Email @Size(max = 190) String email, @NotBlank @Size(max = 128) String password) {}
     public record SignupRequest(@NotBlank @Size(min = 2, max = 120) String name,
-                                @NotBlank @Email @Size(max = 190) String email,
+                                @NotBlank @Email @Size(max = 190) String email) {}
+    public record VerifyRequest(@NotBlank @Size(max = 128) String token,
                                 @NotBlank @Size(min = 12, max = 128) String password) {}
-    public record VerifyRequest(@NotBlank @Size(max = 128) String token) {}
     public record ForgotRequest(@NotBlank @Email @Size(max = 190) String email) {}
     public record ResetRequest(@NotBlank @Size(max = 128) String token, @NotBlank @Size(min = 12, max = 128) String password) {}
     public record GoogleRequest(@NotBlank @Size(max = 4096) String idToken) {}

@@ -37,11 +37,11 @@ console.log('Limite por origem validado (31ª tentativa do mesmo IP = 429).');
 const anonIp = fakeIp('10.30');
 await call('/auth/forgot-password', { method: 'POST', expected: 200, ip: anonIp, body: { email: `naoexiste-${randomUUID().slice(0, 8)}@example.test` } });
 await call('/auth/reset-password', { method: 'POST', expected: 400, ip: anonIp, body: { token: 'token-invalido', password: 'nova-senha-forte-123' } });
-await call('/auth/verify-email', { method: 'POST', expected: 400, ip: anonIp, body: { token: 'token-invalido' } });
+await call('/auth/verify-email', { method: 'POST', expected: 400, ip: anonIp, body: { token: 'token-invalido', password: 'senha-forte-123456' } });
 console.log('Recuperação/verificação não revelam contas e rejeitam token inválido.');
 
 const email = `acesso-${randomUUID().slice(0, 12)}@example.test`;
-const signup = await call('/auth/signup', { method: 'POST', expected: 201, ip: anonIp, body: { name: 'Cliente Segurança', email, password: 'senha-forte-123456' } });
+const signup = await call('/auth/signup', { method: 'POST', expected: 201, ip: anonIp, body: { name: 'Cliente Segurança', email } });
 assert.equal(signup.response.headers.get('set-cookie'), null, 'o cadastro não pode abrir sessão antes de confirmar o email');
 await call('/auth/login', { method: 'POST', expected: 403, ip: anonIp, body: { email, password: 'senha-forte-123456' } });
 console.log('Cadastro novo não abre sessão e o login exige confirmação do email.');
