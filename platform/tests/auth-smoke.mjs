@@ -42,10 +42,9 @@ console.log('Recuperação/verificação não revelam contas e rejeitam token in
 
 const email = `acesso-${randomUUID().slice(0, 12)}@example.test`;
 const signup = await call('/auth/signup', { method: 'POST', expected: 201, ip: anonIp, body: { name: 'Cliente Segurança', email, password: 'senha-forte-123456' } });
-const cookie = signup.response.headers.get('set-cookie')?.split(';')[0];
-const security = await call('/auth/security', { cookie, ip: anonIp });
-assert.equal(security.data.emailVerified, false, 'Conta nova deveria começar não verificada');
-console.log('Cadastro novo começa como não verificado.');
+assert.equal(signup.response.headers.get('set-cookie'), null, 'o cadastro não pode abrir sessão antes de confirmar o email');
+await call('/auth/login', { method: 'POST', expected: 403, ip: anonIp, body: { email, password: 'senha-forte-123456' } });
+console.log('Cadastro novo não abre sessão e o login exige confirmação do email.');
 
 if (password) {
   await call('/auth/login', { method: 'POST', ip: anonIp, body: { email: 'cliente@demo.local', password } });

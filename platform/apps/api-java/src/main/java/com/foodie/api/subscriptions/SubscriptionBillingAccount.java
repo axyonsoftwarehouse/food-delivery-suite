@@ -35,4 +35,14 @@ public class SubscriptionBillingAccount {
         if (!enabled()) throw new ApiException(503, "Cobrança de assinatura não configurada");
         return new MerchantCredentials(0, 0, accessToken, publicKey, null);
     }
+
+    /** Public key da conta da Foodie, usada pelo Brick do cartão no navegador. */
+    public String publicKey() {
+        return publicKey;
+    }
+
+    /** O cartão só é oferecido quando a cobrança real e a public key estão configuradas. */
+    public boolean cardEnabled() {
+        return enabled() && publicKey != null && !publicKey.isBlank();
+    }
 }

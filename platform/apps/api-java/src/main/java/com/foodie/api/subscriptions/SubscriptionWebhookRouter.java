@@ -78,6 +78,11 @@ public class SubscriptionWebhookRouter {
             charges.markStatus(charge.id(), fetched.status(), fetched.rawStatus());
             return Optional.of(Map.of("ok", true, "status", fetched.status()));
         }
+        if ("rejected".equals(fetched.status())) {
+            charges.markStatus(charge.id(), "failed", fetched.rawStatus());
+            return Optional.of(Map.of("ok", true, "status", "failed"));
+        }
+        charges.markChallenge(charge.id(), fetched.rawStatus(), fetched.challengeUrl());
         return Optional.of(Map.of("ok", true, "already", "pending"));
     }
 }

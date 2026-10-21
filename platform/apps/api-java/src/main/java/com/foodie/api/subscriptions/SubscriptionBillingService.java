@@ -86,6 +86,158 @@ public class SubscriptionBillingService {
         }
     }
 
+    /** O cartão do lojista: token do Brick, parcelas e CPF/CNPJ do titular. */
+    public record CardIntent(String cardToken, Integer installments, String docType, String docNumber,
+                             String paymentMethodId, String payerEmail) {}
+
+    /**
+     * Cobra o ciclo da assinatura no cartão (spec de 15/10/2026, §9). A cobrança vai para a conta da
+     * Foodie, como o Pix. Uma cobrança de cartão já viva não é duplicada; um Pix vivo é cancelado/abandonado
+     * antes, e um pagamento atrasado das duas vira duplicata estornada pelo {@link #applyPaid}.
+     */
+    @Transactional
+    public long chargeCard(long subscriptionId, CardIntent intent) {
+        Map<String, Object> row = subscription(subscriptionId);
+        if (row == null) throw new com.foodie.api.ApiException(404, "Assinatura não encontrada");
+        String subscriptionStatus = (String) row.get("status");
+        if (!CHARGEABLE.contains(subscriptionStatus)) throw new com.foodie.api.ApiException(409, "A assinatura não está em cobrança");
+        if (!account.cardEnabled()) throw new com.foodie.api.ApiException(503, "Cobrança de assinatura no cartão não configurada");
+        if (intent.cardToken() == null || intent.cardToken().isBlank()) throw new com.foodie.api.ApiException(400, "O cartão exige o token gerado pelo formulário");
+        if (intent.docType() == null || intent.docNumber() == null || intent.docNumber().isBlank()) {
+            throw new com.foodie.api.ApiException(400, "O cartão exige o CPF (ou CNPJ) do titular");
+        }
+
+        long restaurantId = ((Number) row.get("restaurant_id")).longValue();
+        Map<String, Object> owner = owner(restaurantId);
+        String payerEmail = com.foodie.api.payments.OnlinePaymentService.emailValido(intent.payerEmail())
+            ? intent.payerEmail().strip()
+            : (String) owner.get("email");
+        if (!com.foodie.api.payments.OnlinePaymentService.emailValido(payerEmail)) {
+            throw new com.foodie.api.ApiException(400, "O Mercado Pago exige um e-mail válido do titular. Informe um e-mail entregável (domínios como .local são recusados).");
+        }
+        String payerFirstName = com.foodie.api.payments.OnlinePaymentService.primeiroNome((String) owner.get("name"));
+
+        PaymentGateway gateway = gateways.resolve("mercadopago");
+        Optional<Map<String, Object>> live = charges.findLivePendingRow(subscriptionId);
+        Instant next = instant(row.get("next_charge_at"));
+        if (live.isEmpty() && next != null && next.isAfter(Instant.now())) {
+            throw new com.foodie.api.ApiException(409, "O ciclo da assinatura ainda não está em cobrança");
+        }
+        Instant periodStart;
+        Instant periodEnd;
+        Long reusedChargeId = null;
+        String idempotencyKey;
+        if (live.isPresent() && "card".equals(live.get().get("method")) && "pending".equals(live.get().get("status"))) {
+            // Já existe cartão vivo (desafio aberto ou em análise): repetir o clique não abre outra cobrança.
+            return ((Number) live.get().get("id")).longValue();
+        }
+        if (live.isPresent() && "card".equals(live.get().get("method")) && "failed".equals(live.get().get("status"))
+            && live.get().get("external_id") == null) {
+            // Timeout/crash depois de o provedor poder ter criado a cobrança: repete com a MESMA chave de
+            // idempotência da reserva, em vez de criar outra cobrança de cartão para o mesmo ciclo.
+            reusedChargeId = ((Number) live.get().get("id")).longValue();
+            idempotencyKey = (String) live.get().get("idempotency_key");
+            periodStart = instant(live.get().get("period_start"));
+            periodEnd = instant(live.get().get("period_end"));
+            charges.markStatus(reusedChargeId, "pending", "retrying_same_attempt");
+        } else {
+            if (live.isPresent()) {
+                Object externalId = live.get().get("external_id");
+                if (externalId != null) {
+                    try {
+                        PaymentGateway.Charge cancelled = gateway.cancel(account.credentials(), (String) externalId, "cancel-sub-" + externalId);
+                        // Corrida: o Pix foi pago entre a leitura e o cancelamento. Honra o pagamento e não cobra o cartão.
+                        if (cancelled != null && "paid".equals(cancelled.status())) {
+                            applyPaid("mercadopago", (String) externalId, cancelled);
+                            return ((Number) live.get().get("id")).longValue();
+                        }
+                    } catch (RuntimeException error) {
+                        // O provedor pode recusar cancelar; a cobrança antiga fica como abandonada e a duplicata
+                        // que chegar depois é estornada em applyPaid.
+                        log.warn("Assinatura #{}: cobrança {} não pôde ser cancelada antes do cartão ({})",
+                            subscriptionId, externalId, error.getMessage());
+                    }
+                }
+                charges.markStatus(((Number) live.get().get("id")).longValue(), "cancelled", "replaced_by_card");
+                periodStart = instant(live.get().get("period_start"));
+                periodEnd = instant(live.get().get("period_end"));
+            } else {
+                periodStart = instant(row.get("ends_at"));
+                if (periodStart == null) periodStart = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+                Instant now = Instant.now();
+                periodEnd = (periodStart.isBefore(now) ? now : periodStart).plus(Duration.ofDays(((Number) row.get("period_days")).intValue()));
+            }
+            idempotencyKey = "sub-" + subscriptionId + "-" + periodStart.getEpochSecond() + "-card-" + System.currentTimeMillis();
+        }
+
+        int amount = ((Number) row.get("price_cents")).intValue();
+        long chargeId = reusedChargeId != null ? reusedChargeId
+            : charges.insert(subscriptionId, restaurantId, "card", amount, idempotencyKey, periodStart, periodEnd);
+        PaymentGateway.Charge created;
+        try {
+            created = gateway.create(account.credentials(), new PaymentGateway.ChargeRequest(
+                chargeId, amount, "card", "Assinatura Foodie — loja " + restaurantId, payerEmail, idempotencyKey,
+                intent.cardToken(), intent.installments(), intent.docType(), intent.docNumber(),
+                intent.paymentMethodId(), payerFirstName).withExternalReference("sub-" + chargeId));
+        } catch (RuntimeException error) {
+            charges.markStatus(chargeId, "failed", "provider_error");
+            throw error;
+        }
+        if (created == null || created.externalId() == null) {
+            charges.markStatus(chargeId, "failed", "provider_without_id");
+            throw new com.foodie.api.ApiException(503, "A cobrança do cartão não retornou identificação do provedor");
+        }
+        charges.markCreated(chargeId, created.externalId(), "sub-" + chargeId, created.qrCode(), created.qrCodeBase64(),
+            created.ticketUrl(), created.expiresAt(), created.rawStatus());
+        if ("paid".equals(created.status())) {
+            applyPaid("mercadopago", created.externalId(), created);
+        } else if ("rejected".equals(created.status())) {
+            charges.markStatus(chargeId, "failed", created.rawStatus());
+        } else if ("pending".equals(created.status()) || created.status() == null) {
+            charges.markChallenge(chargeId, created.rawStatus(), created.challengeUrl());
+        } else {
+            charges.markStatus(chargeId, "failed", created.rawStatus());
+        }
+        return chargeId;
+    }
+
+    /** Confere no provedor o resultado do cartão (desafio do banco, análise ou pagamento). */
+    @Transactional
+    public void refreshCard(long restaurantId, long chargeId) {
+        Map<String, Object> view = charges.findView(chargeId)
+            .filter(charge -> ((Number) charge.get("restaurant_id")).longValue() == restaurantId)
+            .orElseThrow(() -> new com.foodie.api.ApiException(404, "Cobrança da assinatura não encontrada"));
+        String status = (String) view.get("status");
+        if (!"pending".equals(status) && !"failed".equals(status)) return;
+        Object externalId = view.get("external_id");
+        if (externalId == null || !account.enabled()) return;
+        PaymentGateway.Charge fetched = gateways.resolve("mercadopago").fetch(account.credentials(), (String) externalId);
+        if (fetched == null) return;
+        if ("paid".equals(fetched.status())) {
+            applyPaid("mercadopago", (String) externalId, fetched);
+        } else if ("rejected".equals(fetched.status())) {
+            charges.markStatus(chargeId, "failed", fetched.rawStatus());
+        } else if ("expired".equals(fetched.status()) || "cancelled".equals(fetched.status())) {
+            charges.markStatus(chargeId, fetched.status(), fetched.rawStatus());
+        } else {
+            charges.markChallenge(chargeId, fetched.rawStatus(), fetched.challengeUrl());
+        }
+    }
+
+    /**
+     * Desistência do 3DS: a cobrança viva vira cancelada/abandonada mesmo que o provedor recuse o
+     * cancelamento (regra da desistência do 3DS, 14/10/2026). Um pagamento atrasado ainda é honrado —
+     * ou estornado como duplicata se outro meio pagar o mesmo período.
+     */
+    @Transactional
+    public void abandonCard(long restaurantId, long chargeId) {
+        Map<String, Object> view = charges.findView(chargeId)
+            .filter(charge -> ((Number) charge.get("restaurant_id")).longValue() == restaurantId)
+            .orElseThrow(() -> new com.foodie.api.ApiException(404, "Cobrança da assinatura não encontrada"));
+        if (!"pending".equals(view.get("status"))) return;
+        charges.markStatus(chargeId, "cancelled", "abandoned_by_store");
+    }
+
     private Optional<Long> reserve(long subscriptionId) {
         Map<String, Object> row = subscription(subscriptionId);
         if (row == null) return Optional.empty();
@@ -150,10 +302,13 @@ public class SubscriptionBillingService {
             var current = gateway.fetch(account.credentials(), saved.externalId());
             if (current == null) throw new com.foodie.api.ApiException(503, "Cobrança não pôde ser consultada");
             if ("paid".equals(current.status())) applyPaid("mercadopago", saved.externalId(), current);
-            else if ("expired".equals(current.status()) || "cancelled".equals(current.status()) || "rejected".equals(current.status())) {
+            else if ("expired".equals(current.status()) || "cancelled".equals(current.status())) {
                 charges.markStatus(chargeId, "expired", current.rawStatus());
+            } else if ("rejected".equals(current.status())) {
+                charges.markStatus(chargeId, "failed", current.rawStatus());
             } else {
                 charges.markCreated(chargeId, current.externalId(), "sub-" + chargeId, current.qrCode(), current.qrCodeBase64(), current.ticketUrl(), current.expiresAt(), current.rawStatus());
+                charges.markChallenge(chargeId, current.rawStatus(), current.challengeUrl());
             }
             return Optional.empty();
         }
@@ -184,6 +339,11 @@ public class SubscriptionBillingService {
         if (saved.externalId() == null) charges.markCreated(chargeId, externalId, "sub-" + chargeId,
             fetched.qrCode(), fetched.qrCodeBase64(), fetched.ticketUrl(), fetched.expiresAt(), fetched.rawStatus());
         if ("paid".equals(fetched.status())) return applyPaid(provider, externalId, fetched);
+        if ("rejected".equals(fetched.status())) {
+            charges.markStatus(chargeId, "failed", fetched.rawStatus());
+            return Map.of("ok", true, "status", "failed");
+        }
+        charges.markChallenge(chargeId, fetched.rawStatus(), fetched.challengeUrl());
         return Map.of("ok", true, "pending", true);
     }
 
@@ -241,6 +401,13 @@ public class SubscriptionBillingService {
         List<Map<String, Object>> owners = jdbc.queryForList(
             "SELECT email FROM users WHERE restaurant_id = ? AND role = 'restaurant' ORDER BY id LIMIT 1", restaurantId);
         return owners.isEmpty() ? null : (String) owners.getFirst().get("email");
+    }
+
+    /** Nome e e-mail do dono, usados como pagador do cartão. */
+    private Map<String, Object> owner(long restaurantId) {
+        List<Map<String, Object>> owners = jdbc.queryForList(
+            "SELECT name, email FROM users WHERE restaurant_id = ? AND role = 'restaurant' ORDER BY id LIMIT 1", restaurantId);
+        return owners.isEmpty() ? Map.of() : owners.getFirst();
     }
 
     private Map<String, Object> subscription(long subscriptionId) {

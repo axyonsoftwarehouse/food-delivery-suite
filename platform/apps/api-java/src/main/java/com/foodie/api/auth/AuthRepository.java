@@ -55,6 +55,12 @@ public class AuthRepository {
         }
     }
 
+    /** Reserva atômica de uma tentativa de cadastro por origem (sucesso e falha contam). */
+    @org.springframework.transaction.annotation.Transactional
+    public boolean reserveSignup(String originKey, int limit) {
+        return reserveRateSlot(originKey, limit);
+    }
+
     private boolean reserveRateSlot(String key, int limit) {
         // Acquire an exclusive lock even when the bucket already exists; INSERT IGNORE
         // takes shared duplicate-key locks that can deadlock on the following UPDATE.
@@ -139,18 +145,50 @@ public class AuthRepository {
     }
 
     public User createCustomer(String name, String email, String passwordHash) {
+        return createCustomer(name, email, passwordHash, null);
+    }
+
+    /**
+     * Conta criada por login social: o provedor já provou o email, então a conta nasce verificada
+     * e marcada com o provedor. Sem a marca, um login social futuro não saberia se a conta é dele
+     * ou uma conta de senha que só compartilha o mesmo email.
+     */
+    public User createCustomer(String name, String email, String passwordHash, String socialProvider) {
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         jdbc.update(connection -> {
-            PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, 'customer', NULL)",
-                Statement.RETURN_GENERATED_KEYS
-            );
+            PreparedStatement statement = socialProvider == null
+                ? connection.prepareStatement(
+                    "INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, 'customer', NULL)",
+                    Statement.RETURN_GENERATED_KEYS)
+                : connection.prepareStatement(
+                    "INSERT INTO users (name, email, password_hash, role, restaurant_id, email_verified_at, social_provider) "
+                        + "VALUES (?, ?, ?, 'customer', NULL, NOW(), ?)",
+                    Statement.RETURN_GENERATED_KEYS);
             statement.setString(1, name);
             statement.setString(2, email);
             statement.setString(3, passwordHash);
+            if (socialProvider != null) statement.setString(4, socialProvider);
             return statement;
         }, key);
         return new User(key.getKey().longValue(), name, email, "customer", null);
+    }
+
+    public Optional<String> socialProvider(long userId) {
+        List<String> rows = jdbc.query("SELECT social_provider FROM users WHERE id = ?", (rs, row) -> rs.getString(1), userId);
+        return rows.stream().findFirst();
+    }
+
+    /**
+     * Reivindica uma conta ainda não verificada: o provedor social provou o email, então a senha
+     * antiga (que pode ter sido escolhida por um atacante) e as sessões são invalidadas.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public boolean claimSocialAccount(long userId, String provider, String passwordHash) {
+        int changed = jdbc.update("UPDATE users SET password_hash = ?, social_provider = ?, email_verified_at = NOW() "
+                + "WHERE id = ? AND social_provider IS NULL AND email_verified_at IS NULL",
+            passwordHash, provider, userId);
+        if (changed > 0) deleteSessionsForUser(userId);
+        return changed == 1;
     }
 
     public Optional<User> findByEmail(String email) {

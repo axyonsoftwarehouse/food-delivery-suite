@@ -57,6 +57,7 @@ const menuFor: Record<string, Item[]> = {
     { href: '/painel/promocoes', label: 'Promoções', icon: 'megaphone', module: 'marketing' },
     { href: '/painel/financeiro', label: 'Financeiro', icon: 'wallet', module: 'finance' },
     { href: '/painel/minha-pagina', label: 'Minha página', icon: 'store', module: 'storefront' },
+    { href: '/painel/assinatura', label: 'Assinatura', icon: 'card', permission: 'payments.manage' },
     { href: '/painel/configuracoes', label: 'Configurações', icon: 'settings', children: CONFIG_CHILDREN.restaurant },
   ],
 };

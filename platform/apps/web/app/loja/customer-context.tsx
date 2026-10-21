@@ -131,6 +131,7 @@ export type CardChargeData = {
   installments?: number;
   docType?: string;
   docNumber?: string;
+  payerEmail?: string;
 };
 
 const CustomerContext = createContext<CustomerValue | null>(null);

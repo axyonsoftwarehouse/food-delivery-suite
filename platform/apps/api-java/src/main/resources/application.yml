@@ -2,7 +2,7 @@ server:
   port: ${API_PORT:4001}
   address: ${API_HOST:127.0.0.1}
 app:
-  cookie-secure: ${COOKIE_SECURE:false}
+  cookie-secure: ${COOKIE_SECURE:true}
   public-base-url: ${PUBLIC_BASE_URL:http://127.0.0.1:3001}
   migrate-only: ${MIGRATE_ONLY:false}
   payments:
@@ -51,6 +51,8 @@ app:
       max-attempts: ${OTP_MAX_ATTEMPTS:5}
   sms:
     provider: ${SMS_PROVIDER:local}
+    # O provedor "local" registra no log; o código só aparece se isto for ligado em desenvolvimento.
+    log-body: ${SMS_LOG_BODY:false}
     from: ${SMS_FROM:}
     twilio:
       account-sid: ${TWILIO_ACCOUNT_SID:}
@@ -64,6 +66,8 @@ app:
     model: ${OPENAI_MODEL:gpt-4o-mini}
   mail:
     provider: ${MAIL_PROVIDER:log}
+    # O provedor "log" registra no log; links/tokens só aparecem se isto for ligado em desenvolvimento.
+    log-body: ${MAIL_LOG_BODY:false}
     from: ${MAIL_FROM:}
   mercadopago:
     webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}

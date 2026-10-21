@@ -53,7 +53,7 @@ run('Testes Java (api-java)', 'mvn', [...mvnOffline, '-q', '-Dmaven.repo.local=.
 // já deixou passar um erro de tipo real (código 0). Aqui a checagem roda sem
 // cache, como num checkout limpo do CI.
 run('Tipos do site (tsc)', 'npx', ['tsc', '--noEmit', '--incremental', 'false'], { cwd: join(root, 'apps/web') });
-run('Testes do site (node --test)', 'node', ['--test', 'app/online-payment.test.ts', 'app/cash.test.ts', 'app/quantity.test.ts', 'app/loja/order-status.test.ts'], { cwd: join(root, 'apps/web') });
+run('Testes do site (node --test)', 'node', ['--test', 'app/online-payment.test.ts', 'app/cash.test.ts', 'app/quantity.test.ts', 'app/subscription-format.test.ts', 'app/loja/order-status.test.ts'], { cwd: join(root, 'apps/web') });
 run('Build do site (next build)', 'npm', ['run', 'build'], { cwd: join(root, 'apps/web') });
 run('Tipos do app da cozinha (tsc)', 'pnpm', ['--filter', '@foodie/kitchen', 'typecheck'], { cwd: root });
 run('Testes do app da cozinha (jest)', 'pnpm', ['--filter', '@foodie/kitchen', 'test'], { cwd: root });
@@ -112,6 +112,7 @@ if (integration) {
       run('Smoke: exceções', 'pnpm', ['smoke:exceptions'], { env: smokeEnv });
       run('Smoke: contas', 'pnpm', ['smoke:auth'], { env: smokeEnv });
       run('Smoke: cobertura por CEP', 'pnpm', ['smoke:coverage'], { env: smokeEnv });
+      run('Smoke: assinatura (contrato da tela)', 'pnpm', ['smoke:subscription'], { env: smokeEnv });
     }
   } finally {
     run('Derrubando banco de teste efêmero', 'docker', ['compose', '-f', 'docker-compose.test.yml', 'down', '-v'], { env: composeEnv });

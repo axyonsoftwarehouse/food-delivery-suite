@@ -69,7 +69,7 @@ O exemplo pronto é `platform/tests/catalog-smoke.mjs`.
   Exige `DB_PASSWORD`/`DB_ROOT_PASSWORD` em `platform/.env` e `DEMO_PASSWORD` em
   `platform/tools/.env`.
   - smokes: `pnpm smoke:cart`, `smoke:catalog`, `smoke:exceptions`, `smoke:auth`,
-    `smoke:coverage`.
+    `smoke:coverage`, `smoke:subscription`.
 - **Carga:** `pnpm load` (contra a API).
 
 O **CI** (`.github/workflows/ci.yml`) roda `pnpm verify` com `VERIFY_INTEGRATION=1`,
@@ -85,7 +85,7 @@ então os smokes rodam no GitHub a cada PR.
 | Contas (login/OTP) | ✅ `smoke:auth` |
 | Cobertura por CEP | ✅ `smoke:coverage` |
 | Pagamentos online | parcial (teste TS `online-payment` + roteiro em `PAGAMENTOS_MODO_TESTE.md`) |
-| Assinatura (planos, cobrança) | ❌ sem smoke |
+| Assinatura (plano atual, recibo e cobrança viva) | ✅ `smoke:subscription` |
 | Entregador (turno, entrega) | ❌ sem smoke |
 | Loja — página, horários, zonas, equipe, promoções | ❌ sem smoke |
 

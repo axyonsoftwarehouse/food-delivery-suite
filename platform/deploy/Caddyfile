@@ -1,14 +1,21 @@
 {$FOODIE_DOMAIN} {
     encode zstd gzip
-    reverse_proxy web:3001
+    reverse_proxy web:3001 {
+        # Descarta um X-Forwarded-For enviado pelo cliente; os limites por IP leem este cabeçalho.
+        header_up X-Forwarded-For {http.request.remote.host}
+    }
 }
 
 api.{$FOODIE_DOMAIN} {
     encode zstd gzip
-    reverse_proxy api:4001
+    reverse_proxy api:4001 {
+        header_up X-Forwarded-For {http.request.remote.host}
+    }
 }
 
 cliente.{$FOODIE_DOMAIN}, restaurante.{$FOODIE_DOMAIN}, entregador.{$FOODIE_DOMAIN}, admin.{$FOODIE_DOMAIN} {
     encode zstd gzip
-    reverse_proxy web:3001
+    reverse_proxy web:3001 {
+        header_up X-Forwarded-For {http.request.remote.host}
+    }
 }
