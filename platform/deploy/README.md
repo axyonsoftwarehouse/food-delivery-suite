@@ -157,6 +157,14 @@ Timers: Foodie **06:00 UTC**; Storyverse **06:30 UTC**; `Persistent=true`.
 4. Storyverse: `pg_restore` em banco descartável; extraia `media.tar.gz`; confira a API.
 5. Registre o resultado no `RUNBOOK_VPS.md`.
 
+### Limpeza automática de disco
+
+- `cleanup/limpar-disco-agendado.sh` roda a cada **2 dias** (dias ímpares, 04:30 UTC).
+- Só executa se o disco estiver em `CLEANUP_MIN_PERCENT` (padrão **60%**), para não descartar o cache de build sem necessidade.
+- Mantém **2 rollbacks**, os **5 releases** mais recentes em `/home/deploy/releases` e apaga tarballs de deploy com mais de **14 dias**.
+- Instalação: `sudo bash deploy/cleanup/install.sh`.
+- Execução manual: `bash deploy/cleanup/limpar-disco-agendado.sh`.
+
 ## Limites antes da produção pública
 
 Esta é uma base de homologação, não autorização para exposição comercial. Proteção de contas, recuperação, pagamento na entrega, estados excepcionais do pedido, observabilidade e backup/restauração já estão implementados. Antes de expor comercialmente ainda faltam: um provedor de email real (hoje o link de verificação/recuperação sai no log), a revisão de origem/CSRF nos domínios finais, o ensaio de restauração e um teste de carga na própria VPS.
