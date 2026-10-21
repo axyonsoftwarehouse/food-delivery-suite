@@ -22,11 +22,20 @@ public class OfflinePaymentService {
         this.jdbc = jdbc;
     }
 
+    /** Lista da administração: todos os métodos, sem recorte de loja. */
     public List<Map<String, Object>> methods(boolean onlyActive) {
         String sql = "SELECT id, name, slug, instructions, requires_proof, active FROM offline_payment_methods";
         return onlyActive
             ? jdbc.queryForList(sql + " WHERE active = TRUE ORDER BY name")
             : jdbc.queryForList(sql + " ORDER BY name");
+    }
+
+    /** Lista do checkout: métodos globais + os da loja do pedido, nunca os de outra loja. */
+    public List<Map<String, Object>> methodsForRestaurant(long restaurantId) {
+        return jdbc.queryForList(
+            "SELECT id, name, slug, instructions, requires_proof, active FROM offline_payment_methods "
+                + "WHERE active = TRUE AND (restaurant_id IS NULL OR restaurant_id = ?) ORDER BY name",
+            restaurantId);
     }
 
     @Transactional
