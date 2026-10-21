@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -37,9 +38,10 @@ public class OfflinePaymentController {
     }
 
     @GetMapping("/offline-payment-methods")
-    public List<Map<String, Object>> methods(@CookieValue(value = "foodie_session", required = false) String token) {
+    public List<Map<String, Object>> methods(@CookieValue(value = "foodie_session", required = false) String token,
+                                             @RequestParam @Positive long restaurantId) {
         auth.requireUser(token);
-        return offline.methods(true);
+        return offline.methodsForRestaurant(restaurantId);
     }
 
     @GetMapping("/admin/offline-payment-methods")

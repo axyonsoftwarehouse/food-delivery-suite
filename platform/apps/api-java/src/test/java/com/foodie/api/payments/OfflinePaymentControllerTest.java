@@ -44,7 +44,19 @@ class OfflinePaymentControllerTest {
     @Test
     void listRequiresLogin() throws Exception {
         when(auth.requireUser(null)).thenThrow(new ApiException(401, "Faça login para continuar"));
-        mvc.perform(get("/offline-payment-methods")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/offline-payment-methods").param("restaurantId", "7")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void listIsScopedToTheRestaurant() throws Exception {
+        when(auth.requireUser("s")).thenReturn(new User(7, "Cliente", "cliente@demo.local", "customer", null));
+        when(offline.methodsForRestaurant(7L)).thenReturn(List.of(Map.of("id", 3L, "name", "Pix da loja", "slug", "pix-loja")));
+
+        mvc.perform(get("/offline-payment-methods").param("restaurantId", "7")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").value(3));
+        verify(offline).methodsForRestaurant(7L);
     }
 
     @Test

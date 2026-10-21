@@ -560,11 +560,14 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (leaving.current) { leaving.current = false; setPlacing(false); } }, [pathname]);
 
   useEffect(() => {
-    fetch('/backend/offline-payment-methods', { credentials: 'same-origin' })
+    if (!cartRestaurantId) { setOfflineMethods([]); return; }
+    let active = true;
+    fetch(`/backend/offline-payment-methods?restaurantId=${cartRestaurantId}`, { credentials: 'same-origin' })
       .then((response) => (response.ok ? response.json() : []))
-      .then((data) => setOfflineMethods(Array.isArray(data) ? data : []))
-      .catch(() => setOfflineMethods([]));
-  }, []);
+      .then((data) => { if (active) setOfflineMethods(Array.isArray(data) ? data : []); })
+      .catch(() => { if (active) setOfflineMethods([]); });
+    return () => { active = false; };
+  }, [cartRestaurantId]);
 
   if (!user) return null;
 

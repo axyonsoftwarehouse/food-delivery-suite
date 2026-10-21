@@ -5236,7 +5236,6 @@ export interface components {
         SignupRequest: {
             name: string;
             email: string;
-            password: string;
         };
         ResetRequest: {
             token: string;
@@ -8962,7 +8961,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["User"];
+                    "*/*": {
+                        [key: string]: boolean;
+                    };
                 };
             };
         };
@@ -14179,7 +14180,9 @@ export interface operations {
     };
     methods: {
         parameters: {
-            query?: never;
+            query: {
+                restaurantId: number;
+            };
             header?: never;
             path?: never;
             cookie?: {
