@@ -2,6 +2,7 @@ package com.foodie.api.messaging;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -11,6 +12,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class LocalSmsSender implements SmsSender {
     private static final Logger log = LoggerFactory.getLogger(LocalSmsSender.class);
+    private final boolean logBody;
+
+    public LocalSmsSender(@Value("${app.sms.log-body:false}") boolean logBody) {
+        this.logBody = logBody;
+    }
 
     @Override
     public String provider() {
@@ -19,6 +25,8 @@ public class LocalSmsSender implements SmsSender {
 
     @Override
     public void send(String phone, String message) {
-        log.info("[SMS local] para {}: {}", phone, message);
+        // A mensagem carrega o código OTP. Não vai para o log por padrão.
+        if (logBody) log.info("[SMS local] para {}: {}", phone, message);
+        else log.info("[SMS local] para {}: mensagem omitida (SMS_LOG_BODY=true liga)", phone);
     }
 }

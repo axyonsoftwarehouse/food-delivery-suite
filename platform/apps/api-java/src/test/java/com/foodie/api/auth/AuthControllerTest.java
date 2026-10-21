@@ -54,6 +54,7 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.restaurantId").value(org.hamcrest.Matchers.nullValue()))
             .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("foodie_session=")))
             .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly")))
+            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("Secure")))
             .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("SameSite=Lax")))
             .andExpect(header().string("X-Foodie-Token", "a".repeat(64)));
     }
@@ -87,16 +88,17 @@ class AuthControllerTest {
     }
 
     @Test
-    void signupCreatesOnlyCustomerSession() throws Exception {
+    void signupCreatesTheAccountWithoutASession() throws Exception {
         var customer = new User(9, "Nova Cliente", "nova@demo.local", "customer", null);
         when(auth.signup(eq("Nova Cliente"), eq("nova@demo.local"), eq("test-password-123"), any()))
-            .thenReturn(new AuthService.Login(customer, "b".repeat(64)));
+            .thenReturn(customer);
 
         mvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Nova Cliente\",\"email\":\"nova@demo.local\",\"password\":\"test-password-123\"}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.role").value("customer"))
-            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("foodie_session=")));
+            .andExpect(header().doesNotExist("Set-Cookie"))
+            .andExpect(header().doesNotExist("X-Foodie-Token"));
         verify(account).sendVerification(customer);
     }
 

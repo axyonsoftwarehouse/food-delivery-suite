@@ -46,24 +46,25 @@ public class AuthService {
         return new Login(credentials.get().user(), token);
     }
 
-    public Login signup(String name, String email, String password) {
+    public User signup(String name, String email, String password) {
         return signup(name, email, password, null);
     }
 
-    public Login signup(String name, String email, String password, String origin) {
+    /**
+     * Cria a conta, mas não abre sessão: o email ainda não foi confirmado. Também conta o cadastro
+     * bem-sucedido no limite por origem — antes o sucesso zerava o contador e permitia cadastros ilimitados.
+     */
+    public User signup(String name, String email, String password, String origin) {
         String originKey = origin == null ? null : Tokens.hash("signup-ip:" + origin);
-        if (originKey != null && repository.isLoginLimited(originKey)) {
+        if (originKey != null && !repository.reserveSignup(originKey, ORIGIN_THRESHOLD)) {
             throw new ApiException(429, "Muitas tentativas. Aguarde antes de tentar novamente");
         }
-        User customer;
         try {
-            customer = repository.createCustomer(name.trim(), email.toLowerCase(Locale.ROOT), passwords.hash(password));
+            return repository.createCustomer(name.trim(), email.toLowerCase(Locale.ROOT), passwords.hash(password));
         } catch (DuplicateKeyException error) {
-            if (originKey != null) repository.registerLoginFailure(originKey, ORIGIN_THRESHOLD);
+            // A tentativa já foi contada pela reserva atômica, inclusive quando o email já existia.
             throw new ApiException(409, "Já existe uma conta com este email");
         }
-        if (originKey != null) repository.clearLoginFailures(originKey);
-        return newSession(customer);
     }
 
     public Optional<User> currentUser(String token) {
@@ -89,12 +90,6 @@ public class AuthService {
 
     public boolean setSuspended(long userId, boolean suspended, String reason) {
         return repository.setSuspended(userId, suspended, reason == null ? null : reason.trim());
-    }
-
-    private Login newSession(User user) {
-        String token = Tokens.random();
-        repository.createSession(Tokens.hash(token), user.id());
-        return new Login(user, token);
     }
 
     private static boolean validToken(String token) {
