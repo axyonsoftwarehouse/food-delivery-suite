@@ -21,10 +21,11 @@ class StorageServiceTest {
 
     private final FileRepository repository = mock(FileRepository.class);
     private final com.foodie.api.admin.AdminPermissionService adminPermissions = mock(com.foodie.api.admin.AdminPermissionService.class);
+    private final com.foodie.api.permissions.PermissionService restaurantPermissions = mock(com.foodie.api.permissions.PermissionService.class);
     private final User uploader = new User(3, "Dono", "dono@demo.local", "restaurant", 1L);
 
     private StorageService service(String driver, long maxImage, long maxDocument) {
-        return new StorageService(repository, adminPermissions, List.of(new LocalStorageProvider(directory.toString())),
+        return new StorageService(repository, adminPermissions, restaurantPermissions, List.of(new LocalStorageProvider(directory.toString())),
             driver, maxImage, maxDocument, "http://api.local/");
     }
 
@@ -36,6 +37,18 @@ class StorageServiceTest {
         assertThat(stored.id()).isEqualTo(7L);
         assertThat(stored.contentType()).isEqualTo("image/png");
         assertThat(stored.url()).isEqualTo("http://api.local/files/7");
+    }
+
+    @Test
+    void publicCatalogUploadRequiresCatalogPermission() {
+        var kitchen = new User(4, "Cozinha", "cozinha@demo.local", "kitchen", 1L);
+        org.mockito.Mockito.doThrow(new ApiException(403, "Acesso não autorizado"))
+            .when(restaurantPermissions).require(kitchen, "catalog.manage");
+
+        assertThatThrownBy(() -> service("local", 1_000_000, 2_000_000)
+            .upload(kitchen, "product", "foto.png", "image/png", new byte[]{1}))
+            .isInstanceOf(ApiException.class)
+            .satisfies(error -> assertThat(((ApiException) error).status()).isEqualTo(403));
     }
 
     @Test
