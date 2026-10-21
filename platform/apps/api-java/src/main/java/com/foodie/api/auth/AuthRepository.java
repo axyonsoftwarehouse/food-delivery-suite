@@ -123,6 +123,11 @@ public class AuthRepository {
         return ids.stream().findFirst();
     }
 
+    /** Revoga todos os tokens de uma finalidade (ex.: um novo reset invalida os links anteriores). */
+    public void deleteActionTokens(long userId, String purpose) {
+        jdbc.update("DELETE FROM auth_action_tokens WHERE user_id = ? AND purpose = ?", userId, purpose);
+    }
+
     public void markEmailVerified(long userId) {
         jdbc.update("UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = ?", userId);
     }

@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 public class AuthService {
     private static final int ACCOUNT_THRESHOLD = 5;
     private static final int ORIGIN_THRESHOLD = 30;
+    /** Hash descartável: email inexistente também paga o custo do SCrypt, sem revelar a existência da conta. */
+    private static final String DUMMY_HASH = new PasswordVerifier().hash("foodie-dummy-password-not-used");
 
     private final AuthRepository repository;
     private final PasswordVerifier passwords;
@@ -32,7 +34,10 @@ public class AuthService {
             throw new ApiException(429, "Muitas tentativas. Aguarde antes de tentar novamente");
         }
         var credentials = repository.findCredentials(normalizedEmail);
-        if (credentials.isEmpty() || !passwords.matches(password, credentials.get().passwordHash()) || credentials.get().suspended()) {
+        // Email inexistente usa um hash descartável para o tempo de resposta não denunciar a conta.
+        boolean passwordOk = passwords.matches(password,
+            credentials.map(AuthRepository.Credentials::passwordHash).orElse(DUMMY_HASH));
+        if (credentials.isEmpty() || !passwordOk || credentials.get().suspended()) {
             repository.registerLoginFailure(accountKey, ACCOUNT_THRESHOLD);
             if (originKey != null) repository.registerLoginFailure(originKey, ORIGIN_THRESHOLD);
             throw new ApiException(401, "Credenciais inválidas");
@@ -46,24 +51,27 @@ public class AuthService {
         return new Login(credentials.get().user(), token);
     }
 
-    public User signup(String name, String email, String password) {
-        return signup(name, email, password, null);
+    public Optional<User> signup(String name, String email) {
+        return signup(name, email, null);
     }
 
     /**
-     * Cria a conta, mas não abre sessão: o email ainda não foi confirmado. Também conta o cadastro
-     * bem-sucedido no limite por origem — antes o sucesso zerava o contador e permitia cadastros ilimitados.
+     * Cria a conta, mas não abre sessão e não usa uma senha escolhida no cadastro: o email ainda não foi
+     * confirmado. A senha é definida na verificação. Também conta o cadastro bem-sucedido no limite por
+     * origem — antes o sucesso zerava o contador e permitia cadastros ilimitados.
+     *
+     * Email já existente responde como sucesso genérico, sem revelar a conta e sem reenviar verificação.
      */
-    public User signup(String name, String email, String password, String origin) {
+    public Optional<User> signup(String name, String email, String origin) {
         String originKey = origin == null ? null : Tokens.hash("signup-ip:" + origin);
         if (originKey != null && !repository.reserveSignup(originKey, ORIGIN_THRESHOLD)) {
             throw new ApiException(429, "Muitas tentativas. Aguarde antes de tentar novamente");
         }
         try {
-            return repository.createCustomer(name.trim(), email.toLowerCase(Locale.ROOT), passwords.hash(password));
+            return Optional.of(repository.createCustomer(name.trim(), email.toLowerCase(Locale.ROOT), passwords.hash(Tokens.random())));
         } catch (DuplicateKeyException error) {
             // A tentativa já foi contada pela reserva atômica, inclusive quando o email já existia.
-            throw new ApiException(409, "Já existe uma conta com este email");
+            return Optional.empty();
         }
     }
 

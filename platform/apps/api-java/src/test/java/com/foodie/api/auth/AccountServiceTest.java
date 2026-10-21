@@ -21,19 +21,24 @@ class AccountServiceTest {
     private final AccountService service = new AccountService(repository, new PasswordVerifier(), mail, "http://localhost:3001");
 
     @Test
-    void verifyEmailConsumesSingleUseTokenAndMarksVerified() {
+    void verifyEmailSetsThePasswordAndMarksVerified() {
         when(repository.consumeActionToken(anyString(), eq("verify_email"))).thenReturn(Optional.of(7L));
 
-        service.verifyEmail("raw-token");
+        service.verifyEmail("raw-token", "nova-senha-forte-123");
 
+        verify(repository).updatePassword(eq(7L), anyString());
         verify(repository).markEmailVerified(7L);
+        verify(repository).deleteSessionsForUser(7L);
+        verify(repository).deleteActionTokens(7L, "verify_email");
+        verify(repository).deleteActionTokens(7L, "reset_password");
     }
 
     @Test
     void verifyEmailRejectsUnknownOrUsedToken() {
         when(repository.consumeActionToken(anyString(), eq("verify_email"))).thenReturn(Optional.empty());
 
-        assertEquals(400, assertThrows(ApiException.class, () -> service.verifyEmail("raw-token")).status());
+        assertEquals(400, assertThrows(ApiException.class,
+            () -> service.verifyEmail("raw-token", "nova-senha-forte-123")).status());
     }
 
     @Test
@@ -44,6 +49,7 @@ class AccountServiceTest {
 
         verify(repository).updatePassword(eq(7L), anyString());
         verify(repository).deleteSessionsForUser(7L);
+        verify(repository).deleteActionTokens(7L, "reset_password");
     }
 
     @Test
@@ -65,6 +71,7 @@ class AccountServiceTest {
 
         service.forgotPassword("cliente@demo.local", "1.2.3.4");
 
+        verify(repository).deleteActionTokens(7L, "reset_password");
         verify(repository).createActionToken(anyString(), eq(7L), eq("reset_password"), anyInt());
         verify(mail).send(eq("cliente@demo.local"), anyString(), anyString());
     }

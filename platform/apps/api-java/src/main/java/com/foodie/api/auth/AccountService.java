@@ -34,10 +34,15 @@ public class AccountService {
     }
 
     @Transactional
-    public void verifyEmail(String token) {
+    public void verifyEmail(String token, String password) {
         long userId = repository.consumeActionToken(Tokens.hash(token), "verify_email")
             .orElseThrow(() -> new ApiException(400, "Token inválido ou expirado"));
+        // A senha só existe a partir daqui: quem cadastrou o email sem possuí-lo não escolheu a senha.
+        repository.updatePassword(userId, passwords.hash(password));
         repository.markEmailVerified(userId);
+        repository.deleteSessionsForUser(userId);
+        repository.deleteActionTokens(userId, "verify_email");
+        repository.deleteActionTokens(userId, "reset_password");
     }
 
     public void forgotPassword(String email, String origin) {
@@ -52,6 +57,8 @@ public class AccountService {
         var credentials = repository.findCredentials(normalized);
         if (credentials.isEmpty() || credentials.get().suspended()) return;
         String token = Tokens.random();
+        // Um novo pedido revoga os links anteriores: só o mais recente vale.
+        repository.deleteActionTokens(credentials.get().user().id(), "reset_password");
         repository.createActionToken(Tokens.hash(token), credentials.get().user().id(), "reset_password", RESET_MINUTES);
         mail.send(credentials.get().user().email(), "Redefinição de senha Foodie",
             "Defina uma nova senha em " + publicBaseUrl + "/reset-password?token=" + token + " (válido por 30 minutos).");
@@ -63,6 +70,7 @@ public class AccountService {
             .orElseThrow(() -> new ApiException(400, "Token inválido ou expirado"));
         repository.updatePassword(userId, passwords.hash(password));
         repository.deleteSessionsForUser(userId);
+        repository.deleteActionTokens(userId, "reset_password");
     }
 
     public boolean emailVerified(User user) {
