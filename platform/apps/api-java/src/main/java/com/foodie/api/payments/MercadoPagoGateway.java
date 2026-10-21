@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -42,16 +43,32 @@ public class MercadoPagoGateway implements PaymentGateway {
     private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(MercadoPagoGateway.class);
     private final RestClient client;
     private final String webhookSecret;
+    private final long webhookToleranceMillis;
 
+    public MercadoPagoGateway(String baseUrl, String webhookSecret) {
+        this(baseUrl, webhookSecret, 300);
+    }
+
+    @Autowired
     public MercadoPagoGateway(@Value("${app.mercadopago.base-url:https://api.mercadopago.com}") String baseUrl,
-                              @Value("${app.mercadopago.webhook-secret:}") String webhookSecret) {
+                              @Value("${app.mercadopago.webhook-secret:}") String webhookSecret,
+                              @Value("${app.mercadopago.webhook-tolerance-seconds:300}") long webhookToleranceSeconds) {
         this.webhookSecret = webhookSecret;
+        this.webhookToleranceMillis = Math.max(1, webhookToleranceSeconds) * 1000;
         // Cobrança/estorno acontecem dentro de transações com locks de pedido/assinatura; sem timeout,
         // uma resposta pendurada do provedor prenderia locks, thread e conexão do pool.
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(5));
         factory.setReadTimeout(Duration.ofSeconds(10));
         this.client = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+    }
+
+    /** Ids do provedor entram no path; formato estrito evita path traversal vindo de notificação/painel. */
+    private static String providerPathId(String externalId) {
+        if (externalId == null || !externalId.matches("[A-Za-z0-9_-]{1,128}")) {
+            throw new ApiException(400, "Identificador de cobrança do provedor inválido");
+        }
+        return externalId;
     }
 
     /** Cada chamada usa o token da loja (decisão de 05/10/2026: o dinheiro é da loja, não há conta global). */
@@ -102,8 +119,9 @@ public class MercadoPagoGateway implements PaymentGateway {
     @Override
     public Charge refund(MerchantCredentials credentials, String externalId, String idempotencyKey) {
         String token = token(credentials);
+        String pathId = providerPathId(externalId);
         try {
-            Map<String, Object> order = client.post().uri("/v1/orders/" + externalId + "/refund")
+            Map<String, Object> order = client.post().uri("/v1/orders/" + pathId + "/refund")
                 .header("Authorization", "Bearer " + token)
                 .header("X-Idempotency-Key", idempotencyKey)
                 .retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {});
@@ -158,8 +176,9 @@ public class MercadoPagoGateway implements PaymentGateway {
     @Override
     public Charge cancel(MerchantCredentials credentials, String externalId, String idempotencyKey) {
         String token = token(credentials);
+        String pathId = providerPathId(externalId);
         try {
-            Map<String, Object> order = client.post().uri("/v1/orders/" + externalId + "/cancel")
+            Map<String, Object> order = client.post().uri("/v1/orders/" + pathId + "/cancel")
                 .header("Authorization", "Bearer " + token)
                 .header("X-Idempotency-Key", idempotencyKey)
                 .retrieve().body(new ParameterizedTypeReference<Map<String, Object>>() {});
@@ -234,15 +253,16 @@ public class MercadoPagoGateway implements PaymentGateway {
     @Override
     public Charge fetch(MerchantCredentials credentials, String externalId) {
         String token = token(credentials);
+        String pathId = providerPathId(externalId);
         try {
-            return fromOrder(get("/v1/orders/" + externalId, token));
+            return fromOrder(get("/v1/orders/" + pathId, token));
         } catch (RestClientResponseException naoEhOrder) {
             // 4xx na order pode ser cobrança da época da Payments API **ou** um id que não existe para a
             // API deles (o teste do painel manda "123456" e o provedor responde 400 "path param order id
             // is invalid"). Vale tentar o caminho antigo antes de concluir que não é nossa.
             if (naoEhOrder.getStatusCode().is4xxClientError()) {
                 try {
-                    return fromPayment(get("/v1/payments/" + externalId, token));
+                    return fromPayment(get("/v1/payments/" + pathId, token));
                 } catch (RestClientResponseException naoEhPagamento) {
                     if (naoEhPagamento.getStatusCode().is4xxClientError()) {
                         throw new ApiException(404, "Cobrança não encontrada no provedor: " + externalId
@@ -323,7 +343,14 @@ public class MercadoPagoGateway implements PaymentGateway {
         if (!"mp-connect".equals(firstString(body, "type", "topic"))) return java.util.Optional.empty();
         String action = firstString(body, "action");
         if (action == null || !action.contains("deauthorized")) return java.util.Optional.empty();
-        return webhookAccountId(request);
+        String signedId = signedDataId(request);
+        String bodyUserId = webhookAccountId(request).orElse(null);
+        // type/action/user_id do corpo não são assinados; a conta só é aceita quando o user_id é o
+        // mesmo data.id coberto pela assinatura e tem formato numérico de usuário do Mercado Pago.
+        if (signedId == null || bodyUserId == null || !signedId.equals(bodyUserId) || !signedId.matches("\\d{1,20}")) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(signedId);
     }
 
     /**
@@ -336,9 +363,20 @@ public class MercadoPagoGateway implements PaymentGateway {
         Map<String, Object> body = request.body();
         String type = firstString(body, "type", "topic");
         if (type != null && !"order".equals(type) && !"payment".equals(type)) return java.util.Optional.empty();
-        Object data = body.get("data");
-        if (data instanceof Map<?, ?> map && map.get("id") != null) return java.util.Optional.of(String.valueOf(map.get("id")));
-        return java.util.Optional.empty();
+        String bodyId = body.get("data") instanceof Map<?, ?> data && data.get("id") != null ? String.valueOf(data.get("id")) : null;
+        String queryId = request.query().get("data.id");
+        // A assinatura cobre o id da query quando ele existe. Não deixa o corpo trocar por outro id.
+        if (queryId != null && bodyId != null && !queryId.equalsIgnoreCase(bodyId)) return java.util.Optional.empty();
+        String id = bodyId != null ? bodyId : queryId;
+        if (id == null || !id.matches("[A-Za-z0-9_-]{1,128}")) return java.util.Optional.empty();
+        return java.util.Optional.of(id);
+    }
+
+    /** Id coberto pela assinatura: a query manda; o corpo é a reserva quando a query não traz data.id. */
+    private static String signedDataId(WebhookRequest request) {
+        String queryId = request.query().get("data.id");
+        if (queryId != null && !queryId.isBlank()) return queryId;
+        return request.body().get("data") instanceof Map<?, ?> data && data.get("id") != null ? String.valueOf(data.get("id")) : null;
     }
 
     @Override
@@ -368,6 +406,11 @@ public class MercadoPagoGateway implements PaymentGateway {
                 if ("ts".equals(pair[0].trim())) ts = pair[1].trim();
                 else if ("v1".equals(pair[0].trim())) v1 = pair[1].trim();
             }
+        }
+        if (!WebhookVerifier.fresh(ts, System.currentTimeMillis(), webhookToleranceMillis)) {
+            logger.warn("Webhook do Mercado Pago recusado (401): ts ausente, inválido ou fora da janela de {} s",
+                webhookToleranceMillis / 1000);
+            return false;
         }
         boolean valida = WebhookVerifier.verify(webhookSecret, idDoManifesto, requestId, ts, v1);
         if (!valida) {

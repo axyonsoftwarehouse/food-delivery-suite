@@ -163,6 +163,13 @@ HMAC-SHA256 com a **assinatura secreta** da aplicação; compare em tempo consta
 - A documentação manda converter o id para **minúsculas**, mas na prática as notificações de order
   chegaram assinadas sobre o id **na caixa original** (`ORDTST01…`). Aceite as duas formas.
 - Sem segredo configurado: **recuse** (401). Não aceite notificação sem conferência.
+- **Janela de tempo:** o `ts` (milissegundos) precisa estar dentro de
+  `MERCADOPAGO_WEBHOOK_TOLERANCE_SECONDS` (padrão **300 s**). Fora disso, **401**. Isso impede reenvio
+  indefinido de uma notificação capturada; o processamento continua idempotente para reenvios legítimos.
+- **Id assinado manda:** o `data.id` da query não pode ser trocado pelo do corpo. Na desvinculação
+  (`mp-connect`), o `user_id` do corpo só é aceito quando é igual ao `data.id` coberto pela assinatura.
+- **Formato do id:** só `[A-Za-z0-9_-]` (até 128) entra no path do provedor; o resto é recusado antes da
+  chamada.
 - Mesmo com assinatura válida, **não confie no corpo**: consulte a order na API com o token certo e use o
   status de lá. No modelo B, ache a loja pelo `user_id` da notificação, consulte com o token dela e
   confira se o pedido pertence a uma loja daquela conta.
