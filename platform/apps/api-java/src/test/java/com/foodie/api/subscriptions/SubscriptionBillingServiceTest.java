@@ -209,6 +209,26 @@ class SubscriptionBillingServiceTest {
     }
 
     @Test
+    void aTimedOutCardAttemptIsRetriedWithTheSameIdempotencyKey() {
+        subscription("active", Instant.parse("2026-10-01T00:00:00Z"));
+        when(charges.findLivePendingRow(7)).thenReturn(Optional.of(Map.of(
+            "id", 42L, "method", "card", "status", "failed", "idempotency_key", "sub-7-1-card-111",
+            "period_start", Timestamp.from(Instant.parse("2026-10-15T00:00:00Z")),
+            "period_end", Timestamp.from(Instant.parse("2026-11-14T00:00:00Z")))));
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDCARD1", "sub-42", 9900, "pending", "pending",
+            null, null, null, null, "https://banco/desafio"));
+
+        assertEquals(42L, service(true).chargeCard(7,
+            new SubscriptionBillingService.CardIntent("tok-card", 1, "CPF", "12345678909", "visa", "dono@loja.com.br")));
+
+        verify(charges).markStatus(42L, "pending", "retrying_same_attempt");
+        verify(charges, never()).insert(anyLong(), anyLong(), anyString(), anyInt(), anyString(), any(), any());
+        ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+        verify(gateway).create(any(), request.capture());
+        assertEquals("sub-7-1-card-111", request.getValue().idempotencyKey());
+    }
+
+    @Test
     void refreshStoresTheChallengeAndCanApplyThePayment() {
         when(charges.findView(99)).thenReturn(Optional.of(Map.of(
             "id", 99L, "subscription_id", 7L, "restaurant_id", 3L, "method", "card", "status", "pending", "external_id", "ORDSUB9")));

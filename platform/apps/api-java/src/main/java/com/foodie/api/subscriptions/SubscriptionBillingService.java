@@ -125,40 +125,54 @@ public class SubscriptionBillingService {
         }
         Instant periodStart;
         Instant periodEnd;
+        Long reusedChargeId = null;
+        String idempotencyKey;
         if (live.isPresent() && "card".equals(live.get().get("method")) && "pending".equals(live.get().get("status"))) {
             // Já existe cartão vivo (desafio aberto ou em análise): repetir o clique não abre outra cobrança.
             return ((Number) live.get().get("id")).longValue();
         }
-        if (live.isPresent()) {
-            Object externalId = live.get().get("external_id");
-            if (externalId != null) {
-                try {
-                    PaymentGateway.Charge cancelled = gateway.cancel(account.credentials(), (String) externalId, "cancel-sub-" + externalId);
-                    // Corrida: o Pix foi pago entre a leitura e o cancelamento. Honra o pagamento e não cobra o cartão.
-                    if (cancelled != null && "paid".equals(cancelled.status())) {
-                        applyPaid("mercadopago", (String) externalId, cancelled);
-                        return ((Number) live.get().get("id")).longValue();
-                    }
-                } catch (RuntimeException error) {
-                    // O provedor pode recusar cancelar; a cobrança antiga fica como abandonada e a duplicata
-                    // que chegar depois é estornada em applyPaid.
-                    log.warn("Assinatura #{}: cobrança {} não pôde ser cancelada antes do cartão ({})",
-                        subscriptionId, externalId, error.getMessage());
-                }
-            }
-            charges.markStatus(((Number) live.get().get("id")).longValue(), "cancelled", "replaced_by_card");
+        if (live.isPresent() && "card".equals(live.get().get("method")) && "failed".equals(live.get().get("status"))
+            && live.get().get("external_id") == null) {
+            // Timeout/crash depois de o provedor poder ter criado a cobrança: repete com a MESMA chave de
+            // idempotência da reserva, em vez de criar outra cobrança de cartão para o mesmo ciclo.
+            reusedChargeId = ((Number) live.get().get("id")).longValue();
+            idempotencyKey = (String) live.get().get("idempotency_key");
             periodStart = instant(live.get().get("period_start"));
             periodEnd = instant(live.get().get("period_end"));
+            charges.markStatus(reusedChargeId, "pending", "retrying_same_attempt");
         } else {
-            periodStart = instant(row.get("ends_at"));
-            if (periodStart == null) periodStart = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
-            Instant now = Instant.now();
-            periodEnd = (periodStart.isBefore(now) ? now : periodStart).plus(Duration.ofDays(((Number) row.get("period_days")).intValue()));
+            if (live.isPresent()) {
+                Object externalId = live.get().get("external_id");
+                if (externalId != null) {
+                    try {
+                        PaymentGateway.Charge cancelled = gateway.cancel(account.credentials(), (String) externalId, "cancel-sub-" + externalId);
+                        // Corrida: o Pix foi pago entre a leitura e o cancelamento. Honra o pagamento e não cobra o cartão.
+                        if (cancelled != null && "paid".equals(cancelled.status())) {
+                            applyPaid("mercadopago", (String) externalId, cancelled);
+                            return ((Number) live.get().get("id")).longValue();
+                        }
+                    } catch (RuntimeException error) {
+                        // O provedor pode recusar cancelar; a cobrança antiga fica como abandonada e a duplicata
+                        // que chegar depois é estornada em applyPaid.
+                        log.warn("Assinatura #{}: cobrança {} não pôde ser cancelada antes do cartão ({})",
+                            subscriptionId, externalId, error.getMessage());
+                    }
+                }
+                charges.markStatus(((Number) live.get().get("id")).longValue(), "cancelled", "replaced_by_card");
+                periodStart = instant(live.get().get("period_start"));
+                periodEnd = instant(live.get().get("period_end"));
+            } else {
+                periodStart = instant(row.get("ends_at"));
+                if (periodStart == null) periodStart = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+                Instant now = Instant.now();
+                periodEnd = (periodStart.isBefore(now) ? now : periodStart).plus(Duration.ofDays(((Number) row.get("period_days")).intValue()));
+            }
+            idempotencyKey = "sub-" + subscriptionId + "-" + periodStart.getEpochSecond() + "-card-" + System.currentTimeMillis();
         }
 
         int amount = ((Number) row.get("price_cents")).intValue();
-        String idempotencyKey = "sub-" + subscriptionId + "-" + periodStart.getEpochSecond() + "-card-" + System.currentTimeMillis();
-        long chargeId = charges.insert(subscriptionId, restaurantId, "card", amount, idempotencyKey, periodStart, periodEnd);
+        long chargeId = reusedChargeId != null ? reusedChargeId
+            : charges.insert(subscriptionId, restaurantId, "card", amount, idempotencyKey, periodStart, periodEnd);
         PaymentGateway.Charge created;
         try {
             created = gateway.create(account.credentials(), new PaymentGateway.ChargeRequest(

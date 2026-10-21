@@ -61,7 +61,7 @@ public class SubscriptionChargeRepository {
      * isso para decidir entre Pix, cartão e 3DS.
      */
     public Optional<Map<String, Object>> findLivePendingRow(long subscriptionId) {
-        return jdbc.queryForList("SELECT id, method, status, external_id, period_start, period_end, challenge_url"
+        return jdbc.queryForList("SELECT id, method, status, external_id, idempotency_key, period_start, period_end, challenge_url"
                 + " FROM subscription_charges WHERE subscription_id = ? AND status IN ('pending','failed') ORDER BY id DESC LIMIT 1 FOR UPDATE",
             subscriptionId).stream().findFirst();
     }
