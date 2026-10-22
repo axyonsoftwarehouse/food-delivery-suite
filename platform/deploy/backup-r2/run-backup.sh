@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 PROJECT="${1:-}"
 BASE="${BACKUP_R2_BASE:-/home/deploy/backup-r2}"

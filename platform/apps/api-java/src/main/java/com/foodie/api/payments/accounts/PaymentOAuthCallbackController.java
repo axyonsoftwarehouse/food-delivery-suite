@@ -30,10 +30,11 @@ public class PaymentOAuthCallbackController {
                                          @RequestParam(required = false) String error) {
         PaymentAccountService.Callback result = accounts.receiveCallback(code, state, error);
         // O painel confirma com a sessão do dono (POST .../mercadopago/confirm); só então a conta é conectada.
-        String query = "confirmar".equals(result.outcome())
+        // Fragmento não é enviado ao servidor/proxy: o token de confirmação de uso único não entra em log.
+        String fragment = "confirmar".equals(result.outcome())
             ? "mercadopago=confirmar&token=" + result.confirmToken()
             : "mercadopago=erro&motivo=" + result.outcome();
-        String target = returnUrl + (returnUrl.contains("?") ? "&" : "?") + query;
+        String target = returnUrl + (returnUrl.contains("#") ? "&" : "#") + fragment;
         return ResponseEntity.status(302).location(URI.create(target)).build();
     }
 }

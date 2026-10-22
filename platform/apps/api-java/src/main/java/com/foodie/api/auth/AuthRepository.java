@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
@@ -14,9 +16,20 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class AuthRepository {
     private final JdbcTemplate jdbc;
+    private final int sessionDays;
+    private final int sessionIdleMinutes;
 
     public AuthRepository(JdbcTemplate jdbc) {
+        this(jdbc, 3, 1440);
+    }
+
+    @Autowired
+    public AuthRepository(JdbcTemplate jdbc,
+                          @Value("${app.auth.session-days:3}") int sessionDays,
+                          @Value("${app.auth.session-idle-minutes:1440}") int sessionIdleMinutes) {
         this.jdbc = jdbc;
+        this.sessionDays = Math.max(1, sessionDays);
+        this.sessionIdleMinutes = Math.max(1, sessionIdleMinutes);
     }
 
     public Optional<Credentials> findCredentials(String email) {
@@ -29,14 +42,23 @@ public class AuthRepository {
 
     public Optional<User> findSessionUser(String tokenHash) {
         List<User> rows = jdbc.query(
-            "SELECT u.id, u.name, u.email, u.role, u.restaurant_id FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > NOW() AND u.suspended_at IS NULL LIMIT 1",
-            (rs, row) -> user(rs), tokenHash
+            "SELECT u.id, u.name, u.email, u.role, u.restaurant_id FROM sessions s JOIN users u ON u.id = s.user_id "
+                + "WHERE s.token_hash = ? AND s.expires_at > NOW() AND s.last_seen_at > DATE_SUB(NOW(), INTERVAL ? MINUTE) "
+                + "AND u.suspended_at IS NULL LIMIT 1",
+            (rs, row) -> user(rs), tokenHash, sessionIdleMinutes
         );
         return rows.stream().findFirst();
     }
 
+    /** Renova o timeout ocioso no máximo uma vez a cada 5 minutos (evita UPDATE em toda requisição). */
+    public void touchSession(String tokenHash) {
+        jdbc.update("UPDATE sessions SET last_seen_at = NOW() WHERE token_hash = ? AND last_seen_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)",
+            tokenHash);
+    }
+
     public void createSession(String tokenHash, long userId) {
-        jdbc.update("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))", tokenHash, userId);
+        jdbc.update("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? DAY))",
+            tokenHash, userId, sessionDays);
     }
 
     /** Reset anterior rejeita; reset posterior espera esta transação e apaga a sessão. */
@@ -44,8 +66,8 @@ public class AuthRepository {
     public boolean createSessionIfPasswordCurrent(String tokenHash, long userId, String expectedPasswordHash) {
         jdbc.queryForList("SELECT id FROM users WHERE id = ? FOR UPDATE", userId);
         return jdbc.update("INSERT INTO sessions (token_hash, user_id, expires_at) "
-            + "SELECT ?, id, DATE_ADD(NOW(), INTERVAL 7 DAY) FROM users "
-            + "WHERE id = ? AND password_hash = ? AND suspended_at IS NULL", tokenHash, userId, expectedPasswordHash) == 1;
+            + "SELECT ?, id, DATE_ADD(NOW(), INTERVAL ? DAY) FROM users "
+            + "WHERE id = ? AND password_hash = ? AND suspended_at IS NULL", tokenHash, sessionDays, userId, expectedPasswordHash) == 1;
     }
 
     @org.springframework.transaction.annotation.Transactional

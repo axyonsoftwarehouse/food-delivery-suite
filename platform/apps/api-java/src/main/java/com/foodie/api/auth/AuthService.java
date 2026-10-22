@@ -28,7 +28,8 @@ public class AuthService {
     public Login login(String email, String password, String origin) {
         repository.deleteExpiredSessions();
         String normalizedEmail = email.toLowerCase(Locale.ROOT);
-        String accountKey = Tokens.hash("login:" + normalizedEmail);
+        // A trava por conta inclui a origem: um IP não consegue bloquear o login da vítima em outro.
+        String accountKey = Tokens.hash("login:" + normalizedEmail + (origin == null ? "" : ":" + origin));
         String originKey = origin == null ? null : Tokens.hash("login-ip:" + origin);
         if (repository.isLoginLimited(accountKey) || originKey != null && repository.isLoginLimited(originKey)) {
             throw new ApiException(429, "Muitas tentativas. Aguarde antes de tentar novamente");
@@ -43,7 +44,13 @@ public class AuthService {
             throw new ApiException(401, "Credenciais inválidas");
         }
         String token = Tokens.random();
-        if (!repository.createSessionIfPasswordCurrent(Tokens.hash(token), credentials.get().user().id(), credentials.get().passwordHash())) {
+        String passwordHash = credentials.get().passwordHash();
+        if (passwords.needsRehash(passwordHash)) {
+            // Migração transparente: o login válido no formato antigo troca para o custo atual.
+            passwordHash = passwords.hash(password);
+            repository.updatePassword(credentials.get().user().id(), passwordHash);
+        }
+        if (!repository.createSessionIfPasswordCurrent(Tokens.hash(token), credentials.get().user().id(), passwordHash)) {
             throw new ApiException(401, "Credenciais inválidas");
         }
         repository.clearLoginFailures(accountKey);
@@ -77,7 +84,10 @@ public class AuthService {
 
     public Optional<User> currentUser(String token) {
         if (!validToken(token)) return Optional.empty();
-        return repository.findSessionUser(Tokens.hash(token));
+        String hash = Tokens.hash(token);
+        Optional<User> user = repository.findSessionUser(hash);
+        user.ifPresent(ignored -> repository.touchSession(hash));
+        return user;
     }
 
     public User requireUser(String token, String... roles) {

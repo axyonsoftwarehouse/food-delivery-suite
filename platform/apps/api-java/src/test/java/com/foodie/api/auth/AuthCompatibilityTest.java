@@ -27,8 +27,10 @@ class AuthCompatibilityTest {
         assertFalse(verifier.matches("wrong-password", NODE_HASH));
         assertFalse(verifier.matches("test-password-123", "broken"));
         String javaHash = verifier.hash("another-test-password");
-        assertTrue(javaHash.matches("[0-9a-f]{32}:[0-9a-f]{128}"));
+        assertTrue(javaHash.matches("\\d+:\\d+:\\d+:[0-9a-f]{32}:[0-9a-f]{128}"));
         assertTrue(verifier.matches("another-test-password", javaHash));
+        assertFalse(verifier.needsRehash(javaHash));
+        assertTrue(verifier.needsRehash(NODE_HASH));
     }
 
     @Test
