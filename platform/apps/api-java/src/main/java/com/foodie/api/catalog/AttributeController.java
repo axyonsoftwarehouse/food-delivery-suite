@@ -67,11 +67,18 @@ public class AttributeController {
                                          @PathVariable @Positive long id, @Valid @RequestBody LinkRequest body) {
         User user = restaurant(token);
         requireOwn(id, user.restaurantId());
-        replace(id, body.attributeIds());
+        replace(id, user.restaurantId(), body.attributeIds());
         return Map.of("ok", true);
     }
 
-    private void replace(long productId, List<Long> attributeIds) {
+    private void replace(long productId, long restaurantId, List<Long> attributeIds) {
+        // O atributo precisa ser da mesma loja: sem isto, um id de outra loja era aceito e aparecia no
+        // cardápio público deste produto.
+        for (Long attributeId : attributeIds) {
+            Integer own = jdbc.query("SELECT 1 FROM attributes WHERE id = ? AND restaurant_id = ?",
+                rs -> rs.next() ? 1 : null, attributeId, restaurantId);
+            if (own == null) throw new ApiException(400, "Atributo não encontrado nesta loja");
+        }
         jdbc.update("DELETE FROM product_attributes WHERE product_id = ?", productId);
         for (Long attributeId : attributeIds) {
             jdbc.update("INSERT INTO product_attributes (product_id, attribute_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE product_id = product_id", productId, attributeId);

@@ -33,13 +33,17 @@ public class ReviewService {
     }
 
     public Map<String, Object> forOrder(User user, long orderId) {
-        List<Map<String, Object>> orders = jdbc.queryForList("SELECT customer_id, restaurant_id FROM orders WHERE id = ?", orderId);
+        List<Map<String, Object>> orders = jdbc.queryForList("SELECT customer_id, restaurant_id, courier_id FROM orders WHERE id = ?", orderId);
         if (orders.isEmpty()) throw new ApiException(404, "Pedido não encontrado");
         Map<String, Object> order = orders.getFirst();
         boolean allowed = switch (user.role()) {
             case "customer" -> ((Number) order.get("customer_id")).longValue() == user.id();
-            case "restaurant" -> user.restaurantId() != null && ((Number) order.get("restaurant_id")).longValue() == user.restaurantId();
-            default -> true;
+            case "restaurant", "kitchen" -> user.restaurantId() != null
+                && ((Number) order.get("restaurant_id")).longValue() == user.restaurantId();
+            case "courier" -> order.get("courier_id") instanceof Number courier && courier.longValue() == user.id();
+            // O admin só chega aqui com orders.manage ou support.view (checado no controller).
+            case "admin" -> true;
+            default -> false;
         };
         if (!allowed) throw new ApiException(403, "Acesso não autorizado");
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT id, order_id, rating, comment, created_at FROM reviews WHERE order_id = ?", orderId);

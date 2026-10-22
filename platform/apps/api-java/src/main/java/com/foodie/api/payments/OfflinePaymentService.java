@@ -58,7 +58,7 @@ public class OfflinePaymentService {
     @Transactional
     public Map<String, Object> submitProof(User actor, long orderId, long methodId, String proofUrl, String note) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT p.status, p.raw_status, p.modality, p.external_id, o.customer_id, o.status AS order_status FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE",
+            "SELECT p.status, p.raw_status, p.modality, p.external_id, o.customer_id, o.restaurant_id, o.status AS order_status FROM order_payments p JOIN orders o ON o.id = p.order_id WHERE p.order_id = ? FOR UPDATE",
             orderId
         );
         if (rows.isEmpty()) throw new ApiException(404, "Pagamento não encontrado");
@@ -74,9 +74,14 @@ public class OfflinePaymentService {
         }
 
         List<Map<String, Object>> methods = jdbc.queryForList(
-            "SELECT id, slug, requires_proof FROM offline_payment_methods WHERE id = ? AND active = TRUE", methodId);
+            "SELECT id, slug, requires_proof, restaurant_id FROM offline_payment_methods WHERE id = ? AND active = TRUE", methodId);
         if (methods.isEmpty()) throw new ApiException(400, "Método de pagamento indisponível");
         Map<String, Object> method = methods.getFirst();
+        // Métodos globais (restaurant_id NULL) valem para todas as lojas; um método de outra loja não.
+        Object methodRestaurant = method.get("restaurant_id");
+        if (methodRestaurant != null && number(row, "restaurant_id") != ((Number) methodRestaurant).longValue()) {
+            throw new ApiException(400, "Método de pagamento não pertence a esta loja");
+        }
 
         String url = clean(proofUrl);
         if (url != null && !url.matches("https?://\\S+")) throw new ApiException(400, "O comprovante deve ser um link http(s)");

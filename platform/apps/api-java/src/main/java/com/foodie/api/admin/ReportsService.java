@@ -211,6 +211,8 @@ public class ReportsService {
 
     private static String csv(Object value) {
         String text = value == null ? "" : String.valueOf(value);
+        // Fórmula de planilha começa com = + - @ (ou TAB/CR): neutraliza antes de exportar.
+        if (!text.isEmpty() && "=+-@\t\r".indexOf(text.charAt(0)) >= 0) text = "'" + text;
         if (text.contains(",") || text.contains("\"") || text.contains("\n")) {
             return '"' + text.replace("\"", "\"\"") + '"';
         }
