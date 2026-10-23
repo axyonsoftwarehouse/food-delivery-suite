@@ -347,6 +347,38 @@ curl -fsS https://api.staging.2.29.42.104.sslip.io/ready
 curl -fsS -o /dev/null -w '%{http_code}\n' https://staging.2.29.42.104.sslip.io
 ```
 
+### Pagamentos: webhook recusado e chave do 3DS
+
+**Alerta `FoodieWebhookRejected` no Telegram:** duas ou mais notificações do Mercado Pago recusadas
+(401) em 15 minutos. Enquanto durar, pagamento online e estorno feito no painel do provedor **não são
+confirmados** pela notificação. Em 21–23/10/2026 isso durou um dia e meio sem ninguém saber (PR #71: o
+`ts` vinha em segundos e a janela comparava em milissegundos; corrigido na PR #83). O log diz o motivo:
+
+```bash
+cd /home/deploy/foodie-platform/deploy
+docker compose logs --since 30m api | grep "Webhook do Mercado Pago recusado"
+```
+
+- `MERCADOPAGO_WEBHOOK_SECRET não configurado` → falta o segredo no `deploy/.env`.
+- `fora da janela … ts=… dígitos=…` → o `ts` não bate com o relógio (unidade ou relógio da VPS: `timedatectl`).
+- `assinatura=… manifesto=…` → segredo trocado (alguém clicou em "Salvar"/"Redefinir" no painel do
+  Mercado Pago?) ou o provedor mudou o formato.
+
+**Desligar o 3DS do cartão (emergência, sem deploy).** O padrão é `on_fraud_risk`: o banco pede a
+verificação só em compra arriscada, e o chargeback de fraude da compra autenticada passa para a
+bandeira. Desligar devolve esse chargeback para a loja; use só se a verificação estiver impedindo vendas.
+
+```bash
+cd /home/deploy/foodie-platform/deploy
+echo 'MERCADOPAGO_CARD_3DS=never' >> .env      # o deploy não sobrescreve o deploy/.env
+docker compose up -d api                        # recria a API com o .env novo (restart não relê o .env)
+docker compose logs --since 2m api | grep "3DS do cartão DESLIGADO"
+```
+
+Para religar, troque a linha por `MERCADOPAGO_CARD_3DS=on_fraud_risk` (ou apague) e repita o
+`docker compose up -d api`. Valor desconhecido mantém o 3DS **ligado** e avisa no log. A chave vale para
+o cartão do pedido e da assinatura; o Pix não tem 3DS.
+
 ### Espaço em disco
 
 **Situação em 30/09/2026:** a limpeza levou o disco de **29 GB (79%)** para

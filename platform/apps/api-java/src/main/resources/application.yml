@@ -75,8 +75,12 @@ app:
     from: ${MAIL_FROM:}
   mercadopago:
     webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
-    # Janela aceita para o `ts` da assinatura (o provedor manda em milissegundos). Fora dela, 401.
+    # Janela aceita para o `ts` da assinatura (o provedor manda em segundos; ms também é aceito). Fora dela, 401.
     webhook-tolerance-seconds: ${MERCADOPAGO_WEBHOOK_TOLERANCE_SECONDS:300}
+    # 3DS do cartão: `on_fraud_risk` (padrão: o banco pede a verificação só em compra arriscada, e o
+    # chargeback de fraude da compra autenticada passa para a bandeira) ou `never` (chave de emergência:
+    # sem 3DS, o chargeback volta a ser da loja). Mudar exige só reiniciar a API, sem novo deploy.
+    card-3ds: ${MERCADOPAGO_CARD_3DS:on_fraud_risk}
     base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
     # A URL de notificação NÃO é configurável por ambiente: a API de Orders recusa
     # `notification_url` no corpo (400 unsupported_properties) e o Mercado Pago chama a URL

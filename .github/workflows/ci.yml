@@ -60,6 +60,11 @@ jobs:
       - name: Auditoria de dependências (crítica)
         run: pnpm audit --prod --audit-level critical
 
+      # O deploy reinicia o Prometheus com o alerts.yml do release; uma regra inválida o derrubaria.
+      # Mesma imagem do monitoring/docker-compose.yml.
+      - name: Regras de alerta (promtool)
+        run: docker run --rm --entrypoint promtool -v "$PWD/monitoring:/m:ro" prom/prometheus:v2.55.0 check rules /m/alerts.yml
+
       # O verify integrado sobe um banco efêmero (docker-compose.test.yml) e lê as
       # senhas de platform/.env e platform/tools/.env, que não são versionados. São
       # descartáveis: o banco nasce e morre dentro do job. Os secrets são opcionais —

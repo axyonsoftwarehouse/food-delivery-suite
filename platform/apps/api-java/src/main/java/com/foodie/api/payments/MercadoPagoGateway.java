@@ -44,17 +44,28 @@ public class MercadoPagoGateway implements PaymentGateway {
     private final RestClient client;
     private final String webhookSecret;
     private final long webhookToleranceMillis;
+    private final boolean card3ds;
 
     public MercadoPagoGateway(String baseUrl, String webhookSecret) {
-        this(baseUrl, webhookSecret, 300);
+        this(baseUrl, webhookSecret, 300, "on_fraud_risk");
     }
 
     @Autowired
     public MercadoPagoGateway(@Value("${app.mercadopago.base-url:https://api.mercadopago.com}") String baseUrl,
                               @Value("${app.mercadopago.webhook-secret:}") String webhookSecret,
-                              @Value("${app.mercadopago.webhook-tolerance-seconds:300}") long webhookToleranceSeconds) {
+                              @Value("${app.mercadopago.webhook-tolerance-seconds:300}") long webhookToleranceSeconds,
+                              @Value("${app.mercadopago.card-3ds:on_fraud_risk}") String card3ds) {
         this.webhookSecret = webhookSecret;
         this.webhookToleranceMillis = Math.max(1, webhookToleranceSeconds) * 1000;
+        // Chave de emergência do 3DS: só `never` desliga. Qualquer outro valor (inclusive erro de digitação)
+        // mantém o padrão seguro, para um .env errado não tirar o 3DS sem querer.
+        this.card3ds = !"never".equalsIgnoreCase(card3ds == null ? "" : card3ds.trim());
+        if (!this.card3ds) {
+            logger.warn("3DS do cartão DESLIGADO (MERCADOPAGO_CARD_3DS=never): o chargeback de fraude volta a ser da loja.");
+        } else if (card3ds != null && !card3ds.isBlank() && !"on_fraud_risk".equalsIgnoreCase(card3ds.trim())) {
+            logger.warn("MERCADOPAGO_CARD_3DS={} não reconhecido; 3DS segue ligado (on_fraud_risk). Use on_fraud_risk ou never.",
+                card3ds.trim().replaceAll("[^0-9A-Za-z_-]", "?"));
+        }
         // Cobrança/estorno acontecem dentro de transações com locks de pedido/assinatura; sem timeout,
         // uma resposta pendurada do provedor prenderia locks, thread e conexão do pool.
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -231,9 +242,10 @@ public class MercadoPagoGateway implements PaymentGateway {
         pagamento.put("amount", dinheiro(request.amountCents()));
         pagamento.put("payment_method", meio);
         corpo.put("transactions", Map.of("payments", List.of(pagamento)));
-        if ("card".equals(request.method())) {
+        if ("card".equals(request.method()) && card3ds) {
             // 3DS só quando o banco achar a compra arriscada; com a compra autenticada, o chargeback por fraude
-            // passa da loja para a bandeira (spec de 14/10/2026, regra 1). O Pix não tem 3DS.
+            // passa da loja para a bandeira (spec de 14/10/2026, regra 1). O Pix não tem 3DS. Com
+            // MERCADOPAGO_CARD_3DS=never o `config` sai, e o corpo volta ao de antes da #39.
             corpo.put("config", Map.of("online", Map.of("transaction_security",
                 Map.of("validation", "on_fraud_risk", "liability_shift", "required"))));
         }
