@@ -407,9 +407,16 @@ public class MercadoPagoGateway implements PaymentGateway {
                 else if ("v1".equals(pair[0].trim())) v1 = pair[1].trim();
             }
         }
-        if (!WebhookVerifier.fresh(ts, System.currentTimeMillis(), webhookToleranceMillis)) {
-            logger.warn("Webhook do Mercado Pago recusado (401): ts ausente, inválido ou fora da janela de {} s",
-                webhookToleranceMillis / 1000);
+        long agora = System.currentTimeMillis();
+        if (!WebhookVerifier.fresh(ts, agora, webhookToleranceMillis)) {
+            // Diagnóstico: a documentação do provedor se contradiz sobre a unidade do `ts` (segundos ou
+            // milissegundos). O valor recebido não é segredo e diz qual é a unidade real; vem de fora, então
+            // entra no log curto e só com caracteres seguros.
+            String tsLog = ts == null ? "AUSENTE" : ts.substring(0, Math.min(20, ts.length())).replaceAll("[^0-9A-Za-z._-]", "?");
+            logger.warn("Webhook do Mercado Pago recusado (401): ts ausente, inválido ou fora da janela de {} s "
+                    + "(x-signature={} ts={} dígitos={} agora-ms={})",
+                webhookToleranceMillis / 1000, signature == null ? "AUSENTE" : "presente",
+                tsLog, ts == null ? 0 : ts.length(), agora);
             return false;
         }
         boolean valida = WebhookVerifier.verify(webhookSecret, idDoManifesto, requestId, ts, v1);
