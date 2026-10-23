@@ -27,6 +27,10 @@ class MercadoPagoOrdersTest {
     private final AtomicReference<String> corpoEnviado = new AtomicReference<>();
 
     private MercadoPagoGateway gateway(int status, String resposta) throws Exception {
+        return gateway(status, resposta, "on_fraud_risk");
+    }
+
+    private MercadoPagoGateway gateway(int status, String resposta, String card3ds) throws Exception {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", troca -> {
             corpoEnviado.set(new String(troca.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
@@ -39,7 +43,7 @@ class MercadoPagoOrdersTest {
             troca.close();
         });
         server.start();
-        return new MercadoPagoGateway("http://127.0.0.1:" + server.getAddress().getPort(), "segredo");
+        return new MercadoPagoGateway("http://127.0.0.1:" + server.getAddress().getPort(), "segredo", 300, card3ds);
     }
 
     @AfterEach
@@ -66,6 +70,32 @@ class MercadoPagoOrdersTest {
         JsonNode corpo = new ObjectMapper().readTree(corpoEnviado.get());
         assertEquals("on_fraud_risk", corpo.at("/config/online/transaction_security/validation").asText());
         assertEquals("required", corpo.at("/config/online/transaction_security/liability_shift").asText());
+    }
+
+    @Test
+    void cardOrderSkips3dsWhenTheSwitchIsOff() throws Exception {
+        // MERCADOPAGO_CARD_3DS=never: a chave de emergência volta ao corpo de antes da #39 (sem `config`,
+        // ou seja, `validation: never`). Desligar custa a transferência do chargeback de fraude.
+        MercadoPagoGateway mp = gateway(201, """
+            {"id":"ORDCARD","external_reference":"51","total_amount":"41.90","status":"processed",
+             "transactions":{"payments":[{"id":"PAYCARD","amount":"41.90","status":"processed","status_detail":"accredited"}]}}
+            """, "never");
+
+        mp.create(LOJA, CARTAO);
+
+        JsonNode corpo = new ObjectMapper().readTree(corpoEnviado.get());
+        assertTrue(corpo.at("/config").isMissingNode());
+    }
+
+    @Test
+    void unknown3dsSwitchValueKeepsTheSafeDefault() throws Exception {
+        // Um erro de digitação no .env não pode desligar o 3DS sem querer.
+        MercadoPagoGateway mp = gateway(201, DESAFIO, "nunca");
+
+        mp.create(LOJA, CARTAO);
+
+        JsonNode corpo = new ObjectMapper().readTree(corpoEnviado.get());
+        assertEquals("on_fraud_risk", corpo.at("/config/online/transaction_security/validation").asText());
     }
 
     @Test

@@ -67,3 +67,22 @@ groups:
         annotations:
           summary: "Pool de conexões do banco quase esgotado"
           description: "Mais de 90% do pool Hikari está em uso."
+
+      # Notificação do provedor recusada: desde a #71 (21/10/2026) todo webhook do Mercado Pago voltou 401
+      # por um dia e meio sem ninguém saber — o FoodieHighErrorRate só conta 5xx. Uma recusa avulsa pode ser
+      # robô; duas em 15 minutos já é o provedor reenviando (segredo trocado, janela, formato do provedor).
+      # O segundo ramo cobre a série que nasce na primeira recusa (depois de cada deploy): o `increase` não
+      # conta esse salto inicial — sozinho, ele mostrou 2,1 para as 8 recusas do pedido #98 (23/10).
+      # Conferido contra o histórico de 23/10: dispara às 01:21 (#98), 05:01 e 05:30 (#100) e fica quieto fora.
+      - alert: FoodieWebhookRejected
+        expr: |
+          (sum(increase(http_server_requests_seconds_count{uri=~"/webhooks/.*",status="401"}[15m])) >= 2)
+          or
+          (sum(http_server_requests_seconds_count{uri=~"/webhooks/.*",status="401"}
+               unless http_server_requests_seconds_count{uri=~"/webhooks/.*",status="401"} offset 15m) >= 2)
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Webhook de pagamento recusado (401)"
+          description: "Cerca de {{ $value | printf \"%.0f\" }} notificações recusadas em 15 min: pagamentos online e estornos não estão sendo confirmados. Veja `docker compose logs api | grep 'Webhook do Mercado Pago recusado'`."

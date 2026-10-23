@@ -27,6 +27,7 @@ O `render.sh` lê `monitoring/.env` e substitui os placeholders de `alertmanager
 | `FoodieHighErrorRate` | mais de 2% de 5xx em 5 min | aviso |
 | `FoodieHighLatencyP95` | p95 > 800 ms em 5 min | aviso |
 | `FoodieDatabasePoolSaturated` | pool Hikari > 90% | aviso |
+| `FoodieWebhookRejected` | 2 ou mais notificações de pagamento recusadas (401) em 15 min | crítica |
 
 "Contêiner unhealthy" é coberto pelas sondagens de disponibilidade (`api`, `web`, `db`): se o serviço parar de responder, o alerta dispara mesmo sem o Docker reportar `unhealthy`.
 

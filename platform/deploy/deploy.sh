@@ -278,6 +278,24 @@ package=$PACKAGE
 log=$LOG
 EOF
 
+# ------------------------------------------------- 7b. regras de alerta
+# O Prometheus monta prometheus.yml e alerts.yml como arquivo; o rsync troca o arquivo e o container
+# segue lendo a versão antiga até reiniciar (o FoodieWebhookRejected de 23/10 ficaria parado). Só mexe se
+# a pilha de monitoramento estiver no ar, e uma falha aqui só avisa: o deploy já está no ar.
+PROM="$(docker ps --format '{{.Names}}' | grep -E '^foodie-monitoring-prometheus' | head -1 || true)"
+if [ -n "$PROM" ]; then
+  if docker restart "$PROM" >/dev/null 2>&1; then
+    sleep 5
+    if [ "$(docker inspect -f '{{.State.Running}}' "$PROM" 2>/dev/null)" = "true" ]; then
+      info "Prometheus reiniciado com as regras de alerta deste release"
+    else
+      warn "Prometheus NÃO voltou depois do restart — confira: docker logs $PROM (regra inválida em monitoring/alerts.yml?)"
+    fi
+  else
+    warn "não foi possível reiniciar o Prometheus ($PROM); as regras de alerta antigas seguem valendo"
+  fi
+fi
+
 say "Deploy concluído"
 info "release no ar : $SHA"
 info "schemaVersion : $GOT"
