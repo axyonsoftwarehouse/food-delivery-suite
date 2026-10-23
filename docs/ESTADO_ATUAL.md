@@ -1,7 +1,13 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 19/10/2026 (retrato do §0, §5 e §6: PRs #42 a #62
-mescladas e publicadas, schema `071`).
+Documento vivo. Última atualização: 22/10/2026 (retrato do §0, §4, §5 e §6: PRs #63 a #80
+mescladas e publicadas, `cf8493a`, schema `074`).
+Rodada de segurança em 21/10/2026 (PRs #70 a #80): cadastro sem senha até verificar o
+e-mail, login social vinculado com segurança, OAuth sem token na URL, IDOR, XSS,
+cabeçalhos HTTP, janela de tempo e ids assinados no webhook, OTP com telefone E.164,
+bloqueio por IP e conta, sessão absoluta de 3 dias com expiração por ociosidade de 24 h
+(`V074`), métodos offline filtrados por loja, SCrypt versionado e auditoria de
+dependências críticas no CI.
 Correções de segurança em 16/10/2026: equipe, modalidade do pagamento,
 webhook/concorrência da assinatura, fatura e chat; revisão complementar com oito
 correções de concorrência, login, 3DS, arquivos privados e cotas de SMS. Migration
@@ -27,17 +33,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`297ec38`** — merge da PR #62 (fotos dos pratos no catálogo e visual do admin, entregador e cliente), 19/10 13:56 UTC. A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #62** são os do `axyonsoftwarehouse` |
-| Em revisão | **nada aberto** (conferido em 19/10 com `gh pr list --state open`). De 15/10 a 19/10 entraram as **PRs #42 a #62** (§6) |
-| `main` local | `adb9da2` (PR #36) — 73 commits atrás do `origin/main` em 19/10; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
-| **Código na VPS** | **`297ec38`** — o `main` inteiro (até a PR #62), publicado pelo **botão do GitHub** em **19/10 14:06 UTC** (run `39265931233`, sucesso, `headSha` = `297ec38`; antes dele, o `053ba60` da PR #55, deploy de 18/10 23:44 UTC). Conteúdo do `.deployed` não lido nesta atualização `(a confirmar)` |
-| Schema (`/ready`) | **`071`** na VPS e no `HEAD` do `main` (conferido em 19/10: `{"status":"ready","schemaVersion":"071"}` em `https://api.staging.2.29.42.104.sslip.io/ready`). Migrations novas desde 15/10: `V069` (cobranças da assinatura, PR #46), `V070` (impede excluir papel atribuído, PR #54) e `V071` (papel de acesso total do admin, PR #57) |
-| Distância | o staging roda o mesmo commit do `origin/main`; a home do staging responde 200 (19/10) |
+| `origin/main` | **`cf8493a`** — merge da PR #78 (controle de acesso, XSS, cabeçalhos e dependências), 22/10 11:40 UTC. A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #80** são os do `axyonsoftwarehouse` |
+| Em revisão | **nada aberto** (conferido em 22/10 com `gh pr list --state open`). De 19/10 a 22/10 entraram as **PRs #63 a #80** (§6) |
+| `main` local | `adb9da2` (PR #36), atrás do `origin/main`; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
+| **Código na VPS** | **`cf8493a`** — o `main` inteiro (até a PR #80), publicado pelo **botão do GitHub** em **22/10 22:18 UTC** (run `39863428667`, sucesso, `headSha` = `cf8493a`; antes dele, o `aa5915b` da PR #77, deploy de 21/10 19:54 UTC). Conteúdo do `.deployed` não lido nesta atualização `(a confirmar)` |
+| Schema (`/ready`) | **`074`** na VPS e no `HEAD` do `main` (conferido em 22/10: `{"status":"ready","schemaVersion":"074"}` em `https://api.staging.2.29.42.104.sslip.io/ready`). Migrations novas desde 19/10: `V072` (verificação 3DS na cobrança da assinatura, PR #69), `V073` (provedor do login social, PR #70, que entrou na `main` pela #69) e `V074` (sessão com expiração por ociosidade, PR #75, que entrou na `main` pela #79) |
+| Distância | o staging roda o mesmo commit do `origin/main`; a home do staging e o `/health` respondem 200 (22/10) |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `pnpm verify` verde na branch `feat/assinatura-cobranca-real` (15/10, local, sem integração: Docker parado), com **770 testes Java** sem falha. Antes: `pnpm verify` verde na branch `fix/3ds-desistencia` (14/10) com **737 testes Java** sem falha; `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #40 e #41. Em 19/10, o CI do `main` (`push`, `297ec38`) está **verde**; contagem de testes Java depois das PRs #42 a #62 `(a confirmar)` com `pnpm verify` |
+| Testes Java | `pnpm verify` verde na branch `feat/assinatura-cobranca-real` (15/10, local, sem integração: Docker parado), com **770 testes Java** sem falha. Antes: `pnpm verify` verde na branch `fix/3ds-desistencia` (14/10) com **737 testes Java** sem falha; `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #40 e #41. Em 22/10, o CI do `main` (`push`, `cf8493a`) está **verde**; contagem de testes Java depois das PRs #42 a #80 `(a confirmar)` com `pnpm verify` |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
-| Disco da VPS | **34%** em 13/10 (antes do deploy de 14/10; número novo `(a confirmar)` com `df -h /`); a limpeza automática dispara em 70% |
-| Árvore de trabalho | branch **`docs/estado-atual-2026-10-19`** (esta atualização, a partir do `297ec38`). Não versionados: `.claude/`, `docs/PLANO_APPS_MOBILE_MARCOS.md` e `docs/PLANO_APPS_MOBILE_NEGOCIO.md` (planos dos apps móveis de 15/10, ainda fora do Git) |
+| Disco da VPS | **35%** em 20/10, depois da limpeza manual da PR #68 (59% → 35%); número novo `(a confirmar)` com `df -h /`. Desde a PR #68, um timer limpa a cada 2 dias (04:30 UTC) quando o disco passa de 60%, e o deploy segue com a trava de espaço |
+| Árvore de trabalho | branch **`docs/estado-atual-2026-10-22`** (esta atualização, a partir do `cf8493a`). Não versionados: `.claude/`, `docs/PLANO_APPS_MOBILE_MARCOS.md` e `docs/PLANO_APPS_MOBILE_NEGOCIO.md` (planos dos apps móveis de 15/10, ainda fora do Git) |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -257,7 +263,11 @@ recusa e assim por diante.
   **Servidor implementado e no ar** (PR #46, migration `V069`): cobrança Pix por ciclo na conta Mercado
   Pago da Foodie (credenciais por ambiente), webhook idempotente com roteamento próprio, renovação e
   carência. O **trial é de 15 dias** (`SUBSCRIPTIONS_TRIAL_DAYS`): não é cobrado enquanto corre e a
-  **primeira cobrança sai no fim dele**. Falta o **roteiro funcional no staging** e as **telas** (PR 2).
+  **primeira cobrança sai no fim dele**. **Telas no ar desde a PR #69** (migration `V072`): a loja vê e
+  paga a assinatura em `/painel/assinatura`, por Pix ou cartão (Card Payment Brick, com a verificação
+  3DS na tela), e o admin vê a aba **Assinatura** na ficha da loja, só leitura. O cartão só aparece com
+  `SUBSCRIPTIONS_ACCOUNT_PUBLIC_KEY` configurada (no staging, `(a confirmar)`). Falta o **roteiro
+  funcional no staging**.
   Spec `docs/superpowers/specs/2026-10-15-assinatura-cobranca-real-design.md`,
   plano `docs/superpowers/plans/2026-10-15-assinatura-cobranca-real.md`.
 - **Pix/cartão online direto para a loja**: a cobrança, o webhook e o estorno foram provados no staging
@@ -363,9 +373,13 @@ recusa e assim por diante.
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
-- **Prontidão de publicação** — SMTP real, revisão de origem/CSRF, backup
-  externo, ensaio de restauração, teste de carga na VPS, e **trocar todas as credenciais**
-  (Mercado Pago, segredos de webhook, senhas de teste) na ida para produção (decisão de 14/10)
+- **Prontidão de publicação** — SMTP real, revisão de origem/CSRF, ensaio de restauração,
+  teste de carga na VPS, e **trocar todas as credenciais** (Mercado Pago, segredos de webhook,
+  senhas de teste) na ida para produção (decisão de 14/10). **Feito em 20/10:** o **backup externo**
+  diário e cifrado no Cloudflare R2 (PR #66: banco, uploads e configuração, cifrados com `age`,
+  timer às 06:00 UTC, aviso pelo Healthchecks.io e retenção de 7 dias) e a **observabilidade** pelo
+  Sentry na API e no site (PR #65), com um painel no admin (PR #67). O ensaio de restauração do R2
+  ainda não foi feito.
 
 ### Prioridade média — produto e governança
 - Contrato dos módulos (hoje habilitados manualmente)
@@ -416,8 +430,11 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`297ec38`, schema `071`, deploy de 19/10 14:06 UTC pelo
-**botão do GitHub**). Além da desistência do 3DS (PR #40) e do conserto do Pix sem QR (PR #41), já estão no ar a
+**O que está no ar é o `origin/main` inteiro** (`cf8493a`, schema `074`, deploy de 22/10 22:18 UTC pelo
+**botão do GitHub**). De 19/10 a 22/10 entraram as **telas da assinatura** com cartão e 3DS (PR #69), as
+melhorias pós-#40 no 3DS (PR #64), o **Sentry** e o painel de observabilidade (PRs #65 e #67), o **backup
+externo no R2** (PR #66), a limpeza automática de disco (PR #68) e a **rodada de segurança de 21/10** (PRs #70
+a #80, ver o topo). Antes disso, além da desistência do 3DS (PR #40) e do conserto do Pix sem QR (PR #41), já estavam no ar a
 **cobrança real da assinatura** com trial de 15 dias (PRs #46 e #47), as **correções de segurança e concorrência**
 da revisão de 16/10 (PRs #54 e #57, acesso administrativo fail-closed), o **estorno de cobrança com valor
 divergente** (PR #58), os **limites de tempo nos clientes HTTP externos** (PR #59), o **carrinho que não apaga
@@ -425,8 +442,8 @@ itens na leitura** (PR #60) e a rodada visual da loja, do painel e do catálogo 
 #61 e #62). Desde a PR #49 o **deploy exige a `Verificação` verde**.
 
 **Ainda vale o roteiro abaixo?** Não há registro de que o roteiro de fechamento do pagamento tenha sido feito
-depois de 15/10 `(a confirmar com o dono do produto)`. Como as PRs #54, #57 e #58 mexeram em pagamento, 3DS e
-acesso, o roteiro deve rodar sobre o `297ec38`.
+depois de 15/10 `(a confirmar com o dono do produto)`. Como as PRs #54, #57, #58, #64 e a rodada de 21/10
+mexeram em pagamento, 3DS, login, sessão e acesso, o roteiro deve rodar sobre o `cf8493a`.
 
 **Roteiro do 3DS no staging (14/10, cartão `PCLXrYCa`):**
 - passaram: `APRO-CHOK` aprovado depois de duas recusas no mesmo pedido (#58); `OTHE-CHNO` recusado com
@@ -460,8 +477,8 @@ Os pedidos de 14/10 (#58 a #60) repetiram cartão e nova tentativa com a conta d
 novo o estorno pela loja com o **diálogo de motivo** e tirar os prints para o cartão `(a confirmar se ainda é
 exigido depois do roteiro do 3DS)`.
 
-**Depois:** o **roteiro funcional da assinatura** no staging (o servidor está no ar desde a PR #46; as telas da
-PR 2 seguem pendentes, §4) e a prontidão de produção (SMTP real, backup externo com ensaio de restauração, revisão de CSRF/origem).
+**Depois:** o **roteiro funcional da assinatura** no staging (servidor no ar desde a PR #46 e telas desde a
+PR #69, §4) e a prontidão de produção (SMTP real, ensaio de restauração do backup no R2, revisão de CSRF/origem).
 
 **Histórico do E48 (encerrado em 01/10):** entregue e publicado (`4760fd3`, schema `054`), com
 `admin_audit_log` vazia na VPS e nenhum papel de admin restrito — todos os admins recebem `support.*`.
@@ -520,8 +537,8 @@ com justificativa e trilha de auditoria.
    idêntica (md5 `4bf5a197…`) em `platform/deploy/vps/`, com README da revisão
    (sem segredos; a última seção recria o scaffold removido — não rodar como está).
 
-A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #62** estão mesclados e
-publicados (`297ec38`, schema `071`, 19/10), e o staging roda o mesmo commit do `origin/main`.
+A fila de infraestrutura está zerada. No repositório novo da Axyon os **PRs #1 a #80** estão mesclados e
+publicados (`cf8493a`, schema `074`, 22/10), e o staging roda o mesmo commit do `origin/main`.
 
 **O que já foi provado no pagamento (com a conta global da plataforma, em 05/10):** Pix (#23) e cartão
 (#26) de ponta a ponta com notificação automática, o estorno pelo admin (#26 ficou `refunded` no Foodie e
@@ -546,15 +563,15 @@ em `/home/deploy/releases/<sha>/`), então as imagens em uso foram **re-tagadas*
 `pre-df503c0` — rollback instantâneo para o release atual sem custo de build. Os backups de banco
 seguem em `deploy/backups/` (quatro dumps de 02/10). Repetir a limpeza ao passar de ~70%.
 
-## 6. Estado da árvore de trabalho (19/10)
+## 6. Estado da árvore de trabalho (22/10)
 
-`origin/main` = **`297ec38`** (PR #62). O checkout está na branch `docs/estado-atual-2026-10-19` (este documento é
+`origin/main` = **`cf8493a`** (PR #78). O checkout está na branch `docs/estado-atual-2026-10-22` (este documento é
 editado aqui; o `.claude/` e os dois `docs/PLANO_APPS_MOBILE_*.md` não são versionados). A `main` local está em
 `adb9da2` (PR #36), atrás do `origin/main`. Desde 01/10 as mudanças entram por PR, e desde **07/10 a `main` exige
 verificação verde e 1 aprovação**: o PR #12 entrou com o CI vermelho e quebrou o build (cartão `iqIWxDlQ`,
 conserto no PR #13).
 
-Os **PRs #1 a #62** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
+Os **PRs #1 a #80** do repositório novo (a numeração reiniciou na migração de 06/10) — todos mesclados, e
 os últimos publicados **pelo botão do GitHub**:
 
 | Commit | PR | O que é |
@@ -620,7 +637,25 @@ os últimos publicados **pelo botão do GitHub**:
 | `8722568` | #54 | `fix(api,web)`: segurança e concorrência da revisão de 16/10 (`V070`) |
 | `b9c701e` | #57 | `fix(api,web)`: acesso administrativo fail-closed com papel explícito (`V071`) |
 | `053ba60` | #55 | `feat(carrinho,painel)`: remover item com um clique e enviar imagem no anúncio |
-| `297ec38` | #62 | `feat`: fotos dos pratos no catálogo e visual do admin, entregador e cliente — **é o que está na VPS** (pelo botão do GitHub, 19/10 14:06 UTC) |
+| `297ec38` | #62 | `feat`: fotos dos pratos no catálogo e visual do admin, entregador e cliente |
+| `7e63772` | #63 | `docs`: ESTADO_ATUAL com as PRs #42 a #62 publicadas (19/10) |
+| `f71e95a` | #64 | `fix(api)`: melhorias pós-#40 — motivo do provedor, nota interna fora da visão do cliente e 409 sem convite a repetir |
+| `372e2d2` | #65 | `feat(observabilidade)`: Sentry na API e no site, sem dados pessoais nos eventos |
+| `a012283` | #66 | `feat(backup)`: backup externo diário e cifrado no Cloudflare R2 |
+| `0a8e75d` | #67 | `feat(admin)`: painel de observabilidade do Sentry |
+| `04ef706` | #68 | `chore(deploy)`: limpeza de disco automática a cada 2 dias |
+| `2a50294` | #69 | `feat(assinatura)`: tela da loja e pagamento da assinatura no cartão com 3DS (`V072`); trouxe junto a #70 |
+| — | #70 | `fix(seguranca)`: cadastro sem sessão, vínculo do login social e logs (`V073`; mesclada na branch da #69) |
+| — | #71 | `fix(seguranca)`: janela de tempo e ids assinados no webhook (mesclada na branch da #69; chegou à `main` pela #77) |
+| — | #72 | `fix(seguranca)`: IDOR, XSS, cabeçalhos e dependências (mesclada na branch da #70; chegou à `main` pela #80) |
+| — | #73 | `fix(seguranca)`: senha definida só depois de verificar o e-mail (idem, pela #80) |
+| — | #74 | `fix(seguranca)`: OAuth sem token na URL, backups, Sentry e SCrypt (empilhada; chegou à `main` pela #79) |
+| — | #75 | `fix(seguranca)`: OTP canônico, bloqueio por origem e sessão ociosa (`V074`; empilhada, pela #79) |
+| — | #76 | `fix(seguranca)`: métodos offline filtrados pela loja (empilhada, pela #79) |
+| `aa5915b` | #77 | `feat(assinatura)`: leva à `main` o restante da branch das telas (a #71) |
+| `6160b40` | #80 | `fix(seguranca)`: leva à `main` a #72, a #73, o smoke do cadastro e a auditoria de dependências críticas no CI |
+| `9cfa319` | #79 | `fix(seguranca)`: leva à `main` a cadeia empilhada #74 a #76 |
+| `cf8493a` | #78 | `fix(seguranca)`: controle de acesso, XSS, cabeçalhos e dependências (sem commits novos: o conteúdo já tinha entrado pela #80) — **é o que está na VPS** (pelo botão do GitHub, 22/10 22:18 UTC) |
 
 **Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
 commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,
