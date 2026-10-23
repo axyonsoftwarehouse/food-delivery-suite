@@ -32,7 +32,8 @@ class WebhookVerifierTest {
     void acceptsTheOrderIdSignedInItsOriginalCase() {
         // Medido no staging em 04/10/2026: a notificação de order (ORDTST01M4250…) chegou assinada sobre o
         // id na caixa ORIGINAL — com o segredo certo, só o manifesto em maiúsculas reproduziu o v1 recebido.
-        // Os vetores foram calculados fora do Java, para não validar a conta com ela mesma.
+        // Os vetores foram calculados fora do Java, para não validar a conta com ela mesma. O id, o request-id
+        // e o ts (13 dígitos) são os do exemplo da documentação do provedor, não os da notificação real.
         String secret = "segredo-de-teste";
         String dataId = "ORD01JQ4S4KY8HWQ6NA5PXB65B3D3";
         String requestId = "2066ca19-c6f1-498a-be75-1923005edd06";
@@ -87,6 +88,20 @@ class WebhookVerifierTest {
         assertFalse(WebhookVerifier.fresh(String.valueOf(now + tolerance + 1), now, tolerance));
         assertFalse(WebhookVerifier.fresh(null, now, tolerance));
         assertFalse(WebhookVerifier.fresh("nao-e-numero", now, tolerance));
+    }
+
+    @Test
+    void acceptsTheTimestampInSecondsAsTheProviderSendsIt() {
+        // Medido no staging em 23/10/2026 (pedido #100): o x-signature chegou com ts=1792731592 (10 dígitos,
+        // segundos) e o servidor estava em 1792731592468 ms. Comparado como milissegundos, todo webhook
+        // voltava 401 desde a #71.
+        long agora = 1_792_731_592_468L;
+        long tolerancia = 300_000L;
+
+        assertTrue(WebhookVerifier.fresh("1792731592", agora, tolerancia));
+        assertTrue(WebhookVerifier.fresh(String.valueOf(1_792_731_592L - 299), agora, tolerancia));
+        assertFalse(WebhookVerifier.fresh(String.valueOf(1_792_731_592L - 301), agora, tolerancia));
+        assertFalse(WebhookVerifier.fresh(String.valueOf(1_792_731_592L + 301), agora, tolerancia));
     }
 
     @Test

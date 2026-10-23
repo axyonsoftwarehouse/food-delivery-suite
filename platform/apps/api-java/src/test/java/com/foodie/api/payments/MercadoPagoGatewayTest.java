@@ -111,6 +111,34 @@ class MercadoPagoGatewayTest {
     }
 
     @Test
+    void signatureWithTimestampInSecondsIsAccepted() throws Exception {
+        // O provedor manda o ts em segundos (23/10/2026, pedido #100: ts=1792731592). O manifesto é
+        // assinado sobre o ts como chegou, sem converter.
+        String secret = "segredo-de-teste";
+        String requestId = "req-segundos";
+        String ts = String.valueOf(System.currentTimeMillis() / 1000);
+        String v1 = assinatura(secret, "ORDTST01M5KH", requestId, ts);
+        PaymentGateway.WebhookRequest notificacao = new PaymentGateway.WebhookRequest(
+            Map.of("x-request-id", requestId, "x-signature", "ts=" + ts + ",v1=" + v1),
+            Map.of("type", "order", "data", Map.of("id", "ORDTST01M5KH")), Map.of());
+
+        assertTrue(new MercadoPagoGateway("https://api.mercadopago.com", secret).verifyWebhook(notificacao));
+    }
+
+    @Test
+    void staleSignatureInSecondsIsRejected() throws Exception {
+        String secret = "segredo-de-teste";
+        String requestId = "req-old-s";
+        String ts = String.valueOf(System.currentTimeMillis() / 1000 - 10 * 60);
+        String v1 = assinatura(secret, "ORD1", requestId, ts);
+        PaymentGateway.WebhookRequest notificacao = new PaymentGateway.WebhookRequest(
+            Map.of("x-request-id", requestId, "x-signature", "ts=" + ts + ",v1=" + v1),
+            Map.of("type", "order", "data", Map.of("id", "ORD1")), Map.of());
+
+        assertFalse(new MercadoPagoGateway("https://api.mercadopago.com", secret).verifyWebhook(notificacao));
+    }
+
+    @Test
     void staleSignatureIsRejected() throws Exception {
         String secret = "segredo-de-teste";
         String requestId = "req-old";

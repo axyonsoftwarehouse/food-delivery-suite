@@ -163,9 +163,13 @@ HMAC-SHA256 com a **assinatura secreta** da aplicação; compare em tempo consta
 - A documentação manda converter o id para **minúsculas**, mas na prática as notificações de order
   chegaram assinadas sobre o id **na caixa original** (`ORDTST01…`). Aceite as duas formas.
 - Sem segredo configurado: **recuse** (401). Não aceite notificação sem conferência.
-- **Janela de tempo:** o `ts` (milissegundos) precisa estar dentro de
-  `MERCADOPAGO_WEBHOOK_TOLERANCE_SECONDS` (padrão **300 s**). Fora disso, **401**. Isso impede reenvio
-  indefinido de uma notificação capturada; o processamento continua idempotente para reenvios legítimos.
+- **Janela de tempo:** o `ts` precisa estar dentro de `MERCADOPAGO_WEBHOOK_TOLERANCE_SECONDS` (padrão
+  **300 s**). Fora disso, **401**. Isso impede reenvio indefinido de uma notificação capturada; o
+  processamento continua idempotente para reenvios legítimos.
+- **O `ts` vem em segundos.** Parte da documentação fala em milissegundos e usa exemplos de 13 dígitos,
+  mas a notificação real (staging, 23/10/2026) chegou com `ts=1792731592`, 10 dígitos. Comparado como
+  milissegundos, todo webhook voltava 401. A janela aceita as duas unidades; o manifesto assina o `ts`
+  **como chegou**, sem converter.
 - **Id assinado manda:** o `data.id` da query não pode ser trocado pelo do corpo. Na desvinculação
   (`mp-connect`), o `user_id` do corpo só é aceito quando é igual ao `data.id` coberto pela assinatura.
 - **Formato do id:** só `[A-Za-z0-9_-]` (até 128) entra no path do provedor; o resto é recusado antes da

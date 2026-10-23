@@ -40,15 +40,22 @@ public final class WebhookVerifier {
         return false;
     }
 
+    /** Abaixo disto o {@code ts} é segundos: em milissegundos seria 1973; em segundos, o ano 5138. */
+    private static final long SECONDS_LIMIT = 100_000_000_000L;
+
     /**
-     * O {@code ts} do provedor vem em milissegundos. Uma assinatura válida só vale perto do presente:
-     * sem isto, uma notificação capturada podia ser reenviada para sempre.
+     * Uma assinatura válida só vale perto do presente: sem isto, uma notificação capturada podia ser
+     * reenviada para sempre. O provedor manda o {@code ts} em <b>segundos</b> (medido no staging em
+     * 23/10/2026: {@code ts=1792731592}), embora parte da documentação dele fale em milissegundos; os dois
+     * são aceitos. A conversão vale só para a janela: o manifesto assina o {@code ts} como chegou.
      */
     public static boolean fresh(String ts, long nowMillis, long toleranceMillis) {
         if (ts == null || ts.isBlank()) return false;
         try {
             long value = Long.parseLong(ts.trim());
-            return value >= nowMillis - toleranceMillis && value <= nowMillis + toleranceMillis;
+            if (value < 0) return false;
+            long millis = value < SECONDS_LIMIT ? value * 1000 : value;
+            return millis >= nowMillis - toleranceMillis && millis <= nowMillis + toleranceMillis;
         } catch (NumberFormatException invalid) {
             return false;
         }
