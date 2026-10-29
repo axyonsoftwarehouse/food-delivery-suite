@@ -8,6 +8,9 @@ import { Card, Empty, Stat } from './kit';
 type Tenant = { id: number; name: string; active: boolean; approval: string; orders: number; gmvCents: number; averageTicketCents: number; cancelRatePercent: number; lastOrderAt: string | null; subscriptionStatus: string | null; alert: string | null };
 type Health = { from: string; to: string; totals: { restaurants: number; orders: number; gmvCents: number }; tenants: Tenant[] };
 
+const SUBSCRIPTION_LABELS: Record<string, string> = { trial: 'em teste', active: 'ativa', suspended: 'suspensa', cancelled: 'cancelada' };
+const ordersLabel = (count: number) => `${count} ${count === 1 ? 'pedido' : 'pedidos'}`;
+
 function isoDaysAgo(days: number) {
   const date = new Date();
   date.setDate(date.getDate() - days);
@@ -38,7 +41,7 @@ export default function TenantHealthPanel() {
         <span className={`pr-thumb${tenant.active ? '' : ' is-off'}`} aria-hidden="true">{tenant.name.charAt(0)}</span>
         <div className="pr-row-main">
           <strong>{tenant.name}</strong>
-          <span>{[`${tenant.orders} pedidos`, `ticket ${money(tenant.averageTicketCents)}`, tenant.cancelRatePercent > 0 ? `cancel. ${tenant.cancelRatePercent}%` : '', tenant.subscriptionStatus ? `assinatura ${tenant.subscriptionStatus}` : '', tenant.lastOrderAt ? `último ${new Date(tenant.lastOrderAt).toLocaleDateString('pt-BR')}` : ''].filter(Boolean).join(' · ')}</span>
+          <span>{[ordersLabel(tenant.orders), `ticket ${money(tenant.averageTicketCents)}`, tenant.cancelRatePercent > 0 ? `cancel. ${tenant.cancelRatePercent.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` : '', tenant.subscriptionStatus ? `assinatura ${SUBSCRIPTION_LABELS[tenant.subscriptionStatus] ?? tenant.subscriptionStatus}` : '', tenant.lastOrderAt ? `último ${new Date(tenant.lastOrderAt).toLocaleDateString('pt-BR')}` : ''].filter(Boolean).join(' · ')}</span>
           {tenant.alert && <span className="ad-badges"><span className="pr-badge is-warning">{tenant.alert}</span></span>}
         </div>
         <div className="ad-row-side">

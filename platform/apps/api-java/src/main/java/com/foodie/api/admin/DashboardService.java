@@ -118,7 +118,7 @@ public class DashboardService {
 
     private List<Map<String, Object>> topProducts(String f, String t, Long zoneId) {
         return jdbc.queryForList("SELECT p.id AS id, p.name AS name, SUM(oi.quantity) AS quantity, "
-            + "SUM(oi.quantity * oi.unit_price_cents) AS revenue "
+            + "COALESCE(SUM(CASE WHEN o.status IN " + COMPLETED + " THEN oi.quantity * oi.unit_price_cents ELSE 0 END),0) AS revenue "
             + "FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN products p ON p.id = oi.product_id "
             + "WHERE o.created_at >= ? AND o.created_at < DATE_ADD(?, INTERVAL 1 DAY)" + zoneFilter(zoneId) + " "
             + "GROUP BY p.id, p.name ORDER BY quantity DESC LIMIT 5", args(f, t, zoneId));
@@ -133,7 +133,8 @@ public class DashboardService {
     }
 
     private List<Map<String, Object>> topCustomers(String f, String t, Long zoneId) {
-        return jdbc.queryForList("SELECT u.id AS id, u.name AS name, COUNT(*) AS orders, COALESCE(SUM(o.total_cents),0) AS spend "
+        return jdbc.queryForList("SELECT u.id AS id, u.name AS name, COUNT(*) AS orders, "
+            + "COALESCE(SUM(CASE WHEN o.status IN " + COMPLETED + " THEN o.total_cents ELSE 0 END),0) AS spend "
             + "FROM orders o JOIN users u ON u.id = o.customer_id "
             + "WHERE o.created_at >= ? AND o.created_at < DATE_ADD(?, INTERVAL 1 DAY)" + zoneFilter(zoneId) + " "
             + "GROUP BY u.id, u.name ORDER BY spend DESC LIMIT 5", args(f, t, zoneId));

@@ -15,6 +15,9 @@ export default function DispatchPicker({ order, board, failed, loading = false, 
   const [choice, setChoice] = useState('');
   const swapping = order.status === 'assigned';
   const verb = swapping ? 'Trocar' : 'Atribuir';
+  // Já atribuído: diz com quem está, em vez de só "Atribuído".
+  const assignedName = swapping ? (board?.couriers.find((courier) => courier.id === order.courier_id)?.name ?? couriers.find((courier) => courier.id === order.courier_id)?.name) : undefined;
+  const assignedNote = assignedName ? <p className="vp-dispatch-note"><Icon name="bike" size={14} />{`Com ${assignedName}`}</p> : null;
 
   if (!board || failed) {
     const options = couriers.filter((courier) => courier.approved && !courier.suspended && courier.id !== order.courier_id);
@@ -27,8 +30,8 @@ export default function DispatchPicker({ order, board, failed, loading = false, 
     </div>;
     // Carregando: avisa que o quadro (quem está mais perto) ainda vem, sem travar quem já quer atribuir.
     return loading
-      ? <div className="vp-dispatch"><p className="vp-dispatch-note" role="status">{'Carregando entregadores…'}</p>{simple}</div>
-      : simple;
+      ? <div className="vp-dispatch">{assignedNote}<p className="vp-dispatch-note" role="status">{'Carregando entregadores…'}</p>{simple}</div>
+      : assignedNote ? <div className="vp-dispatch">{assignedNote}{simple}</div> : simple;
   }
 
   const list = board.couriers.filter((courier) => courier.id !== order.courier_id);
@@ -36,12 +39,13 @@ export default function DispatchPicker({ order, board, failed, loading = false, 
   const chosen = list.find((courier) => String(courier.id) === choice);
   const distance = nearest ? distanceLabel(nearest.distanceMeters) : null;
   return <div className="vp-dispatch">
+    {assignedNote}
     {nearest
       ? <>
           <button className="pr-btn pr-btn--primary pr-btn--block" disabled={busy} onClick={() => onAssign(nearest.id)}><Icon name="bike" size={16} />{swapping ? `Trocar para ${nearest.name}` : `Atribuir a ${nearest.name}`}</button>
           <p className="vp-dispatch-note">{`Mais perto: ${nearest.name} · Disponível${distance ? ` · ${distance}` : ''}`}</p>
         </>
-      : <p className="vp-dispatch-note">{'Nenhum entregador disponível agora'}</p>}
+      : !swapping && <p className="vp-dispatch-note">{'Nenhum entregador disponível agora'}</p>}
     <div className="vp-assign">
       <select value={choice} aria-label={`Outro entregador para o pedido #${order.id}`} onChange={(event) => setChoice(event.target.value)}>
         <option value="">{'Outro entregador'}</option>

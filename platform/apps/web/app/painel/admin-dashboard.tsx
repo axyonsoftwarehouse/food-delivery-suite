@@ -26,6 +26,7 @@ type Dashboard = {
 };
 
 const STATUS_LABELS: Record<string, string> = { served: 'Servido', completed: 'Concluído' };
+const ordersLabel = (count: number) => `${count} ${count === 1 ? 'pedido' : 'pedidos'}`;
 
 function isoDaysAgo(days: number) {
   const date = new Date();
@@ -89,7 +90,7 @@ export default function AdminDashboard() {
       <Stat label="Receita entregue" tone="brand" value={money(cards?.revenueCents ?? 0)} hint={`${cards?.completed ?? 0} pedidos concluídos`} />
       <Stat label="Pedidos" value={cards?.orders ?? 0} hint={`${cards?.placed ?? 0} aguardando aceite`} />
       <Stat label="Ticket médio" value={money(cards?.averageTicketCents ?? 0)} hint="por pedido concluído" />
-      <Stat label="Cancelados" value={cards?.canceled ?? 0} hint="recusas e falhas" />
+      <Stat label="Cancelados" value={cards?.canceled ?? 0} hint={`${cards?.byStatus.expired ?? 0} sem aceite da loja`} />
       <Stat label="Novos clientes" value={cards?.newCustomers ?? 0} hint="no período" />
       <Stat label="Entregadores ativos" value={cards?.activeCouriers ?? 0} hint="com entregas no período" />
     </section>
@@ -105,10 +106,10 @@ export default function AdminDashboard() {
     </Card>
 
     <section className="pr-grid-2">
-      <Ranking title="Top restaurantes" empty="Sem dados." rows={(data?.topRestaurants ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.revenue ?? 0), note: `${item.orders} pedidos` }))} />
+      <Ranking title="Top restaurantes" empty="Sem dados." rows={(data?.topRestaurants ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.revenue ?? 0), note: ordersLabel(item.orders) }))} />
       <Ranking title="Top pratos" empty="Sem dados." rows={(data?.topProducts ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.revenue ?? 0), note: `${item.quantity ?? 0} un.` }))} />
-      <Ranking title="Top zonas" empty="Sem dados." rows={(data?.topZones ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.revenue ?? 0), note: `${item.orders} pedidos` }))} />
-      <Ranking title="Top clientes" empty="Sem dados." rows={(data?.topCustomers ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.spend ?? 0), note: `${item.orders} pedidos` }))} />
+      <Ranking title="Top zonas" empty="Sem dados." rows={(data?.topZones ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.revenue ?? 0), note: ordersLabel(item.orders) }))} />
+      <Ranking title="Top clientes" empty="Sem dados." rows={(data?.topCustomers ?? []).map((item) => ({ key: item.id, name: item.name, value: money(item.spend ?? 0), note: ordersLabel(item.orders) }))} />
     </section>
 
     {cards && Object.keys(cards.byStatus).length > 0 && <Card title="Pedidos por status">

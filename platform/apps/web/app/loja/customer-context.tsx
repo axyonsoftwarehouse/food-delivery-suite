@@ -498,9 +498,12 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
         router.push(`/loja/pedidos/${order.id}/pagamento`);
         return;
       } else {
-        setLocalMessage('Pedido criado. Acompanhe o preparo abaixo.');
+        setLocalMessage('Pedido criado. Acompanhe o preparo aqui.');
       }
       await app.refresh().catch(() => {});
+      // O carrinho fica vazio: o cliente segue para o acompanhamento, com o pedido novo aberto.
+      leaving.current = true;
+      router.push(`/loja/pedidos?order=${order.id}`);
     } catch (error) { setLocalMessage(error instanceof Error ? error.message : 'Não foi possível concluir o pedido.'); }
     finally { if (!leaving.current) setPlacing(false); }
   }
