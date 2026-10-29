@@ -210,6 +210,8 @@ export default function CozinhaPage() {
                 {actionsForStatus(ticket.status).includes('ready') && <Button disabled={busy} onClick={() => void changeStatus(ticket, 'ready', `Pedido #${ticket.id} pronto.`)}>{'Marcar pronto'}</Button>}
                 {canServe(ticket) && <Button disabled={busy} onClick={() => void changeStatus(ticket, 'serve', `Pedido #${ticket.id} servido.`)}>{'Servir'}</Button>}
                 {canComplete(ticket) && <Button disabled={busy} onClick={() => void changeStatus(ticket, 'complete', `Pedido #${ticket.id} concluído.`)}>{'Concluir'}</Button>}
+                {/* A recusa pede o motivo no card do pedido: fecha o ticket e abre o formulário lá. */}
+                {actionsForStatus(ticket.status).includes('reject') && <Button variant="danger" disabled={busy} onClick={() => { setTicketId(null); setRejecting(ticket.id); setReason(''); }}>{'Recusar'}</Button>}
               </div>
             </>
           )}

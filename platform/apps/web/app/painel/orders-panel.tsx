@@ -36,7 +36,8 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
   const [courierByOrder, setCourierByOrder] = useState<Record<number, string>>({});
   const now = useNow(30_000);
   const [query, setQuery] = useState('');
-  const [lane, setLane] = useState('0');
+  // Sem escolha de quem usa o painel, abre na primeira etapa que tem pedido (não na aba vazia).
+  const [lane, setLane] = useState<string | null>(null);
   const [remote, setRemote] = useState<{ id: number; order: Order | null; error: string } | null>(null);
   // Despacho da loja (parte D): quadro dos entregadores com status e distância; o admin segue com a lista simples.
   const { board, failed: boardFailed, loading: boardLoading } = useCourierBoard(user?.role === 'restaurant' && permissions.includes('orders.dispatch'));
@@ -161,7 +162,8 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
   const finished = shown.filter((order) => !activeStatuses.includes(order.status));
   const searching = query.trim().length > 0;
   const lanes = columns.map((column) => ({ ...column, items: shown.filter((order) => column.statuses.includes(order.status)) }));
-  const current = Number(lane) < lanes.length ? lane : '0';
+  const firstBusy = lanes.findIndex((column) => column.items.length > 0);
+  const current = lane !== null && Number(lane) < lanes.length ? lane : String(Math.max(firstBusy, 0));
 
   return <section className="vp-orders">
     <div className="vp-toolbar">

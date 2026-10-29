@@ -92,7 +92,7 @@ public class SupportQueryService {
 
     private static String alert(Object approval, Map<String, Object> pause) {
         if (pause != null) return "Pausada pelo suporte";
-        if (approval != null && !"approved".equals(String.valueOf(approval))) return "Cadastro " + approval;
+        if (approval != null && !"approved".equals(String.valueOf(approval))) return "denied".equals(String.valueOf(approval)) ? "Cadastro recusado" : "Cadastro pendente";
         return null;
     }
 }

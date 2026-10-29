@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import OrderDetails from '../../OrderDetails';
 import { Order, money, useApp } from '../../app-context';
 import { awaitingOnlinePayment } from '../../online-payment';
@@ -82,6 +83,13 @@ function PastOrder({ order, index, cover, expandedOrderId, setExpandedOrderId }:
   </li>;
 }
 
+/** `?order=ID` (pedido recém-feito ou aberto pelo sino) abre os detalhes desse pedido. */
+function OpenFromQuery({ setExpandedOrderId }: Pick<RowProps, 'setExpandedOrderId'>) {
+  const id = Number(useSearchParams().get('order'));
+  useEffect(() => { if (Number.isInteger(id) && id > 0) setExpandedOrderId(id); }, [id, setExpandedOrderId]);
+  return null;
+}
+
 export default function PedidosClientePage() {
   const { busy, refresh } = useApp();
   const { orders, restaurantById, expandedOrderId, setExpandedOrderId, showAllOrders, setShowAllOrders, cancelOrder, loadHistory } = useCustomer();
@@ -108,6 +116,7 @@ export default function PedidosClientePage() {
   const coverOf = (order: Order) => restaurantById.get(order.restaurant_id)?.cover_url ?? null;
 
   return <section className="orders-page">
+    <Suspense fallback={null}><OpenFromQuery setExpandedOrderId={setExpandedOrderId} /></Suspense>
     <div className="cart-head m-rise">
       <h1>{'Pedidos'}</h1>
       <div className="customer-cart-heading-actions"><button onClick={() => refresh().catch(() => {})} disabled={busy} aria-label="Atualizar pedidos" title="Atualizar"><Icon name="refresh" /></button></div>

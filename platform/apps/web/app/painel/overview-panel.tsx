@@ -14,7 +14,11 @@ export default function OverviewPanel() {
   const { user, catalog, orders } = useApp();
   const placed = useMemo(() => orders.filter((order) => order.status === 'placed').length, [orders]);
   const active = useMemo(() => orders.filter((order) => ['accepted', 'ready', 'assigned', 'picked_up'].includes(order.status)).length, [orders]);
-  const revenue = useMemo(() => orders.filter((order) => ['delivered', 'completed', 'served'].includes(order.status)).reduce((sum, order) => sum + order.total_cents, 0), [orders]);
+  // A lista traz só os pedidos recentes: a receita fica limitada a hoje, para o número ter período claro.
+  const revenue = useMemo(() => {
+    const today = new Date().toDateString();
+    return orders.filter((order) => ['delivered', 'completed', 'served'].includes(order.status) && new Date(order.created_at).toDateString() === today).reduce((sum, order) => sum + order.total_cents, 0);
+  }, [orders]);
   const current = useMemo(() => orders.filter((order) => ACTIVE.includes(order.status)), [orders]);
 
   if (user?.role === 'admin') return <AdminDashboard />;
@@ -23,9 +27,8 @@ export default function OverviewPanel() {
     <div className="pr-stats">
       <Stat label="Pedidos aguardando" value={placed} hint="Precisam de aceite" tone={placed > 0 ? 'warning' : undefined} />
       <Stat label="Em andamento" value={active} hint="Em preparo ou entrega" />
-      <Stat label="Receita entregue" value={money(revenue)} tone="brand" />
-      <Stat label="Pratos disponíveis" value={catalog.products.length} />
-      <Stat label="Restaurantes" value={catalog.restaurants.length} />
+      <Stat label="Receita entregue hoje" value={money(revenue)} tone="brand" />
+      <Stat label="Pratos disponíveis" value={catalog.products.filter((product) => product.restaurant_id === user?.restaurantId).length} />
     </div>
     <Card className="pr-card--flush vp-active" title="Pedidos em andamento" actions={<Link className="pr-btn pr-btn--ghost pr-btn--sm" href="/painel/pedidos">Ver pedidos</Link>}>
       {current.length === 0 ? <Empty icon="receipt">{'Nenhum pedido em andamento.'}</Empty> : <div className="pr-list">

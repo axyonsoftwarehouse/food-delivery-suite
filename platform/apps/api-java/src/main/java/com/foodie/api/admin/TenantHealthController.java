@@ -89,7 +89,7 @@ public class TenantHealthController {
     }
 
     private static String alert(Object approval, long orders, long canceled, Object lastOrderAt) {
-        if (approval != null && !"approved".equals(String.valueOf(approval))) return "Cadastro " + approval;
+        if (approval != null && !"approved".equals(String.valueOf(approval))) return "denied".equals(String.valueOf(approval)) ? "Cadastro recusado" : "Cadastro pendente";
         if (lastOrderAt == null) return "Sem pedidos ainda";
         if (orders == 0) return "Sem pedidos no período";
         if (orders > 0 && canceled * 100.0 / orders >= 30) return "Muitos cancelamentos";
