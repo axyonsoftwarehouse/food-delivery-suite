@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -34,25 +35,25 @@ class CartControllerTest {
     private EmailVerificationGuard verification;
 
     @Test
-    void removesTheWholeLineWithVariationAndAddons() throws Exception {
+    void removesTheWholeLineWithVariationAddonsAndNote() throws Exception {
         User customer = new User(7, "Cliente", "cliente@demo.local", "customer", null);
         when(auth.requireUser("session", "customer")).thenReturn(customer);
-        when(cart.remove(same(customer), eq(10L), eq(2L), eq(List.of(3L, 4L))))
+        when(cart.remove(same(customer), eq(10L), eq(2L), eq(List.of(3L, 4L)), eq("sem cebola")))
             .thenReturn(new CartService.CartSnapshot(List.of(), "v1"));
 
-        mvc.perform(delete("/cart/items/10?variationId=2&addonIds=3&addonIds=4")
+        mvc.perform(delete("/cart/items/10?variationId=2&addonIds=3&addonIds=4&note=sem cebola")
                 .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value("v1"));
 
-        verify(cart).remove(same(customer), eq(10L), eq(2L), eq(List.of(3L, 4L)));
+        verify(cart).remove(same(customer), eq(10L), eq(2L), eq(List.of(3L, 4L)), eq("sem cebola"));
     }
 
     @Test
     void removesASimpleLineWithoutVariationOrAddons() throws Exception {
         User customer = new User(7, "Cliente", "cliente@demo.local", "customer", null);
         when(auth.requireUser("session", "customer")).thenReturn(customer);
-        when(cart.remove(same(customer), eq(10L), eq(0L), isNull()))
+        when(cart.remove(same(customer), eq(10L), eq(0L), isNull(), isNull()))
             .thenReturn(new CartService.CartSnapshot(List.of(), "v2"));
 
         mvc.perform(delete("/cart/items/10")
@@ -60,6 +61,33 @@ class CartControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value("v2"));
 
-        verify(cart).remove(same(customer), eq(10L), eq(0L), isNull());
+        verify(cart).remove(same(customer), eq(10L), eq(0L), isNull(), isNull());
+    }
+
+    @Test
+    void changesTheNoteOfALine() throws Exception {
+        User customer = new User(7, "Cliente", "cliente@demo.local", "customer", null);
+        when(auth.requireUser("session", "customer")).thenReturn(customer);
+        when(cart.changeNote(same(customer), eq(10L), eq(0L), isNull(), eq(""), eq("sem cebola")))
+            .thenReturn(new CartService.CartSnapshot(List.of(), "v3"));
+
+        mvc.perform(put("/cart/items/10/note")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"note\":\"\",\"newNote\":\"sem cebola\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.version").value("v3"));
+    }
+
+    @Test
+    void rejectsAnItemNoteLongerThanTheLimit() throws Exception {
+        User customer = new User(7, "Cliente", "cliente@demo.local", "customer", null);
+        when(auth.requireUser("session", "customer")).thenReturn(customer);
+
+        mvc.perform(put("/cart/items/10/note")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "session"))
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"newNote\":\"" + "x".repeat(141) + "\"}"))
+            .andExpect(status().isBadRequest());
     }
 }

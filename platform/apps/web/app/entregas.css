@@ -115,6 +115,7 @@ h1.courier-section-title { font-size: 22px; letter-spacing: -0.5px; }
 .courier-row-links .ui-icon { width: 16px; height: 16px; }
 .courier-pay { padding: 12px 14px; border-radius: 14px; background: var(--warning-soft); color: var(--text); font-size: 15px; font-weight: 700; line-height: 1.4; }
 .courier-pay.is-paid { background: var(--brand-050); color: var(--brand-700); }
+.courier-note { margin: 0; padding: 8px 10px; border-left: 3px solid var(--warning); border-radius: 6px; background: var(--warning-soft); color: var(--text); font-size: 14px; font-weight: 600; }
 .courier-items { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .courier-items summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; color: var(--text); font-size: 14px; font-weight: 700; list-style: none; cursor: pointer; }
 .courier-items summary::-webkit-details-marker { display: none; }

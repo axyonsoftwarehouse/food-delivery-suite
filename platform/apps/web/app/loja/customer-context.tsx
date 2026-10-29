@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Address, Catalog, Order, Product, Role, User, Zone, api, useApp } from '../app-context';
 
 type Restaurant = { id: number; name: string; slug: string; open?: boolean };
-type CartItem = { productId: number; variationId: number; quantity: number; restaurantId: number; name: string; priceCents: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; available: boolean; unavailableReason: string | null };
+type CartItem = { productId: number; variationId: number; quantity: number; restaurantId: number; name: string; priceCents: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; note?: string; available: boolean; unavailableReason: string | null };
 type ProductVariation = { id: number; name: string; price_delta_cents: number; available: boolean };
 type ProductAddon = { id: number; name: string; price_cents: number };
 type ProductAddonGroup = { id: number; name: string; min_select: number; max_select: number; required: boolean; variation_id: number; addons: ProductAddon[] };
@@ -40,7 +40,7 @@ type CustomerValue = {
   searchLoading: boolean;
   searchError: string;
   loadMore: () => Promise<void>;
-  cartEntries: { product: { id: number; name: string; restaurant_id: number; price_cents: number }; variationId: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; quantity: number; available: boolean; unavailableReason: string | null }[];
+  cartEntries: { product: { id: number; name: string; restaurant_id: number; price_cents: number }; variationId: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; note: string; quantity: number; available: boolean; unavailableReason: string | null }[];
   cartCount: number;
   subtotal: number;
   fee: number;
@@ -52,14 +52,17 @@ type CustomerValue = {
   cartBusy: boolean;
   refreshCart: () => Promise<void>;
   mutateCart: (path: string, method: string, body: unknown, success: string) => Promise<void>;
-  add: (product: Product, variationId?: number, addonIds?: number[]) => Promise<void>;
-  changeQuantity: (productId: number, variationId: number, addonIds: number[], delta: number) => Promise<void>;
-  removeItem: (productId: number, variationId: number, addonIds: number[]) => Promise<void>;
+  add: (product: Product, variationId?: number, addonIds?: number[], note?: string) => Promise<void>;
+  changeQuantity: (productId: number, variationId: number, addonIds: number[], note: string, delta: number) => Promise<void>;
+  removeItem: (productId: number, variationId: number, addonIds: number[], note: string) => Promise<void>;
+  changeNote: (productId: number, variationId: number, addonIds: number[], note: string, newNote: string) => Promise<void>;
+  orderNote: string;
+  setOrderNote: (value: string) => void;
   selectedProduct: ProductDetail | null;
   productLoading: boolean;
   openProduct: (product: Product) => Promise<void>;
   closeProduct: () => void;
-  addSelected: (variationId: number, addonIds: number[]) => Promise<void>;
+  addSelected: (variationId: number, addonIds: number[], note?: string) => Promise<void>;
   tags: { id: number; name: string }[];
   tagId: number | null;
   setTagId: (value: number | null) => void;
@@ -172,6 +175,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [orderNote, setOrderNote] = useState('');
   const [cartVersion, setCartVersion] = useState('');
   const checkoutKey = useRef('');
   const [visibleProducts, setVisibleProducts] = useState<Product[]>([]);
@@ -306,7 +310,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     .filter((coverage) => coverage.zone_id === selectedAddress?.zone_id)
     .map((coverage) => coverage.restaurant_id)), [app.catalog.coverage, selectedAddress?.zone_id]);
   const availableCategories = app.catalog.categories.filter((category) => coveredRestaurants.has(category.restaurant_id) && category.restaurant_id === restaurantId);
-  const cartEntries = cart.map((item) => ({ product: { id: item.productId, name: item.name, restaurant_id: item.restaurantId, price_cents: item.priceCents }, variationId: item.variationId, variationName: item.variationName, unitPriceCents: item.unitPriceCents, addonIds: item.addonIds ?? [], addonNames: item.addonNames ?? [], quantity: item.quantity, available: item.available ?? true, unavailableReason: item.unavailableReason ?? null }));
+  const cartEntries = cart.map((item) => ({ product: { id: item.productId, name: item.name, restaurant_id: item.restaurantId, price_cents: item.priceCents }, variationId: item.variationId, variationName: item.variationName, unitPriceCents: item.unitPriceCents, addonIds: item.addonIds ?? [], addonNames: item.addonNames ?? [], note: item.note ?? '', quantity: item.quantity, available: item.available ?? true, unavailableReason: item.unavailableReason ?? null }));
   const cartRestaurantId = cart[0]?.restaurantId;
   const restaurantById = useMemo(() => new Map(app.catalog.restaurants.map((restaurant) => [restaurant.id, restaurant])), [app.catalog.restaurants]);
   const cartRestaurantClosed = cartRestaurantId !== undefined && restaurantById.get(cartRestaurantId)?.open === false;
@@ -367,28 +371,37 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     finally { if (searchVersion.current === version) setSearchLoading(false); }
   }
 
-  async function add(product: Product, variationId = 0, addonIds: number[] = []) {
+  async function add(product: Product, variationId = 0, addonIds: number[] = [], note = '') {
     if (restaurantById.get(product.restaurant_id)?.open === false) { setLocalMessage('Este restaurante está fora do horário de funcionamento agora.'); return; }
     if (cartRestaurantId && cartRestaurantId !== product.restaurant_id) { setLocalMessage('Um pedido pode reunir pratos de um restaurante por vez. Finalize ou esvazie o carrinho atual.'); return; }
-    const payload: { delta: number; variationId?: number; addonIds?: number[] } = { delta: 1 };
+    const payload: { delta: number; variationId?: number; addonIds?: number[]; note?: string } = { delta: 1 };
     if (variationId) payload.variationId = variationId;
     if (addonIds.length) payload.addonIds = addonIds;
+    if (note.trim()) payload.note = note.trim();
     await mutateCart(`/cart/items/${product.id}`, 'PATCH', payload, `${product.name} adicionado ao carrinho.`);
   }
 
-  async function changeQuantity(productId: number, variationId: number, addonIds: number[], delta: number) {
-    const payload: { delta: number; variationId?: number; addonIds?: number[] } = { delta };
+  async function changeQuantity(productId: number, variationId: number, addonIds: number[], note: string, delta: number) {
+    const payload: { delta: number; variationId?: number; addonIds?: number[]; note?: string } = { delta };
     if (variationId) payload.variationId = variationId;
     if (addonIds.length) payload.addonIds = addonIds;
+    if (note) payload.note = note;
     await mutateCart(`/cart/items/${productId}`, 'PATCH', payload, 'Carrinho atualizado.');
   }
 
-  async function removeItem(productId: number, variationId: number, addonIds: number[]) {
+  async function removeItem(productId: number, variationId: number, addonIds: number[], note: string) {
     const params = new URLSearchParams();
     if (variationId) params.set('variationId', String(variationId));
     for (const addonId of addonIds) params.append('addonIds', String(addonId));
+    if (note) params.set('note', note);
     const query = params.toString();
     await mutateCart(`/cart/items/${productId}${query ? `?${query}` : ''}`, 'DELETE', undefined, 'Item removido do carrinho.');
+  }
+
+  /** A observação faz parte da linha: trocar move a linha (e soma com outra igual, se houver). */
+  async function changeNote(productId: number, variationId: number, addonIds: number[], note: string, newNote: string) {
+    const payload = { variationId: variationId || undefined, addonIds: addonIds.length ? addonIds : undefined, note, newNote: newNote.trim() };
+    await mutateCart(`/cart/items/${productId}/note`, 'PUT', payload, newNote.trim() ? 'Observação salva.' : 'Observação removida.');
   }
 
   async function openProduct(product: Product) {
@@ -405,10 +418,10 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     setSelectedProduct(null);
   }
 
-  async function addSelected(variationId: number, addonIds: number[]) {
+  async function addSelected(variationId: number, addonIds: number[], note = '') {
     if (!selectedProduct) return;
     const product = { ...selectedProduct } as unknown as Product;
-    await add(product, variationId, addonIds);
+    await add(product, variationId, addonIds, note);
     setSelectedProduct(null);
   }
 
@@ -480,12 +493,13 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
         scheduledFor: scheduledFor || undefined,
         orderType,
         tipCents,
+        customerNote: orderNote.trim() || undefined,
       };
       if (orderType === 'delivery') { body.addressId = selectedAddress?.id; body.contactPhone = contactPhone; }
       if (orderType === 'dine_in') { body.tableId = tableId; body.partySize = partySize; }
       const order = await request<{ id: number }>('/cart/checkout', { method: 'POST', body: JSON.stringify(body) });
       checkoutKey.current = '';
-      setCart([]); setCartVersion(''); setChangeFor(''); setAppliedCoupon(null); setCouponCode(''); setScheduledFor('');
+      setCart([]); setCartVersion(''); setChangeFor(''); setAppliedCoupon(null); setCouponCode(''); setScheduledFor(''); setOrderNote('');
       if (manual) {
         const method = offlineMethods.find((item) => item.id === manualMethodId);
         if (!method) throw new Error('Escolha um método de pagamento manual.');
@@ -579,7 +593,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     connection: app.connection, lastSync: app.lastSync, selectedAddressId, setSelectedAddressId, selectedAddress, selectedZone, restaurantId, availableCategories, restaurantById,
     search, setSearch, categoryId, setCategoryId, visibleProducts, nextCursor, searchLoading, searchError, loadMore,
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
-    cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, removeItem, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
+    cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
     tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor,
     orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
     manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, submitReview, loadHistory,

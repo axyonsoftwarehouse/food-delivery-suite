@@ -98,13 +98,14 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
     </div>
     {primaryPhone && <a className="courier-soft-btn" href={primaryPhone.whatsapp} target="_blank" rel="noreferrer">{pickup ? 'WhatsApp da loja' : 'WhatsApp do cliente'}</a>}
     {otherPhone && <div className="courier-contact"><span>{pickup ? `Cliente (${delivery.customer_name ?? 'sem nome'})` : `Loja (${delivery.restaurant_name})`}</span><span className="courier-row-links"><a href={otherPhone.tel}><Icon name="phone" />{'Ligar'}</a><a href={otherPhone.whatsapp} target="_blank" rel="noreferrer">{'WhatsApp'}</a></span></div>}
+    {delivery.customer_note && <p className="courier-note">{`Obs. do cliente: ${delivery.customer_note}`}</p>}
     <div className={`courier-pay${collect > 0 ? '' : ' is-paid'}`}>
       {collect > 0
         ? `Receber ${money(collect)} ${methodLabel}${delivery.change_for_cents ? ` · troco para ${money(delivery.change_for_cents)}` : ''}`
         : delivery.payment_modality === 'online' ? 'Já pago online' : 'Já pago — não cobre nada na entrega'}
     </div>
     <details className="courier-items"><summary>{`${delivery.items.length} ${delivery.items.length === 1 ? 'item' : 'itens'}`}<Icon name="chevron-down" size={16} /></summary>
-      <ul>{delivery.items.map((item, index) => <li key={index}>{item.quantity}× {item.name}{item.variation_name ? ` (${item.variation_name})` : ''}</li>)}</ul></details>
+      <ul>{delivery.items.map((item, index) => <li key={index}>{item.quantity}× {item.name}{item.variation_name ? ` (${item.variation_name})` : ''}{item.note ? ` · ${item.note}` : ''}</li>)}</ul></details>
     {pickup
       ? <button className="courier-primary" disabled={acting || offline} onClick={() => void act(() => status('pickup'), 'Pedido retirado. Boa entrega!')}>{'Retirei o pedido'}</button>
       : payOpen

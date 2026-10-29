@@ -109,9 +109,7 @@ public class OrderService {
         Set<Long> distinctIds = new HashSet<>();
         Set<String> distinctLines = new HashSet<>();
         for (var item : request.items()) {
-            long variationId = item.variationId() == null ? 0 : item.variationId();
-            String addonKey = AddonService.key(item.addonIds());
-            if (!distinctLines.add(item.productId() + ":" + variationId + ":" + addonKey)) throw new ApiException(400, "Item repetido no pedido");
+            if (!distinctLines.add(item.lineKey())) throw new ApiException(400, "Item repetido no pedido");
             distinctIds.add(item.productId());
         }
         Map<String, Object> address = null;
@@ -196,8 +194,7 @@ public class OrderService {
         try {
             for (var item : request.items()) {
                 long variationId = item.variationId() == null ? 0 : item.variationId();
-                String addonKey = AddonService.key(item.addonIds());
-                String lineKey = item.productId() + ":" + variationId + ":" + addonKey;
+                String lineKey = item.lineKey();
                 long unit = number(products.get(item.productId()), "price_cents");
                 if (variationId != 0) {
                     Map<String, Object> variation = variations.get(variationId);
@@ -223,7 +220,7 @@ public class OrderService {
         }
         CampaignService.Applied campaign = campaignService.best(request.restaurantId(), request.items().stream()
             .map(item -> new CampaignService.Line(item.productId(),
-                unitPrices.get(item.productId() + ":" + (item.variationId() == null ? 0 : item.variationId()) + ":" + AddonService.key(item.addonIds())) * item.quantity()))
+                unitPrices.get(item.lineKey()) * item.quantity()))
             .toList());
         long campaignDiscount = campaign == null ? 0 : campaign.discountCents();
         long discount = Math.min(subtotal, campaignDiscount + (coupon == null ? 0 : coupon.discountCents()));
@@ -318,6 +315,8 @@ public class OrderService {
         if (wantsDeliveryCode(deliveryOrder, restaurants.getFirst())) {
             jdbc.update("UPDATE orders SET delivery_code = ? WHERE id = ?", DeliveryCode.generate(), orderId);
         }
+        String customerNote = OrderNotes.order(request.customerNote());
+        if (customerNote != null) jdbc.update("UPDATE orders SET customer_note = ? WHERE id = ?", customerNote, orderId);
         Integer estimated = estimatedMinutes(restaurants.getFirst(), deliveryOrder ? address : null);
         if (estimated != null) jdbc.update("UPDATE orders SET estimated_minutes = ? WHERE id = ?", estimated, orderId);
         if (orderScheduledInSeconds != null) {
@@ -327,13 +326,14 @@ public class OrderService {
             campaign.campaignId(), campaign.name(), campaignDiscount, orderId);
         for (var item : request.items()) {
             long variationId = item.variationId() == null ? 0 : item.variationId();
-            String lineKey = item.productId() + ":" + variationId + ":" + AddonService.key(item.addonIds());
+            String lineKey = item.lineKey();
+            String itemNote = OrderNotes.item(item.note());
             Map<String, Object> product = products.get(item.productId());
             String variationName = variationId == 0 ? null : (String) variations.get(variationId).get("name");
             GeneratedKeyHolder itemKey = new GeneratedKeyHolder();
             jdbc.update(connection -> {
                 PreparedStatement statement = connection.prepareStatement(
-                    "INSERT INTO order_items (order_id, product_id, variation_id, name, variation_name, quantity, unit_price_cents) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO order_items (order_id, product_id, variation_id, name, variation_name, quantity, unit_price_cents, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS
                 );
                 statement.setLong(1, orderId);
@@ -343,6 +343,7 @@ public class OrderService {
                 if (variationName == null) statement.setNull(5, java.sql.Types.VARCHAR); else statement.setString(5, variationName);
                 statement.setInt(6, item.quantity());
                 statement.setLong(7, unitPrices.get(lineKey));
+                if (itemNote.isEmpty()) statement.setNull(8, java.sql.Types.VARCHAR); else statement.setString(8, itemNote);
                 return statement;
             }, itemKey);
             long orderItemId = itemKey.getKey().longValue();
@@ -386,10 +387,10 @@ public class OrderService {
         return created;
     }
 
-    static final String ORDER_BASE_SQL = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.estimated_minutes, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, o.updated_at, o.delivery_code IS NOT NULL AS has_delivery_code, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, p.amount_due_cents AS payment_due_cents"
+    static final String ORDER_BASE_SQL = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.customer_note, o.estimated_minutes, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, o.updated_at, o.delivery_code IS NOT NULL AS has_delivery_code, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, p.amount_due_cents AS payment_due_cents"
         + ", p.raw_status AS payment_raw_status, "
-        // Resumo curto dos itens ("2× Burger · 1× Suco") para o quadro da cozinha ler sem abrir o pedido.
-        + "(SELECT GROUP_CONCAT(CONCAT(oi.quantity, '× ', oi.name) ORDER BY oi.id SEPARATOR ' · ') FROM order_items oi WHERE oi.order_id = o.id) AS items_summary, "
+        // Resumo curto dos itens ("2× Burger (sem cebola) · 1× Suco") para o quadro da cozinha ler sem abrir o pedido.
+        + "(SELECT GROUP_CONCAT(CONCAT(oi.quantity, '× ', oi.name, IF(oi.note IS NULL, '', CONCAT(' (', oi.note, ')'))) ORDER BY oi.id SEPARATOR ' · ') FROM order_items oi WHERE oi.order_id = o.id) AS items_summary, "
         + "CASE WHEN o.status = 'placed' AND p.modality = 'online' AND p.status IN ('pending', 'rejected', 'cancelled') THEN o.created_at + INTERVAL 15 MINUTE END AS pay_deadline, "
         + "CASE WHEN o.status = 'placed' THEN " + expiryClock("o") + " + INTERVAL 15 MINUTE END AS accept_deadline"
         + " FROM orders o JOIN restaurants r ON r.id = o.restaurant_id LEFT JOIN users c ON c.id = o.customer_id LEFT JOIN order_payments p ON p.order_id = o.id LEFT JOIN restaurant_tables t ON t.id = o.table_id ";
@@ -484,7 +485,7 @@ public class OrderService {
         result.remove("delivery_code");
         result.remove("delivery_code_attempts");
         result.put("items", jdbc.queryForList(
-            "SELECT oi.id, oi.name, oi.variation_name, oi.quantity, oi.unit_price_cents, "
+            "SELECT oi.id, oi.name, oi.variation_name, oi.note, oi.quantity, oi.unit_price_cents, "
                 + "(SELECT GROUP_CONCAT(oia.name SEPARATOR ', ') FROM order_item_addons oia WHERE oia.order_item_id = oi.id) AS addons "
                 + "FROM order_items oi WHERE oi.order_id = ?", orderId));
         result.put("history", jdbc.queryForList("SELECT from_status, to_status, reason, created_at FROM order_events WHERE order_id = ? ORDER BY id", orderId));
