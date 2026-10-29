@@ -13,6 +13,7 @@ import DeliveryCodeCard from '../delivery-code-card';
 import { Icon, type IconName } from '../../icons';
 import RestaurantMedia from '../restaurant-media';
 import { orderStatusLabel } from '../order-status';
+import OrderChat, { useChatUnread, type ChatParty } from '../../order-chat';
 
 /**
  * Janela de avaliação do entregador: 7 dias após a entrega (o servidor decide). A tela só evita o GET em pedido
@@ -32,15 +33,23 @@ const STEPS: { label: string; icon: IconName; statuses: string[] }[] = [
 const stepOf = (status: string) => Math.max(0, STEPS.findIndex((step) => step.statuses.includes(status)));
 const when = (value: string) => new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-type RowProps = { order: Order; index: number; cover: string | null; expandedOrderId: number | null; setExpandedOrderId: (value: number | null) => void; cancelOrder: (orderId: number) => Promise<boolean>; busy: boolean };
+type RowProps = { order: Order; index: number; cover: string | null; expandedOrderId: number | null; setExpandedOrderId: (value: number | null) => void; cancelOrder: (orderId: number) => Promise<boolean>; busy: boolean; chatUnread?: (orderId: number, from?: ChatParty) => number; chatRefresh?: () => void };
 
 function DetailsToggle({ order, expandedOrderId, setExpandedOrderId }: Pick<RowProps, 'order' | 'expandedOrderId' | 'setExpandedOrderId'>) {
   const open = expandedOrderId === order.id;
   return <button className="orders-toggle" aria-expanded={open} onClick={() => setExpandedOrderId(open ? null : order.id)}>{open ? 'Ocultar detalhes' : 'Detalhes'}<Icon name="chevron-down" size={16} /></button>;
 }
 
-function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId, cancelOrder, busy }: RowProps) {
+function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId, cancelOrder, busy, chatUnread, chatRefresh }: RowProps) {
+  const [chatWith, setChatWith] = useState<ChatParty | null>(null);
   const step = stepOf(order.status);
+  // O entregador só entra na conversa depois de atribuído (e enquanto está com o pedido).
+  const withCourier = !!order.courier_id && (order.status === 'assigned' || order.status === 'picked_up');
+  const chatButton = (party: ChatParty, label: string) => {
+    // Com a conversa aberta, as mensagens já foram lidas: o selo some sem esperar a próxima sondagem.
+    const unread = chatWith === party ? 0 : chatUnread?.(order.id, party) ?? 0;
+    return <button type="button" className="orders-toggle" aria-pressed={chatWith === party} onClick={() => { setChatWith(chatWith === party ? null : party); chatRefresh?.(); }}>{label}{unread > 0 && <span className="order-chat-badge" aria-label={`${unread} não lidas`}>{unread}</span>}</button>;
+  };
   const awaiting = awaitingOnlinePayment(order);
   return <article className="orders-active m-rise" style={{ '--i': index } as React.CSSProperties}>
     <div className="orders-active-head">
@@ -57,8 +66,11 @@ function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId,
     <div className="orders-actions">
       <DetailsToggle order={order} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} />
       {awaiting && <Link className="customer-solid-button" href={`/loja/pedidos/${order.id}/pagamento`}>{'Pagar'}</Link>}
+      {chatButton('store', 'Falar com a loja')}
+      {withCourier && chatButton('courier', 'Falar com o entregador')}
       {order.status === 'placed' && <button className="orders-cancel" onClick={() => cancelOrder(order.id)} disabled={busy}>{'Cancelar pedido'}</button>}
     </div>
+    {chatWith && <OrderChat orderId={order.id} with={chatWith} onClose={() => { setChatWith(null); chatRefresh?.(); }} />}
     {expandedOrderId === order.id && <OrderDetails orderId={order.id} status={order.status} />}
   </article>;
 }
@@ -112,7 +124,8 @@ export default function PedidosClientePage() {
   const active = orders.filter((order) => !FINISHED.includes(order.status) && !FAILED.includes(order.status));
   const past = [...orders.filter((order) => !active.includes(order)), ...extra].sort((a, b) => lastChange(b) - lastChange(a) || b.id - a.id);
   const visiblePast = showAllOrders ? past : past.slice(0, 5);
-  const rowProps = { expandedOrderId, setExpandedOrderId, cancelOrder, busy };
+  const [chatUnread, chatRefresh] = useChatUnread(active.length > 0);
+  const rowProps = { expandedOrderId, setExpandedOrderId, cancelOrder, busy, chatUnread, chatRefresh };
   const coverOf = (order: Order) => restaurantById.get(order.restaurant_id)?.cover_url ?? null;
 
   return <section className="orders-page">

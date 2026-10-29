@@ -1,0 +1,19 @@
+/* Chat do pedido: o mesmo bloco no acompanhamento do cliente, no painel da loja e nas entregas. */
+.order-chat { display: grid; gap: 8px; margin: 12px 0 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text); }
+.order-chat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+.order-chat-close { padding: 4px 0; border: 0; background: none; color: var(--brand-700); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.order-chat-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.order-chat-empty { color: var(--text-muted); font-size: 13px; }
+.order-chat-msg { align-self: flex-start; max-width: 85%; padding: 8px 10px; border-radius: 12px 12px 12px 4px; background: var(--surface-muted); font-size: 14px; }
+.order-chat-msg.is-mine { align-self: flex-end; border-radius: 12px 12px 4px 12px; background: var(--brand-050); }
+.order-chat-msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.order-chat-author { display: block; margin-bottom: 2px; color: var(--text-muted); font-size: 12px; font-weight: 700; }
+.order-chat-msg time { display: block; margin-top: 2px; color: var(--text-faint); font-size: 11px; text-align: right; }
+.order-chat-form { display: flex; gap: 8px; }
+.order-chat-form input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--text); font: inherit; font-size: 14px; }
+.order-chat-form button { padding: 0 16px; border: 0; border-radius: var(--radius-pill); background: var(--brand-500); color: #fff; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.order-chat-form button:disabled { opacity: 0.5; cursor: default; }
+.order-chat-error { margin: 0; color: var(--danger); font-size: 13px; }
+.order-chat-closed { margin: 0; color: var(--text-muted); font-size: 13px; }
+/* Selo de não lidas nos botões de abrir a conversa. */
+.order-chat-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 800; }

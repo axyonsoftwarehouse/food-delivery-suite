@@ -964,6 +964,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orders/{id}/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orderChat"];
+        put?: never;
+        post: operations["sendOrderMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications/{id}/read": {
         parameters: {
             query?: never;
@@ -3476,6 +3492,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orders/chat/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orderChatUnread"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/order-cancel-reasons": {
         parameters: {
             query?: never;
@@ -5151,6 +5183,10 @@ export interface components {
             /** Format: int32 */
             rating?: number;
             comment?: string;
+        };
+        OrderMessageRequest: {
+            to: string;
+            body: string;
         };
         UnsubscribeRequest: {
             endpoint: string;
@@ -8316,6 +8352,64 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CourierReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    orderChat: {
+        parameters: {
+            query: {
+                with: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    sendOrderMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderMessageRequest"];
             };
         };
         responses: {
@@ -14205,6 +14299,30 @@ export interface operations {
                     "*/*": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    orderChatUnread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };
