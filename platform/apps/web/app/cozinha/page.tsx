@@ -16,7 +16,7 @@ import { COLUMN_ORDER, COLUMN_TITLES, actionsForStatus, canComplete, canServe, g
  * Por isso aqui **não** aparece nada de entregador, pagamento ou catálogo.
  */
 
-type TicketItem = { id: number; name: string; variation_name: string | null; addons: string | null; quantity: number };
+type TicketItem = { id: number; name: string; variation_name: string | null; addons: string | null; note: string | null; quantity: number };
 type Ticket = {
   id: number;
   status: string;
@@ -24,6 +24,7 @@ type Ticket = {
   table_number: string | null;
   party_size: number | null;
   delivery_address_text: string | null;
+  customer_note: string | null;
   created_at: string;
   total_cents: number;
   items: TicketItem[];
@@ -150,6 +151,7 @@ export default function CozinhaPage() {
                         <strong>{money(order.total_cents)}</strong>
                       </div>
                       {order.items_summary && <p className="kds-card-items">{order.items_summary}</p>}
+                      {order.customer_note && <p className="kds-note">{`Obs.: ${order.customer_note}`}</p>}
                       {order.customer_name && <p className="kds-card-customer">{order.customer_name}</p>}
                       <button className="kds-open" type="button" onClick={() => setTicketId(order.id)}>{'Ver detalhes'}</button>
                       <div className="kds-card-actions">
@@ -200,12 +202,14 @@ export default function CozinhaPage() {
               {/* O detalhe do pedido não traz o nome do cliente; a lista do quadro traz. */}
               {ticketCustomer && <p className="kds-ticket-address">{`Cliente: ${ticketCustomer}`}</p>}
               {ticket.delivery_address_text && <p className="kds-ticket-address">{ticket.delivery_address_text}</p>}
+              {ticket.customer_note && <p className="kds-note kds-note--order">{`Observação do pedido: ${ticket.customer_note}`}</p>}
               <ul className="kds-items">
                 {ticket.items.map((item) => (
                   <li key={item.id}>
                     <strong>{item.quantity}× {item.name}</strong>
                     {item.variation_name && <span>{item.variation_name}</span>}
                     {item.addons && <span className="kds-addons">{item.addons}</span>}
+                    {item.note && <span className="kds-note">{`Obs.: ${item.note}`}</span>}
                   </li>
                 ))}
               </ul>

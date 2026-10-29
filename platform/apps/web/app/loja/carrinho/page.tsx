@@ -22,7 +22,7 @@ export default function CarrinhoPage() {
   const [recurringBusy, setRecurringBusy] = useState(false);
   const [recurringMessage, setRecurringMessage] = useState('');
   const [removing, setRemoving] = useState<string | null>(null);
-  const { cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, removeItem, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
+  const { cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
   const parsedTip = Number(tip.replace(',', '.'));
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
   const total = subtotal + orderFee - discount + serviceFee + tipCents;
@@ -35,17 +35,17 @@ export default function CarrinhoPage() {
   const atDoor = orderType === 'delivery' ? 'ao entregador' : orderType === 'take_away' ? 'na retirada' : 'no local';
 
   // O último item de uma linha desliza para fora antes de sumir.
-  function decrease(key: string, productId: number, variationId: number, addonIds: number[], quantity: number) {
-    if (quantity > 1 || prefersReducedMotion()) { void changeQuantity(productId, variationId, addonIds, -1); return; }
+  function decrease(key: string, productId: number, variationId: number, addonIds: number[], note: string, quantity: number) {
+    if (quantity > 1 || prefersReducedMotion()) { void changeQuantity(productId, variationId, addonIds, note, -1); return; }
     setRemoving(key);
-    window.setTimeout(() => { void changeQuantity(productId, variationId, addonIds, -1); setRemoving(null); }, 220);
+    window.setTimeout(() => { void changeQuantity(productId, variationId, addonIds, note, -1); setRemoving(null); }, 220);
   }
 
   // O botão "Remover" apaga a linha inteira; o "-" do seletor continua tirando uma unidade.
-  function removeLine(key: string, productId: number, variationId: number, addonIds: number[]) {
-    if (prefersReducedMotion()) { void removeItem(productId, variationId, addonIds); return; }
+  function removeLine(key: string, productId: number, variationId: number, addonIds: number[], note: string) {
+    if (prefersReducedMotion()) { void removeItem(productId, variationId, addonIds, note); return; }
     setRemoving(key);
-    window.setTimeout(async () => { await removeItem(productId, variationId, addonIds); setRemoving(null); }, 220);
+    window.setTimeout(async () => { await removeItem(productId, variationId, addonIds, note); setRemoving(null); }, 220);
   }
 
   function payLater(method: 'cash' | 'card' | 'pix') { setManual(false); setModality('on_delivery'); setPaymentMethod(method); }
@@ -91,28 +91,30 @@ export default function CarrinhoPage() {
     <div className="lj-cart-layout">
       <div className="lj-cart-main">
         <section className="lj-panel" aria-label="Itens">
-          <ul className="lj-items">{cartEntries.map(({ product, quantity, variationId, variationName, addonIds, addonNames, unitPriceCents, available, unavailableReason }) => {
-            const key = `${product.id}-${variationId}-${addonIds.join('.')}`;
+          <ul className="lj-items">{cartEntries.map(({ product, quantity, variationId, variationName, addonIds, addonNames, note, unitPriceCents, available, unavailableReason }) => {
+            const key = `${product.id}-${variationId}-${addonIds.join('.')}-${note}`;
             return <li className={`lj-item${removing === key ? ' is-removing' : ''}${available ? '' : ' is-unavailable'}`} key={key}>
               <div className="lj-item-text">
                 <strong>{product.name}</strong>
                 {(variationName || addonNames.length > 0) && <small>{[variationName, ...addonNames].filter(Boolean).join(' · ')}</small>}
                 {!available && <small className="lj-item-unavailable">{unavailableReason ?? 'Indisponível'}</small>}
+                <ItemNote note={note} name={product.name} disabled={cartBusy || removing !== null} onSave={(value) => changeNote(product.id, variationId, addonIds, note, value)} />
                 <Rolling value={money(unitPriceCents * quantity)} className="lj-item-price" />
               </div>
               <div className="lj-item-actions">
                 <div className="lj-stepper">
-                  <button type="button" onClick={() => decrease(key, product.id, variationId, addonIds, quantity)} disabled={cartBusy || removing !== null} aria-label={quantity === 1 ? `Remover ${product.name}` : `Remover uma unidade de ${product.name}`}><Icon name={quantity === 1 ? 'trash' : 'minus'} size={15} /></button>
+                  <button type="button" onClick={() => decrease(key, product.id, variationId, addonIds, note, quantity)} disabled={cartBusy || removing !== null} aria-label={quantity === 1 ? `Remover ${product.name}` : `Remover uma unidade de ${product.name}`}><Icon name={quantity === 1 ? 'trash' : 'minus'} size={15} /></button>
                   <Rolling value={quantity} />
-                  <button type="button" onClick={() => changeQuantity(product.id, variationId, addonIds, 1)} disabled={cartBusy || !available} aria-label={`Adicionar uma unidade de ${product.name}`}><Icon name="plus" size={15} /></button>
+                  <button type="button" onClick={() => changeQuantity(product.id, variationId, addonIds, note, 1)} disabled={cartBusy || !available} aria-label={`Adicionar uma unidade de ${product.name}`}><Icon name="plus" size={15} /></button>
                 </div>
-                <button type="button" className="lj-item-remove" onClick={() => removeLine(key, product.id, variationId, addonIds)} disabled={cartBusy || removing !== null} aria-label={`Remover ${product.name} do carrinho`}>
+                <button type="button" className="lj-item-remove" onClick={() => removeLine(key, product.id, variationId, addonIds, note)} disabled={cartBusy || removing !== null} aria-label={`Remover ${product.name} do carrinho`}>
                   <Icon name="trash" size={13} />{'Remover'}
                 </button>
               </div>
             </li>;
           })}</ul>
           {cartRestaurant && <Link className="lj-text-button" href={`/loja/restaurantes/${cartRestaurant.id}`}><Icon name="plus" size={16} />{'Adicionar mais itens'}</Link>}
+          <label className="lj-field">{'Observação do pedido (opcional)'}<textarea value={orderNote} onChange={(event) => setOrderNote(event.target.value)} maxLength={300} rows={2} placeholder="Ex.: tocar o interfone, sem talheres" /></label>
         </section>
 
         <section className="lj-panel">
@@ -185,8 +187,8 @@ export default function CarrinhoPage() {
             <p className="lj-help">{'Pagamento na entrega; o restaurante aceita cada pedido.'}</p>
             <label className="lj-field lj-field--inline">{'Repetir a cada'}<input type="number" min={1} max={90} value={frequencyDays} onChange={(event) => setFrequencyDays(Number(event.target.value))} />{' dias'}</label>
             <label className="lj-field">{'Primeiro pedido em'}<input type="datetime-local" value={firstRunAt} onChange={(event) => setFirstRunAt(event.target.value)} /></label>
-            <button type="button" className="lj-outline-button" onClick={() => void createRecurring()} disabled={recurringBusy || cartBusy || !selectedAddress?.postal_code || !cartCovered || !meetsMinimum || modality !== 'on_delivery' || manual || cartEntries.some((entry) => entry.addonIds.length > 0 || !entry.available) || frequencyDays < 1 || frequencyDays > 90}>{recurringBusy ? 'Salvando...' : 'Criar recorrência'}</button>
-            {cartEntries.some((entry) => entry.addonIds.length > 0) && <p className="lj-help">{'Remova os adicionais para criar uma recorrência.'}</p>}
+            <button type="button" className="lj-outline-button" onClick={() => void createRecurring()} disabled={recurringBusy || cartBusy || !selectedAddress?.postal_code || !cartCovered || !meetsMinimum || modality !== 'on_delivery' || manual || cartEntries.some((entry) => entry.addonIds.length > 0 || entry.note || !entry.available) || frequencyDays < 1 || frequencyDays > 90}>{recurringBusy ? 'Salvando...' : 'Criar recorrência'}</button>
+            {cartEntries.some((entry) => entry.addonIds.length > 0 || entry.note) && <p className="lj-help">{'Remova os adicionais e as observações dos itens para criar uma recorrência.'}</p>}
             {recurringMessage && <p role="status" className="lj-help">{recurringMessage} <Link href="/loja/perfil">{'Ver minhas recorrências'}</Link></p>}
           </div>
         </details>}
@@ -219,4 +221,20 @@ export default function CarrinhoPage() {
       <button type="button" className="lj-checkout" onClick={placeOrder} disabled={checkoutDisabled}><span>{checkoutLabel}</span>{placing ? <span className="m-spinner" /> : <Rolling value={money(total)} />}</button>
     </div>
   </section>;
+}
+
+/** Observação do item ("sem cebola"): link para abrir, campo curto para editar. */
+function ItemNote({ note, name, disabled, onSave }: { note: string; name: string; disabled: boolean; onSave: (value: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note);
+  if (!editing) {
+    return note
+      ? <button type="button" className="lj-item-note" onClick={() => { setDraft(note); setEditing(true); }} disabled={disabled} aria-label={`Editar a observação de ${name}`}>{`Obs.: ${note}`}</button>
+      : <button type="button" className="lj-item-note is-empty" onClick={() => { setDraft(''); setEditing(true); }} disabled={disabled}>{'Adicionar observação'}</button>;
+  }
+  return <form className="lj-item-note-form" onSubmit={(event) => { event.preventDefault(); void onSave(draft).then(() => setEditing(false)); }}>
+    <input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={140} placeholder="Ex.: sem cebola" aria-label={`Observação de ${name}`} autoFocus />
+    <button type="submit" className="lj-text-button" disabled={disabled}>{'Salvar'}</button>
+    <button type="button" className="lj-text-button" onClick={() => setEditing(false)}>{'Cancelar'}</button>
+  </form>;
 }

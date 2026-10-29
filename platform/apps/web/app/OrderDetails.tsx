@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from './app-context';
 import PixPayment from './PixPayment';
 
-type Item = { name: string; quantity: number; unit_price_cents: number };
+type Item = { name: string; quantity: number; unit_price_cents: number; note?: string | null };
 type Event = { from_status: string | null; to_status: string; reason: string | null; created_at: string };
 type PaymentImage = { qr_code?: string | null; qr_code_base64?: string | null; ticket_url?: string | null };
 type Payment = {
@@ -25,6 +25,7 @@ type Payment = {
 type Detail = {
   id: number;
   delivery_address_text: string | null;
+  customer_note?: string | null;
   subtotal_cents: number;
   delivery_fee_cents: number;
   discount_cents: number;
@@ -121,7 +122,7 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
 
   return <div className="order-details" aria-live="polite">
     <div className="order-details-grid">
-      <div><h3>Itens</h3><ul>{detail.items.map((item, index) => <li key={index}><span>{item.quantity} × {item.name}</span><strong>{money(item.quantity * item.unit_price_cents)}</strong></li>)}</ul></div>
+      <div><h3>Itens</h3><ul>{detail.items.map((item, index) => <li key={index}><span>{item.quantity} × {item.name}{item.note && <em className="order-details-note">{`Obs.: ${item.note}`}</em>}</span><strong>{money(item.quantity * item.unit_price_cents)}</strong></li>)}</ul></div>
       <div><h3>Andamento</h3><ol>{detail.history.map((event, index) => <li key={index}><strong>{statusLabels[event.to_status] ?? event.to_status}</strong>{event.reason && <em> · {event.reason}</em>}<time dateTime={event.created_at}>{date(event.created_at)}</time></li>)}</ol></div>
     </div>
     {/* Uma linha por valor: na mesma linha, "Subtotal R$ 109,60 Entrega R$ 5,90" lia como um texto só. */}
@@ -162,6 +163,7 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
         )}
       </div>
     )}
+    {detail.customer_note && <p className="order-details-address">{`Observação do pedido: ${detail.customer_note}`}</p>}
     {detail.delivery_address_text && <p className="order-details-address">Entrega: {detail.delivery_address_text}</p>}
   </div>;
 }

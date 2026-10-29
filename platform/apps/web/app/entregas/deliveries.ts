@@ -1,9 +1,9 @@
 /** Área do entregador, parte A: tipos e regras da tela "Agora" (spec 2026-10-08-entregador-dia-a-dia). */
 
-export type DeliveryItem = { name: string; variation_name: string | null; quantity: number };
+export type DeliveryItem = { name: string; variation_name: string | null; note?: string | null; quantity: number };
 export type Delivery = {
   id: number; status: 'assigned' | 'picked_up'; created_at: string; distance_meters: number | null;
-  delivery_address_text: string; contact_phone: string | null; total_cents: number;
+  delivery_address_text: string; contact_phone: string | null; customer_note?: string | null; total_cents: number;
   customer_name: string | null; complement: string | null; customer_latitude: number | null; customer_longitude: number | null;
   restaurant_name: string; restaurant_address: string | null; restaurant_latitude: number | null; restaurant_longitude: number | null;
   restaurant_phone: string | null; payment_method: string | null; payment_modality: string | null; payment_status: string | null;

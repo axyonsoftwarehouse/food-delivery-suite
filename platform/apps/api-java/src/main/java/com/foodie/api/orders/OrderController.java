@@ -126,8 +126,24 @@ public class OrderController {
                                @Positive Long tableId,
                                @Min(1) @Max(50) Integer partySize,
                                @Min(0) @Max(100_000) Integer tipCents,
-                               @Size(max = 30) String contactPhone) {}
-    public record Item(@Positive long productId, @Positive Long variationId, @Positive @Max(20) int quantity, @Size(max = 20) List<@Positive Long> addonIds) {}
+                               @Size(max = 30) String contactPhone,
+                               @Size(max = 300) String customerNote) {
+        public OrderRequest(long restaurantId, Long addressId, List<Item> items, String paymentMethod, Integer changeForCents, String modality,
+                            String couponCode, String scheduledFor, String orderType, Long tableId, Integer partySize, Integer tipCents, String contactPhone) {
+            this(restaurantId, addressId, items, paymentMethod, changeForCents, modality, couponCode, scheduledFor, orderType, tableId, partySize, tipCents, contactPhone, null);
+        }
+    }
+    public record Item(@Positive long productId, @Positive Long variationId, @Positive @Max(20) int quantity, @Size(max = 20) List<@Positive Long> addonIds,
+                       @Size(max = 140) String note) {
+        public Item(long productId, Long variationId, int quantity, List<Long> addonIds) {
+            this(productId, variationId, quantity, addonIds, null);
+        }
+
+        /** Chave da linha: o mesmo prato com variação, adicionais ou observação diferentes é outra linha. */
+        String lineKey() {
+            return productId + ":" + (variationId == null ? 0 : variationId) + ":" + com.foodie.api.catalog.AddonService.key(addonIds) + ":" + OrderNotes.item(note);
+        }
+    }
     public record StatusRequest(@NotBlank String action, @Positive Long courierId, @Size(max = 255) String reason,
                                 @Pattern(regexp = "\\d{4}") String deliveryCode, @Size(max = 30) String failureReason,
                                 @Size(max = 200) String note) {

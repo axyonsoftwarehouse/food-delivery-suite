@@ -180,6 +180,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cart/items/{productId}/note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["changeNote"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/support/restaurants/{id}/products/{productId}/tags": {
         parameters: {
             query?: never;
@@ -4851,6 +4867,38 @@ export interface components {
             /** Format: int32 */
             weeklyDeliveries?: number;
         };
+        NoteRequest: {
+            /** Format: int64 */
+            variationId?: number;
+            addonIds?: number[];
+            note?: string;
+            newNote?: string;
+        };
+        CartItem: {
+            /** Format: int64 */
+            productId?: number;
+            /** Format: int64 */
+            variationId?: number;
+            /** Format: int32 */
+            quantity?: number;
+            /** Format: int64 */
+            restaurantId?: number;
+            name?: string;
+            /** Format: int32 */
+            priceCents?: number;
+            variationName?: string;
+            /** Format: int64 */
+            unitPriceCents?: number;
+            addonIds?: number[];
+            addonNames?: string[];
+            note?: string;
+            available?: boolean;
+            unavailableReason?: string;
+        };
+        CartSnapshot: {
+            items?: components["schemas"]["CartItem"][];
+            version?: string;
+        };
         SupportRequestTagIdsRequest: {
             reason?: string;
             data: components["schemas"]["TagIdsRequest"];
@@ -5172,30 +5220,6 @@ export interface components {
         ImportRequest: {
             items: components["schemas"]["ImportItem"][];
         };
-        CartItem: {
-            /** Format: int64 */
-            productId?: number;
-            /** Format: int64 */
-            variationId?: number;
-            /** Format: int32 */
-            quantity?: number;
-            /** Format: int64 */
-            restaurantId?: number;
-            name?: string;
-            /** Format: int32 */
-            priceCents?: number;
-            variationName?: string;
-            /** Format: int64 */
-            unitPriceCents?: number;
-            addonIds?: number[];
-            addonNames?: string[];
-            available?: boolean;
-            unavailableReason?: string;
-        };
-        CartSnapshot: {
-            items?: components["schemas"]["CartItem"][];
-            version?: string;
-        };
         CheckoutRequest: {
             /** Format: int64 */
             addressId?: number;
@@ -5217,6 +5241,7 @@ export interface components {
             /** Format: int32 */
             tipCents?: number;
             contactPhone?: string;
+            customerNote?: string;
         };
         GoogleRequest: {
             idToken: string;
@@ -5518,6 +5543,7 @@ export interface components {
             /** Format: int64 */
             variationId?: number;
             addonIds?: number[];
+            note?: string;
         };
         ZonePricingRequest: {
             /** Format: int32 */
@@ -6229,6 +6255,34 @@ export interface operations {
                     "*/*": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    changeNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CartSnapshot"];
                 };
             };
         };
@@ -11687,6 +11741,7 @@ export interface operations {
             query?: {
                 variationId?: number;
                 addonIds?: number[];
+                note?: string;
             };
             header?: never;
             path: {

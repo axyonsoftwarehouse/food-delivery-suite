@@ -58,12 +58,13 @@ public class CartService {
     }
 
     @Transactional
-    public CartSnapshot change(User customer, long productId, long variationId, List<Long> addonIds, int delta) {
+    public CartSnapshot change(User customer, long productId, long variationId, List<Long> addonIds, String rawNote, int delta) {
         lock(customer.id());
         String addonKey = AddonService.key(addonIds);
+        String note = OrderNotes.item(rawNote);
         List<CartRow> current = rows(customer.id());
         CartRow existing = current.stream()
-            .filter(row -> row.productId() == productId && row.variationId() == variationId && row.addonKey().equals(addonKey))
+            .filter(row -> row.productId() == productId && row.variationId() == variationId && row.addonKey().equals(addonKey) && row.note().equals(note))
             .findFirst().orElse(null);
         if (delta > 0) {
             long restaurantId = availableRestaurant(productId, variationId);
@@ -74,26 +75,56 @@ public class CartService {
             if (existing == null && current.size() >= 30) throw new ApiException(400, "O carrinho aceita até 30 itens diferentes");
             if (existing != null && existing.quantity() >= 20) throw new ApiException(400, "Limite de 20 unidades por item");
             if (existing == null) {
-                jdbc.update("INSERT INTO cart_items (user_id, product_id, variation_id, addon_key, quantity) VALUES (?, ?, ?, ?, 1)", customer.id(), productId, variationId, addonKey);
+                jdbc.update("INSERT INTO cart_items (user_id, product_id, variation_id, addon_key, note, quantity) VALUES (?, ?, ?, ?, ?, 1)", customer.id(), productId, variationId, addonKey, note);
             } else {
-                jdbc.update("UPDATE cart_items SET quantity = quantity + 1 WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ?", customer.id(), productId, variationId, addonKey);
+                jdbc.update("UPDATE cart_items SET quantity = quantity + 1 WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ? AND note = ?", customer.id(), productId, variationId, addonKey, note);
             }
         } else if (existing != null) {
             if (existing.quantity() == 1) {
-                jdbc.update("DELETE FROM cart_items WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ?", customer.id(), productId, variationId, addonKey);
+                jdbc.update("DELETE FROM cart_items WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ? AND note = ?", customer.id(), productId, variationId, addonKey, note);
             } else {
-                jdbc.update("UPDATE cart_items SET quantity = quantity - 1 WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ?", customer.id(), productId, variationId, addonKey);
+                jdbc.update("UPDATE cart_items SET quantity = quantity - 1 WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ? AND note = ?", customer.id(), productId, variationId, addonKey, note);
             }
+        }
+        return snapshot(customer.id());
+    }
+
+    /**
+     * Troca a observação de uma linha. A observação faz parte da chave, então a linha "muda de chave": se já
+     * existe outra com a observação nova, as quantidades se somam (até o limite de 20).
+     */
+    @Transactional
+    public CartSnapshot changeNote(User customer, long productId, long variationId, List<Long> addonIds, String rawNote, String rawNewNote) {
+        lock(customer.id());
+        String addonKey = AddonService.key(addonIds);
+        String note = OrderNotes.item(rawNote);
+        String newNote = OrderNotes.item(rawNewNote);
+        if (note.equals(newNote)) return snapshot(customer.id());
+        List<CartRow> current = rows(customer.id());
+        CartRow existing = current.stream()
+            .filter(row -> row.productId() == productId && row.variationId() == variationId && row.addonKey().equals(addonKey) && row.note().equals(note))
+            .findFirst().orElseThrow(() -> new ApiException(404, "Item não está no carrinho"));
+        CartRow target = current.stream()
+            .filter(row -> row.productId() == productId && row.variationId() == variationId && row.addonKey().equals(addonKey) && row.note().equals(newNote))
+            .findFirst().orElse(null);
+        if (target == null) {
+            jdbc.update("UPDATE cart_items SET note = ? WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ? AND note = ?",
+                newNote, customer.id(), productId, variationId, addonKey, note);
+        } else {
+            jdbc.update("UPDATE cart_items SET quantity = ? WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ? AND note = ?",
+                Math.min(20, target.quantity() + existing.quantity()), customer.id(), productId, variationId, addonKey, newNote);
+            jdbc.update("DELETE FROM cart_items WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ? AND note = ?",
+                customer.id(), productId, variationId, addonKey, note);
         }
         return snapshot(customer.id());
     }
 
     /** Remove a linha do carrinho sem se importar com a quantidade atual (idempotente). */
     @Transactional
-    public CartSnapshot remove(User customer, long productId, long variationId, List<Long> addonIds) {
+    public CartSnapshot remove(User customer, long productId, long variationId, List<Long> addonIds, String note) {
         lock(customer.id());
-        jdbc.update("DELETE FROM cart_items WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ?",
-            customer.id(), productId, variationId, AddonService.key(addonIds));
+        jdbc.update("DELETE FROM cart_items WHERE user_id = ? AND product_id = ? AND variation_id = ? AND addon_key = ? AND note = ?",
+            customer.id(), productId, variationId, AddonService.key(addonIds), OrderNotes.item(note));
         return snapshot(customer.id());
     }
 
@@ -132,7 +163,7 @@ public class CartService {
     }
 
     @Transactional
-    public Map<String, Object> checkout(User customer, Long addressId, long expectedTotalCents, String expectedVersion, String idempotencyKey, String paymentMethod, Integer changeForCents, String modality, String couponCode, String scheduledFor, String orderType, Long tableId, Integer partySize, Integer tipCents, String contactPhone) {
+    public Map<String, Object> checkout(User customer, Long addressId, long expectedTotalCents, String expectedVersion, String idempotencyKey, String paymentMethod, Integer changeForCents, String modality, String couponCode, String scheduledFor, String orderType, Long tableId, Integer partySize, Integer tipCents, String contactPhone, String customerNote) {
         lock(customer.id());
         String key = idempotencyKey == null ? null : idempotencyKey.trim();
         if (key != null && !key.isEmpty()) {
@@ -156,11 +187,11 @@ public class CartService {
         long restaurantId = current.items().getFirst().restaurantId();
         List<OrderController.Item> items = new ArrayList<>();
         for (CartItem item : current.items()) {
-            items.add(new OrderController.Item(item.productId(), item.variationId() == 0 ? null : item.variationId(), item.quantity(), item.addonIds().isEmpty() ? null : item.addonIds()));
+            items.add(new OrderController.Item(item.productId(), item.variationId() == 0 ? null : item.variationId(), item.quantity(), item.addonIds().isEmpty() ? null : item.addonIds(), item.note()));
         }
         // Entrega exige o telefone para o entregador falar com quem recebe; os outros tipos ignoram.
         String contact = ContactPhone.requireForDelivery(orderType, contactPhone);
-        Map<String, Object> order = orders.create(customer, new OrderController.OrderRequest(restaurantId, addressId, items, paymentMethod, changeForCents, modality, couponCode, scheduledFor, orderType, tableId, partySize, tipCents, contact));
+        Map<String, Object> order = orders.create(customer, new OrderController.OrderRequest(restaurantId, addressId, items, paymentMethod, changeForCents, modality, couponCode, scheduledFor, orderType, tableId, partySize, tipCents, contact, customerNote));
         if (((Number) order.get("totalCents")).longValue() != expectedTotalCents) {
             throw new ApiException(409, "O valor do pedido mudou. Atualize o carrinho antes de continuar");
         }
@@ -215,7 +246,7 @@ public class CartService {
         String localTime = hours.localTimeSql("r.timezone", value -> { args.add(value); return "?"; });
         args.add(customerId);
         return jdbc.query(
-            "SELECT ci.product_id, ci.variation_id, ci.addon_key, ci.quantity, p.restaurant_id, p.name, p.price_cents, "
+            "SELECT ci.product_id, ci.variation_id, ci.addon_key, ci.note, ci.quantity, p.restaurant_id, p.name, p.price_cents, "
                 + "v.name AS variation_name, COALESCE(v.price_delta_cents, 0) AS variation_delta_cents, "
                 + "p.available AS product_available, r.active AS restaurant_active, "
                 + "CASE WHEN ci.variation_id = 0 THEN TRUE ELSE (v.id IS NOT NULL AND v.available = TRUE) END AS variation_available, "
@@ -224,7 +255,7 @@ public class CartService {
                 + "FROM cart_items ci JOIN products p ON p.id = ci.product_id "
                 + "JOIN restaurants r ON r.id = p.restaurant_id "
                 + "LEFT JOIN product_variations v ON v.id = ci.variation_id "
-                + "WHERE ci.user_id = ? ORDER BY ci.updated_at, ci.product_id",
+                + "WHERE ci.user_id = ? ORDER BY ci.updated_at, ci.product_id, ci.note",
             (rs, row) -> {
                 Object stockValue = rs.getObject("stock");
                 Integer stock = stockValue == null ? null : ((Number) stockValue).intValue();
@@ -240,7 +271,7 @@ public class CartService {
                     : !variationAvailable ? "Variação indisponível"
                     : !windowOk ? "Fora do horário de disponibilidade"
                     : "Estoque insuficiente";
-                return new CartRow(rs.getLong("product_id"), rs.getLong("variation_id"), rs.getString("addon_key"), quantity,
+                return new CartRow(rs.getLong("product_id"), rs.getLong("variation_id"), rs.getString("addon_key"), rs.getString("note"), quantity,
                     rs.getLong("restaurant_id"), rs.getString("name"), rs.getInt("price_cents"), rs.getString("variation_name"),
                     rs.getInt("variation_delta_cents"), available, reason);
             }, args.toArray());
@@ -263,21 +294,21 @@ public class CartService {
             if (!addonsAvailable) reason = reason == null ? "Adicionais indisponíveis" : reason + "; adicionais indisponíveis";
             items.add(new CartItem(row.productId(), row.variationId(), row.quantity(), row.restaurantId(), row.name(), row.priceCents(),
                 row.variationName(), unit, addonIds, addons.stream().map(addon -> (String) addon.get("name")).toList(),
-                row.available() && addonsAvailable, reason));
+                row.note(), row.available() && addonsAvailable, reason));
         }
         StringBuilder canonical = new StringBuilder();
         for (CartItem item : items) {
             canonical.append(item.productId()).append(':').append(item.variationId()).append(':')
                 .append(item.addonIds().stream().map(String::valueOf).reduce((a, b) -> a + "." + b).orElse("")).append(':')
-                .append(item.quantity()).append(':').append(item.unitPriceCents()).append(';');
+                .append(item.note()).append(':').append(item.quantity()).append(':').append(item.unitPriceCents()).append(';');
         }
         return new CartSnapshot(items, Tokens.hash(canonical.toString()).substring(0, 16));
     }
 
-    private record CartRow(long productId, long variationId, String addonKey, int quantity, long restaurantId, String name, int priceCents,
+    private record CartRow(long productId, long variationId, String addonKey, String note, int quantity, long restaurantId, String name, int priceCents,
                            String variationName, int variationDelta, boolean available, String unavailableReason) {}
     public record CartItem(long productId, long variationId, int quantity, long restaurantId, String name, int priceCents,
                            String variationName, long unitPriceCents, List<Long> addonIds, List<String> addonNames,
-                           boolean available, String unavailableReason) {}
+                           String note, boolean available, String unavailableReason) {}
     public record CartSnapshot(List<CartItem> items, String version) {}
 }
