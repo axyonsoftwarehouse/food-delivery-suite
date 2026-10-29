@@ -8,6 +8,7 @@ import { Icon } from '../icons';
 import { useCustomer } from './customer-context';
 import RestaurantMedia from './restaurant-media';
 import { ReferralBlock } from './referral';
+import { estimateMinutes, etaRange } from './eta';
 import { FadeImg, Rolling, flyToCart, prefersReducedMotion } from './motion';
 
 export default function RestaurantMenu() {
@@ -168,6 +169,7 @@ export default function RestaurantMenu() {
         <h1 ref={titleRef}>{restaurant?.name ?? 'Restaurante'}</h1>
         {restaurant && <p className="lj-store-sub"><span className={`lj-dot${restaurant.open ? '' : ' is-off'}`} aria-hidden="true" />{restaurant.open ? 'Aberto agora' : 'Fechado agora'}{restaurant.cuisines ? ` · ${restaurant.cuisines}` : ''}</p>}
         {covered && selectedZone && <dl className="lj-store-facts">
+          {restaurant && etaRange(estimateMinutes(restaurant.prep_minutes, selectedZone.delivery_minutes)) && <div><dt>{'Tempo'}</dt><dd>{etaRange(estimateMinutes(restaurant.prep_minutes, selectedZone.delivery_minutes))}</dd></div>}
           <div><dt>{'Entrega'}</dt><dd>{selectedZone.delivery_fee_cents ? money(selectedZone.delivery_fee_cents) : 'Grátis'}</dd></div>
           <div><dt>{'Pedido mínimo'}</dt><dd>{selectedZone.minimum_order_cents ? money(selectedZone.minimum_order_cents) : 'Sem mínimo'}</dd></div>
         </dl>}

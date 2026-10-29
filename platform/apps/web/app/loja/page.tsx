@@ -7,6 +7,7 @@ import { useCustomer } from './customer-context';
 import { Icon } from '../icons';
 import RestaurantMedia from './restaurant-media';
 import BannerCarousel from './banner-carousel';
+import { estimateMinutes, etaRange } from './eta';
 
 const FINISHED = ['delivered', 'completed', 'served'];
 
@@ -96,7 +97,7 @@ export default function LojaPage() {
               {!restaurant.open && <span className="lj-rest-badge">{'Fechado agora'}</span>}
             </span>
             <strong className="lj-rest-name">{restaurant.name}</strong>
-            <span className="lj-rest-meta">{[kinds, restaurant.open ? fee : 'Agende seu pedido'].filter(Boolean).join(' · ')}</span>
+            <span className="lj-rest-meta">{[kinds, ...(restaurant.open ? [etaRange(estimateMinutes(restaurant.prep_minutes, selectedZone?.delivery_minutes)), fee] : ['Agende seu pedido'])].filter(Boolean).join(' · ')}</span>
           </Link>;
         })}</div>}
       </section>

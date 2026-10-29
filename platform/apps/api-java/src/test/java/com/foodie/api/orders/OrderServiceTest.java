@@ -582,6 +582,18 @@ class OrderServiceTest {
     }
 
     @Test
+    void estimateIsPrepPlusTheZoneTravelOnlyForDelivery() {
+        assertThat(OrderService.estimatedMinutes(Map.of("prep_minutes", 25), Map.of("delivery_minutes", 20))).isEqualTo(45);
+        assertThat(OrderService.estimatedMinutes(Map.of("prep_minutes", 25), null)).isEqualTo(25);
+        assertThat(OrderService.estimatedMinutes(Map.of(), Map.of("delivery_minutes", 20))).isNull();
+    }
+
+    @Test
+    void listColumnsCarryTheEstimate() {
+        assertThat(OrderService.ORDER_BASE_SQL).contains("o.estimated_minutes");
+    }
+
+    @Test
     void listColumnsCarryTheLastChange() {
         // A tela do cliente ordena os anteriores e limita a avaliação da entrega pela última mudança do pedido.
         assertThat(OrderService.ORDER_BASE_SQL).contains("o.updated_at");

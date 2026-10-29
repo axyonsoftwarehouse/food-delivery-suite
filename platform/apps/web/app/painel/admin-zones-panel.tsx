@@ -17,6 +17,7 @@ export default function AdminZonesPanel() {
   const [zoneBase, setZoneBase] = useState('');
   const [zonePerKm, setZonePerKm] = useState('');
   const [zonePricingMinimum, setZonePricingMinimum] = useState('15,00');
+  const [zoneMinutes, setZoneMinutes] = useState('');
   const [coverageZoneId, setCoverageZoneId] = useState('');
   const [postalStart, setPostalStart] = useState('');
   const [postalEnd, setPostalEnd] = useState('');
@@ -59,7 +60,7 @@ export default function AdminZonesPanel() {
         <div className="ad-form-foot"><Help>Faixas não podem se sobrepor. Cadastre apenas CEPs atendidos pela zona.</Help><button className="pr-btn pr-btn--primary" disabled={busy || !selectedCoverageZoneId}>Cadastrar faixa</button></div>
       </form>
 
-      <form className="pr-card pr-form" onSubmit={(event) => { event.preventDefault(); const cents = (value: string) => value.trim() ? Math.round(Number(value.replace(',', '.')) * 100) : null; run(() => api(`/admin/zones/${selectedCoverageZoneId}/pricing`, { method: 'PATCH', body: JSON.stringify({ deliveryFeeCents: cents(zoneFixed) ?? 0, baseFeeCents: cents(zoneBase), perKmCents: cents(zonePerKm), minimumOrderCents: cents(zonePricingMinimum) ?? 0 }) }), 'Preços da zona atualizados.'); }}>
+      <form className="pr-card pr-form" onSubmit={(event) => { event.preventDefault(); const cents = (value: string) => value.trim() ? Math.round(Number(value.replace(',', '.')) * 100) : null; run(() => api(`/admin/zones/${selectedCoverageZoneId}/pricing`, { method: 'PATCH', body: JSON.stringify({ deliveryFeeCents: cents(zoneFixed) ?? 0, baseFeeCents: cents(zoneBase), perKmCents: cents(zonePerKm), minimumOrderCents: cents(zonePricingMinimum) ?? 0, deliveryMinutes: zoneMinutes.trim() ? Number(zoneMinutes) : undefined }) }), 'Preços da zona atualizados.'); }}>
         <div className="pr-card-head"><h2>Preços da zona</h2></div>
         <label className="pr-field">Zona<select value={coverageZoneId} onChange={(event) => setCoverageZoneId(event.target.value)}>{zoneOptions(false)}</select></label>
         <div className="pr-form-row">
@@ -70,7 +71,8 @@ export default function AdminZonesPanel() {
           <label className="pr-field">Base por distância em R$<input inputMode="decimal" value={zoneBase} onChange={(event) => setZoneBase(event.target.value)} placeholder="Opcional" /></label>
           <label className="pr-field">Por km em R$<input inputMode="decimal" value={zonePerKm} onChange={(event) => setZonePerKm(event.target.value)} placeholder="Opcional" /></label>
         </div>
-        <div className="ad-form-foot"><Help>Com “por km”, a taxa vira base + km; sem ele, mantém a taxa fixa.</Help><button className="pr-btn pr-btn--primary" disabled={busy || !selectedCoverageZoneId}>Salvar preços</button></div>
+        <label className="pr-field">Tempo de entrega em minutos<input type="number" inputMode="numeric" min={5} max={180} value={zoneMinutes} onChange={(event) => setZoneMinutes(event.target.value)} placeholder="Em branco mantém o atual" /></label>
+        <div className="ad-form-foot"><Help>Com “por km”, a taxa vira base + km; sem ele, mantém a taxa fixa. O tempo de entrega soma ao preparo da loja na estimativa do cliente.</Help><button className="pr-btn pr-btn--primary" disabled={busy || !selectedCoverageZoneId}>Salvar preços</button></div>
       </form>
     </div>
 

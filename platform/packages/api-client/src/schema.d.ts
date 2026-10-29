@@ -132,6 +132,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/contact/prep-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["prepTime"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/restaurant/contact/delivery-code": {
         parameters: {
             query?: never;
@@ -4841,6 +4857,10 @@ export interface components {
         ContactRequest: {
             phone?: string;
         };
+        PrepTimeRequest: {
+            /** Format: int32 */
+            minutes: number;
+        };
         DeliveryCodeRequest: {
             required: boolean;
         };
@@ -5528,6 +5548,8 @@ export interface components {
             perKmCents?: number;
             /** Format: int32 */
             minimumOrderCents?: number;
+            /** Format: int32 */
+            deliveryMinutes?: number;
         };
         SupportRequestTimezoneRequest: {
             reason?: string;
@@ -6085,6 +6107,34 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ContactRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    prepTime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrepTimeRequest"];
             };
         };
         responses: {
