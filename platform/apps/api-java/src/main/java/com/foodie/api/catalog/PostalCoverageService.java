@@ -25,7 +25,7 @@ public class PostalCoverageService {
     public Map<String, Object> resolve(String postalCode) {
         String digits = normalize(postalCode);
         List<Map<String, Object>> matches = jdbc.queryForList(
-            "SELECT z.id, z.name, z.city, z.state, z.delivery_fee_cents, z.minimum_order_cents "
+            "SELECT z.id, z.name, z.city, z.state, z.delivery_fee_cents, z.minimum_order_cents, z.delivery_minutes "
                 + "FROM zone_postal_ranges p JOIN zones z ON z.id = p.zone_id AND z.active = TRUE "
                 + "WHERE p.postal_start <= ? AND p.postal_end >= ? ORDER BY p.id LIMIT 1",
             digits, digits);

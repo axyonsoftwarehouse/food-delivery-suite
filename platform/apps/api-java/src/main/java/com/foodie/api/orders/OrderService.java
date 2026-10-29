@@ -117,7 +117,7 @@ public class OrderService {
         List<Map<String, Object>> restaurants;
         if (deliveryOrder) {
             List<Map<String, Object>> addresses = jdbc.queryForList(
-                "SELECT a.id, a.zone_id, a.postal_code, a.street, a.number, a.neighborhood, a.complement, a.latitude, a.longitude, z.city, z.state, z.delivery_fee_cents, z.base_fee_cents, z.per_km_cents, z.minimum_order_cents FROM addresses a JOIN zones z ON z.id = a.zone_id AND z.active = TRUE WHERE a.id = ? AND a.user_id = ?",
+                "SELECT a.id, a.zone_id, a.postal_code, a.street, a.number, a.neighborhood, a.complement, a.latitude, a.longitude, z.city, z.state, z.delivery_fee_cents, z.base_fee_cents, z.per_km_cents, z.minimum_order_cents, z.delivery_minutes FROM addresses a JOIN zones z ON z.id = a.zone_id AND z.active = TRUE WHERE a.id = ? AND a.user_id = ?",
                 request.addressId(), customer.id()
             );
             if (addresses.isEmpty()) throw new ApiException(400, "Endereço não encontrado ou zona indisponível");
@@ -126,14 +126,14 @@ public class OrderService {
             if (address.get("postal_code") == null) throw new ApiException(409, "Recadastre o endereço com CEP antes de pedir");
             postalCoverage.requireAddressZone((String) address.get("postal_code"), zoneId);
             restaurants = jdbc.queryForList(
-                "SELECT r.timezone, r.latitude, r.longitude, r.service_fee_percent, r.require_delivery_code FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
+                "SELECT r.timezone, r.latitude, r.longitude, r.service_fee_percent, r.require_delivery_code, r.prep_minutes FROM restaurants r JOIN restaurant_zones rz ON rz.restaurant_id = r.id WHERE r.id = ? AND r.active = TRUE AND rz.zone_id = ? FOR UPDATE",
                 request.restaurantId(), zoneId
             );
             if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante não atende este endereço ou está fechado");
         } else {
             zoneId = 0;
             restaurants = jdbc.queryForList(
-                "SELECT r.timezone, r.latitude, r.longitude, r.service_fee_percent FROM restaurants r WHERE r.id = ? AND r.active = TRUE FOR UPDATE",
+                "SELECT r.timezone, r.latitude, r.longitude, r.service_fee_percent, r.prep_minutes FROM restaurants r WHERE r.id = ? AND r.active = TRUE FOR UPDATE",
                 request.restaurantId()
             );
             if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante indisponível");
@@ -317,6 +317,8 @@ public class OrderService {
         }
         String customerNote = OrderNotes.order(request.customerNote());
         if (customerNote != null) jdbc.update("UPDATE orders SET customer_note = ? WHERE id = ?", customerNote, orderId);
+        Integer estimated = estimatedMinutes(restaurants.getFirst(), deliveryOrder ? address : null);
+        if (estimated != null) jdbc.update("UPDATE orders SET estimated_minutes = ? WHERE id = ?", estimated, orderId);
         if (orderScheduledInSeconds != null) {
             jdbc.update("UPDATE orders SET scheduled_at = DATE_ADD(NOW(), INTERVAL ? SECOND) WHERE id = ?", orderScheduledInSeconds, orderId);
         }
@@ -385,7 +387,7 @@ public class OrderService {
         return created;
     }
 
-    static final String ORDER_BASE_SQL = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.customer_note, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, o.updated_at, o.delivery_code IS NOT NULL AS has_delivery_code, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, p.amount_due_cents AS payment_due_cents"
+    static final String ORDER_BASE_SQL = "SELECT o.id, o.status, o.order_type, o.table_id, t.number AS table_number, o.party_size, o.subtotal_cents, o.delivery_fee_cents, o.discount_cents, o.total_cents, o.delivery_address_text, o.customer_note, o.estimated_minutes, o.restaurant_id, o.courier_id, o.scheduled_at, o.created_at, o.updated_at, o.delivery_code IS NOT NULL AS has_delivery_code, r.name AS restaurant_name, c.name AS customer_name, p.method AS payment_method, p.modality AS payment_modality, p.status AS payment_status, p.amount_due_cents AS payment_due_cents"
         + ", p.raw_status AS payment_raw_status, "
         // Resumo curto dos itens ("2× Burger (sem cebola) · 1× Suco") para o quadro da cozinha ler sem abrir o pedido.
         + "(SELECT GROUP_CONCAT(CONCAT(oi.quantity, '× ', oi.name, IF(oi.note IS NULL, '', CONCAT(' (', oi.note, ')'))) ORDER BY oi.id SEPARATOR ' · ') FROM order_items oi WHERE oi.order_id = o.id) AS items_summary, "
@@ -395,6 +397,13 @@ public class OrderService {
     private static final String TERMINAL = "'delivered','rejected','cancelled','expired','failed','completed'";
     private static final int ACTIVE_LIMIT = 200;
     private static final int HISTORY_LIMIT = 100;
+
+    /** Estimativa do pedido: preparo da loja mais o deslocamento da zona (só na entrega). */
+    static Integer estimatedMinutes(Map<String, Object> restaurant, Map<String, Object> address) {
+        if (!(restaurant.get("prep_minutes") instanceof Number prep)) return null;
+        int travel = address != null && address.get("delivery_minutes") instanceof Number minutes ? minutes.intValue() : 0;
+        return prep.intValue() + travel;
+    }
 
     public List<Map<String, Object>> list(User user) {
         Scope scope = scope(user);
