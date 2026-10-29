@@ -77,8 +77,8 @@ public class AdminController {
                                            @PathVariable @Positive long id,
                                            @Valid @RequestBody ZonePricingRequest body) {
         User actor = admin(token, AdminPermissions.ZONES_MANAGE);
-        int changed = jdbc.update("UPDATE zones SET delivery_fee_cents = ?, base_fee_cents = ?, per_km_cents = ?, minimum_order_cents = ? WHERE id = ?",
-            body.deliveryFeeCents(), body.baseFeeCents(), body.perKmCents(), body.minimumOrderCents(), id);
+        int changed = jdbc.update("UPDATE zones SET delivery_fee_cents = ?, base_fee_cents = ?, per_km_cents = ?, minimum_order_cents = ?, delivery_minutes = COALESCE(?, delivery_minutes) WHERE id = ?",
+            body.deliveryFeeCents(), body.baseFeeCents(), body.perKmCents(), body.minimumOrderCents(), body.deliveryMinutes(), id);
         if (changed == 0) throw new ApiException(404, "Zona não encontrada");
         audit(actor, "update", "zone", id, "Preços da zona");
         Map<String, Object> result = new LinkedHashMap<>();
@@ -87,6 +87,7 @@ public class AdminController {
         result.put("baseFeeCents", body.baseFeeCents());
         result.put("perKmCents", body.perKmCents());
         result.put("minimumOrderCents", body.minimumOrderCents());
+        result.put("deliveryMinutes", jdbc.queryForObject("SELECT delivery_minutes FROM zones WHERE id = ?", Integer.class, id));
         result.put("distancePricing", body.perKmCents() != null && body.perKmCents() > 0);
         return result;
     }
@@ -273,7 +274,12 @@ public class AdminController {
     public record ZonePricingRequest(@Min(0) @Max(1_000_000) int deliveryFeeCents,
                                      @Min(0) @Max(1_000_000) Integer baseFeeCents,
                                      @Min(0) @Max(1_000_000) Integer perKmCents,
-                                     @Min(0) @Max(10_000_000) int minimumOrderCents) {}
+                                     @Min(0) @Max(10_000_000) int minimumOrderCents,
+                                     @Min(5) @Max(180) Integer deliveryMinutes) {
+        public ZonePricingRequest(int deliveryFeeCents, Integer baseFeeCents, Integer perKmCents, int minimumOrderCents) {
+            this(deliveryFeeCents, baseFeeCents, perKmCents, minimumOrderCents, null);
+        }
+    }
     public record PostalRangeRequest(@Positive long zoneId, @NotBlank String postalStart, @NotBlank String postalEnd) {}
     public record RestaurantRequest(@NotBlank @Size(min = 2, max = 160) String name,
                                     @NotBlank @Pattern(regexp = "[a-z0-9]+(?:-[a-z0-9]+)*") @Size(max = 180) String slug) {}

@@ -41,9 +41,11 @@ public class RestaurantContactController {
         long restaurantId = manager(token);
         List<String> phone = jdbc.queryForList("SELECT phone FROM restaurants WHERE id = ? AND phone IS NOT NULL", String.class, restaurantId);
         Boolean required = jdbc.queryForObject("SELECT require_delivery_code FROM restaurants WHERE id = ?", Boolean.class, restaurantId);
+        Integer prep = jdbc.queryForObject("SELECT prep_minutes FROM restaurants WHERE id = ?", Integer.class, restaurantId);
         Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("phone", phone.isEmpty() ? null : phone.getFirst());
         result.put("requireDeliveryCode", Boolean.TRUE.equals(required));
+        result.put("prepMinutes", prep);
         return result;
     }
 
@@ -53,6 +55,15 @@ public class RestaurantContactController {
         long restaurantId = manager(token);
         jdbc.update("UPDATE restaurants SET require_delivery_code = ? WHERE id = ?", body.required(), restaurantId);
         return Collections.singletonMap("requireDeliveryCode", body.required());
+    }
+
+    /** Tempo de preparo, em minutos: entra na estimativa que o cliente vê (preparo + deslocamento da zona). */
+    @PutMapping("/prep-time")
+    public Map<String, Object> prepTime(@CookieValue(value = "foodie_session", required = false) String token,
+                                        @Valid @RequestBody PrepTimeRequest body) {
+        long restaurantId = manager(token);
+        jdbc.update("UPDATE restaurants SET prep_minutes = ? WHERE id = ?", body.minutes(), restaurantId);
+        return Collections.singletonMap("prepMinutes", body.minutes());
     }
 
     @PutMapping
@@ -74,4 +85,6 @@ public class RestaurantContactController {
     public record ContactRequest(@Size(max = 30) String phone) {}
 
     public record DeliveryCodeRequest(@jakarta.validation.constraints.NotNull Boolean required) {}
+
+    public record PrepTimeRequest(@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Min(5) @jakarta.validation.constraints.Max(180) Integer minutes) {}
 }

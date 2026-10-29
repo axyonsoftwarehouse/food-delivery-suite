@@ -23,7 +23,7 @@ public class CatalogRepository {
 
     public List<Map<String, Object>> restaurants() {
         // Capa da página publicada da loja e cozinhas: a vitrine do cliente mostra a foto e o tipo de comida.
-        List<Map<String, Object>> restaurants = jdbc.queryForList("SELECT r.id, r.name, r.slug, r.active, r.timezone, r.service_fee_percent, "
+        List<Map<String, Object>> restaurants = jdbc.queryForList("SELECT r.id, r.name, r.slug, r.active, r.timezone, r.service_fee_percent, r.prep_minutes, "
             + "(SELECT NULLIF(s.cover_url, '') FROM storefronts s WHERE s.restaurant_id = r.id AND s.published = TRUE) AS cover_url, "
             + "(SELECT GROUP_CONCAT(c.name ORDER BY c.name SEPARATOR ', ') FROM cuisine_restaurants cr JOIN cuisines c ON c.id = cr.cuisine_id AND c.active = TRUE "
             + "WHERE cr.restaurant_id = r.id) AS cuisines "
@@ -142,7 +142,7 @@ public class CatalogRepository {
     }
 
     public List<Map<String, Object>> zones() {
-        return jdbc.queryForList("SELECT id, name, city, state, delivery_fee_cents, minimum_order_cents FROM zones WHERE active = TRUE ORDER BY name");
+        return jdbc.queryForList("SELECT id, name, city, state, delivery_fee_cents, minimum_order_cents, delivery_minutes FROM zones WHERE active = TRUE ORDER BY name");
     }
 
     public List<Map<String, Object>> tags(long zoneId, Long restaurantId) {

@@ -13,6 +13,7 @@ import DeliveryCodeCard from '../delivery-code-card';
 import { Icon, type IconName } from '../../icons';
 import RestaurantMedia from '../restaurant-media';
 import { orderStatusLabel } from '../order-status';
+import { etaWindow } from '../eta';
 
 /**
  * Janela de avaliação do entregador: 7 dias após a entrega (o servidor decide). A tela só evita o GET em pedido
@@ -42,6 +43,7 @@ function DetailsToggle({ order, expandedOrderId, setExpandedOrderId }: Pick<RowP
 function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId, cancelOrder, busy }: RowProps) {
   const step = stepOf(order.status);
   const awaiting = awaitingOnlinePayment(order);
+  const eta = etaWindow(order);
   return <article className="orders-active m-rise" style={{ '--i': index } as React.CSSProperties}>
     <div className="orders-active-head">
       <RestaurantMedia restaurant={{ name: order.restaurant_name, cover_url: cover }} className="orders-media" />
@@ -50,6 +52,7 @@ function ActiveOrder({ order, index, cover, expandedOrderId, setExpandedOrderId,
     </div>
     <p className="orders-status-line" key={`${order.status}-${awaiting}`}><span className="m-live-dot" />{awaiting ? 'Aguardando pagamento' : orderStatusLabel(order.status)}</p>
     {order.scheduled_at && <p className="orders-note"><Icon name="calendar" size={14} />{`Agendado para ${when(order.scheduled_at)}`}</p>}
+    {eta && !awaiting && <p className="orders-note"><Icon name="clock" size={14} />{order.order_type === 'delivery' || !order.order_type ? `Previsão de chegada entre ${eta}` : `Previsão de ficar pronto entre ${eta}`}</p>}
     <ol className="orders-steps" style={{ '--progress': step / (STEPS.length - 1) } as React.CSSProperties}>
       {STEPS.map((item, position) => <li key={item.label} className={position < step ? 'is-done' : position === step ? `is-current${item.icon === 'bike' ? ' is-riding' : ''}` : ''}><span><Icon name={item.icon} size={16} /></span>{item.label}</li>)}
     </ol>
