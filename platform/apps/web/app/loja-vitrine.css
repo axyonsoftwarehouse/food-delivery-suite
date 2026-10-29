@@ -195,6 +195,8 @@
 .customer-sheet-title { padding: 20px 20px 4px; }
 .customer-sheet-title h2 { font-size: 24px; letter-spacing: -0.6px; }
 .customer-option-group { margin: 16px 0 0; animation: none; }
+.customer-item-note { display: grid; gap: 6px; margin: 18px 0 0; color: var(--text); font-size: 14px; font-weight: 700; }
+.customer-item-note textarea { width: 100%; padding: 10px 12px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-size: 15px; font-weight: 400; resize: vertical; }
 .customer-option-group legend { box-sizing: border-box; margin: 0; padding: 12px 20px; background: var(--surface-muted); }
 .customer-option-group legend strong { font: 700 15px var(--font-sans); }
 .customer-options { gap: 0; }
@@ -227,6 +229,10 @@
 .lj-item-text strong { font-size: 15px; }
 .lj-item-text small { color: var(--text-muted); font-size: 13px; }
 .lj-item-text span { font-size: 14px; font-weight: 700; }
+.lj-item-note { justify-self: start; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; font-style: italic; text-align: left; cursor: pointer; }
+.lj-item-note.is-empty { color: var(--brand-700); font-style: normal; font-weight: 600; }
+.lj-item-note-form { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.lj-item-note-form input { flex: 1 1 160px; min-width: 0; height: 34px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; }
 .lj-stepper { display: inline-flex; align-items: center; height: 38px; border: 1px solid var(--border-strong); border-radius: 999px; }
 .lj-stepper button { display: grid; place-items: center; width: 38px; height: 36px; border: 0; background: none; color: var(--text); cursor: pointer; }
 .lj-stepper button:last-child { color: var(--brand-700); }
@@ -254,6 +260,7 @@
 .lj-field { display: grid; gap: 6px; margin: 12px 0 0; color: var(--text-muted); font-size: 13px; font-weight: 600; }
 .lj-fields .lj-field { margin-top: 0; }
 .lj-field :is(input, select) { width: 100%; height: 46px; padding: 0 14px; box-sizing: border-box; font-size: 15px; }
+.lj-field textarea { width: 100%; padding: 10px 14px; box-sizing: border-box; font: inherit; font-size: 15px; font-weight: 400; color: var(--text); resize: vertical; }
 .lj-field--inline { grid-template-columns: max-content 80px max-content; align-items: center; }
 .lj-help { margin: 10px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
 .lj-help a { color: var(--brand-700); font-weight: 700; }

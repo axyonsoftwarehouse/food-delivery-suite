@@ -15,6 +15,7 @@ export default function RestaurantMenu() {
   const { catalog, restaurantId, selectedAddress, selectedZone, setCategoryId, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId, cartEntries } = useCustomer();
   const [chosen, setChosen] = useState<number | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<number[]>([]);
+  const [itemNote, setItemNote] = useState('');
   const [pickerError, setPickerError] = useState('');
 
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
@@ -53,6 +54,7 @@ export default function RestaurantMenu() {
   useEffect(() => {
     setChosen(selectedProduct?.variations[0]?.id ?? null);
     setSelectedAddons([]);
+    setItemNote('');
     setPickerError('');
   }, [selectedProduct]);
 
@@ -95,6 +97,7 @@ export default function RestaurantMenu() {
 
   useEffect(() => {
     setSelectedAddons([]);
+    setItemNote('');
     setPickerError('');
   }, [chosen]);
 
@@ -121,7 +124,7 @@ export default function RestaurantMenu() {
     setPickerError('');
     const product = visibleProducts.find((item) => item.id === selectedProduct.id);
     if (!cartEntries.length || cartEntries[0].product.restaurant_id === selectedProduct.restaurant_id) flyToCart(document.querySelector('.customer-sheet-cover'), product?.image_url);
-    void addSelected(chosenVariation?.id ?? 0, selectedAddons);
+    void addSelected(chosenVariation?.id ?? 0, selectedAddons, itemNote);
   }
 
   // Sublinhado das abas desliza até a categoria escolhida, e a aba escolhida rola para o meio.
@@ -260,6 +263,7 @@ export default function RestaurantMenu() {
               </div>
             </fieldset>;
           })}
+          <label className="customer-item-note">{'Alguma observação?'}<textarea value={itemNote} onChange={(event) => setItemNote(event.target.value)} maxLength={140} rows={2} placeholder="Ex.: sem cebola, ponto da carne" /></label>
           {pickerError && <Alert tone="error">{pickerError}</Alert>}
         </div>
         <div className="customer-sheet-footer">

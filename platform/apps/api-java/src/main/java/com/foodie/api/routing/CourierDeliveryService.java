@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class CourierDeliveryService {
-    static final String ACTIVE_SQL = "SELECT o.id, o.status, o.created_at, o.distance_meters, o.delivery_address_text, o.contact_phone, o.total_cents, "
+    static final String ACTIVE_SQL = "SELECT o.id, o.status, o.created_at, o.distance_meters, o.delivery_address_text, o.contact_phone, o.customer_note, o.total_cents, "
         + "o.delivery_code IS NOT NULL AS requires_delivery_code, o.delivery_code_attempts, "
         + "c.name AS customer_name, a.complement, a.latitude AS customer_latitude, a.longitude AS customer_longitude, "
         + "r.name AS restaurant_name, r.address_text AS restaurant_address, r.latitude AS restaurant_latitude, r.longitude AS restaurant_longitude, "
@@ -41,7 +41,7 @@ public class CourierDeliveryService {
             delivery.put("code_attempts_left", DeliveryCode.attemptsLeft(attempts));
             delivery.remove("delivery_code_attempts");
             delivery.put("items", jdbc.queryForList(
-                "SELECT name, variation_name, quantity FROM order_items WHERE order_id = ? ORDER BY id", ((Number) row.get("id")).longValue()));
+                "SELECT name, variation_name, note, quantity FROM order_items WHERE order_id = ? ORDER BY id", ((Number) row.get("id")).longValue()));
             return delivery;
         }).toList();
     }

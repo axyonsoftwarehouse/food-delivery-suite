@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -57,7 +58,15 @@ public class CartController {
                                            @PathVariable @Positive long productId,
                                            @Valid @RequestBody DeltaRequest request) {
         if (Math.abs(request.delta()) != 1) throw new ApiException(400, "Alteração de quantidade inválida");
-        return cart.change(customer(token), productId, request.variationId() == null ? 0 : request.variationId(), request.addonIds(), request.delta());
+        return cart.change(customer(token), productId, request.variationId() == null ? 0 : request.variationId(), request.addonIds(), request.note(), request.delta());
+    }
+
+    /** Troca a observação da linha ("sem cebola"); `note` identifica a linha atual e `newNote` é a nova. */
+    @PutMapping("/items/{productId}/note")
+    public CartService.CartSnapshot changeNote(@CookieValue(value = "foodie_session", required = false) String token,
+                                               @PathVariable @Positive long productId,
+                                               @Valid @RequestBody NoteRequest request) {
+        return cart.changeNote(customer(token), productId, request.variationId() == null ? 0 : request.variationId(), request.addonIds(), request.note(), request.newNote());
     }
 
     /** Remove a linha inteira, independente da quantidade (o `PATCH` só altera uma unidade por vez). */
@@ -65,8 +74,9 @@ public class CartController {
     public CartService.CartSnapshot remove(@CookieValue(value = "foodie_session", required = false) String token,
                                            @PathVariable @Positive long productId,
                                            @RequestParam(required = false) Long variationId,
-                                           @RequestParam(required = false) List<Long> addonIds) {
-        return cart.remove(customer(token), productId, variationId == null ? 0 : variationId, addonIds);
+                                           @RequestParam(required = false) List<Long> addonIds,
+                                           @RequestParam(required = false) @Size(max = 140) String note) {
+        return cart.remove(customer(token), productId, variationId == null ? 0 : variationId, addonIds, note);
     }
 
     @PostMapping("/import")
@@ -85,14 +95,15 @@ public class CartController {
                                                         @Valid @RequestBody CheckoutRequest request) {
         User customer = customer(token);
         verification.requireVerified(customer);
-        return ResponseEntity.status(201).body(cart.checkout(customer, request.addressId(), request.expectedTotalCents(), request.expectedVersion(), request.idempotencyKey(), request.paymentMethod(), request.changeForCents(), request.modality(), request.couponCode(), request.scheduledFor(), request.orderType(), request.tableId(), request.partySize(), request.tipCents(), request.contactPhone()));
+        return ResponseEntity.status(201).body(cart.checkout(customer, request.addressId(), request.expectedTotalCents(), request.expectedVersion(), request.idempotencyKey(), request.paymentMethod(), request.changeForCents(), request.modality(), request.couponCode(), request.scheduledFor(), request.orderType(), request.tableId(), request.partySize(), request.tipCents(), request.contactPhone(), request.customerNote()));
     }
 
     private User customer(String token) {
         return auth.requireUser(token, "customer");
     }
 
-    public record DeltaRequest(@NotNull Integer delta, @Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds) {}
+    public record DeltaRequest(@NotNull Integer delta, @Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Size(max = 140) String note) {}
+    public record NoteRequest(@Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Size(max = 140) String note, @Size(max = 140) String newNote) {}
     public record ImportRequest(@NotNull @Size(max = 30) List<@Valid ImportItem> items) {}
     public record ImportItem(@Positive long productId, @Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Positive @Max(20) int quantity) {}
     public record CheckoutRequest(@Positive Long addressId, @Positive long expectedTotalCents,
@@ -107,5 +118,6 @@ public class CartController {
                                   @Positive Long tableId,
                                   @jakarta.validation.constraints.Min(1) @Max(50) Integer partySize,
                                   @jakarta.validation.constraints.Min(0) @Max(100_000) Integer tipCents,
-                                  @Size(max = 30) String contactPhone) {}
+                                  @Size(max = 30) String contactPhone,
+                                  @Size(max = 300) String customerNote) {}
 }
