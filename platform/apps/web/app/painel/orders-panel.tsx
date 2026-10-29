@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import OrderDetails from '../OrderDetails';
+import OrderChat, { useChatUnread } from '../order-chat';
 import { LATE_ORDER_MINUTES, type Order, api, labels, minutesSince, money, paymentLabel, useApp } from '../app-context';
 import { Icon } from '../icons';
 import DispatchPicker from './dispatch-picker';
@@ -34,6 +35,9 @@ const STATUS_TONE: Record<string, string> = {
 export default function OrdersPanel({ restaurantId }: { restaurantId?: number } = {}) {
   const { user, permissions, orders, couriers, busy, run, askReason, refresh, setMessage, expandedOrderId, setExpandedOrderId, receivePayment, refundPayment } = useApp();
   const [courierByOrder, setCourierByOrder] = useState<Record<number, string>>({});
+  const [chatOrderId, setChatOrderId] = useState<number | null>(null);
+  // A conversa com o cliente é da loja; o admin acompanha pelo suporte, não por aqui.
+  const [chatUnread, chatRefresh] = useChatUnread(user?.role !== 'admin');
   const now = useNow(30_000);
   const [query, setQuery] = useState('');
   // Sem escolha de quem usa o painel, abre na primeira etapa que tem pedido (não na aba vazia).
@@ -146,8 +150,10 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
       {mainActions(order)}
       <div className="vp-card-foot">
         <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm vp-toggle" aria-expanded={open} onClick={() => setExpandedOrderId(open ? null : order.id)}>{open ? 'Ocultar itens' : 'Ver itens'}<Icon name="chevron-down" size={14} /></button>
+        {role !== 'admin' && <button type="button" className="pr-btn pr-btn--ghost pr-btn--sm" aria-pressed={chatOrderId === order.id} onClick={() => { setChatOrderId(chatOrderId === order.id ? null : order.id); chatRefresh(); }}>{'Conversar com o cliente'}{chatOrderId !== order.id && chatUnread(order.id) > 0 && <span className="order-chat-badge" aria-label={`${chatUnread(order.id)} não lidas`}>{chatUnread(order.id)}</span>}</button>}
         {moreActions(order)}
       </div>
+      {chatOrderId === order.id && <OrderChat orderId={order.id} with="customer" onClose={() => { setChatOrderId(null); chatRefresh(); }} />}
       {open && <OrderDetails orderId={order.id} status={order.status} />}
     </article>;
   }

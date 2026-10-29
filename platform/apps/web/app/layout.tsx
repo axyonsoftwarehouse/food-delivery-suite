@@ -18,6 +18,7 @@ import './painel/css/catalogo-estoque.css';
 import './painel/css/admin.css';
 import './home.css';
 import './cozinha.css';
+import './order-chat.css';
 import { AppProvider } from './app-context';
 
 export const metadata: Metadata = {

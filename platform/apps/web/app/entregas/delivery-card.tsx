@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { api, money, useApp } from '../app-context';
 import { Icon } from '../icons';
 import { cashCents, cashInput } from '../cash';
+import OrderChat, { useChatUnread } from '../order-chat';
 import { FAILURE_REASONS, amountToCollect, distanceLabel, phoneLinks, routeLinks, type Delivery, type FailureCode } from './deliveries';
 
 /** Entrega da vez: etapa, destino, rota, contatos, pagamento e a ação principal. */
@@ -11,6 +12,8 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
   const { setMessage } = useApp();
   const [acting, setActing] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatUnread, chatRefresh] = useChatUnread();
   const [code, setCode] = useState('');
   const [failOpen, setFailOpen] = useState(false);
   const [failReason, setFailReason] = useState<FailureCode | ''>('');
@@ -99,6 +102,9 @@ export function DeliveryCard({ delivery, onChanged, offline }: { delivery: Deliv
     {primaryPhone && <a className="courier-soft-btn" href={primaryPhone.whatsapp} target="_blank" rel="noreferrer">{pickup ? 'WhatsApp da loja' : 'WhatsApp do cliente'}</a>}
     {otherPhone && <div className="courier-contact"><span>{pickup ? `Cliente (${delivery.customer_name ?? 'sem nome'})` : `Loja (${delivery.restaurant_name})`}</span><span className="courier-row-links"><a href={otherPhone.tel}><Icon name="phone" />{'Ligar'}</a><a href={otherPhone.whatsapp} target="_blank" rel="noreferrer">{'WhatsApp'}</a></span></div>}
     {delivery.customer_note && <p className="courier-note">{`Obs. do cliente: ${delivery.customer_note}`}</p>}
+    <button type="button" className="courier-soft-btn" aria-pressed={chatOpen} onClick={() => { setChatOpen(!chatOpen); chatRefresh(); }}>{chatOpen ? 'Fechar conversa' : 'Mensagem ao cliente'}{!chatOpen && chatUnread(delivery.id) > 0 && <span className="order-chat-badge" aria-label={`${chatUnread(delivery.id)} não lidas`}>{chatUnread(delivery.id)}</span>}</button>
+    {/* O botão logo acima já fecha a conversa: sem um segundo "Fechar" dentro dela. */}
+    {chatOpen && <OrderChat orderId={delivery.id} with="customer" />}
     <div className={`courier-pay${collect > 0 ? '' : ' is-paid'}`}>
       {collect > 0
         ? `Receber ${money(collect)} ${methodLabel}${delivery.change_for_cents ? ` · troco para ${money(delivery.change_for_cents)}` : ''}`

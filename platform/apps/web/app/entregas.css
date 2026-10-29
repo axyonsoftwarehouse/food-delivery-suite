@@ -50,6 +50,7 @@ h1.courier-section-title { font-size: 22px; letter-spacing: -0.5px; }
 .courier-secondary:hover:not(:disabled), .courier-back:hover:not(:disabled) { background: var(--surface-muted); }
 .courier-soft-btn { display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 16px; border-radius: var(--radius-pill); background: var(--brand-050); color: var(--brand-700); font-size: 15px; font-weight: 700; text-decoration: none; transition: background-color 0.15s ease; }
 .courier-soft-btn:hover { background: color-mix(in srgb, var(--brand-500) 16%, var(--surface)); }
+button.courier-soft-btn { border: 0; font-family: inherit; cursor: pointer; }
 .courier-link-btn { min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--brand-700); font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color 0.15s ease; }
 .courier-link-btn:hover { background: var(--brand-050); }
 
