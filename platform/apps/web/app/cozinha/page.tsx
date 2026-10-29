@@ -101,6 +101,7 @@ export default function CozinhaPage() {
   }
 
   const syncedAt = lastSync ? lastSync.toLocaleTimeString('pt-BR') : '';
+  const ticketCustomer = orders.find((order) => order.id === ticketId)?.customer_name;
 
   return (
     <main className="kds">
@@ -148,7 +149,9 @@ export default function CozinhaPage() {
                         <span>{minutes} min</span>
                         <strong>{money(order.total_cents)}</strong>
                       </div>
-                      <button className="kds-open" type="button" onClick={() => setTicketId(order.id)}>{'Ver itens'}</button>
+                      {order.items_summary && <p className="kds-card-items">{order.items_summary}</p>}
+                      {order.customer_name && <p className="kds-card-customer">{order.customer_name}</p>}
+                      <button className="kds-open" type="button" onClick={() => setTicketId(order.id)}>{'Ver detalhes'}</button>
                       <div className="kds-card-actions">
                         {actions.includes('accept') && <Button size="sm" disabled={busy} onClick={() => void changeStatus(order, 'accept', `Pedido #${order.id} aceito.`)}>{'Aceitar'}</Button>}
                         {actions.includes('ready') && <Button size="sm" disabled={busy} onClick={() => void changeStatus(order, 'ready', `Pedido #${order.id} pronto.`)}>{'Pronto'}</Button>}
@@ -194,6 +197,8 @@ export default function CozinhaPage() {
                 {typeLabel(ticket) && <span className="kds-tag">{typeLabel(ticket)}</span>}
                 <span>{new Date(ticket.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
+              {/* O detalhe do pedido não traz o nome do cliente; a lista do quadro traz. */}
+              {ticketCustomer && <p className="kds-ticket-address">{`Cliente: ${ticketCustomer}`}</p>}
               {ticket.delivery_address_text && <p className="kds-ticket-address">{ticket.delivery_address_text}</p>}
               <ul className="kds-items">
                 {ticket.items.map((item) => (

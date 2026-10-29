@@ -588,6 +588,12 @@ class OrderServiceTest {
     }
 
     @Test
+    void listColumnsCarryTheItemsSummary() {
+        // O quadro da cozinha mostra os itens no card sem buscar o detalhe de cada pedido.
+        assertThat(OrderService.ORDER_BASE_SQL).contains("AS items_summary");
+    }
+
+    @Test
     void detailNeverCarriesTheCodeOrTheAttempts() {
         Map<String, Object> row = new java.util.HashMap<>();
         row.put("id", 40L); row.put("customer_id", 8L); row.put("restaurant_id", 3L); row.put("courier_id", 9L);
