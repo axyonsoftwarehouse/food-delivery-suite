@@ -43,6 +43,18 @@ class SubscriptionRenewalRunnerTest {
     }
 
     @Test
+    void chargeDueFallsBackToTheEndOfThePeriodWithoutNextCharge() {
+        // Sem next_charge_at (assinatura de antes da V069), o vencimento do período decide: senão a loja
+        // entra em atraso pelo ends_at sem nunca receber a cobrança (staging, 27/10/2026).
+        when(jdbc.query(org.mockito.ArgumentMatchers.<String>argThat(s -> s != null && s.contains("next_charge_at")), any(RowMapper.class)))
+            .thenReturn(List.of());
+
+        runner(5).run();
+
+        verify(jdbc).query(org.mockito.ArgumentMatchers.<String>argThat(s -> s.contains("COALESCE(next_charge_at, ends_at) <= NOW()")), any(RowMapper.class));
+    }
+
+    @Test
     void chargeDueIncludesTheTrial() {
         // O fim do trial tem de entrar na fila da cobrança (next_charge_at do trial = fim do trial).
         when(jdbc.query(org.mockito.ArgumentMatchers.<String>argThat(s -> s != null && s.contains("next_charge_at")), any(RowMapper.class)))

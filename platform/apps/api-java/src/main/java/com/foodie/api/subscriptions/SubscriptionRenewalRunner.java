@@ -50,8 +50,9 @@ public class SubscriptionRenewalRunner {
     /** Gera a cobrança do próximo período das assinaturas devidas: ativa, suspensa (retry) ou trial no fim. */
     private void chargeDue() {
         List<Long> due = jdbc.query(
-            "SELECT id FROM restaurant_subscriptions WHERE (status IN ('trial','active','suspended') AND next_charge_at <= NOW())"
-                + " OR EXISTS (SELECT 1 FROM subscription_charges c WHERE c.subscription_id = restaurant_subscriptions.id AND c.status IN ('pending','failed')) ORDER BY next_charge_at, id LIMIT 50",
+            // Sem next_charge_at (assinatura de antes da V069), vale o fim do período: é ele que marca o atraso.
+            "SELECT id FROM restaurant_subscriptions WHERE (status IN ('trial','active','suspended') AND COALESCE(next_charge_at, ends_at) <= NOW())"
+                + " OR EXISTS (SELECT 1 FROM subscription_charges c WHERE c.subscription_id = restaurant_subscriptions.id AND c.status IN ('pending','failed')) ORDER BY COALESCE(next_charge_at, ends_at), id LIMIT 50",
             (rs, row) -> rs.getLong(1));
         for (Long id : due) billing.generateForSubscription(id);
     }
