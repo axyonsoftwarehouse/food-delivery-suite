@@ -907,6 +907,40 @@ class OnlinePaymentServiceTest {
         verify(gateway, never()).create(any(), any());
     }
 
+    private static final String SQL_PIX_ABANDONED = "UPDATE order_payments SET status = 'cancelled', raw_status = 'abandoned', note = ?"
+        + " WHERE order_id = ? AND status = 'pending'";
+
+    @Test
+    void pixThatNeverShowedAQrAndCannotBeCancelledIsAbandonedAndTheCardIsCharged() {
+        // O caso do #99 (23/10): Pix em processing sem QR e o Mercado Pago recusa o cancelamento
+        // (cannot_cancel_order). O cliente nunca viu o código, então não pode ter pago esse Pix.
+        pixSendoGerado();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "processing", null, null, null, null));
+        when(gateway.cancel(loja, "ORDPIX1", "cancel-ORDPIX1")).thenThrow(new ApiException(502, "Mercado Pago recusou o cancelamento: HTTP 409 - cannot_cancel_order"));
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDCARD1", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, card());
+
+        verify(jdbc).update(eq(SQL_PIX_ABANDONED), org.mockito.ArgumentMatchers.contains("cannot_cancel_order"), eq(1L));
+        ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+        verify(gateway).create(eq(loja), request.capture());
+        assertEquals("card", request.getValue().method());
+        assertEquals("order-1-11-retry-ORDPIX1", request.getValue().idempotencyKey());
+    }
+
+    @Test
+    void pixThatNeverShowedAQrAndStaysAliveAfterCancelIsAbandonedAndTheCardIsCharged() {
+        pixSendoGerado();
+        when(gateway.fetch(loja, "ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "processing", null, null, null, null));
+        when(gateway.cancel(loja, "ORDPIX1", "cancel-ORDPIX1")).thenReturn(new PaymentGateway.Charge("ORDPIX1", "1", 1000, "pending", "processing", null, null, null, null));
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDCARD1", "1", 1000, "paid", "accredited", null, null, null, null));
+
+        service(true).startIntent(customer, 1, card());
+
+        verify(jdbc).update(eq(SQL_PIX_ABANDONED), org.mockito.ArgumentMatchers.contains("processing"), eq(1L));
+        verify(gateway).create(eq(loja), any());
+    }
+
     private static final String SQL_ABANDONED = "UPDATE order_payments SET status = 'cancelled', raw_status = 'abandoned', challenge_url = NULL, note = ?"
         + " WHERE order_id = ? AND status = 'pending'";
 
