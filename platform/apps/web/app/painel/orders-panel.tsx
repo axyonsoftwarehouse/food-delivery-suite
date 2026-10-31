@@ -7,6 +7,7 @@ import { LATE_ORDER_MINUTES, type Order, api, labels, minutesSince, money, payme
 import { Icon } from '../icons';
 import DispatchPicker from './dispatch-picker';
 import { useCourierBoard } from './courier-board';
+import { finishAction, finishNeedsPayment } from './finish-order';
 import { awaitingOnlinePayment, deadlineInfo, deadlineText } from '../online-payment';
 import { useNow } from '../use-now';
 import { Empty, Tabs } from './kit';
@@ -87,6 +88,17 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
   const dispatchable = (order: Order) => canDispatch && (order.order_type ?? 'delivery') === 'delivery' && (order.status === 'ready' || order.status === 'assigned');
   const receiveLabel = (order: Order) => order.payment_method === 'cash' ? `Receber ${money(order.total_cents)}` : 'Confirmar pagamento';
 
+  /** Retirada, balcão e consumo no local se encerram aqui, como na Cozinha (KDS). */
+  function finishButton(order: Order) {
+    const finish = finishAction(order);
+    if (!finish) return null;
+    const needsPayment = finishNeedsPayment(order);
+    return <>
+      <button className="pr-btn pr-btn--primary" disabled={busy || needsPayment} onClick={() => act(order, finish.action, finish.done)}><Icon name="check" size={16} />{finish.label}</button>
+      {needsPayment && <small className="vp-actions-hint">{'Receba o pagamento antes'}</small>}
+    </>;
+  }
+
   /** A ação principal do momento (botões largos). */
   function mainActions(order: Order) {
     return <div className="vp-actions">
@@ -96,6 +108,7 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
         {awaitingOnlinePayment(order) && <small className="vp-actions-hint">{'Libera quando o cliente pagar'}</small>}
       </>}
       {role === 'restaurant' && order.status === 'accepted' && <button className="pr-btn pr-btn--primary" disabled={busy} onClick={() => act(order, 'ready', 'Pedido pronto.')}><Icon name="bag" size={16} />Marcar pronto</button>}
+      {role === 'restaurant' && finishButton(order)}
       {dispatchable(order) && (role === 'restaurant'
         ? <DispatchPicker order={order} board={board} failed={boardFailed} loading={boardLoading} couriers={couriers} busy={busy}
             onAssign={(courierId) => act(order, 'assign', order.status === 'assigned' ? 'Entregador trocado.' : 'Entregador atribuído.', { courierId })} />
@@ -159,8 +172,8 @@ export default function OrdersPanel({ restaurantId }: { restaurantId?: number } 
   }
 
   const COLUMNS: Record<string, { title: string; statuses: string[] }[]> = {
-    restaurant: [{ title: 'Novos', statuses: ['placed'] }, { title: 'Em preparo', statuses: ['accepted'] }, { title: 'Prontos', statuses: ['ready', 'assigned', 'picked_up'] }],
-    admin: [{ title: 'Novos', statuses: ['placed'] }, { title: 'Em preparo', statuses: ['accepted'] }, { title: 'Prontos', statuses: ['ready'] }, { title: 'Em entrega', statuses: ['assigned', 'picked_up'] }],
+    restaurant: [{ title: 'Novos', statuses: ['placed'] }, { title: 'Em preparo', statuses: ['accepted'] }, { title: 'Prontos', statuses: ['ready', 'served', 'assigned', 'picked_up'] }],
+    admin: [{ title: 'Novos', statuses: ['placed'] }, { title: 'Em preparo', statuses: ['accepted'] }, { title: 'Prontos', statuses: ['ready', 'served'] }, { title: 'Em entrega', statuses: ['assigned', 'picked_up'] }],
     courier: [{ title: 'A retirar', statuses: ['assigned'] }, { title: 'Em rota', statuses: ['picked_up'] }],
   };
   const columns = COLUMNS[role] ?? [];
