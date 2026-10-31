@@ -451,20 +451,35 @@ public class OnlinePaymentService {
                 mismatchNote(atual.amountCents(), due), orderId);
             return "paid";
         }
+        // O cliente nunca viu o código deste Pix, então não tem como tê-lo pago: se o provedor não cancelar
+        // (o #99 de 23/10 ficou em processing sem QR e o Mercado Pago respondeu cannot_cancel_order), o Pix é
+        // dado como abandonado e o cartão é cobrado, como na desistência do 3DS. Se ele for pago mesmo assim,
+        // o webhook o estorna como cobrança anterior.
+        boolean semCodigo = payment.get("qr_code") == null && payment.get("ticket_url") == null;
         PaymentGateway.Charge cancelada;
         try {
             cancelada = gateway.cancel(credentials, pix, "cancel-" + pix);
         } catch (RuntimeException falha) {
             log.warn("Pedido #{}: o Pix {} não foi cancelado na troca para cartão ({})", orderId, pix, falha.getMessage());
+            if (semCodigo) return abandonarPixSemCodigo(orderId, pix, falha.getMessage());
             throw new ApiException(409, mensagem);
         }
         // O provedor respondeu sem erro mas o Pix segue vivo: cobrar o cartão agora permitiria pagar os dois.
         if (cancelada == null || !("cancelled".equals(cancelada.status()) || "expired".equals(cancelada.status()))) {
-            log.warn("Pedido #{}: o Pix {} continua {} após o pedido de cancelamento na troca para cartão", orderId, pix,
-                cancelada == null ? "sem resposta" : cancelada.status());
+            String situacao = cancelada == null ? "sem resposta" : cancelada.status() + "/" + cancelada.rawStatus();
+            log.warn("Pedido #{}: o Pix {} continua {} após o pedido de cancelamento na troca para cartão", orderId, pix, situacao);
+            if (semCodigo) return abandonarPixSemCodigo(orderId, pix, "Pix ainda " + situacao);
             throw new ApiException(409, mensagem);
         }
         jdbc.update("UPDATE order_payments SET status = 'cancelled', raw_status = 'cancelled' WHERE order_id = ? AND status = 'pending'", orderId);
+        return "cancelled";
+    }
+
+    private String abandonarPixSemCodigo(long orderId, String pix, String motivo) {
+        log.warn("Pedido #{}: Pix {} sem código e sem cancelamento no provedor dado como abandonado na troca para cartão ({})", orderId, pix, motivo);
+        String nota = "Troca para cartão; Pix sem código não cancelado no Mercado Pago: " + motivo;
+        jdbc.update("UPDATE order_payments SET status = 'cancelled', raw_status = 'abandoned', note = ? WHERE order_id = ? AND status = 'pending'",
+            nota.length() > 255 ? nota.substring(0, 255) : nota, orderId);
         return "cancelled";
     }
 
