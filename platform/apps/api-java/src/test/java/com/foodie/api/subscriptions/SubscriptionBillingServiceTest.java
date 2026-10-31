@@ -103,6 +103,36 @@ class SubscriptionBillingServiceTest {
         verify(gateway, never()).create(any(), any());
     }
 
+    /** Assinatura de antes da V069 (next_charge_at nunca preenchido), como as três do staging em 31/10/2026. */
+    private void subscriptionWithoutNextCharge(String status, Instant endsAt) {
+        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 7L, "restaurant_id", 3L, "status", status,
+            "ends_at", Timestamp.from(endsAt), "price_cents", 9900L, "period_days", 30L));
+        row.put("next_charge_at", null);
+        when(jdbc.queryForList(argThat(s -> s != null && s.contains("FROM restaurant_subscriptions")), any(Object[].class)))
+            .thenReturn(List.of(row));
+    }
+
+    @Test
+    void withoutNextChargeTheEndedPeriodIsCharged() {
+        // Antes: em atraso desde 27/10 e nenhuma cobrança gerada, porque o vencimento só olhava next_charge_at.
+        subscriptionWithoutNextCharge("suspended", Instant.parse("2026-10-27T23:16:55Z"));
+        when(charges.insert(anyLong(), anyLong(), anyString(), anyInt(), anyString(), any(), any())).thenReturn(42L);
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDSUB9", "sub-42", 9900, "pending", "pending",
+            "00020126...", "base64", "https://mp/ticket", null));
+
+        assertEquals(Optional.of(42L), service(true).generateForSubscription(7));
+
+        verify(gateway).create(any(), any());
+    }
+
+    @Test
+    void withoutNextChargeARunningPeriodIsNotChargedYet() {
+        subscriptionWithoutNextCharge("active", Instant.parse("2030-01-01T00:00:00Z"));
+
+        assertTrue(service(true).generateForSubscription(7).isEmpty());
+        verify(gateway, never()).create(any(), any());
+    }
+
     @Test
     void anAlreadyLiveChargeBlocksANewOne() {
         subscription("active", Instant.parse("2026-10-01T00:00:00Z"));

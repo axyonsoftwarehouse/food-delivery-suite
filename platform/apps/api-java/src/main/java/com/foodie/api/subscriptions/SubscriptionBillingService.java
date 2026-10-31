@@ -257,6 +257,8 @@ public class SubscriptionBillingService {
         if (!CHARGEABLE.contains(status)) return Optional.empty();
         Instant now = Instant.now();
         Instant next = instant(row.get("next_charge_at"));
+        // Assinatura de antes da V069 não tem next_charge_at: vale o fim do período, o mesmo critério do atraso.
+        if (next == null) next = instant(row.get("ends_at"));
         if (next == null || next.isAfter(now)) return Optional.empty();
         long restaurantId = ((Number) row.get("restaurant_id")).longValue();
         int amount = ((Number) row.get("price_cents")).intValue();
