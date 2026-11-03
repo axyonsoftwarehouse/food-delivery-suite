@@ -55,8 +55,6 @@ public class CourierShiftService {
 
     public record Opened(boolean created, Map<String, Object> shift) {}
 
-    public record SupportShift(long id, boolean created) {}
-
     public Instant openSince(long courierId) {
         List<Timestamp> rows = jdbc.queryForList(OPEN_SINCE, Timestamp.class, courierId);
         return rows.isEmpty() ? null : rows.getFirst().toInstant();
@@ -111,19 +109,6 @@ public class CourierShiftService {
         int closed = jdbc.update(CLOSE_STALE, Timestamp.from(Instant.now(clock).minus(STALE)));
         jdbc.update(DELETE_ORPHAN_LOCATIONS);
         return closed;
-    }
-
-    public SupportShift openBySupport(long courierId) {
-        List<Long> open = jdbc.queryForList(OPEN_IDS, Long.class, courierId);
-        if (!open.isEmpty()) return new SupportShift(open.getFirst(), false);
-        Long restaurantId = jdbc.queryForObject("SELECT restaurant_id FROM users WHERE id = ?", Long.class, courierId);
-        boolean created = true;
-        try {
-            jdbc.update(INSERT, courierId, restaurantId, Timestamp.from(Instant.now(clock)));
-        } catch (DuplicateKeyException race) {
-            created = false;
-        }
-        return new SupportShift(jdbc.queryForList(OPEN_IDS, Long.class, courierId).getFirst(), created);
     }
 
     public Map<String, Object> board(long restaurantId) {

@@ -132,18 +132,6 @@ class CourierShiftServiceTest {
     }
 
     @Test
-    void supportOpensWithTheCourierStoreOrReturnsTheOpenShift() {
-        when(jdbc.queryForList(CourierShiftService.OPEN_IDS, Long.class, 12L)).thenReturn(List.of(), List.of(40L));
-        when(jdbc.queryForObject("SELECT restaurant_id FROM users WHERE id = ?", Long.class, 12L)).thenReturn(null);
-
-        assertThat(service.openBySupport(12)).isEqualTo(new CourierShiftService.SupportShift(40L, true));
-        verify(jdbc).update(CourierShiftService.INSERT, 12L, null, Timestamp.from(NOW));
-
-        when(jdbc.queryForList(CourierShiftService.OPEN_IDS, Long.class, 13L)).thenReturn(List.of(41L));
-        assertThat(service.openBySupport(13)).isEqualTo(new CourierShiftService.SupportShift(41L, false));
-    }
-
-    @Test
     void boardReadsTheStoreAndOnlyItsActiveCouriers() {
         when(jdbc.queryForMap(startsWith("SELECT latitude, longitude FROM restaurants"), any(Object[].class)))
             .thenReturn(Map.of("latitude", new BigDecimal("-3.7319000"), "longitude", new BigDecimal("-38.5267000")));

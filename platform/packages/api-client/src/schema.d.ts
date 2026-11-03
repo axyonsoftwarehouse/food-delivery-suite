@@ -1892,38 +1892,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/couriers/{id}/shifts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["shifts"];
-        put?: never;
-        post: operations["startShift"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/couriers/{id}/incentives": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["incentives"];
-        put?: never;
-        post: operations["addIncentive"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/commerce/banners": {
         parameters: {
             query?: never;
@@ -2708,22 +2676,6 @@ export interface paths {
         patch: operations["suspendCourier"];
         trace?: never;
     };
-    "/admin/couriers/{id}/shifts/{shiftId}/end": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["endShift"];
-        trace?: never;
-    };
     "/admin/couriers/{id}/restaurant": {
         parameters: {
             query?: never;
@@ -2738,22 +2690,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["linkToRestaurant"];
-        trace?: never;
-    };
-    "/admin/couriers/{id}/profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["profile"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["updateProfile"];
         trace?: never;
     };
     "/admin/commerce/banners/{id}": {
@@ -3851,7 +3787,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["profile_1"];
+        get: operations["profile"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4107,7 +4043,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["profile_2"];
+        get: operations["profile_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4580,6 +4516,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/couriers/{id}/shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["shifts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/couriers/{id}/reviews": {
         parameters: {
             query?: never;
@@ -4588,6 +4540,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["reviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/couriers/{id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["profile_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/couriers/{id}/incentives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["incentives"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4799,22 +4783,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["deleteExpense_1"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/couriers/{id}/incentives/{incentiveId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["deleteIncentive"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5472,11 +5440,6 @@ export interface components {
             /** Format: int64 */
             zoneId?: number;
         };
-        IncentiveRequest: {
-            description: string;
-            /** Format: int64 */
-            amountCents?: number;
-        };
         BannerRequest: {
             title?: string;
             imageUrl: string;
@@ -5659,12 +5622,6 @@ export interface components {
             name?: string;
             /** Format: int64 */
             adminRoleId?: number;
-        };
-        ProfileRequest: {
-            vehicleType: string;
-            vehiclePlate?: string;
-            /** Format: int32 */
-            extraFeeCents?: number;
         };
         AdUpdate: {
             status?: string;
@@ -10582,114 +10539,6 @@ export interface operations {
             };
         };
     };
-    shifts: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    startShift: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    incentives: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    addIncentive: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["IncentiveRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     banners: {
         parameters: {
             query?: never;
@@ -12946,33 +12795,6 @@ export interface operations {
             };
         };
     };
-    endShift: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-                shiftId: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
     linkToRestaurant: {
         parameters: {
             query?: never;
@@ -12998,62 +12820,6 @@ export interface operations {
                 content: {
                     "*/*": {
                         [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
-    profile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    updateProfile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProfileRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
                     };
                 };
             };
@@ -14850,7 +14616,7 @@ export interface operations {
             };
         };
     };
-    profile_1: {
+    profile: {
         parameters: {
             query?: never;
             header?: never;
@@ -15263,7 +15029,7 @@ export interface operations {
             };
         };
     };
-    profile_2: {
+    profile_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -16040,7 +15806,85 @@ export interface operations {
             };
         };
     };
+    shifts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
     reviews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    profile_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    incentives: {
         parameters: {
             query?: never;
             header?: never;
@@ -16391,33 +16235,6 @@ export interface operations {
             header?: never;
             path: {
                 id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
-    deleteIncentive: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-                incentiveId: number;
             };
             cookie?: {
                 foodie_session?: string;
