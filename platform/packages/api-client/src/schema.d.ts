@@ -740,6 +740,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restaurant/catalog/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importCsv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/restaurant/attributes": {
         parameters: {
             query?: never;
@@ -5076,6 +5092,35 @@ export interface components {
         CategoryRequest: {
             name: string;
         };
+        ImportRequest: {
+            csv: string;
+        };
+        Line: {
+            /** Format: int32 */
+            line?: number;
+            action?: string;
+            category?: string;
+            product?: string;
+            /** Format: int32 */
+            priceCents?: number;
+        };
+        Problem: {
+            /** Format: int32 */
+            line?: number;
+            message?: string;
+        };
+        Result: {
+            dryRun?: boolean;
+            applied?: boolean;
+            /** Format: int32 */
+            categoriesCreated?: number;
+            /** Format: int32 */
+            productsCreated?: number;
+            /** Format: int32 */
+            productsUpdated?: number;
+            lines?: components["schemas"]["Line"][];
+            errors?: components["schemas"]["Problem"][];
+        };
         NameRequest: {
             name: string;
         };
@@ -5215,18 +5260,6 @@ export interface components {
             /** Format: int64 */
             orderId?: number;
             body: string;
-        };
-        ImportItem: {
-            /** Format: int64 */
-            productId?: number;
-            /** Format: int64 */
-            variationId?: number;
-            addonIds?: number[];
-            /** Format: int32 */
-            quantity?: number;
-        };
-        ImportRequest: {
-            items: components["schemas"]["ImportItem"][];
         };
         CheckoutRequest: {
             /** Format: int64 */
@@ -7837,6 +7870,34 @@ export interface operations {
                     "*/*": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    importCsv: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Result"];
                 };
             };
         };
