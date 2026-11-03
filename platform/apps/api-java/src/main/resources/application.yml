@@ -4,6 +4,9 @@ server:
 app:
   cookie-secure: ${COOKIE_SECURE:true}
   public-base-url: ${PUBLIC_BASE_URL:http://127.0.0.1:3001}
+  # Origens de navegador aceitas em métodos que mudam estado, além da public-base-url.
+  # Lista separada por vírgula; em produção inclui os subdomínios de papel e a API.
+  allowed-origins: ${APP_ALLOWED_ORIGINS:}
   migrate-only: ${MIGRATE_ONLY:false}
   payments:
     default-provider: ${PAYMENTS_DEFAULT_PROVIDER:mercadopago}
