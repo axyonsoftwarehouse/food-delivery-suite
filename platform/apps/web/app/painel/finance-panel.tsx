@@ -100,29 +100,25 @@ function ExpensesTab({ onMessage }: { onMessage: (m: string) => void }) {
 }
 
 function LedgerTab({ onMessage }: { onMessage: (m: string) => void }) {
-  const [party, setParty] = useState('admin');
-  const [partyId, setPartyId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [data, setData] = useState<{ items: LedgerEntry[]; balanceCents: number } | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const query = new URLSearchParams({ party });
-      if (partyId) query.set('partyId', partyId);
+      const query = new URLSearchParams({ party: 'admin' });
       if (from) query.set('from', from);
       if (to) query.set('to', to);
       setData(await api<{ items: LedgerEntry[]; balanceCents: number }>(`/admin/finance/ledger?${query.toString()}`));
     } catch (error) { onMessage(error instanceof Error ? error.message : 'Erro ao carregar extrato.'); }
-  }, [party, partyId, from, to, onMessage]);
+  }, [from, to, onMessage]);
 
   useEffect(() => { void load(); }, [load]);
 
   return <>
     <div className="pr-toolbar">
       <div className="ad-filter">
-        <select className="ad-select" value={party} aria-label="Parte do extrato" onChange={(event) => setParty(event.target.value)}><option value="admin">Plataforma</option><option value="restaurant">Restaurante (histórico)</option></select>
-        {party !== 'admin' && <input className="ad-input" inputMode="numeric" aria-label="ID da parte" value={partyId} onChange={(event) => setPartyId(event.target.value)} placeholder="ID da parte" />}
+        <span className="pr-muted">Extrato da plataforma. O extrato individual da loja é do lojista.</span>
         <DateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
       </div>
     </div>
