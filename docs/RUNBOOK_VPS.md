@@ -15,14 +15,14 @@ na VPS **sem depender de IA** para cada passo.
 
 | Item | Valor |
 | --- | --- |
-| Código implantado | **`a5e3885`** (PR #92) — deploy pelo botão do GitHub em 31/10/2026 18:49 UTC |
+| Código implantado | **`f4dd4c8`** (PR #97) — deploy pelo botão do GitHub em 03/11/2026 21:10 UTC |
 | Schema (`/ready`) | **`077`** |
-| `main` remoto | `a5e3885` — **VPS e `origin/main` alinhados** |
+| `main` remoto | `f4dd4c8` — **VPS e `origin/main` alinhados** |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data, release anterior) |
 | Web público | `https://staging.2.29.42.104.sslip.io` → HTTP 200 |
 | API | `https://api.staging.2.29.42.104.sslip.io/ready` → `{"status":"ready","schemaVersion":"077"}` |
 | Contêineres | api `healthy`, db `healthy`, web `Up` |
-| Disco | `21G` de `38G` (**59%**), `15G` livres |
+| Disco | `25G` de `38G` (**69%**), `12G` livres |
 | Firewall | `ufw` ativo: apenas 22, 80, 443 |
 | SSH root | **desabilitado** (`PermitRootLogin no`, `PasswordAuthentication no`) |
 
@@ -119,7 +119,7 @@ Referência:
 | --- | --- | --- |
 | `cf8493a` | `V074__session_idle_timeout.sql` | `074` |
 | `a5d4d7e` | `V076__estimated_time.sql` | `076` |
-| `a5e3885` (**na VPS hoje**) | `V077__subscription_next_charge_backfill.sql` | `077` |
+| `f4dd4c8` (**na VPS hoje**) | `V077__subscription_next_charge_backfill.sql` | `077` |
 
 **Duas coisas que parecem erro e não são:**
 
@@ -380,7 +380,9 @@ o cartão do pedido e da assinatura; o Pix não tem 3DS.
 A cobrança real da assinatura só acontece com `SUBSCRIPTIONS_ALLOW_REAL_CHARGES=true` **e**
 `SUBSCRIPTIONS_ACCOUNT_ACCESS_TOKEN` preenchido. As duas variáveis precisam chegar ao container:
 desde a correção P0 de 03/11/2026 o `deploy/docker-compose.yml` as repassa (antes não repassava
-nenhuma `SUBSCRIPTIONS_*`, e o job ficava mudo no valor padrão).
+nenhuma `SUBSCRIPTIONS_*`, e o job ficava mudo no valor padrão). **Estado em 03/11 após o deploy:**
+as variáveis já chegam ao container, mas com `SUBSCRIPTIONS_ALLOW_REAL_CHARGES=false` e tokens vazios;
+as três assinaturas continuam `expired` e `subscription_charges` está vazia.
 
 ```bash
 cd /home/deploy/foodie-platform/deploy
