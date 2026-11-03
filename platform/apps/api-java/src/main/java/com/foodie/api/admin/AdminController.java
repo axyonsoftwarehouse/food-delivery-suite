@@ -137,18 +137,6 @@ public class AdminController {
         return created(Map.of("id", id, "name", body.name().trim(), "slug", body.slug()));
     }
 
-    @PatchMapping("/restaurants/{id}/availability")
-    public Map<String, Object> restaurantAvailability(@CookieValue(value = "foodie_session", required = false) String token,
-                                                       @PathVariable @Positive long id,
-                                                       @Valid @RequestBody AvailabilityRequest body) {
-        User actor = admin(token, AdminPermissions.RESTAURANTS_MANAGE);
-        if (jdbc.update("UPDATE restaurants SET active = ? WHERE id = ?", body.active(), id) == 0) {
-            throw new ApiException(404, "Restaurante não encontrado");
-        }
-        audit(actor, "update", "restaurant", id, body.active() ? "Restaurante reaberto" : "Restaurante fechado");
-        return Map.of("id", id, "active", body.active());
-    }
-
     @PatchMapping("/restaurants/{id}/service-fee")
     public Map<String, Object> restaurantServiceFee(@CookieValue(value = "foodie_session", required = false) String token,
                                                     @PathVariable @Positive long id,
@@ -283,7 +271,6 @@ public class AdminController {
     public record PostalRangeRequest(@Positive long zoneId, @NotBlank String postalStart, @NotBlank String postalEnd) {}
     public record RestaurantRequest(@NotBlank @Size(min = 2, max = 160) String name,
                                     @NotBlank @Pattern(regexp = "[a-z0-9]+(?:-[a-z0-9]+)*") @Size(max = 180) String slug) {}
-    public record AvailabilityRequest(@jakarta.validation.constraints.NotNull Boolean active) {}
     public record ServiceFeeRequest(@jakarta.validation.constraints.NotNull @DecimalMin("0") @DecimalMax("30") java.math.BigDecimal percent) {}
     public record LocationRequest(@Size(max = 255) String addressText,
                                   @DecimalMin("-90") @DecimalMax("90") Double latitude,

@@ -25,13 +25,16 @@ public class SubscriptionRenewalRunner {
 
     private final JdbcTemplate jdbc;
     private final SubscriptionBillingService billing;
+    private final SubscriptionBillingAccount account;
     private final NotificationService notifications;
     private final int graceDays;
 
-    public SubscriptionRenewalRunner(JdbcTemplate jdbc, SubscriptionBillingService billing, NotificationService notifications,
+    public SubscriptionRenewalRunner(JdbcTemplate jdbc, SubscriptionBillingService billing, SubscriptionBillingAccount account,
+                                     NotificationService notifications,
                                      @Value("${app.subscriptions.grace-days:5}") int graceDays) {
         this.jdbc = jdbc;
         this.billing = billing;
+        this.account = account;
         this.notifications = notifications;
         this.graceDays = graceDays;
     }
@@ -54,6 +57,9 @@ public class SubscriptionRenewalRunner {
             "SELECT id FROM restaurant_subscriptions WHERE (status IN ('trial','active','suspended') AND COALESCE(next_charge_at, ends_at) <= NOW())"
                 + " OR EXISTS (SELECT 1 FROM subscription_charges c WHERE c.subscription_id = restaurant_subscriptions.id AND c.status IN ('pending','failed')) ORDER BY COALESCE(next_charge_at, ends_at), id LIMIT 50",
             (rs, row) -> rs.getLong(1));
+        if (!due.isEmpty() && account.disabledReason() != null) {
+            log.warn("{} assinatura(s) a vencer, mas a cobrança real está desligada: {}", due.size(), account.disabledReason());
+        }
         for (Long id : due) billing.generateForSubscription(id);
     }
 

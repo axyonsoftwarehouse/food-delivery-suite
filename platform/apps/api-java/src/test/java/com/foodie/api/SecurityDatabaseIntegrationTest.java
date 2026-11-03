@@ -315,7 +315,8 @@ class SecurityDatabaseIntegrationTest {
             jdbc.update("UPDATE restaurant_subscriptions SET ends_at = DATE_ADD(NOW(), INTERVAL 30 DAY), status = 'active', delinquent_since = NULL WHERE id = ?", subscriptionId);
             return selected;
         }).when(intercepted).queryForList(argThat(sql -> sql != null && sql.startsWith("SELECT id, restaurant_id, delinquent_since")));
-        new SubscriptionRenewalRunner(intercepted, mock(SubscriptionBillingService.class), mock(NotificationService.class), 5).run();
+        new SubscriptionRenewalRunner(intercepted, mock(SubscriptionBillingService.class),
+            new SubscriptionBillingAccount(true, "fake", "fake"), mock(NotificationService.class), 5).run();
         assertEquals("active", jdbc.queryForObject("SELECT status FROM restaurant_subscriptions WHERE id = ?", String.class, subscriptionId));
     }
 }

@@ -21,8 +21,6 @@ export default function AdminOperationPanel() {
   const [linkTarget, setLinkTarget] = useState<Record<number, string>>({});
   const [approvalRestaurantId, setApprovalRestaurantId] = useState('');
   const [approval, setApproval] = useState('approved');
-  const [tagRestaurantId, setTagRestaurantId] = useState('');
-  const [tagName, setTagName] = useState('');
   const [vehicleCourierId, setVehicleCourierId] = useState('');
   const [vehicleType, setVehicleType] = useState('moto');
   const [vehiclePlate, setVehiclePlate] = useState('');
@@ -35,13 +33,8 @@ export default function AdminOperationPanel() {
   const courierOptions = couriers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>);
 
   return <AdminPage>
-    <Card title="Abertura dos restaurantes" className="pr-card--flush ad-flush">
-      <p className="ad-help">Fechar uma loja a remove do catálogo e bloqueia novos pedidos, sem alterar o cardápio.</p>
-      {catalog.restaurants.length ? <ul className="pr-list">{catalog.restaurants.map((restaurant) => <li className="pr-row ad-keep" key={restaurant.id}>
-        <span className={`pr-thumb${restaurant.active ? '' : ' is-off'}`} aria-hidden="true">{restaurant.name.charAt(0)}</span>
-        <div className="pr-row-main"><strong>{restaurant.name}</strong><span className={restaurant.active && restaurant.open ? 'ad-ok' : ''}>{restaurant.active ? (restaurant.open ? 'Pedidos abertos agora' : 'Fora do horário agora') : 'Fechado temporariamente'}</span></div>
-        <div className="pr-row-actions"><button type="button" className={`pr-btn pr-btn--sm${restaurant.active ? ' pr-btn--danger' : ' pr-btn--soft'}`} disabled={busy} onClick={() => run(() => api(`/admin/restaurants/${restaurant.id}/availability`, { method: 'PATCH', body: JSON.stringify({ active: !restaurant.active }) }), restaurant.active ? 'Restaurante fechado para novos pedidos.' : 'Restaurante reaberto.')}>{restaurant.active ? 'Fechar agora' : 'Reabrir'}</button></div>
-      </li>)}</ul> : <Empty icon="store">Nenhum restaurante.</Empty>}
+    <Card title="Operação da loja">
+      <p className="ad-help">Pausar a loja, editar cardápio, preços e horários é feito no <a href="/painel/suporte">modo suporte</a>, com motivo e trilha visível para a loja.</p>
     </Card>
 
     <form className="pr-card pr-form" onSubmit={(event) => { event.preventDefault(); const id = Number(locationRestaurantId || catalog.restaurants[0]?.id || 0); const latitude = locationLat.trim() ? Number(locationLat.replace(',', '.')) : undefined; const longitude = locationLng.trim() ? Number(locationLng.replace(',', '.')) : undefined; run(() => api(`/admin/restaurants/${id}/location`, { method: 'PATCH', body: JSON.stringify({ addressText: locationAddress, latitude, longitude }) }), 'Localização atualizada.'); }}>
@@ -64,12 +57,6 @@ export default function AdminOperationPanel() {
         <label className="pr-field">Restaurante<select value={approvalRestaurantId} onChange={(event) => setApprovalRestaurantId(event.target.value)}>{restaurantOptions}</select></label>
         <label className="pr-field">Situação<select value={approval} onChange={(event) => setApproval(event.target.value)}><option value="approved">Aprovado</option><option value="pending">Pendente</option><option value="denied">Negado</option></select></label>
         <div className="ad-form-foot"><button className="pr-btn pr-btn--primary" disabled={busy || !catalog.restaurants.length}>Salvar aprovação</button></div>
-      </form>
-      <form className="pr-card pr-form" onSubmit={async (event) => { event.preventDefault(); const id = Number(tagRestaurantId || catalog.restaurants[0]?.id || 0); const ok = await run(() => api(`/admin/restaurants/${id}/tags`, { method: 'POST', body: JSON.stringify({ name: tagName }) }), 'Tag adicionada.'); if (ok) setTagName(''); }}>
-        <div className="pr-card-head"><h2>Tags da loja</h2></div>
-        <label className="pr-field">Restaurante<select value={tagRestaurantId} onChange={(event) => setTagRestaurantId(event.target.value)}>{restaurantOptions}</select></label>
-        <label className="pr-field">Tag<input value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="Ex.: saudável" minLength={2} maxLength={60} required /></label>
-        <div className="ad-form-foot"><button className="pr-btn pr-btn--primary" disabled={busy || !catalog.restaurants.length}>Adicionar tag</button></div>
       </form>
     </div>
 

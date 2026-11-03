@@ -12,10 +12,13 @@ import org.springframework.stereotype.Service;
 public class SmtpMailService implements MailProvider {
     private final ObjectProvider<JavaMailSender> mailSender;
     private final String from;
+    private final String host;
 
-    public SmtpMailService(ObjectProvider<JavaMailSender> mailSender, @Value("${app.mail.from:}") String from) {
+    public SmtpMailService(ObjectProvider<JavaMailSender> mailSender, @Value("${app.mail.from:}") String from,
+                           @Value("${spring.mail.host:}") String host) {
         this.mailSender = mailSender;
         this.from = from;
+        this.host = host;
     }
 
     @Override
@@ -24,12 +27,13 @@ public class SmtpMailService implements MailProvider {
     }
 
     public boolean configured() {
-        return mailSender.getIfAvailable() != null && from != null && !from.isBlank();
+        return mailSender.getIfAvailable() != null && host != null && !host.isBlank() && from != null && !from.isBlank();
     }
 
     @Override
     public void send(String to, String subject, String body) {
         JavaMailSender sender = mailSender.getIfAvailable();
+        if (host == null || host.isBlank()) throw new ApiException(503, "SMTP não configurado: defina SPRING_MAIL_HOST");
         if (sender == null) throw new ApiException(503, "SMTP não configurado: defina SPRING_MAIL_HOST");
         if (from == null || from.isBlank()) throw new ApiException(503, "SMTP sem remetente: defina MAIL_FROM");
         SimpleMailMessage message = new SimpleMailMessage();
