@@ -63,7 +63,8 @@ O exemplo pronto é `platform/tests/catalog-smoke.mjs`.
 
 - **Sempre** (sem banco): `cd platform && pnpm verify`
   — testes Java, tipos (`tsc`), testes web (`node --test`), build do Next, tipos e
-  testes da cozinha, tipos do api-client, checagem dos Dockerfiles.
+  testes da cozinha, tipos do api-client, checagem dos Dockerfiles e do repasse de
+  variáveis da API pelos dois `docker-compose` (`scripts/check-compose-env.mjs`).
 - **Integrado** (banco + seed + smokes): `VERIFY_INTEGRATION=1 pnpm verify`
   — sobe `docker-compose.test.yml`, roda o seed e os smokes e derruba tudo.
   Exige `DB_PASSWORD`/`DB_ROOT_PASSWORD` em `platform/.env` e `DEMO_PASSWORD` em
@@ -109,3 +110,20 @@ As lacunas são candidatas ao mesmo formato de ida-e-volta.
    OpenAPI), para pegar deriva sem depender de alguém lembrar do smoke.
 4. **Job de integração dedicado** no CI (hoje a integração roda junto do `verify`;
    um job separado deixa o retorno mais claro quando falha um smoke).
+
+## Homologação manual pendente (03/11/2026)
+
+Nada abaixo é coberto pelos smokes atuais; todos exigem staging, navegador e, em
+alguns casos, as credenciais de teste do Mercado Pago.
+
+- [ ] **P0 da assinatura:** com `SUBSCRIPTIONS_*` no container e as três assinaturas
+  reativadas, confirmar a geração das três cobranças Pix e o pagamento de ao menos uma.
+- [ ] **3DS:** `APRO-CHOK` → “Usar outro cartão ou Pix” → Pix no mesmo pedido;
+  `APRO-AUTH` aprovando sem verificação; formulário destravado depois de “Ocorreu um erro”.
+- [ ] **Conta da loja conectada:** Pix, cartão e estorno usando o token da loja, com
+  webhook automático (sem “Simular notificação”).
+- [ ] **Estorno pela loja:** diálogo de motivo, trilha e aviso para a loja.
+- [ ] **Recorrência e campanhas:** pedido recorrente gerado pelo job e desconto de
+  campanha gravado no checkout.
+- [ ] **Produção:** SMTP real, restauração do R2 em banco descartável, carga na VPS e
+  revisão de origem/CSRF nos domínios finais.

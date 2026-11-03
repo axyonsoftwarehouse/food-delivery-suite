@@ -37,7 +37,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/finance")
 public class FinanceController {
-    private static final Set<String> PARTIES = Set.of("admin", "restaurant");
+    // A fronteira do super-admin não abre o extrato individual da loja (PLANO_MODELO_NEGOCIO.md).
+    private static final Set<String> PARTIES = Set.of("admin");
 
     private final AuthService auth;
     private final AdminPermissionService permissions;

@@ -327,7 +327,9 @@ function Subscriptions({ onMessage }: { onMessage: (m: string) => void }) {
         </Row>)}
       </List>
       <List title="Assinaturas" empty="Nenhuma assinatura." icon="repeat" count={assigned.length}>
-        {assigned.map((s) => <Row key={s.id} title={s.restaurant_name} detail={`${s.package_name}${s.ends_at ? ` · até ${new Date(s.ends_at).toLocaleDateString('pt-BR')}` : ''}`} badge={<span className={`pr-badge${s.status === 'active' ? ' is-brand' : ''}`}>{s.status}</span>} />)}
+        {assigned.map((s) => <Row key={s.id} title={s.restaurant_name} detail={`${s.package_name}${s.ends_at ? ` · até ${new Date(s.ends_at).toLocaleDateString('pt-BR')}` : ''}`} badge={<span className={`pr-badge${s.status === 'active' ? ' is-brand' : ''}`}>{s.status}</span>}>
+          {['expired', 'suspended'].includes(s.status) && <button type="button" className="pr-btn pr-btn--sm" onClick={() => void act(`/admin/restaurant-subscriptions/${s.id}`, 'PATCH', { status: 'active' }, 'Assinatura reativada; a cobrança sai na próxima verificação.', reloadAssigned, onMessage)}>Reativar</button>}
+        </Row>)}
       </List>
     </div>
   </div>;

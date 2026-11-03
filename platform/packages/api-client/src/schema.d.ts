@@ -1652,22 +1652,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/restaurants/{id}/tags": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["tags_1"];
-        put?: never;
-        post: operations["addTag"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/restaurant-users": {
         parameters: {
             query?: never;
@@ -2530,22 +2514,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["restaurantLocation"];
-        trace?: never;
-    };
-    "/admin/restaurants/{id}/availability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["restaurantAvailability"];
         trace?: never;
     };
     "/admin/restaurants/{id}/approval": {
@@ -3963,7 +3931,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["tags_2"];
+        get: operations["tags_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4783,22 +4751,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["deletePackage"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/restaurants/{id}/tags/{tagId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["deleteTag_1"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5649,6 +5601,9 @@ export interface components {
         };
         ApprovalRequest: {
             approval: string;
+        };
+        RestaurantStatusRequest: {
+            status: string;
         };
         PageUpdate: {
             title?: string;
@@ -9933,62 +9888,6 @@ export interface operations {
             };
         };
     };
-    tags_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    addTag: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TagRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     restaurantUser: {
         parameters: {
             query?: never;
@@ -12506,36 +12405,6 @@ export interface operations {
             };
         };
     };
-    restaurantAvailability: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AvailabilityRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     approval: {
         parameters: {
             query?: never;
@@ -12579,7 +12448,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["StatusRequest"];
+                "application/json": components["schemas"]["RestaurantStatusRequest"];
             };
         };
         responses: {
@@ -15064,7 +14933,7 @@ export interface operations {
             };
         };
     };
-    tags_2: {
+    tags_1: {
         parameters: {
             query: {
                 zoneId: number;
@@ -16409,33 +16278,6 @@ export interface operations {
             header?: never;
             path: {
                 id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
-    deleteTag_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-                tagId: number;
             };
             cookie?: {
                 foodie_session?: string;

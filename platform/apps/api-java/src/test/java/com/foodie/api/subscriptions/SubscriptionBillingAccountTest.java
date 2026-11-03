@@ -2,6 +2,7 @@ package com.foodie.api.subscriptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -35,5 +36,22 @@ class SubscriptionBillingAccountTest {
 
         assertEquals(503, error.status());
         assertEquals("Cobrança de assinatura não configurada", error.getMessage());
+    }
+
+    @Test
+    void disabledReasonNamesTheMissingFlag() {
+        assertEquals("SUBSCRIPTIONS_ALLOW_REAL_CHARGES não está true",
+            new SubscriptionBillingAccount(false, "token", "pk").disabledReason());
+    }
+
+    @Test
+    void disabledReasonNamesTheMissingToken() {
+        assertEquals("SUBSCRIPTIONS_ACCOUNT_ACCESS_TOKEN não configurado",
+            new SubscriptionBillingAccount(true, " ", "pk").disabledReason());
+    }
+
+    @Test
+    void enabledAccountHasNoDisabledReason() {
+        assertNull(new SubscriptionBillingAccount(true, "token", "pk").disabledReason());
     }
 }

@@ -167,7 +167,7 @@ Timers: Foodie **06:00 UTC**; Storyverse **06:30 UTC**; `Persistent=true`.
 
 ## Limites antes da produção pública
 
-Esta é uma base de homologação, não autorização para exposição comercial. Proteção de contas, recuperação, pagamento na entrega, estados excepcionais do pedido, observabilidade e backup/restauração já estão implementados. Antes de expor comercialmente ainda faltam: um provedor de email real (hoje o link de verificação/recuperação sai no log), a revisão de origem/CSRF nos domínios finais, o ensaio de restauração e um teste de carga na própria VPS.
+Esta é uma base de homologação, não autorização para exposição comercial. Proteção de contas, recuperação, pagamento na entrega, estados excepcionais do pedido, observabilidade e backup/restauração já estão implementados. O SMTP existe no código e o Compose passou a repassar `MAIL_*`/`SPRING_MAIL_*` (correção P0 de 03/11/2026), mas ainda falta configurar um provedor real e testar o link de verificação/recuperação. Antes de expor comercialmente ainda faltam também: a revisão de origem/CSRF nos domínios finais, o ensaio de restauração do backup do R2, um teste de carga na própria VPS e a troca de todas as credenciais de teste.
 
 ## Código legado de terceiros: removido
 

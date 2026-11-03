@@ -1,7 +1,6 @@
 # Runbook da VPS — Foodie
 
-Documento operacional. Última atualização: **30/09/2026 02:45 UTC**
-(29/09 23:45 no horário de Brasília) — verificado por SSH na VPS.
+Documento operacional. Última atualização: **03/11/2026** — verificado por SSH na VPS.
 Público: quem opera a VPS (hoje, Werner).
 Objetivo: permitir subir, atualizar, diagnosticar e recuperar a plataforma
 na VPS **sem depender de IA** para cada passo.
@@ -12,24 +11,22 @@ na VPS **sem depender de IA** para cada passo.
 > **Convenção.** Todo fato abaixo foi lido da própria VPS em 30/09/2026, exceto
 > o que estiver marcado como **`(a confirmar)`**. Não preencher lacuna por dedução.
 
-## 0. Estado verificado da VPS (30/09/2026)
+## 0. Estado verificado da VPS (03/11/2026)
 
 | Item | Valor |
 | --- | --- |
-| Código implantado | **`e226cb2`** — deploy feito pelo `release.ps1` em 30/09/2026 03:46 UTC |
-| Schema (`/ready`) | **`053`** |
-| `main` local | `e226cb2` — **VPS e `main` alinhados** |
+| Código implantado | **`a5e3885`** (PR #92) — deploy pelo botão do GitHub em 31/10/2026 18:49 UTC |
+| Schema (`/ready`) | **`077`** |
+| `main` remoto | `a5e3885` — **VPS e `origin/main` alinhados** |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data, release anterior) |
 | Web público | `https://staging.2.29.42.104.sslip.io` → HTTP 200 |
-| API | `https://api.staging.2.29.42.104.sslip.io/ready` → `{"status":"ready","schemaVersion":"053"}` |
-| Contêineres | api `healthy`, db `healthy`, web e caddy `Up`, migrate `Exited (0)` |
-| Reinícios | `0` em todos os contêineres do `foodie-staging` |
-| Disco | `16G` de `38G` (**43%**), `21G` livres — era 79% antes da limpeza de 30/09 |
-| Memória | `3.7Gi` no total, `~2.4Gi` disponíveis, swap `2.0Gi` |
+| API | `https://api.staging.2.29.42.104.sslip.io/ready` → `{"status":"ready","schemaVersion":"077"}` |
+| Contêineres | api `healthy`, db `healthy`, web `Up` |
+| Disco | `21G` de `38G` (**59%**), `15G` livres |
 | Firewall | `ufw` ativo: apenas 22, 80, 443 |
 | SSH root | **desabilitado** (`PermitRootLogin no`, `PasswordAuthentication no`) |
 
-> **A VPS está alinhada com o `main`.** Publicar agora é um comando só, no seu
+> **A VPS está alinhada com o `origin/main`.** Publicar agora é um comando só, no seu
 > PC: `.\platform\deploy\release.ps1` (seção 4).
 >
 > **Como conferir o que está no ar:** `cat /home/deploy/foodie-platform/.deployed`.
@@ -120,10 +117,9 @@ Referência:
 
 | Commit | Maior migration | `schemaVersion` |
 | --- | --- | --- |
-| `88efbe8` | `V048__business_operations.sql` | `048` |
-| `75dfe8c` | `V053__retire_restaurant_wallet.sql` | `053` |
-| `bf8a6a3` (**na VPS hoje**) | `V053__retire_restaurant_wallet.sql` | `053` |
-| `aafb220` (`main` local) | `V053__retire_restaurant_wallet.sql` | `053` |
+| `cf8493a` | `V074__session_idle_timeout.sql` | `074` |
+| `a5d4d7e` | `V076__estimated_time.sql` | `076` |
+| `a5e3885` (**na VPS hoje**) | `V077__subscription_next_charge_backfill.sql` | `077` |
 
 **Duas coisas que parecem erro e não são:**
 
@@ -378,6 +374,62 @@ docker compose logs --since 2m api | grep "3DS do cartão DESLIGADO"
 Para religar, troque a linha por `MERCADOPAGO_CARD_3DS=on_fraud_risk` (ou apague) e repita o
 `docker compose up -d api`. Valor desconhecido mantém o 3DS **ligado** e avisa no log. A chave vale para
 o cartão do pedido e da assinatura; o Pix não tem 3DS.
+
+### Assinatura: cobrança desligada e reativação
+
+A cobrança real da assinatura só acontece com `SUBSCRIPTIONS_ALLOW_REAL_CHARGES=true` **e**
+`SUBSCRIPTIONS_ACCOUNT_ACCESS_TOKEN` preenchido. As duas variáveis precisam chegar ao container:
+desde a correção P0 de 03/11/2026 o `deploy/docker-compose.yml` as repassa (antes não repassava
+nenhuma `SUBSCRIPTIONS_*`, e o job ficava mudo no valor padrão).
+
+```bash
+cd /home/deploy/foodie-platform/deploy
+docker compose exec -T api sh -c 'env | grep SUBSCRIPTIONS || echo "nenhuma variável SUBSCRIPTIONS_*"'
+docker compose logs --since 10m api | grep "Cobrança real da assinatura"
+```
+
+Para ligar, preencha no `deploy/.env` (sem colar segredo no terminal compartilhado):
+
+```dotenv
+SUBSCRIPTIONS_ALLOW_REAL_CHARGES=true
+SUBSCRIPTIONS_ACCOUNT_ACCESS_TOKEN=...
+SUBSCRIPTIONS_ACCOUNT_PUBLIC_KEY=...
+```
+
+E recrie só a API (o `restart` não relê o `.env`):
+
+```bash
+docker compose up -d api
+docker compose logs --since 2m api | grep "Cobrança real da assinatura"
+```
+
+Assinatura **expirada** não volta sozinha: a loja vê “fale com o suporte”. O admin reativa em
+**Painel → Promoções → Assinaturas → Reativar**. A reativação limpa `delinquent_since`, agenda
+`next_charge_at = NOW()` e a próxima rodada do job (até 6 h) gera a cobrança Pix. Para conferir:
+
+```bash
+cd /home/deploy/foodie-platform/deploy
+docker compose exec -T db sh -c 'mariadb -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" -e "SELECT id, restaurant_id, status, ends_at, next_charge_at, delinquent_since FROM restaurant_subscriptions ORDER BY id; SELECT COUNT(*) AS charges FROM subscription_charges;"'
+```
+
+### E-mail real (SMTP)
+
+O código já tem `SmtpMailService`; até 03/11/2026 o Compose não repassava `MAIL_*` nem
+`SPRING_MAIL_*`, então só o provedor `log` era possível. Para produção, preencha no `deploy/.env`:
+
+```dotenv
+MAIL_PROVIDER=smtp
+MAIL_FROM=no-reply@seudominio.com
+SPRING_MAIL_HOST=smtp.seudominio.com
+SPRING_MAIL_PORT=587
+SPRING_MAIL_USERNAME=...
+SPRING_MAIL_PASSWORD=...
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true
+```
+
+Recrie a API (`docker compose up -d api`) e teste “Esqueci minha senha” com um e-mail real.
+Sem `MAIL_PROVIDER=smtp`, o link continua saindo só no log.
 
 ### Espaço em disco
 

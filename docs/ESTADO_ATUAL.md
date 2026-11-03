@@ -1,7 +1,8 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: 22/10/2026 (retrato do §0, §4, §5 e §6: PRs #63 a #80
-mescladas e publicadas, `cf8493a`, schema `074`).
+Documento vivo. Última atualização: **03/11/2026** (retrato do §0, §4, §5 e §6: PRs #81 a #92
+mescladas e publicadas, `a5e3885`, schema `077`; a correção P0 da assinatura está na branch
+local `fix/assinatura-p0`, ainda sem PR).
 Rodada de segurança em 21/10/2026 (PRs #70 a #80): cadastro sem senha até verificar o
 e-mail, login social vinculado com segurança, OAuth sem token na URL, IDOR, XSS,
 cabeçalhos HTTP, janela de tempo e ids assinados no webhook, OTP com telefone E.164,
@@ -33,17 +34,17 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`cf8493a`** — merge da PR #78 (controle de acesso, XSS, cabeçalhos e dependências), 22/10 11:40 UTC. A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #80** são os do `axyonsoftwarehouse` |
-| Em revisão | **nada aberto** (conferido em 22/10 com `gh pr list --state open`). De 19/10 a 22/10 entraram as **PRs #63 a #80** (§6) |
-| `main` local | `adb9da2` (PR #36), atrás do `origin/main`; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
-| **Código na VPS** | **`cf8493a`** — o `main` inteiro (até a PR #80), publicado pelo **botão do GitHub** em **22/10 22:18 UTC** (run `39863428667`, sucesso, `headSha` = `cf8493a`; antes dele, o `aa5915b` da PR #77, deploy de 21/10 19:54 UTC). Conteúdo do `.deployed` não lido nesta atualização `(a confirmar)` |
-| Schema (`/ready`) | **`074`** na VPS e no `HEAD` do `main` (conferido em 22/10: `{"status":"ready","schemaVersion":"074"}` em `https://api.staging.2.29.42.104.sslip.io/ready`). Migrations novas desde 19/10: `V072` (verificação 3DS na cobrança da assinatura, PR #69), `V073` (provedor do login social, PR #70, que entrou na `main` pela #69) e `V074` (sessão com expiração por ociosidade, PR #75, que entrou na `main` pela #79) |
-| Distância | o staging roda o mesmo commit do `origin/main`; a home do staging e o `/health` respondem 200 (22/10) |
+| `origin/main` | **`a5e3885`** — merge da PR #92 (cobrança da assinatura sem `next_charge_at`), 31/10 18:41 UTC. A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #92** são os do `axyonsoftwarehouse` |
+| Em revisão | **nada aberto** (conferido em 03/11 com `gh pr list --state open`). Entre 23/10 e 31/10 entraram as **PRs #81 a #92** (§6). A correção P0 da assinatura está na branch local `fix/assinatura-p0`, sem PR |
+| `main` local | `a5d4d7e` (merge da PR #86), atrás do `origin/main`; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
+| **Código na VPS** | **`a5e3885`** — o `main` inteiro (até a PR #92), publicado pelo **botão do GitHub** em **31/10 18:49 UTC** (run `41230963506`, sucesso, `headSha` = `a5e3885`). `.deployed` conferido em 03/11: `sha=a5e3885`, `schema=077`, `previous=1644fa5` |
+| Schema (`/ready`) | **`077`** na VPS e no `HEAD` do `main` (conferido em 03/11: `{"status":"ready","schemaVersion":"077"}`). Migrations novas desde 22/10: `V075` (observação por item/pedido, PR #87), `V076` (tempo estimado, PR #88) e `V077` (backfill de `next_charge_at`, PR #92) |
+| Distância | o staging roda o mesmo commit do `origin/main`; a home do staging e o `/health` respondem 200 (03/11) |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `pnpm verify` verde na branch `feat/assinatura-cobranca-real` (15/10, local, sem integração: Docker parado), com **770 testes Java** sem falha. Antes: `pnpm verify` verde na branch `fix/3ds-desistencia` (14/10) com **737 testes Java** sem falha; `mvn test` com **699 execuções** sem falha na PR #31 (12/10, local, sem integração: Docker parado); eram 667 na `main` em 10/10 e 635 na PR #24. Na PR 2, `pnpm verify` verde (13/10, sem integração) e `node --test app/online-payment.test.ts` passa **11 de 11**. CI `Verificação` verde nas PRs #40 e #41. Em 22/10, o CI do `main` (`push`, `cf8493a`) está **verde**; contagem de testes Java depois das PRs #42 a #80 `(a confirmar)` com `pnpm verify` |
+| Testes Java | `pnpm verify` verde em **03/11** na branch `fix/assinatura-p0` (local, sem integração: Docker parado): **884 testes Java** (12 de integração ignorados), **42** testes do site, **21** da cozinha, 13 COPYs e a nova checagem de variáveis do Compose (158). O CI do `main` (`push`, `a5e3885`) está **verde**; a última execução integrada conhecida foi a da PR #92, com `VERIFY_INTEGRATION=1` e Docker |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
-| Disco da VPS | **35%** em 20/10, depois da limpeza manual da PR #68 (59% → 35%); número novo `(a confirmar)` com `df -h /`. Desde a PR #68, um timer limpa a cada 2 dias (04:30 UTC) quando o disco passa de 60%, e o deploy segue com a trava de espaço |
-| Árvore de trabalho | branch **`docs/estado-atual-2026-10-22`** (esta atualização, a partir do `cf8493a`). Não versionados: `.claude/`, `docs/PLANO_APPS_MOBILE_MARCOS.md` e `docs/PLANO_APPS_MOBILE_NEGOCIO.md` (planos dos apps móveis de 15/10, ainda fora do Git) |
+| Disco da VPS | **59%** (21 GB de 38 GB; 15 GB livres) em 03/11. O timer limpa a cada 2 dias (04:30 UTC) quando o disco passa de 60%, e o deploy segue com a trava de espaço |
+| Árvore de trabalho | branch **`fix/assinatura-p0`** (P0 da assinatura, a partir de `a5e3885`; mudanças ainda não commitadas). Não versionados: `.claude/`, `docs/PLANO_APPS_MOBILE_MARCOS.md` e `docs/PLANO_APPS_MOBILE_NEGOCIO.md` |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -58,6 +59,30 @@ Como publicar: pelo **botão do GitHub** (`Actions → Deploy - Foodie → Run w
 `PUBLICAR`) — desde 07/10 é o caminho normal, e o `.deployed` identifica a origem pelo `package`
 (`ci-incoming/…`). Alternativa no PC: `.\platform\deploy\release.ps1`, que empacota o commit, envia e
 aplica com backup, verificação e rollback — ver `RUNBOOK_VPS.md` §4.
+
+### 0.1 Assinatura — achado e correção P0 (03/11/2026)
+
+O staging estava com as **três assinaturas `expired` desde 01/11** e **zero** linhas em
+`subscription_charges`. A causa não era só a `V077`: os dois `docker-compose` **não
+repassavam nenhuma variável `SUBSCRIPTIONS_*`** para a API. O `.env` até podia ter os
+valores, mas o container nunca os recebia; `allow-real-charges` ficava `false` e o job
+não criava cobrança — sem log. Confirmei no container: nenhuma variável
+`SUBSCRIPTIONS_*` presente.
+
+A correção P0 (branch local `fix/assinatura-p0`, ainda sem PR) faz:
+
+- repassar `SUBSCRIPTIONS_*` (e as demais variáveis lidas pela API) no `docker-compose`
+  local e no de deploy, com os `.env.example` correspondentes;
+- logar no start e a cada rodada do job quando a cobrança real está desligada;
+- permitir que o admin **reative** uma assinatura `expired`/`suspended`/`cancelled` pelo
+  painel: o `PATCH` limpa `delinquent_since`, agenda `next_charge_at = NOW()` e o job
+  gera a cobrança do ciclo; a tela de Promoções ganhou o botão **Reativar**;
+- impedir a regressão com `scripts/check-compose-env.mjs` no `pnpm verify` (toda variável
+  do `application.yml` tem de estar declarada no serviço da API dos dois Compose).
+
+**Depois do deploy:** preencher `SUBSCRIPTIONS_*` no `deploy/.env` (valores
+`(a confirmar)` com o Werner), reativar as três assinaturas no painel e conferir a
+geração das três cobranças Pix no sandbox. Sem isso, o staging continua sem cobrança.
 
 ## 1. O que é o Foodie hoje
 
@@ -115,7 +140,7 @@ E24 Nutrição, E25 Moderação, E18 Anúncios, E32 CMS/páginas, E33 Landing,
 E34 i18n admin, E35 Analytics, E37 Configurações de terceiros.
 
 ### Experiência e integrações (Onda 4)
-E38 Chat (backend pronto), E39 Favoritos, E40 Mapa/rastreio, E41 Busca por voz,
+E38 Chat (interface do pedido pronta desde a PR #89), E39 Favoritos, E40 Mapa/rastreio, E41 Busca por voz,
 E42 Tema/PWA, E43 IA de cardápio, E44 Interesses, E45 Gateways, E46 SMS,
 E47 Social (**Facebook ✅** via `/auth/social/facebook`, Google ✅; **Apple
 pendente** — não há código Apple no backend).
@@ -129,7 +154,7 @@ pendente** — não há código Apple no backend).
 
 ### Deploy e verificação
 - **Homologação pública:** `staging.2.29.42.104.sslip.io`
-- **297 testes Java** + tipos TypeScript + build Next (`VERIFY_INTEGRATION=1 pnpm verify`)
+- **884 testes Java** (12 de integração) + tipos TypeScript + build Next + checagem do Compose (`VERIFY_INTEGRATION=1 pnpm verify`)
 - Smokes: pedido, carrinho, exceções, contas e cobertura por CEP (`pnpm smoke:cart`,
   `smoke:exceptions`, `smoke:auth`)
 - Teste de carga: `pnpm load`
@@ -155,7 +180,6 @@ pendente** — não há código Apple no backend).
   e a tabela (`V055` derruba a `translations`; a criação fica em `V046` como histórico). O contrato
   do `api-client` foi regerado.
 - **Cache offline do catálogo** (E42) — follow-up
-- **Interface dedicada de chat** (E38) — backend pronto, UI pendente
 - **Importação em massa de catálogo** (E23) — follow-up
 - **Imagens de mock dos restaurantes** na home — cosmético
 - **Homologação funcional no staging** de recorrência e campanhas — o código
@@ -268,6 +292,9 @@ recusa e assim por diante.
   3DS na tela), e o admin vê a aba **Assinatura** na ficha da loja, só leitura. O cartão só aparece com
   `SUBSCRIPTIONS_ACCOUNT_PUBLIC_KEY` configurada (no staging, `(a confirmar)`). Falta o **roteiro
   funcional no staging**.
+  **Estado em 03/11:** as três assinaturas do staging estavam `expired` e `subscription_charges`
+  estava vazia. O Compose não repassava `SUBSCRIPTIONS_*`; a correção está na branch
+  `fix/assinatura-p0` (§0.1). Depois do deploy, reativar as três no painel e conferir as cobranças.
   Spec `docs/superpowers/specs/2026-10-15-assinatura-cobranca-real-design.md`,
   plano `docs/superpowers/plans/2026-10-15-assinatura-cobranca-real.md`.
 - **Pix/cartão online direto para a loja**: a cobrança, o webhook e o estorno foram provados no staging
@@ -378,14 +405,22 @@ recusa e assim por diante.
   senhas de teste) na ida para produção (decisão de 14/10). **Feito em 20/10:** o **backup externo**
   diário e cifrado no Cloudflare R2 (PR #66: banco, uploads e configuração, cifrados com `age`,
   timer às 06:00 UTC, aviso pelo Healthchecks.io e retenção de 7 dias) e a **observabilidade** pelo
-  Sentry na API e no site (PR #65), com um painel no admin (PR #67). O ensaio de restauração do R2
-  ainda não foi feito.
+  Sentry na API e no site (PR #65), com um painel no admin (PR #67).
+  **Estado em 03/11:** o código do SMTP já existe (`SmtpMailService`, `MAIL_PROVIDER=smtp`) e a
+  branch `fix/assinatura-p0` passou a repassar `MAIL_*` e `SPRING_MAIL_*` pelo Compose; falta
+  configurar um provedor real e testar o link de verificação/recuperação. O ensaio de restauração
+  do R2, a revisão de origem/CSRF, o teste de carga na VPS, a troca de credenciais e o ambiente de
+  produção (domínio, conta Mercado Pago e chave Pix) continuam pendentes.
 
 ### Prioridade média — produto e governança
 - Contrato dos módulos (hoje habilitados manualmente)
-- Fronteira do super-admin
+- Fronteira do super-admin — **parcial em 03/11/2026:** saíram as rotas de escrita do admin
+  para disponibilidade (`PATCH /admin/restaurants/{id}/availability`) e tags da loja
+  (`/admin/restaurants/{id}/tags`); o extrato individual do restaurante saiu do admin
+  (`/admin/finance/ledger` só aceita `party=admin`) e a tela de Operação aponta para o modo
+  suporte. **Falta:** mover perfil/turnos/incentivos de entregador para o suporte e revisar
+  relatórios que ainda exponham dados individuais da loja.
 - Carteira do cliente como meio de pagamento
-- Chat com interface dedicada
 - Apple Sign In, cache offline, importação em massa
 - Documentação de operação consolidada
 
@@ -430,20 +465,23 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
 
 ## 5. Próximo passo único
 
-**O que está no ar é o `origin/main` inteiro** (`cf8493a`, schema `074`, deploy de 22/10 22:18 UTC pelo
-**botão do GitHub**). De 19/10 a 22/10 entraram as **telas da assinatura** com cartão e 3DS (PR #69), as
-melhorias pós-#40 no 3DS (PR #64), o **Sentry** e o painel de observabilidade (PRs #65 e #67), o **backup
-externo no R2** (PR #66), a limpeza automática de disco (PR #68) e a **rodada de segurança de 21/10** (PRs #70
-a #80, ver o topo). Antes disso, além da desistência do 3DS (PR #40) e do conserto do Pix sem QR (PR #41), já estavam no ar a
-**cobrança real da assinatura** com trial de 15 dias (PRs #46 e #47), as **correções de segurança e concorrência**
-da revisão de 16/10 (PRs #54 e #57, acesso administrativo fail-closed), o **estorno de cobrança com valor
-divergente** (PR #58), os **limites de tempo nos clientes HTTP externos** (PR #59), o **carrinho que não apaga
-itens na leitura** (PR #60) e a rodada visual da loja, do painel e do catálogo (PRs #42 a #45, #48, #52, #53, #55,
-#61 e #62). Desde a PR #49 o **deploy exige a `Verificação` verde**.
+**O que está no ar é o `origin/main` inteiro** (`a5e3885`, schema `077`, deploy de 31/10 18:49 UTC pelo
+**botão do GitHub**). De 23/10 a 31/10 entraram as correções do **webhook** (ts em segundos e diagnóstico,
+PRs #82 e #83), a **chave do 3DS por ambiente** e o alerta `FoodieWebhookRejected` (PR #84), os ajustes do
+roteiro de telas (PR #85), o card da cozinha (PR #86), a **observação por item/pedido** (PR #87), o **tempo
+estimado** (PR #88), o **chat do pedido nas três pontas** (PR #89), o Pix sem QR liberando o cartão (PR #90),
+a conclusão de retirada/balcão no painel (PR #91) e o backfill da assinatura (PR #92). Desde a PR #49 o
+**deploy exige a `Verificação` verde**.
 
-**Ainda vale o roteiro abaixo?** Não há registro de que o roteiro de fechamento do pagamento tenha sido feito
-depois de 15/10 `(a confirmar com o dono do produto)`. Como as PRs #54, #57, #58, #64 e a rodada de 21/10
-mexeram em pagamento, 3DS, login, sessão e acesso, o roteiro deve rodar sobre o `cf8493a`.
+**Próximo passo único (03/11): fechar a P0 da assinatura.** Publicar a branch
+`fix/assinatura-p0`, preencher `SUBSCRIPTIONS_*` no `deploy/.env` (`(a confirmar)` com o Werner),
+reativar as três assinaturas no painel e conferir a geração das três cobranças Pix. Só depois disso o
+roteiro funcional da assinatura e as demais homologações de dinheiro fazem sentido. A P1 (documentação e
+prontidão de produção) e a P2 (produto) estão no plano da sessão de 03/11.
+
+**Roteiro do pagamento ainda pendente:** não há registro de que o fechamento do pagamento tenha sido
+repetido depois de 15/10 `(a confirmar com o dono do produto)`. Como as PRs #54, #57, #58, #64 e a rodada
+de 21/10 mexeram em pagamento, 3DS, login, sessão e acesso, o roteiro deve rodar sobre o `a5e3885`.
 
 **Roteiro do 3DS no staging (14/10, cartão `PCLXrYCa`):**
 - passaram: `APRO-CHOK` aprovado depois de duas recusas no mesmo pedido (#58); `OTHE-CHNO` recusado com
@@ -459,7 +497,7 @@ mexeram em pagamento, 3DS, login, sessão e acesso, o roteiro deve rodar sobre o
   (#59, nenhuma chamada chegou à API) — **corrigido na PR #41**; o Pix criado de forma assíncrona voltou sem QR
   (#61, a API de Orders pode devolver a order sem o QR) e também bloqueava a cobrança no cartão — **corrigido na PR #41**.
 
-**Próximo passo único: o roteiro de fechamento do pagamento no staging.** As duas correções (PRs #40 e #41) já estão
+**Roteiro de fechamento do pagamento no staging (ainda pendente).** As duas correções (PRs #40 e #41) já estão
 mescladas, no ar e com CI verde; falta repetir o caminho real e tirar os prints (cartão `PCLXrYCa`):
 `APRO-CHOK` → "Usar outro cartão ou Pix" → Pix (o QR agora é gravado mesmo chegando depois, #61); `APRO-AUTH` aprova
 sem verificação; conferir o formulário do cartão destravado depois de "Ocorreu um erro". Depois disso, o pagamento
@@ -477,8 +515,9 @@ Os pedidos de 14/10 (#58 a #60) repetiram cartão e nova tentativa com a conta d
 novo o estorno pela loja com o **diálogo de motivo** e tirar os prints para o cartão `(a confirmar se ainda é
 exigido depois do roteiro do 3DS)`.
 
-**Depois:** o **roteiro funcional da assinatura** no staging (servidor no ar desde a PR #46 e telas desde a
-PR #69, §4) e a prontidão de produção (SMTP real, ensaio de restauração do backup no R2, revisão de CSRF/origem).
+**Depois da P0:** o **roteiro funcional da assinatura** no staging (servidor no ar desde a PR #46 e telas
+desde a PR #69, §4) e a prontidão de produção (SMTP real, ensaio de restauração do backup no R2, revisão
+de CSRF/origem, carga na VPS e troca de credenciais).
 
 **Histórico do E48 (encerrado em 01/10):** entregue e publicado (`4760fd3`, schema `054`), com
 `admin_audit_log` vazia na VPS e nenhum papel de admin restrito — todos os admins recebem `support.*`.
@@ -655,7 +694,19 @@ os últimos publicados **pelo botão do GitHub**:
 | `aa5915b` | #77 | `feat(assinatura)`: leva à `main` o restante da branch das telas (a #71) |
 | `6160b40` | #80 | `fix(seguranca)`: leva à `main` a #72, a #73, o smoke do cadastro e a auditoria de dependências críticas no CI |
 | `9cfa319` | #79 | `fix(seguranca)`: leva à `main` a cadeia empilhada #74 a #76 |
-| `cf8493a` | #78 | `fix(seguranca)`: controle de acesso, XSS, cabeçalhos e dependências (sem commits novos: o conteúdo já tinha entrado pela #80) — **é o que está na VPS** (pelo botão do GitHub, 22/10 22:18 UTC) |
+| `cf8493a` | #78 | `fix(seguranca)`: controle de acesso, XSS, cabeçalhos e dependências (sem commits novos: o conteúdo já tinha entrado pela #80) |
+| `ef8b2a8` | #81 | `docs`: ESTADO_ATUAL com as PRs #63 a #80 publicadas (22/10) |
+| `6681847` | #82 | `fix(pagamentos)`: loga o `ts` recebido quando a janela do webhook recusa |
+| `04092ce` | #83 | `fix(pagamentos)`: janela do webhook aceita `ts` em segundos |
+| `8e44951` | #84 | `feat(pagamentos)`: chave do 3DS por ambiente e alerta de webhook recusado |
+| `57b6469` | #85 | `fix(ux)`: ajustes rápidos do roteiro de telas no staging |
+| `a5d4d7e` | #86 | `fix(cozinha)`: itens e nome do cliente no card do quadro |
+| `ce25ed5` | #87 | `feat(pedidos)`: observação por item e no pedido (`V075`) |
+| `8bf6474` | #88 | `feat(pedidos)`: tempo estimado de preparo e entrega (`V076`) |
+| `a6b54f7` | #89 | `feat(chat)`: conversa do pedido entre cliente, loja e entregador |
+| `a5aed18` | #90 | `fix(pagamentos)`: Pix sem QR não trava a troca para cartão |
+| `1644fa5` | #91 | `fix(painel)`: concluir retirada, balcão e consumo no local pelos Pedidos |
+| `a5e3885` | #92 | `fix(assinatura)`: cobrar assinatura sem `next_charge_at` (`V077`) — **é o que está na VPS** (pelo botão do GitHub, 31/10 18:49 UTC) |
 
 **Histórico — repositório antigo, apagado na migração de 06/10** (aqueles PRs não existem mais como PR; os
 commits identificam): os de 02/10 a 05/10 foram o **checkout transparente, o Pix com QR, o cartão pelo Brick,

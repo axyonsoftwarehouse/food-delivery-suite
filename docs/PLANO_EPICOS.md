@@ -600,7 +600,10 @@ Estender `SocialAuthService`. **P3.** Depende de E02.
   `VERIFY_INTEGRATION=1 pnpm verify` verde (281 execuções de teste Java, migration V054, smokes).
   Desvios conscientes: atributos/nutrição sem espelho no suporte; `/restaurant/support-log` exige
   `staff.manage`; sem `support.act` os botões de cardápio/horários aparecem e a API responde 403;
-  aviso à loja gravado na mesma transação da intervenção (não após o commit). Origem: `ESTADO_ATUAL.md` §5 e
+  aviso à loja gravado na mesma transação da intervenção (não após o commit). **Fronteira em
+  03/11/2026:** removidas as escritas administrativas de disponibilidade e tags da loja e o
+  extrato individual do restaurante; falta levar perfil/turnos/incentivos de entregador ao
+  suporte. Origem: `ESTADO_ATUAL.md` §5 e
   `IDEIAS_FUTURAS.md`; conflitos de fronteira levantados em `REVISAO_ESCOPO_2026-09-27.md`.
 
 **Objetivo.** No modelo descentralizado (`PLANO_MODELO_NEGOCIO.md`), o super-admin **observa e

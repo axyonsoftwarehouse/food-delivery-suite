@@ -75,6 +75,16 @@ class FinanceControllerTest {
     }
 
     @Test
+    void doesNotExposeTheIndividualStoreLedgerToAdmin() throws Exception {
+        when(auth.requireUser("s", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
+        doNothing().when(permissions).require(any(), eq(AdminPermissions.FINANCE_VIEW));
+
+        mvc.perform(get("/admin/finance/ledger?party=restaurant&partyId=3")
+                .cookie(new jakarta.servlet.http.Cookie("foodie_session", "s")))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void rejectsNewCommissionRules() throws Exception {
         when(auth.requireUser("s", "admin")).thenReturn(new User(1, "Admin", "admin@demo.local", "admin", null));
         mvc.perform(patch("/admin/finance/commission")
