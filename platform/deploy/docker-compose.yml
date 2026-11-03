@@ -70,7 +70,7 @@ services:
       # Padrão true é do staging (só usuário de teste do Mercado Pago). Produção TEM de definir PAYMENTS_REQUIRE_TEST_ACCOUNTS=false.
       PAYMENTS_REQUIRE_TEST_ACCOUNTS: ${PAYMENTS_REQUIRE_TEST_ACCOUNTS:-true}
       # Origens de navegador aceitas nas escritas com cookie. Produção deve listar o domínio real.
-      APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-https://cliente.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io},https://restaurante.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io},https://entregador.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io},https://admin.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io},https://api.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io}}
+      APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-https://${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io},https://cliente.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io},https://restaurante.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io},https://entregador.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io},https://admin.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io},https://api.${FOODIE_DOMAIN:-staging.2.29.42.104.sslip.io}}
       SUBSCRIPTIONS_ALLOW_REAL_CHARGES: ${SUBSCRIPTIONS_ALLOW_REAL_CHARGES:-false}
       SUBSCRIPTIONS_ACCOUNT_ACCESS_TOKEN: ${SUBSCRIPTIONS_ACCOUNT_ACCESS_TOKEN:-}
       SUBSCRIPTIONS_ACCOUNT_PUBLIC_KEY: ${SUBSCRIPTIONS_ACCOUNT_PUBLIC_KEY:-}

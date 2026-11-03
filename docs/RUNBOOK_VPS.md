@@ -712,7 +712,7 @@ Verificado em 30/09/2026 — a postura está boa:
 Desde 03/11/2026 a API valida `Origin`/`Referer` nas escritas autenticadas por
 `foodie_session`. As origens aceitas vêm de `PUBLIC_BASE_URL` e
 `APP_ALLOWED_ORIGINS` (lista separada por vírgula). O Compose de deploy monta o
-padrão com os quatro subdomínios de papel e a API a partir de `FOODIE_DOMAIN`.
+padrão com o domínio base, os quatro subdomínios de papel e a API a partir de `FOODIE_DOMAIN`.
 
 - **Novo domínio ou subdomínio:** acrescente em `APP_ALLOWED_ORIGINS` no `deploy/.env`
   e recrie a API (`docker compose up -d api`).
