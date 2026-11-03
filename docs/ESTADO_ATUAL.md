@@ -197,7 +197,7 @@ pendente** — não há código Apple no backend).
   `/public/translations/{locale}`, sem nenhum consumidor), os quatro registros de exemplo do seed
   e a tabela (`V055` derruba a `translations`; a criação fica em `V046` como histórico). O contrato
   do `api-client` foi regerado.
-- **Cache offline do catálogo** (E42) — follow-up
+- **Cache offline do catálogo** (E42) — entregue: busca, tags e detalhe do prato ficam no `localStorage` por 7 dias e são usados quando a rede falha, com aviso de dados salvos
 - **Importação em massa de catálogo** (E23) — entregue na PR #95 (CSV com dry-run, criação/atualização e smoke)
 - **Imagens de mock dos restaurantes** na home — cosmético
 - **Homologação funcional no staging** de recorrência e campanhas — o código
@@ -441,7 +441,7 @@ recusa e assim por diante.
   ficaram as leituras para suporte, o vínculo à loja e a suspensão. **Falta:** revisar os
   relatórios de produtos/clientes que ainda expõem dados individuais.
 - Carteira do cliente como meio de pagamento
-- Apple Sign In, cache offline
+- Apple Sign In
 - Documentação de operação consolidada
 
 ### Infra e higiene — verificado em 30/09/2026

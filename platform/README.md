@@ -45,7 +45,8 @@ toda variável lida pela API precisa estar declarada no serviço da API dos dois
 
 - **Cliente:** home pública, cadastro/login (e-mail, telefone/OTP e login social Google e
   Facebook), endereço por zona/CEP, catálogo com busca, variações, adicionais, combos,
-  estoque, agenda, cupons, carrinho persistente e checkout idempotente.
+  estoque, agenda, cupons, carrinho persistente e checkout idempotente. Busca, tags e detalhe
+  do prato ficam em cache local por 7 dias para consulta quando a rede falha.
 - **Pedido:** entrega, retirada, consumo no local e PDV de balcão; estados normais e
   excepcionais; observação por item e no pedido; tempo estimado; chat do pedido entre
   cliente, loja e entregador; avaliações.
@@ -89,10 +90,10 @@ SMTP real configurado/testado (o código e o repasse de `MAIL_*`/`SPRING_MAIL_*`
 configuração de `APP_ALLOWED_ORIGINS` para os domínios finais (a defesa Origin/CSRF já
 existe), ensaio de restauração do backup do R2, teste de carga na VPS, troca de todas as
 credenciais de teste e o ambiente de produção (domínio, conta Mercado Pago e chave Pix).
-Apple Sign In, cache offline do catálogo, carteira do cliente como meio de pagamento e
-contrato dos módulos seguem no backlog
-(`docs/ESTADO_ATUAL.md` §4). A fronteira do super-admin avançou em 03/11/2026: a Operação não
-fecha mais a loja nem edita tags, e o extrato individual do restaurante saiu do admin.
+Apple Sign In, carteira do cliente como meio de pagamento e contrato dos módulos seguem no
+backlog (`docs/ESTADO_ATUAL.md` §4). A fronteira do super-admin avançou em 03/11/2026: a
+Operação não fecha mais a loja, não edita tags nem perfil/turnos/incentivos de entregador, e o
+extrato individual do restaurante saiu do admin.
 
 ## Organização
 

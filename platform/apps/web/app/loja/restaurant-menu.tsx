@@ -13,7 +13,7 @@ import { FadeImg, Rolling, flyToCart, prefersReducedMotion } from './motion';
 
 export default function RestaurantMenu() {
   const { busy, setMessage } = useApp();
-  const { catalog, restaurantId, selectedAddress, selectedZone, setCategoryId, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId, cartEntries } = useCustomer();
+  const { catalog, restaurantId, selectedAddress, selectedZone, setCategoryId, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, searchCachedAt, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId, cartEntries } = useCustomer();
   const [chosen, setChosen] = useState<number | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<number[]>([]);
   const [itemNote, setItemNote] = useState('');
@@ -195,6 +195,7 @@ export default function RestaurantMenu() {
       </div>
       {tags.length > 0 && <div className="lj-chips lj-chips--small" role="group" aria-label="Filtrar por tag">{tags.map((tag) => <button type="button" key={tag.id} aria-pressed={tagId === tag.id} onClick={() => setTagId(tagId === tag.id ? null : tag.id)}>{tag.name}{tagId === tag.id && <Icon name="x" size={12} />}</button>)}</div>}
       <h2 className="lj-menu-title lj-enter" key={`t-${categoryId}`}>{categoryId === null ? 'Cardápio' : availableCategories.find((category) => category.id === categoryId)?.name ?? 'Cardápio'}</h2>
+      {searchCachedAt && <p className="lj-offline" role="status">{`Sem conexão: mostrando o cardápio salvo em ${new Date(searchCachedAt).toLocaleString('pt-BR')}.`}</p>}
       {!selectedAddress ? <div className="lj-empty"><Icon name="map-pin" size={28} /><p>{'Adicione um endereço para ver o cardápio.'}</p></div>
         : searchLoading && !visibleProducts.length ? <div className="lj-products" role="status"><span className="sr-only">{'Buscando pratos disponíveis...'}</span>{[0, 1, 2, 3].map((item) => <div className="lj-product lj-product--skeleton" key={item}><div className="lj-product-text"><Skeleton /><Skeleton /><Skeleton /></div><Skeleton className="lj-product-media" /></div>)}</div>
         : searchError && !visibleProducts.length ? <div className="lj-empty" role="alert"><p>{searchError}</p></div>
