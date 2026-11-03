@@ -24,7 +24,7 @@ Data: 28/09/2026. Base: modelo de negócio, planos de reconstrução e épicos d
 | Entrega e gorjeta são da loja (decidido em 05/10/2026) | **Implementado em 07/10/2026**: o razão não credita mais frete/gorjeta ao entregador; a carteira de repasse (saque, métodos e solicitações) saiu da API e da interface, e o entregador vê um extrato informativo calculado dos pedidos (`/me/earnings`). | Nada — a loja remunera o entregador fora da plataforma. |
 | Estorno é da loja (decidido em 05/10/2026) | **Implementado em 06/10/2026**: a loja estorna e decide reembolsos em Pedidos (`payments.manage`); o admin age só como suporte (`support.act`, motivo, trilha da loja). | Testar no staging com a conta da loja. |
 | Recebimento livre por restaurante | A loja configura métodos manuais, porém a confirmação de pagamento na entrega ainda passa pelo entregador/admin em alguns fluxos. | Revisar permissões por modalidade e permitir confirmação/estorno ao titular da loja conforme a operação acordada. |
-| Prontidão de publicação | `platform/deploy/README.md` exige SMTP real, origem/CSRF finais, backup externo, ensaio de restauração e teste de carga na VPS. | Executar homologação operacional e registrar resultados antes da abertura comercial. |
+| Prontidão de publicação | `platform/deploy/README.md` exige SMTP real, `APP_ALLOWED_ORIGINS` finais, backup externo, ensaio de restauração e teste de carga na VPS. A defesa Origin/CSRF foi implementada e validada no staging (PRs #96 e #97). | Executar homologação operacional e registrar resultados antes da abertura comercial. |
 
 ## Prioridade média — produto e governança
 
