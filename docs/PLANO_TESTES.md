@@ -81,6 +81,7 @@ então os smokes rodam no GitHub a cada PR.
 | --- | --- |
 | Carrinho (itens, checkout) | ✅ `smoke:cart` |
 | Catálogo da loja (produto: janela, estoque, combo; imagens) | ✅ `smoke:catalog` (novo) |
+| Importação de catálogo por CSV (dry-run, criar, atualizar, erro) | ✅ `smoke:import` (novo) |
 | Exceções do pedido | ✅ `smoke:exceptions` |
 | Contas (login/OTP) | ✅ `smoke:auth` |
 | Cobertura por CEP | ✅ `smoke:coverage` |

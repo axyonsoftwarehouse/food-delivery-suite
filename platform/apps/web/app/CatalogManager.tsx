@@ -22,6 +22,10 @@ type Detail = { variations: Variation[]; images: ProductImage[] };
 type Addon = { id: number; addon_group_id: number; name: string; price_cents: number; available: boolean; sort: number };
 type AddonGroup = { id: number; restaurant_id: number; name: string; min_select: number; max_select: number; required: boolean; sort: number; addons: Addon[] };
 type Tag = { id: number; name: string; product_count: number };
+type ImportLine = { line: number; action: string; category: string; product: string; priceCents: number | null };
+type ImportProblem = { line: number; message: string };
+type ImportResult = { dryRun: boolean; applied: boolean; categoriesCreated: number; productsCreated: number; productsUpdated: number; lines: ImportLine[]; errors: ImportProblem[] };
+const IMPORT_HEADER = 'categoria,produto,descricao,preco,disponivel,estoque,disponivel_de,disponivel_ate';
 
 type Props = {
   mode: 'restaurant' | 'support';
@@ -44,6 +48,10 @@ function toPrice(cents: number) {
 
 function messageOf(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
+}
+
+function importAction(action: string) {
+  return ({ 'category-create': 'Categoria nova', 'category-existing': 'Categoria existente', create: 'Criar', update: 'Atualizar' } as Record<string, string>)[action] ?? action;
 }
 
 export default function CatalogManager({ mode, restaurantId, onMessage: reportMessage, onChanged }: Props) {
@@ -87,6 +95,10 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
   const [linkedTagIds, setLinkedTagIds] = useState<number[]>([]);
   const [comboItems, setComboItems] = useState<ComboItem[]>([]);
   const [comboDraft, setComboDraft] = useState({ productId: 0, quantity: '1' });
+  const [importOpen, setImportOpen] = useState(false);
+  const [importCsv, setImportCsv] = useState(`${IMPORT_HEADER}\n`);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
 
   const root = isSupport ? `/admin/support/restaurants/${restaurantId}` : '/restaurant';
   const menuBase = root;
@@ -119,6 +131,25 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
       onMessage(ok ? success : `${success} Não foi possível recarregar os dados; use "Atualizar".`);
     } catch (error) { if (!(error instanceof SupportCancelled)) onMessage(messageOf(error, 'Não foi possível concluir a operação')); }
     finally { setBusy(false); }
+  }
+
+  async function runImport(dryRun: boolean) {
+    setImportBusy(true);
+    try {
+      const result = await request<ImportResult>(`/restaurant/catalog/import${dryRun ? '?dryRun=true' : ''}`, {
+        method: 'POST', body: JSON.stringify({ csv: importCsv }),
+      });
+      setImportResult(result);
+      if (!dryRun && result.applied) {
+        const ok = await load(true);
+        onChanged?.();
+        onMessage(`Importação concluída: ${result.categoriesCreated} categoria(s), ${result.productsCreated} produto(s) criado(s), ${result.productsUpdated} atualizado(s).${ok ? '' : ' Atualize a lista.'}`);
+      }
+    } catch (error) {
+      onMessage(messageOf(error, 'Não foi possível importar o catálogo.'));
+    } finally {
+      setImportBusy(false);
+    }
   }
 
   async function loadDetail(id: number) {
@@ -582,6 +613,7 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
         { id: 'tags', label: 'Tags', count: tags.length },
       ]} />
       <div className="cm-head-actions">
+        {!isSupport && section === 'products' && <button type="button" className="pr-btn" disabled={busy || blocked} onClick={() => setImportOpen(true)}><Icon name="file" size={16} />Importar CSV</button>}
         {section === 'products' && <button type="button" className="pr-btn pr-btn--primary" disabled={busy || blocked || !catalog.categories.length} onClick={openNewProduct}><Icon name="plus" size={16} />Novo produto</button>}
         {section === 'addons' && <button type="button" className="pr-btn pr-btn--primary" disabled={busy || blocked} onClick={() => setSheet('group')}><Icon name="plus" size={16} />Novo grupo</button>}
         {section === 'tags' && <button type="button" className="pr-btn pr-btn--primary" disabled={busy || blocked} onClick={() => setSheet('tag')}><Icon name="plus" size={16} />Nova tag</button>}
@@ -647,6 +679,30 @@ export default function CatalogManager({ mode, restaurantId, onMessage: reportMe
           : editorCombo(editing)}
         {editTab !== 'data' && note && <p className="cm-note" role="status">{note}</p>}
       </>}
+    </Drawer>
+    <Drawer open={importOpen} title="Importar catálogo (CSV)" onClose={() => setImportOpen(false)} footer={<>
+      <button type="button" className="pr-btn" onClick={() => setImportOpen(false)}>Fechar</button>
+      <button type="button" className="pr-btn" disabled={importBusy || !importCsv.trim() || Boolean(importResult?.errors.length)} onClick={() => void runImport(true)}>Conferir</button>
+      <button type="button" className="pr-btn pr-btn--primary" disabled={importBusy || !importCsv.trim() || Boolean(importResult?.errors.length)} onClick={() => void runImport(false)}>Importar</button>
+    </>}>
+      <p className="pr-muted">Uma linha por produto. Deixe <strong>produto</strong> vazio para criar só a categoria. O preço aceita <code>9,90</code> ou <code>9.90</code>; a janela é opcional e usa <code>HH:MM</code>.</p>
+      <label className="pr-field">Arquivo CSV<input type="file" accept=".csv,text/csv" disabled={importBusy} onChange={async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        setImportCsv(await file.text());
+        setImportResult(null);
+      }} /></label>
+      <label className="pr-field">Ou cole o conteúdo<textarea value={importCsv} onChange={(event) => { setImportCsv(event.target.value); setImportResult(null); }} rows={12} spellCheck={false} /></label>
+      {importResult && <section className="pr-card pr-card--flush">
+        <div className="pr-card-head"><h2>{importResult.dryRun ? 'Conferência' : 'Resultado'}</h2><span className={`pr-badge${importResult.errors.length ? ' is-danger' : ' is-brand'}`}>{importResult.errors.length ? `${importResult.errors.length} erro(s)` : 'sem erros'}</span></div>
+        {importResult.errors.length > 0
+          ? <ul className="pr-list">{importResult.errors.map((error, index) => <li className="pr-row" key={`${error.line}-${index}`}><div className="pr-row-main"><strong>{`Linha ${error.line}`}</strong><span>{error.message}</span></div></li>)}</ul>
+          : <>
+              <ul className="pr-list">{importResult.lines.slice(0, 50).map((line, index) => <li className="pr-row" key={`${line.line}-${line.action}-${index}`}><div className="pr-row-main"><strong>{line.product || line.category}</strong><span>{[importAction(line.action), line.category, line.product && line.category !== line.product ? line.product : '', line.priceCents === null ? '' : money(line.priceCents)].filter(Boolean).join(' · ')}</span></div></li>)}</ul>
+              {importResult.lines.length > 50 && <p className="pr-muted">{`Mostrando 50 de ${importResult.lines.length} ações.`}</p>}
+            </>}
+        <p className="pr-muted">{`${importResult.categoriesCreated} categoria(s) criada(s), ${importResult.productsCreated} produto(s) criado(s), ${importResult.productsUpdated} atualizado(s).`}</p>
+      </section>}
     </Drawer>
     {dialog}
   </div>;
