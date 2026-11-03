@@ -49,8 +49,8 @@ toda variável lida pela API precisa estar declarada no serviço da API dos dois
 - **Pedido:** entrega, retirada, consumo no local e PDV de balcão; estados normais e
   excepcionais; observação por item e no pedido; tempo estimado; chat do pedido entre
   cliente, loja e entregador; avaliações.
-- **Loja:** painel, catálogo, horários, equipe, entregadores, mesas, PDV, cozinha (KDS),
-  promoções, financeiro, relatórios e assinatura.
+- **Loja:** painel, catálogo (com importação CSV), horários, equipe, entregadores, mesas, PDV,
+  cozinha (KDS), promoções, financeiro, relatórios e assinatura.
 - **Entregador:** PWA em `/entregas`, turno/posição, rota, confirmação por código,
   falha com motivo, reputação e extrato informativo.
 - **Admin:** governança, suporte auditado, observabilidade (Sentry), backup e leitura das
