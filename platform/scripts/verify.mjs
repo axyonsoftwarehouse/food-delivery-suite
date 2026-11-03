@@ -110,6 +110,7 @@ if (integration) {
       run('Smoke: fluxo completo', 'pnpm', ['--filter', '@foodie/tools', 'smoke'], { env: smokeEnv });
       run('Smoke: carrinho', 'pnpm', ['smoke:cart'], { env: smokeEnv });
       run('Smoke: catálogo (contrato da lista)', 'pnpm', ['smoke:catalog'], { env: smokeEnv });
+      run('Smoke: importação de catálogo', 'pnpm', ['smoke:import'], { env: smokeEnv });
       run('Smoke: exceções', 'pnpm', ['smoke:exceptions'], { env: smokeEnv });
       run('Smoke: contas', 'pnpm', ['smoke:auth'], { env: smokeEnv });
       run('Smoke: cobertura por CEP', 'pnpm', ['smoke:coverage'], { env: smokeEnv });
