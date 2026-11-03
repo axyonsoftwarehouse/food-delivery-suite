@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.foodie.api.auth.AuthService;
@@ -49,9 +48,6 @@ class CourierAdminControllerTest {
 
     @MockitoBean
     private JdbcTemplate jdbc;
-
-    @MockitoBean
-    private com.foodie.api.courier.CourierShiftService shifts;
 
     @Test
     @SuppressWarnings("unchecked")
@@ -94,14 +90,18 @@ class CourierAdminControllerTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void supportShiftReturnsTheOpenOneWithoutAuditing() throws Exception {
+    void operationalWritesAreClosedForAdmin() throws Exception {
         when(auth.requireUser("s", "admin")).thenReturn(ADMIN);
-        when(jdbc.query(eq("SELECT 1 FROM users WHERE id = ? AND role = 'courier'"), any(ResultSetExtractor.class), eq(12L))).thenReturn(1);
-        when(shifts.openBySupport(12)).thenReturn(new com.foodie.api.courier.CourierShiftService.SupportShift(40L, false));
+
+        mvc.perform(patch("/admin/couriers/12/profile").cookie(SESSION)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"vehicleType\":\"moto\"}"))
+            .andExpect(status().isMethodNotAllowed());
         mvc.perform(post("/admin/couriers/12/shifts").cookie(SESSION))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id").value(40));
-        verify(audit, never()).record(any(), anyString(), anyString(), any(), anyString());
+            .andExpect(status().isMethodNotAllowed());
+        mvc.perform(post("/admin/couriers/12/incentives").cookie(SESSION)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"description\":\"Meta\",\"amountCents\":1000}"))
+            .andExpect(status().isMethodNotAllowed());
     }
 }

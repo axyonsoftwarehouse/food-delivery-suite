@@ -21,16 +21,8 @@ export default function AdminOperationPanel() {
   const [linkTarget, setLinkTarget] = useState<Record<number, string>>({});
   const [approvalRestaurantId, setApprovalRestaurantId] = useState('');
   const [approval, setApproval] = useState('approved');
-  const [vehicleCourierId, setVehicleCourierId] = useState('');
-  const [vehicleType, setVehicleType] = useState('moto');
-  const [vehiclePlate, setVehiclePlate] = useState('');
-  const [extraFee, setExtraFee] = useState('0');
-  const [incentiveCourierId, setIncentiveCourierId] = useState('');
-  const [incentiveDescription, setIncentiveDescription] = useState('');
-  const [incentiveAmount, setIncentiveAmount] = useState('');
 
   const restaurantOptions = catalog.restaurants.map((item) => <option key={item.id} value={item.id}>{item.name}</option>);
-  const courierOptions = couriers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>);
 
   return <AdminPage>
     <Card title="Operação da loja">
@@ -61,7 +53,7 @@ export default function AdminOperationPanel() {
     </div>
 
     <Card title="Entregadores" className="pr-card--flush ad-flush">
-      <p className="ad-help">Cada entregador é de uma loja, que o cadastra e aprova. Aqui o suporte liga a uma loja quem ficou sem loja, suspende e configura veículo e incentivos.</p>
+      <p className="ad-help">Cada entregador é de uma loja, que o cadastra, aprova e opera. Aqui o suporte só liga a uma loja quem ficou sem loja e suspende o acesso; veículo, turnos e incentivos são da operação da loja.</p>
       {couriers.length ? <ul className="pr-list">{couriers.map((courier) => <li className="pr-row" key={courier.id}>
         <span className={`pr-thumb${courier.suspended ? ' is-off' : ''}`} aria-hidden="true">{courier.name.charAt(0)}</span>
         <div className="pr-row-main">
@@ -78,30 +70,6 @@ export default function AdminOperationPanel() {
         </div>
       </li>)}</ul> : <Empty icon="bike">Nenhum entregador cadastrado.</Empty>}
     </Card>
-
-    <div className="ad-forms">
-      <form className="pr-card pr-form" onSubmit={(event) => { event.preventDefault(); const id = Number(vehicleCourierId || couriers[0]?.id || 0); run(() => api(`/admin/couriers/${id}/profile`, { method: 'PATCH', body: JSON.stringify({ vehicleType, vehiclePlate, extraFeeCents: Math.round(Number(extraFee.replace(',', '.')) * 100) }) }), 'Veículo atualizado.'); }}>
-        <div className="pr-card-head"><h2>Veículo</h2></div>
-        <div className="pr-form-row">
-          <label className="pr-field">Entregador<select value={vehicleCourierId} onChange={(event) => setVehicleCourierId(event.target.value)}>{courierOptions}</select></label>
-          <label className="pr-field">Tipo<select value={vehicleType} onChange={(event) => setVehicleType(event.target.value)}><option value="moto">Moto</option><option value="bike">Bicicleta</option><option value="carro">Carro</option><option value="van">Van</option><option value="a_pe">A pé</option></select></label>
-        </div>
-        <div className="pr-form-row">
-          <label className="pr-field">Placa<input value={vehiclePlate} onChange={(event) => setVehiclePlate(event.target.value)} maxLength={20} /></label>
-          <label className="pr-field">Taxa extra (R$)<input inputMode="decimal" value={extraFee} onChange={(event) => setExtraFee(event.target.value)} /></label>
-        </div>
-        <div className="ad-form-foot"><button className="pr-btn pr-btn--primary" disabled={busy || !couriers.length}>Salvar veículo</button></div>
-      </form>
-      <form className="pr-card pr-form" onSubmit={async (event) => { event.preventDefault(); const id = Number(incentiveCourierId || couriers[0]?.id || 0); const ok = await run(() => api(`/admin/couriers/${id}/incentives`, { method: 'POST', body: JSON.stringify({ description: incentiveDescription, amountCents: Math.round(Number(incentiveAmount.replace(',', '.')) * 100) }) }), 'Incentivo registrado.'); if (ok) { setIncentiveDescription(''); setIncentiveAmount(''); } }}>
-        <div className="pr-card-head"><h2>Incentivo</h2></div>
-        <label className="pr-field">Entregador<select value={incentiveCourierId} onChange={(event) => setIncentiveCourierId(event.target.value)}>{courierOptions}</select></label>
-        <div className="pr-form-row">
-          <label className="pr-field">Descrição<input value={incentiveDescription} onChange={(event) => setIncentiveDescription(event.target.value)} placeholder="Ex.: bônus de meta" required minLength={2} /></label>
-          <label className="pr-field">Valor (R$)<input inputMode="decimal" value={incentiveAmount} onChange={(event) => setIncentiveAmount(event.target.value)} required /></label>
-        </div>
-        <div className="ad-form-foot"><button className="pr-btn pr-btn--primary" disabled={busy || !couriers.length}>Registrar incentivo</button></div>
-      </form>
-    </div>
 
     <ModuleToggles />
   </AdminPage>;
