@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Address, Catalog, Order, Product, Role, User, Zone, api, useApp } from '../app-context';
+import { browserCache, cacheKey, readCache, writeCache } from './offline-cache';
 
 type Restaurant = { id: number; name: string; slug: string; open?: boolean };
 type CartItem = { productId: number; variationId: number; quantity: number; restaurantId: number; name: string; priceCents: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; note?: string; available: boolean; unavailableReason: string | null };
@@ -39,6 +40,7 @@ type CustomerValue = {
   nextCursor: number | null;
   searchLoading: boolean;
   searchError: string;
+  searchCachedAt: string | null;
   loadMore: () => Promise<void>;
   cartEntries: { product: { id: number; name: string; restaurant_id: number; price_cents: number }; variationId: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; note: string; quantity: number; available: boolean; unavailableReason: string | null }[];
   cartCount: number;
@@ -168,6 +170,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const app = useApp();
   const pathname = usePathname();
   const router = useRouter();
+  const offlineCache = useMemo(() => browserCache(), []);
   const leaving = useRef(false);
   const restaurantId = Number(/^\/loja\/restaurantes\/([1-9]\d*)\/?$/.exec(pathname)?.[1] ?? 0) || null;
   const user = app.user;
@@ -182,6 +185,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [searchCachedAt, setSearchCachedAt] = useState<string | null>(null);
   const searchVersion = useRef(0);
   const [cartLoaded, setCartLoaded] = useState(false);
   const [cartBusy, setCartBusy] = useState(false);
@@ -330,45 +334,79 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const version = ++searchVersion.current;
-    if (!selectedAddress?.zone_id || !restaurantId || !coveredRestaurants.has(restaurantId)) { setVisibleProducts([]); setNextCursor(null); setSearchError(''); setSearchLoading(false); return () => { searchVersion.current++; }; }
+    if (!selectedAddress?.zone_id || !restaurantId || !coveredRestaurants.has(restaurantId)) { setVisibleProducts([]); setNextCursor(null); setSearchError(''); setSearchCachedAt(null); setSearchLoading(false); return () => { searchVersion.current++; }; }
     const controller = new AbortController();
-    setSearchLoading(true); setSearchError(''); setVisibleProducts([]); setNextCursor(null);
+    setSearchLoading(true); setSearchError(''); setSearchCachedAt(null); setVisibleProducts([]); setNextCursor(null);
     const timer = window.setTimeout(async () => {
+      const key = cacheKey('search', selectedAddress.zone_id, restaurantId, search.trim(), categoryId, tagId, '');
       try {
         const params = new URLSearchParams({ zoneId: String(selectedAddress.zone_id), restaurantId: String(restaurantId), q: search.trim(), limit: '12' });
         if (categoryId !== null) params.set('categoryId', String(categoryId));
         if (tagId !== null) params.set('tagId', String(tagId));
         const page = await request<SearchPage>(`/catalog/search?${params}`, { signal: controller.signal });
-        if (!controller.signal.aborted && searchVersion.current === version) { setVisibleProducts(page.items); setNextCursor(page.nextCursor); }
+        writeCache(offlineCache, key, page);
+        if (!controller.signal.aborted && searchVersion.current === version) { setVisibleProducts(page.items); setNextCursor(page.nextCursor); setSearchCachedAt(null); }
       } catch (error) {
-        if (!controller.signal.aborted && searchVersion.current === version) setSearchError(error instanceof Error ? error.message : 'Não foi possível buscar o cardápio.');
+        if (!controller.signal.aborted && searchVersion.current === version) {
+          const cached = readCache<SearchPage>(offlineCache, key);
+          if (cached) {
+            setVisibleProducts(cached.data.items);
+            setNextCursor(cached.data.nextCursor);
+            setSearchCachedAt(cached.at);
+            setSearchError('');
+          } else {
+            setSearchError(error instanceof Error ? error.message : 'Não foi possível buscar o cardápio.');
+          }
+        }
       } finally { if (!controller.signal.aborted && searchVersion.current === version) setSearchLoading(false); }
     }, 250);
     return () => { window.clearTimeout(timer); controller.abort(); searchVersion.current++; };
-  }, [selectedAddress?.zone_id, restaurantId, coveredRestaurants, search, categoryId, tagId]);
+  }, [selectedAddress?.zone_id, restaurantId, coveredRestaurants, search, categoryId, tagId, offlineCache]);
 
   useEffect(() => {
     if (!selectedAddress?.zone_id || !restaurantId) { setTags([]); setTagId(null); return; }
     let cancelled = false;
+    const key = cacheKey('tags', selectedAddress.zone_id, restaurantId);
     fetch(`/backend/catalog/tags?zoneId=${selectedAddress.zone_id}&restaurantId=${restaurantId}`, { credentials: 'same-origin' })
       .then((response) => response.json())
-      .then((data) => { if (!cancelled) setTags(Array.isArray(data) ? data : []); })
-      .catch(() => { if (!cancelled) setTags([]); });
+      .then((data) => {
+        if (cancelled || !Array.isArray(data)) return;
+        writeCache(offlineCache, key, data);
+        setTags(data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const cached = readCache<{ id: number; name: string }[]>(offlineCache, key);
+        setTags(cached?.data ?? []);
+      });
     return () => { cancelled = true; };
-  }, [selectedAddress?.zone_id, restaurantId]);
+  }, [selectedAddress?.zone_id, restaurantId, offlineCache]);
 
   async function loadMore() {
     if (!selectedAddress || !restaurantId || nextCursor === null || searchLoading) return;
     const version = searchVersion.current;
+    const key = cacheKey('search', selectedAddress.zone_id, restaurantId, search.trim(), categoryId, tagId, nextCursor);
     setSearchLoading(true); setSearchError('');
     try {
       const params = new URLSearchParams({ zoneId: String(selectedAddress.zone_id), restaurantId: String(restaurantId), q: search.trim(), after: String(nextCursor), limit: '12' });
       if (categoryId !== null) params.set('categoryId', String(categoryId));
       if (tagId !== null) params.set('tagId', String(tagId));
       const page = await request<SearchPage>(`/catalog/search?${params}`);
-      if (searchVersion.current === version) { setVisibleProducts((current) => [...current, ...page.items]); setNextCursor(page.nextCursor); }
-    } catch (error) { if (searchVersion.current === version) setSearchError(error instanceof Error ? error.message : 'Não foi possível carregar mais pratos.'); }
-    finally { if (searchVersion.current === version) setSearchLoading(false); }
+      writeCache(offlineCache, key, page);
+      if (searchVersion.current === version) { setVisibleProducts((current) => [...current, ...page.items]); setNextCursor(page.nextCursor); setSearchCachedAt(null); }
+    } catch (error) {
+      if (searchVersion.current === version) {
+        const cached = readCache<SearchPage>(offlineCache, key);
+        if (cached) {
+          setVisibleProducts((current) => [...current, ...cached.data.items]);
+          setNextCursor(cached.data.nextCursor);
+          setSearchCachedAt(cached.at);
+          setSearchError('');
+        } else {
+          setSearchError(error instanceof Error ? error.message : 'Não foi possível carregar mais pratos.');
+        }
+      }
+    } finally { if (searchVersion.current === version) setSearchLoading(false); }
   }
 
   async function add(product: Product, variationId = 0, addonIds: number[] = [], note = '') {
@@ -407,10 +445,20 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   async function openProduct(product: Product) {
     if (!product.variation_count) { await add(product); return; }
     setProductLoading(true);
+    const key = cacheKey('product', product.id);
     try {
       const detail = await request<ProductDetail>(`/catalog/products/${product.id}`);
+      writeCache(offlineCache, key, detail);
       setSelectedProduct(detail);
-    } catch (error) { setLocalMessage(error instanceof Error ? error.message : 'Não foi possível carregar o prato.'); }
+    } catch (error) {
+      const cached = readCache<ProductDetail>(offlineCache, key);
+      if (cached) {
+        setSelectedProduct(cached.data);
+        setLocalMessage('Sem conexão: mostrando os detalhes salvos deste prato.');
+      } else {
+        setLocalMessage(error instanceof Error ? error.message : 'Não foi possível carregar o prato.');
+      }
+    }
     finally { setProductLoading(false); }
   }
 
@@ -591,7 +639,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const value: CustomerValue = {
     user, catalog: app.catalog, zones: app.zones, addresses: app.addresses, orders: app.orders, busy: app.busy, message: app.message,
     connection: app.connection, lastSync: app.lastSync, selectedAddressId, setSelectedAddressId, selectedAddress, selectedZone, restaurantId, availableCategories, restaurantById,
-    search, setSearch, categoryId, setCategoryId, visibleProducts, nextCursor, searchLoading, searchError, loadMore,
+    search, setSearch, categoryId, setCategoryId, visibleProducts, nextCursor, searchLoading, searchError, searchCachedAt, loadMore,
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
     cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
     tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor,

@@ -127,8 +127,9 @@ Migração `V047__engagement.sql`; `pnpm verify` verde (205 testes Java); schema
   `/orders/{id}/tracking`; botão **Rastrear entrega** abre a posição no mapa. Mapa embutido fica
   como evolução.
 - **E41 Busca por voz** ✅ — botão de microfone na busca do cliente (Web Speech API).
-- **E42 Tema/PWA/offline** ✅ — alternador de tema claro/escuro e `manifest.ts` (PWA). Cache
-  offline de catálogo fica como follow-up.
+- **E42 Tema/PWA/offline** ✅ — alternador de tema claro/escuro, `manifest.ts` (PWA) e cache
+  offline do catálogo (busca, tags e detalhe do prato no `localStorage`, 7 dias, com aviso de
+  dados salvos quando a rede falha).
 - **E43 IA de cardápio** ✅ — `AiService`/`AiController` (OpenAI, chave em Integrações) e botão
   "Gerar descrição com IA" no catálogo.
 - **E44 Interesses** ✅ — `user_interests`; `/me/interests` e seleção de cozinhas no Perfil.
