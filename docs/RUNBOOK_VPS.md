@@ -707,6 +707,20 @@ Verificado em 30/09/2026 — a postura está boa:
 - `(a confirmar)` — se alguma senha de root já circulou em texto plano. Não há
   registro disso no repositório; se houve, rotacione por precaução.
 
+### Origem/CSRF nas escritas com cookie
+
+Desde 03/11/2026 a API valida `Origin`/`Referer` nas escritas autenticadas por
+`foodie_session`. As origens aceitas vêm de `PUBLIC_BASE_URL` e
+`APP_ALLOWED_ORIGINS` (lista separada por vírgula). O Compose de deploy monta o
+padrão com os quatro subdomínios de papel e a API a partir de `FOODIE_DOMAIN`.
+
+- **Novo domínio ou subdomínio:** acrescente em `APP_ALLOWED_ORIGINS` no `deploy/.env`
+  e recrie a API (`docker compose up -d api`).
+- **Não afeta** mobile/Bearer, curl, smokes, chamadas servidor-a-servidor nem
+  `/webhooks/*`: esses não enviam cookie de sessão.
+- **Sintoma de origem faltando:** escrita com cookie responde **403** e o log mostra
+  `Origem recusada em <método> <rota>: <origem>`.
+
 ## 12. Onde pedir ajuda
 
 - **Documentação do projeto:** `docs/ESTADO_ATUAL.md`,
