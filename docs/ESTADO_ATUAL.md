@@ -418,8 +418,9 @@ recusa e assim por diante.
   para disponibilidade (`PATCH /admin/restaurants/{id}/availability`) e tags da loja
   (`/admin/restaurants/{id}/tags`); o extrato individual do restaurante saiu do admin
   (`/admin/finance/ledger` só aceita `party=admin`) e a tela de Operação aponta para o modo
-  suporte. **Falta:** mover perfil/turnos/incentivos de entregador para o suporte e revisar
-  relatórios que ainda exponham dados individuais da loja.
+  suporte. Também saíram as **escritas de perfil/turnos/incentivos de entregador** do admin;
+  ficaram as leituras para suporte, o vínculo à loja e a suspensão. **Falta:** revisar os
+  relatórios de produtos/clientes que ainda expõem dados individuais.
 - Carteira do cliente como meio de pagamento
 - Apple Sign In, cache offline
 - Documentação de operação consolidada
