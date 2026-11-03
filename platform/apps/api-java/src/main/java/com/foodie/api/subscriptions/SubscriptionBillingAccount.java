@@ -2,6 +2,8 @@ package com.foodie.api.subscriptions;
 
 import com.foodie.api.ApiException;
 import com.foodie.api.payments.accounts.MerchantCredentials;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +15,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class SubscriptionBillingAccount {
+    private static final Logger log = LoggerFactory.getLogger(SubscriptionBillingAccount.class);
+
     private final boolean allowRealCharges;
     private final String accessToken;
     private final String publicKey;
@@ -23,6 +27,19 @@ public class SubscriptionBillingAccount {
         this.allowRealCharges = allowRealCharges;
         this.accessToken = accessToken;
         this.publicKey = publicKey;
+        if (enabled()) {
+            log.info("Cobrança real da assinatura LIGADA (conta da Foodie configurada)");
+        } else {
+            // Silêncio aqui já escondeu o staging sem cobrança nenhuma (V077/PR #92). O motivo vai para o log.
+            log.warn("Cobrança real da assinatura DESLIGADA: {}", disabledReason());
+        }
+    }
+
+    /** Motivo de a cobrança estar desligada; {@code null} quando ela está ligada. */
+    public String disabledReason() {
+        if (!allowRealCharges) return "SUBSCRIPTIONS_ALLOW_REAL_CHARGES não está true";
+        if (accessToken == null || accessToken.isBlank()) return "SUBSCRIPTIONS_ACCOUNT_ACCESS_TOKEN não configurado";
+        return null;
     }
 
     /** A cobrança real só acontece com a trava ligada e a conta configurada. */

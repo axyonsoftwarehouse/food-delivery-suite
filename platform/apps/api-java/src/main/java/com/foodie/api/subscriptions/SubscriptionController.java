@@ -123,7 +123,7 @@ public class SubscriptionController {
             .stream().findFirst().orElseThrow(() -> new ApiException(400, "Pacote não encontrado"));
         Integer restaurant = jdbc.query("SELECT 1 FROM restaurants WHERE id = ?", rs -> rs.next() ? 1 : null, body.restaurantId());
         if (restaurant == null) throw new ApiException(400, "Restaurante não encontrado");
-        jdbc.update("UPDATE restaurant_subscriptions SET status = 'cancelled' WHERE restaurant_id = ? AND status IN ('trial','active')", body.restaurantId());
+        jdbc.update("UPDATE restaurant_subscriptions SET status = 'cancelled' WHERE restaurant_id = ? AND status IN ('trial','active','suspended')", body.restaurantId());
         // Sem trialDays informado, vale o padrão da instalação (15 dias); 0 significa sem trial.
         int trialDays = body.trialDays() == null ? trialDaysDefault : body.trialDays();
         String status = trialDays > 0 ? "trial" : "active";
@@ -155,9 +155,21 @@ public class SubscriptionController {
 
     @PatchMapping("/admin/restaurant-subscriptions/{id}")
     public Map<String, Boolean> changeStatus(@CookieValue(value = "foodie_session", required = false) String token,
-                                             @PathVariable @Positive long id, @Valid @RequestBody StatusRequest body) {
+                                             @PathVariable @Positive long id, @Valid @RequestBody RestaurantStatusRequest body) {
         admin(token);
-        if (jdbc.update("UPDATE restaurant_subscriptions SET status = ? WHERE id = ?", body.status(), id) == 0) throw new ApiException(404, "Assinatura não encontrada");
+        List<String> current = jdbc.queryForList("SELECT status FROM restaurant_subscriptions WHERE id = ?", String.class, id);
+        if (current.isEmpty()) throw new ApiException(404, "Assinatura não encontrada");
+        String previous = current.getFirst();
+        // Reativar uma assinatura vencida/em atraso/cancelada: a dívida antiga deixa de valer e a
+        // próxima verificação gera a cobrança do ciclo. Sem limpar `delinquent_since`, o job a
+        // expiraria de novo na rodada seguinte (a carência já tinha vencido).
+        boolean reactivating = ("active".equals(body.status()) && !"active".equals(previous) && !"trial".equals(previous))
+            || ("suspended".equals(body.status()) && ("expired".equals(previous) || "cancelled".equals(previous)));
+        int changed = reactivating
+            ? jdbc.update("UPDATE restaurant_subscriptions SET status = CASE WHEN ends_at IS NOT NULL AND ends_at < NOW() THEN 'suspended' ELSE ? END, "
+                + "delinquent_since = NULL, next_charge_at = NOW() WHERE id = ?", body.status(), id)
+            : jdbc.update("UPDATE restaurant_subscriptions SET status = ? WHERE id = ?", body.status(), id);
+        if (changed == 0) throw new ApiException(404, "Assinatura não encontrada");
         return Map.of("ok", true);
     }
 
@@ -354,6 +366,7 @@ public class SubscriptionController {
                                  @Min(0) @Max(100_000_000) int priceCents,
                                  @Min(1) @Max(3650) int periodDays) {}
     public record AssignRequest(@Positive long restaurantId, @Positive long packageId, @Min(0) @Max(365) Integer trialDays) {}
+    public record RestaurantStatusRequest(@NotBlank @Pattern(regexp = "trial|active|expired|cancelled|suspended") String status) {}
     public record StatusRequest(@NotBlank @Pattern(regexp = "trial|active|expired|cancelled|paused|suspended") String status) {}
     public record CardChargeRequest(@NotBlank @Size(max = 255) String cardToken,
                                     @Min(1) @Max(24) Integer installments,

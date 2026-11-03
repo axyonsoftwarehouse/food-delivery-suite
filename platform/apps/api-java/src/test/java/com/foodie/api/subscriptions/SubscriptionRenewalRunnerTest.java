@@ -22,13 +22,14 @@ import org.springframework.jdbc.core.RowMapper;
 class SubscriptionRenewalRunnerTest {
     private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
     private final SubscriptionBillingService billing = mock(SubscriptionBillingService.class);
+    private final SubscriptionBillingAccount account = mock(SubscriptionBillingAccount.class);
     private final NotificationService notifications = mock(NotificationService.class);
 
     @org.junit.jupiter.api.BeforeEach
     void updatesChangeOneRow() { when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1); }
 
     private SubscriptionRenewalRunner runner(int graceDays) {
-        return new SubscriptionRenewalRunner(jdbc, billing, notifications, graceDays);
+        return new SubscriptionRenewalRunner(jdbc, billing, account, notifications, graceDays);
     }
 
     @Test

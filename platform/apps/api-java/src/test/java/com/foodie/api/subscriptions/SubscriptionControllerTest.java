@@ -4,9 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.foodie.api.ApiException;
@@ -106,8 +109,44 @@ class SubscriptionControllerTest {
     @Test
     void theAdminCanSuspendASubscription() {
         when(auth.requireUser("t", "admin")).thenReturn(new User(1, "Admin", "admin@foodie.com", "admin", null));
+        when(jdbc.queryForList(anyString(), eq(String.class), any(Object[].class))).thenReturn(List.of("active"));
         when(jdbc.update(any(String.class), any(Object[].class))).thenReturn(1);
 
-        assertEquals(Map.of("ok", true), controller().changeStatus("t", 7L, new SubscriptionController.StatusRequest("suspended")));
+        assertEquals(Map.of("ok", true), controller().changeStatus("t", 7L, new SubscriptionController.RestaurantStatusRequest("suspended")));
+        verify(jdbc).update(eq("UPDATE restaurant_subscriptions SET status = ? WHERE id = ?"), eq("suspended"), eq(7L));
+    }
+
+    @Test
+    void theAdminReactivatesAnExpiredSubscriptionAndSchedulesTheCharge() {
+        when(auth.requireUser("t", "admin")).thenReturn(new User(1, "Admin", "admin@foodie.com", "admin", null));
+        when(jdbc.queryForList(anyString(), eq(String.class), any(Object[].class))).thenReturn(List.of("expired"));
+        when(jdbc.update(any(String.class), any(Object[].class))).thenReturn(1);
+
+        assertEquals(Map.of("ok", true), controller().changeStatus("t", 7L, new SubscriptionController.RestaurantStatusRequest("active")));
+        verify(jdbc).update(argThat(sql -> sql != null && sql.contains("delinquent_since = NULL")
+            && sql.contains("next_charge_at = NOW()")), eq("active"), eq(7L));
+    }
+
+    @Test
+    void theAdminReactivatesASuspendedSubscriptionWithoutResettingAnExpiredDebt() {
+        when(auth.requireUser("t", "admin")).thenReturn(new User(1, "Admin", "admin@foodie.com", "admin", null));
+        when(jdbc.queryForList(anyString(), eq(String.class), any(Object[].class))).thenReturn(List.of("suspended"));
+        when(jdbc.update(any(String.class), any(Object[].class))).thenReturn(1);
+
+        controller().changeStatus("t", 7L, new SubscriptionController.RestaurantStatusRequest("active"));
+
+        verify(jdbc).update(argThat(sql -> sql != null && sql.contains("delinquent_since = NULL")
+            && sql.contains("next_charge_at = NOW()")), eq("active"), eq(7L));
+    }
+
+    @Test
+    void changingAnUnknownSubscriptionIs404() {
+        when(auth.requireUser("t", "admin")).thenReturn(new User(1, "Admin", "admin@foodie.com", "admin", null));
+        when(jdbc.queryForList(anyString(), eq(String.class), any(Object[].class))).thenReturn(List.of());
+
+        ApiException error = assertThrows(ApiException.class,
+            () -> controller().changeStatus("t", 7L, new SubscriptionController.RestaurantStatusRequest("active")));
+
+        assertEquals(404, error.status());
     }
 }
