@@ -535,6 +535,11 @@ public class OrderService {
         if ("deliver".equals(action) && !"paid".equals(payments.status(orderId))) {
             throw new ApiException(409, "Confirme o recebimento do pagamento antes de concluir a entrega");
         }
+        // Retirada, balcão e mesa: o painel já só oferecia "Concluir" com o pagamento recebido, mas a cozinha
+        // (KDS) concluía pelo servidor sem ele, e o pedido terminava `completed` com o dinheiro pendente.
+        if ("complete".equals(action) && !"paid".equals(payments.status(orderId))) {
+            throw new ApiException(409, "Confirme o recebimento do pagamento antes de concluir o pedido");
+        }
         // "Pagar agora" ainda não pago: a loja vê o pedido (decisão de 08/10), mas não aceita nem prepara sem o
         // dinheiro (spec de 11/10/2026, regra 3). Recusar continua liberado.
         if ("accept".equals(action) && payments.awaitingOnlinePayment(orderId)) {

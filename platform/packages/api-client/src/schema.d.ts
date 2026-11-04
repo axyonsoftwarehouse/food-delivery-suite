@@ -4276,14 +4276,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/reports/products": {
+    "/admin/reports/restaurants": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["products"];
+        get: operations["restaurants"];
         put?: never;
         post?: never;
         delete?: never;
@@ -15462,7 +15462,7 @@ export interface operations {
             };
         };
     };
-    products: {
+    restaurants: {
         parameters: {
             query?: {
                 from?: string;
@@ -15605,7 +15605,6 @@ export interface operations {
             query?: {
                 from?: string;
                 to?: string;
-                limit?: number;
             };
             header?: never;
             path?: never;
@@ -15623,7 +15622,7 @@ export interface operations {
                 content: {
                     "*/*": {
                         [key: string]: unknown;
-                    }[];
+                    };
                 };
             };
         };

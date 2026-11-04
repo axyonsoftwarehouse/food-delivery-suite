@@ -46,13 +46,13 @@ public class ReportsController {
         return reports.orders(from, to);
     }
 
-    @GetMapping("/products")
-    public List<Map<String, Object>> products(@CookieValue(value = "foodie_session", required = false) String token,
-                                              @RequestParam(required = false) String from,
-                                              @RequestParam(required = false) String to,
-                                              @RequestParam(required = false) @Min(1) @Max(500) Integer limit) {
+    @GetMapping("/restaurants")
+    public List<Map<String, Object>> restaurants(@CookieValue(value = "foodie_session", required = false) String token,
+                                                 @RequestParam(required = false) String from,
+                                                 @RequestParam(required = false) String to,
+                                                 @RequestParam(required = false) @Min(1) @Max(500) Integer limit) {
         admin(token);
-        return reports.products(from, to, limit == null ? 50 : limit);
+        return reports.restaurants(from, to, limit == null ? 50 : limit);
     }
 
     @GetMapping("/zones")
@@ -73,12 +73,11 @@ public class ReportsController {
     }
 
     @GetMapping("/customers")
-    public List<Map<String, Object>> customers(@CookieValue(value = "foodie_session", required = false) String token,
-                                               @RequestParam(required = false) String from,
-                                               @RequestParam(required = false) String to,
-                                               @RequestParam(required = false) @Min(1) @Max(500) Integer limit) {
+    public Map<String, Object> customers(@CookieValue(value = "foodie_session", required = false) String token,
+                                         @RequestParam(required = false) String from,
+                                         @RequestParam(required = false) String to) {
         admin(token);
-        return reports.customers(from, to, limit == null ? 50 : limit);
+        return reports.customers(from, to);
     }
 
     @GetMapping("/export")

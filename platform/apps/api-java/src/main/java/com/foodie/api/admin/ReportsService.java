@@ -105,13 +105,17 @@ public class ReportsService {
         return result;
     }
 
-    public List<Map<String, Object>> products(String from, String to, int limit) {
+    /**
+     * Volume por loja (pedidos e faturamento concluído), como o de zonas. Substitui o ranking de pratos de todas
+     * as lojas: o cardápio vendido é dado da loja, que tem o próprio relatório (fronteira do super-admin).
+     */
+    public List<Map<String, Object>> restaurants(String from, String to, int limit) {
         Range range = range(from, to);
         return jdbc.queryForList(
-            "SELECT p.id, p.name, SUM(oi.quantity) AS quantity, SUM(oi.quantity * oi.unit_price_cents) AS revenue_cents "
-                + "FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN products p ON p.id = oi.product_id "
+            "SELECT r.id, r.name, COUNT(*) AS orders, COALESCE(SUM(CASE WHEN o.status IN " + COMPLETED + " THEN o.total_cents ELSE 0 END),0) AS revenue_cents "
+                + "FROM orders o JOIN restaurants r ON r.id = o.restaurant_id "
                 + "WHERE o.created_at >= ? AND o.created_at < DATE_ADD(?, INTERVAL 1 DAY) "
-                + "GROUP BY p.id, p.name ORDER BY revenue_cents DESC LIMIT ?",
+                + "GROUP BY r.id, r.name ORDER BY orders DESC LIMIT ?",
             range.from(), range.to(), limit);
     }
 
@@ -133,22 +137,32 @@ public class ReportsService {
             range.from(), range.to());
     }
 
-    public List<Map<String, Object>> customers(String from, String to, int limit) {
+    /**
+     * Clientes em números, sem identificar ninguém: antes era a lista de nomes com o gasto de cada um em todas
+     * as lojas (LGPD: o admin não precisa saber quem comprou para cuidar da plataforma).
+     */
+    public Map<String, Object> customers(String from, String to) {
         Range range = range(from, to);
-        return jdbc.queryForList(
-            "SELECT u.id, u.name, COUNT(*) AS orders, COALESCE(SUM(o.total_cents),0) AS spend_cents "
-                + "FROM orders o JOIN users u ON u.id = o.customer_id "
-                + "WHERE o.created_at >= ? AND o.created_at < DATE_ADD(?, INTERVAL 1 DAY) "
-                + "GROUP BY u.id, u.name ORDER BY spend_cents DESC LIMIT ?",
-            range.from(), range.to(), limit);
+        Map<String, Object> result = new LinkedHashMap<>(jdbc.queryForMap(
+            "SELECT COUNT(DISTINCT o.customer_id) AS active, COUNT(*) AS orders, COALESCE(SUM(o.total_cents),0) AS total_cents, "
+                + "COUNT(DISTINCT CASE WHEN f.first_at >= ? THEN o.customer_id END) AS new_customers "
+                + "FROM orders o JOIN (SELECT customer_id, MIN(created_at) AS first_at FROM orders GROUP BY customer_id) f "
+                + "ON f.customer_id = o.customer_id "
+                + "WHERE o.created_at >= ? AND o.created_at < DATE_ADD(?, INTERVAL 1 DAY)",
+            range.from(), range.from(), range.to()));
+        long active = ((Number) result.get("active")).longValue();
+        long newCustomers = ((Number) result.get("new_customers")).longValue();
+        long orders = ((Number) result.get("orders")).longValue();
+        result.put("returning", active - newCustomers);
+        result.put("average_ticket_cents", orders == 0 ? 0L : ((Number) result.get("total_cents")).longValue() / orders);
+        return result;
     }
 
     public String reportCsv(String report, String from, String to) {
         return switch (report == null ? "" : report.strip()) {
             case "earnings" -> earningsCsv("admin", from, to);
             case "orders" -> ordersCsv(from, to);
-            case "products" -> productsCsv(from, to);
-            case "customers" -> customersCsv(from, to);
+            case "restaurants" -> restaurantsCsv(from, to);
             default -> throw new ApiException(400, "Relatório inválido");
         };
     }
@@ -170,22 +184,12 @@ public class ReportsService {
         return csv.toString();
     }
 
-    private String productsCsv(String from, String to) {
-        StringBuilder csv = new StringBuilder("produto,quantidade,receita_reais\n");
-        for (Map<String, Object> row : products(from, to, 500)) {
-            csv.append(csv(row.get("name"))).append(',')
-                .append(row.get("quantity")).append(',')
-                .append(String.format(Locale.ROOT, "%.2f", ((Number) row.get("revenue_cents")).longValue() / 100.0)).append('\n');
-        }
-        return csv.toString();
-    }
-
-    private String customersCsv(String from, String to) {
-        StringBuilder csv = new StringBuilder("cliente,pedidos,gasto_reais\n");
-        for (Map<String, Object> row : customers(from, to, 500)) {
+    private String restaurantsCsv(String from, String to) {
+        StringBuilder csv = new StringBuilder("loja,pedidos,faturamento_reais\n");
+        for (Map<String, Object> row : restaurants(from, to, 500)) {
             csv.append(csv(row.get("name"))).append(',')
                 .append(row.get("orders")).append(',')
-                .append(String.format(Locale.ROOT, "%.2f", ((Number) row.get("spend_cents")).longValue() / 100.0)).append('\n');
+                .append(String.format(Locale.ROOT, "%.2f", ((Number) row.get("revenue_cents")).longValue() / 100.0)).append('\n');
         }
         return csv.toString();
     }

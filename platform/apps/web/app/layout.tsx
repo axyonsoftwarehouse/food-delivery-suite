@@ -22,8 +22,10 @@ import './order-chat.css';
 import { AppProvider } from './app-context';
 
 export const metadata: Metadata = {
-  title: 'Foodie • Plataforma independente',
-  description: 'Plataforma operacional para pedidos, restaurantes e entregadores.',
+  title: 'Foodie • Delivery dos restaurantes da sua região',
+  description: 'Peça dos restaurantes da sua região, pague como preferir e acompanhe a entrega em tempo real.',
+  applicationName: 'Foodie',
+  openGraph: { siteName: 'Foodie', locale: 'pt_BR', type: 'website' },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

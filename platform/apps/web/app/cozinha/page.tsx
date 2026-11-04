@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, minutesSince, money, roleHome, useApp } from '../app-context';
 import { Button, StatusBadge } from '../ui';
-import { COLUMN_ORDER, COLUMN_TITLES, actionsForStatus, canComplete, canServe, groupByColumn, isLate } from './board';
+import { COLUMN_ORDER, COLUMN_TITLES, actionsForStatus, awaitsCompletion, canComplete, canServe, groupByColumn, isLate } from './board';
 
 /**
  * Quadro da cozinha (KDS) no próprio site — o port do app Expo, decidido em
@@ -160,6 +160,7 @@ export default function CozinhaPage() {
                         {actions.includes('reject') && <Button size="sm" variant="danger" disabled={busy} onClick={() => { setRejecting(rejecting === order.id ? null : order.id); setReason(''); }}>{'Recusar'}</Button>}
                         {canServe(order) && <Button size="sm" disabled={busy} onClick={() => void changeStatus(order, 'serve', `Pedido #${order.id} servido.`)}>{'Servir'}</Button>}
                         {canComplete(order) && <Button size="sm" disabled={busy} onClick={() => void changeStatus(order, 'complete', `Pedido #${order.id} concluído.`)}>{'Concluir'}</Button>}
+                        {awaitsCompletion(order) && !canComplete(order) && <span className="kds-await-payment">{'Aguardando pagamento no caixa'}</span>}
                       </div>
                       {rejecting === order.id && (
                         <form
@@ -219,6 +220,7 @@ export default function CozinhaPage() {
                 {actionsForStatus(ticket.status).includes('ready') && <Button disabled={busy} onClick={() => void changeStatus(ticket, 'ready', `Pedido #${ticket.id} pronto.`)}>{'Marcar pronto'}</Button>}
                 {canServe(ticket) && <Button disabled={busy} onClick={() => void changeStatus(ticket, 'serve', `Pedido #${ticket.id} servido.`)}>{'Servir'}</Button>}
                 {canComplete(ticket) && <Button disabled={busy} onClick={() => void changeStatus(ticket, 'complete', `Pedido #${ticket.id} concluído.`)}>{'Concluir'}</Button>}
+                {awaitsCompletion(ticket) && !canComplete(ticket) && <span className="kds-await-payment">{'Aguardando pagamento no caixa'}</span>}
                 {/* A recusa pede o motivo no card do pedido: fecha o ticket e abre o formulário lá. */}
                 {actionsForStatus(ticket.status).includes('reject') && <Button variant="danger" disabled={busy} onClick={() => { setTicketId(null); setRejecting(ticket.id); setReason(''); }}>{'Recusar'}</Button>}
               </div>

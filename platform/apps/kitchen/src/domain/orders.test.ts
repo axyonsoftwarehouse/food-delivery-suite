@@ -1,5 +1,5 @@
 import type { OrderListItem } from '../api/types';
-import { actionsForStatus, columnForStatus, elapsedMinutes, formatMoney, groupByColumn, isLate } from './orders';
+import { actionsForStatus, awaitsCompletion, canComplete, columnForStatus, elapsedMinutes, formatMoney, groupByColumn, isLate } from './orders';
 
 function order(partial: Partial<OrderListItem>): OrderListItem {
   return {
@@ -100,5 +100,18 @@ describe('elapsedMinutes', () => {
 describe('formatMoney', () => {
   it('formats cents as Brazilian currency', () => {
     expect(formatMoney(1234)).toBe('R$\u00a012,34');
+  });
+});
+
+describe('canComplete', () => {
+  it('completes take-away and served orders only with the payment received', () => {
+    expect(canComplete(order({ status: 'ready', order_type: 'take_away', payment_status: 'paid' }))).toBe(true);
+    expect(canComplete(order({ status: 'served', order_type: 'dine_in', payment_status: 'paid' }))).toBe(true);
+    expect(canComplete(order({ status: 'served', order_type: 'dine_in', payment_status: 'pending' }))).toBe(false);
+    expect(awaitsCompletion(order({ status: 'served', order_type: 'dine_in', payment_status: 'pending' }))).toBe(true);
+  });
+
+  it('never completes a delivery order from the kitchen', () => {
+    expect(canComplete(order({ status: 'ready', order_type: 'delivery', payment_status: 'paid' }))).toBe(false);
   });
 });
