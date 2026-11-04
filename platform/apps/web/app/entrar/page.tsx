@@ -7,6 +7,7 @@ import GoogleSignInButton from '../GoogleSignInButton';
 import FacebookSignInButton from '../FacebookSignInButton';
 import { roleHome, useApp } from '../app-context';
 import { Icon } from '../icons';
+import LegalLinks from '../legal-links';
 
 export default function Home() {
   const router = useRouter();
@@ -75,7 +76,13 @@ export default function Home() {
           {authMode === 'signup' && <label className="ui-field auth-field m-rise" style={{ '--i': 2 } as React.CSSProperties}><span className="ui-label">{'Seu nome'}</span><span className="auth-input"><Icon name="user" size={18} /><input className="ui-input" value={signupName} onChange={(event) => setSignupName(event.target.value)} minLength={2} maxLength={120} autoComplete="name" placeholder="Como podemos te chamar?" required /></span></label>}
           <label className="ui-field auth-field m-rise" style={{ '--i': 2 } as React.CSSProperties}><span className="ui-label">{'Email'}</span><span className="auth-input"><Icon name="mail" size={18} /><input className="ui-input" type="email" list={authMode === 'login' ? 'demo-users' : undefined} value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="voce@email.com" required /></span><datalist id="demo-users"><option value="admin@demo.local" /><option value="restaurante@demo.local" /><option value="entregador@demo.local" /><option value="cliente@demo.local" /></datalist></label>
           {authMode === 'signup'
-            ? <p className="auth-terms m-rise" style={{ '--i': 3 } as React.CSSProperties}>{'Você define sua senha depois de confirmar o email.'}</p>
+            ? <>
+                <p className="auth-terms m-rise" style={{ '--i': 3 } as React.CSSProperties}>{'Você define sua senha depois de confirmar o email.'}</p>
+                <label className="auth-accept m-rise" style={{ '--i': 3 } as React.CSSProperties}>
+                  <input type="checkbox" required />
+                  <span>{'Li e aceito os '}<Link href="/paginas/termos" target="_blank">{'Termos de uso'}</Link>{' e a '}<Link href="/paginas/privacidade" target="_blank">{'Política de privacidade'}</Link>{'.'}</span>
+                </label>
+              </>
             : <label className="ui-field auth-field m-rise" style={{ '--i': 3 } as React.CSSProperties}>
                 <span className="auth-label-row"><span className="ui-label">{'Senha'}</span><button className="auth-forgot" type="button" onClick={forgotPassword} disabled={busy}>{'Esqueci minha senha'}</button></span>
                 <span className="auth-input"><Icon name="lock" size={18} /><input className="ui-input" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" placeholder="Sua senha" required />
@@ -96,11 +103,12 @@ export default function Home() {
                 {otpSent ? <button className="ui-btn ui-btn--secondary ui-btn--block" type="button" onClick={(event) => verifyOtp(event)} disabled={busy || otpCode.length < 4}>{'Entrar com o código'}</button> : <button className="ui-btn ui-btn--secondary ui-btn--block" type="button" onClick={requestOtp} disabled={busy || otpPhone.trim().length < 8}>{'Receber código por SMS'}</button>}
               </div>
             </details>
+            <p className="auth-legal-note">{'Ao continuar com Google, Facebook ou SMS, você concorda com os '}<Link href="/paginas/termos" target="_blank">{'Termos de uso'}</Link>{' e a '}<Link href="/paginas/privacidade" target="_blank">{'Política de privacidade'}</Link>{'.'}</p>
           </div>}
           {authMode === 'signup' && <p className="auth-terms m-rise" style={{ '--i': 5 } as React.CSSProperties}>{'Já tem conta? '}<button type="button" onClick={() => switchMode('login')} disabled={busy}>{'Entrar'}</button></p>}
         </form>
       </div>
-      <footer className="auth-footer">{'© 2026 Axyon Software House'}</footer>
+      <footer className="auth-footer"><span>{'© 2026 Axyon Software House'}</span><LegalLinks /></footer>
     </section>
   </main>;
 }

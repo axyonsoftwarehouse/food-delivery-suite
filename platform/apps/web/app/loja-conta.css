@@ -197,3 +197,7 @@
 .pf-coupon-code { flex: none; padding: 6px 12px; border: 1px dashed var(--tone-b); border-radius: var(--radius-pill); background: var(--tone-soft); color: var(--text); font: 700 var(--text-sm) var(--font-mono, monospace); letter-spacing: 0.5px; cursor: pointer; }
 .pf-coupon-code:hover { background: var(--surface); }
 
+
+/* Seus dados (LGPD) */
+.lj-outline-button.pf-danger { border-color: var(--danger); color: var(--danger); }
+.pf-legal { margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }

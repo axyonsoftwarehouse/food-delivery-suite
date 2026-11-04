@@ -166,7 +166,8 @@ public class AuthRepository {
     public boolean setSuspended(long userId, boolean suspended, String reason) {
         int changed = suspended
             ? jdbc.update("UPDATE users SET suspended_at = NOW(), suspended_reason = ? WHERE id = ?", reason, userId)
-            : jdbc.update("UPDATE users SET suspended_at = NULL, suspended_reason = NULL WHERE id = ?", userId);
+            // Conta excluída pelo titular não volta: a suspensão é o que barra o login dela.
+            : jdbc.update("UPDATE users SET suspended_at = NULL, suspended_reason = NULL WHERE id = ? AND deleted_at IS NULL", userId);
         if (changed > 0 && suspended) deleteSessionsForUser(userId);
         return changed > 0;
     }
@@ -183,18 +184,22 @@ public class AuthRepository {
     public User createCustomer(String name, String email, String passwordHash, String socialProvider) {
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         jdbc.update(connection -> {
+            // O aceite dos termos é gravado na criação: o cadastro exige a caixa marcada e o login
+            // social/SMS mostra o aviso junto dos botões.
             PreparedStatement statement = socialProvider == null
                 ? connection.prepareStatement(
-                    "INSERT INTO users (name, email, password_hash, role, restaurant_id) VALUES (?, ?, ?, 'customer', NULL)",
+                    "INSERT INTO users (name, email, password_hash, role, restaurant_id, terms_accepted_at, terms_version) "
+                        + "VALUES (?, ?, ?, 'customer', NULL, NOW(), ?)",
                     Statement.RETURN_GENERATED_KEYS)
                 : connection.prepareStatement(
-                    "INSERT INTO users (name, email, password_hash, role, restaurant_id, email_verified_at, social_provider) "
-                        + "VALUES (?, ?, ?, 'customer', NULL, NOW(), ?)",
+                    "INSERT INTO users (name, email, password_hash, role, restaurant_id, terms_accepted_at, terms_version, "
+                        + "email_verified_at, social_provider) VALUES (?, ?, ?, 'customer', NULL, NOW(), ?, NOW(), ?)",
                     Statement.RETURN_GENERATED_KEYS);
             statement.setString(1, name);
             statement.setString(2, email);
             statement.setString(3, passwordHash);
-            if (socialProvider != null) statement.setString(4, socialProvider);
+            statement.setString(4, LegalTerms.VERSION);
+            if (socialProvider != null) statement.setString(5, socialProvider);
             return statement;
         }, key);
         return new User(key.getKey().longValue(), name, email, "customer", null);
@@ -233,13 +238,15 @@ public class AuthRepository {
         String email = phone + "@phone.foodie.local";
         jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO users (name, email, password_hash, role, restaurant_id, phone) VALUES (?, ?, ?, 'customer', NULL, ?)",
+                "INSERT INTO users (name, email, password_hash, role, restaurant_id, phone, terms_accepted_at, terms_version) "
+                    + "VALUES (?, ?, ?, 'customer', NULL, ?, NOW(), ?)",
                 Statement.RETURN_GENERATED_KEYS
             );
             statement.setString(1, name);
             statement.setString(2, email);
             statement.setString(3, passwordHash);
             statement.setString(4, phone);
+            statement.setString(5, LegalTerms.VERSION);
             return statement;
         }, key);
         return new User(key.getKey().longValue(), name, email, "customer", null);

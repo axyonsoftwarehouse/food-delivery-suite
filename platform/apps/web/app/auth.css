@@ -163,3 +163,12 @@
   .auth-blob, .auth-plate, .auth-plate-ring, .auth-float, .auth-float-bar span, .auth-steps li, .auth-stars .ui-icon, .auth-panel, .auth-panel-inner, .auth-float .ui-icon { animation: none !important; }
   .auth-tabs-pill { transition: none; }
 }
+
+/* Aceite dos termos (cadastro) e aviso do login social/SMS */
+.auth-accept { display: flex; align-items: flex-start; gap: var(--space-3); margin: var(--space-4) 0 0; color: var(--text-muted); font-size: var(--text-md); line-height: 1.45; cursor: pointer; }
+.auth-accept input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--brand-600); }
+.auth-accept a, .auth-legal-note a { color: var(--brand-600); font-weight: var(--weight-bold); }
+.auth-legal-note { margin: var(--space-4) 0 0; color: var(--text-faint); font-size: var(--text-xs); line-height: 1.5; text-align: center; }
+.auth-footer { flex-wrap: wrap; align-items: center; }
+.auth-footer > span, .auth-footer .legal-links a { white-space: nowrap; }
+.auth-footer .legal-links { gap: var(--space-3); }

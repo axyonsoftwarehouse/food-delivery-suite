@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useApp } from './app-context';
 import { Icon, type IconName } from './icons';
 import RestaurantMedia from './loja/restaurant-media';
+import LegalLinks from './legal-links';
 
 const STEPS: { icon: IconName; title: string; text: string }[] = [
   { icon: 'search', title: 'Escolha', text: 'Encontre o restaurante e o prato que dão vontade.' },
@@ -53,6 +54,6 @@ export default function Home() {
       <ol className="home-steps">{STEPS.map((step, index) => <li key={step.title} className="m-rise" style={{ '--i': index + 1 } as React.CSSProperties}><span><Icon name={step.icon} size={22} /></span><strong>{step.title}</strong><p>{step.text}</p></li>)}</ol>
     </section>
 
-    <footer className="home-footer"><Link className="home-brand" href="/"><span className="home-brand-mark"><Icon name="sparkle" size={14} /></span>foodie<span>.</span></Link><span>{'© 2026 Axyon Software House'}</span></footer>
+    <footer className="home-footer"><Link className="home-brand" href="/"><span className="home-brand-mark"><Icon name="sparkle" size={14} /></span>foodie<span>.</span></Link><LegalLinks /><span>{'© 2026 Axyon Software House'}</span></footer>
   </main>;
 }

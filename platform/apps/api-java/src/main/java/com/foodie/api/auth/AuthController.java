@@ -2,8 +2,10 @@ package com.foodie.api.auth;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Duration;
 import java.util.Map;
@@ -149,7 +151,8 @@ public class AuthController {
 
     public record LoginRequest(@NotBlank @Email @Size(max = 190) String email, @NotBlank @Size(max = 128) String password) {}
     public record SignupRequest(@NotBlank @Size(min = 2, max = 120) String name,
-                                @NotBlank @Email @Size(max = 190) String email) {}
+                                @NotBlank @Email @Size(max = 190) String email,
+                                @NotNull @AssertTrue(message = "Aceite os Termos de uso e a Política de privacidade") Boolean acceptTerms) {}
     public record VerifyRequest(@NotBlank @Size(max = 128) String token,
                                 @NotBlank @Size(min = 12, max = 128) String password) {}
     public record ForgotRequest(@NotBlank @Email @Size(max = 190) String email) {}

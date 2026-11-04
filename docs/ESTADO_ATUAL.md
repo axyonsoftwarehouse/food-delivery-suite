@@ -415,6 +415,14 @@ recusa e assim por diante.
     usável). **Conferido no staging em 11/10** com o pedido #48 (cancelado depois, como teste): o aviso aparece de
     1,1 s a 2,1 s e depois o quadro, sem o seletor simples sem aviso. A Cozinha Demo não tem telefone cadastrado (a retirada mostra "Telefone não informado").
     **Não verificado nas telas:** nome de entregador com HTML no popup do mapa (o código monta o popup como texto).
+- **LGPD mínima (04/11/2026, branch `feat/lgpd`, migration `V078`)** — páginas públicas
+  `/paginas/termos`, `/paginas/privacidade` e `/paginas/reembolso` com links nos rodapés; aceite
+  obrigatório no cadastro (`acceptTerms`, versão gravada em `users.terms_version`) e aviso no login
+  social/SMS; **baixar meus dados** (`GET /me/data-export`) e **excluir conta** pelo cliente
+  (`POST /me/delete-account`, anonimização que mantém os pedidos para a loja). Spec
+  `docs/superpowers/specs/2026-11-04-lgpd-minimo-design.md`. **Falta:** revisão jurídica do rascunho
+  dos textos (editáveis em Conteúdo → Páginas) e indicar o encarregado/canal do titular
+  `(a confirmar com o dono)`.
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega

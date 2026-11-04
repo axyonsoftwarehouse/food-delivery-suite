@@ -110,7 +110,7 @@ class AuthControllerTest {
         when(auth.signup(eq("Nova Cliente"), eq("nova@demo.local"), any())).thenReturn(Optional.of(customer));
 
         mvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Nova Cliente\",\"email\":\"nova@demo.local\"}"))
+                .content("{\"name\":\"Nova Cliente\",\"email\":\"nova@demo.local\",\"acceptTerms\":true}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.ok").value(true))
             .andExpect(header().doesNotExist("Set-Cookie"))
@@ -123,10 +123,21 @@ class AuthControllerTest {
         when(auth.signup(eq("Nova Cliente"), eq("existe@demo.local"), any())).thenReturn(Optional.empty());
 
         mvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Nova Cliente\",\"email\":\"existe@demo.local\"}"))
+                .content("{\"name\":\"Nova Cliente\",\"email\":\"existe@demo.local\",\"acceptTerms\":true}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.ok").value(true));
         verify(account, never()).sendVerification(any());
+    }
+
+    @Test
+    void signupWithoutAcceptingTheTermsIsRejected() throws Exception {
+        for (String body : new String[] {
+            "{\"name\":\"Nova Cliente\",\"email\":\"nova@demo.local\"}",
+            "{\"name\":\"Nova Cliente\",\"email\":\"nova@demo.local\",\"acceptTerms\":false}"}) {
+            mvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        }
+        verify(auth, never()).signup(any(), any(), any());
     }
 
     @Test

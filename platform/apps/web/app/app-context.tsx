@@ -335,7 +335,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function signup(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setMessage('');
     try {
-      await api<{ ok: boolean }>('/auth/signup', { method: 'POST', body: JSON.stringify({ name: signupName, email }) });
+      await api<{ ok: boolean }>('/auth/signup', { method: 'POST', body: JSON.stringify({ name: signupName, email, acceptTerms: true }) });
+      // acceptTerms: o formulário só envia com a caixa dos termos marcada (required); o servidor confere de novo.
       // O cadastro não abre sessão e a senha só é definida na confirmação do email.
       setPassword('');
       setAuthMode('login');
