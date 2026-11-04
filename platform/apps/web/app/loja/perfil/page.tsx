@@ -8,6 +8,7 @@ import AddressForm from '../address-form';
 import RewardsCard from './rewards-card';
 import PersonalizationCard from './personalization-card';
 import RecurringOrdersCard from './recurring-orders-card';
+import PrivacyCard from './privacy-card';
 import { Icon } from '../../icons';
 
 export default function PerfilClientePage() {
@@ -39,6 +40,7 @@ export default function PerfilClientePage() {
 
     <PersonalizationCard />
     <RecurringOrdersCard />
+    <PrivacyCard />
 
     <section className="pf-section">
       <div className="pf-head"><h2>{'Conta'}</h2></div>

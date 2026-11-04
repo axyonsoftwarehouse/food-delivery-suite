@@ -41,10 +41,10 @@ await call('/auth/verify-email', { method: 'POST', expected: 400, ip: anonIp, bo
 console.log('Recuperação/verificação não revelam contas e rejeitam token inválido.');
 
 const email = `acesso-${randomUUID().slice(0, 12)}@example.test`;
-const signup = await call('/auth/signup', { method: 'POST', expected: 201, ip: anonIp, body: { name: 'Cliente Segurança', email } });
+const signup = await call('/auth/signup', { method: 'POST', expected: 201, ip: anonIp, body: { name: 'Cliente Segurança', email, acceptTerms: true } });
 assert.equal(signup.response.headers.get('set-cookie'), null, 'o cadastro não pode abrir sessão antes de confirmar o email');
 await call('/auth/login', { method: 'POST', expected: 401, ip: anonIp, body: { email, password: 'senha-forte-123456' } });
-const duplicate = await call('/auth/signup', { method: 'POST', expected: 201, ip: anonIp, body: { name: 'Cliente Segurança', email } });
+const duplicate = await call('/auth/signup', { method: 'POST', expected: 201, ip: anonIp, body: { name: 'Cliente Segurança', email, acceptTerms: true } });
 assert.equal(duplicate.response.headers.get('set-cookie'), null, 'email existente não pode revelar a conta nem abrir sessão');
 console.log('Cadastro novo não abre sessão, não aceita senha escolhida e não revela email existente.');
 
