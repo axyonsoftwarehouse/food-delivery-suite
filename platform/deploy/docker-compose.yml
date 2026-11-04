@@ -145,6 +145,8 @@ services:
       NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
       NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
       NEXT_PUBLIC_SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      # Só a produção liga: sem isso o robots.txt fecha o site inteiro para buscadores (staging).
+      SITE_INDEXABLE: ${SITE_INDEXABLE:-false}
     depends_on:
       api:
         condition: service_healthy

@@ -528,8 +528,21 @@ class OrderServiceTest {
     @Test
     void storeCompletesATakeAwayOrder() {
         storedOrder(40, "ready", "take_away");
+        when(payments.status(40)).thenReturn("paid");
 
         assertThat(orders.changeStatus(RESTAURANT, 40, "complete", null, null)).containsEntry("status", "completed");
+    }
+
+    @Test
+    void completingRequiresTheReceivedPaymentLikeTheDelivery() {
+        // Antes o painel exigia o pagamento, mas a cozinha (KDS) concluía pedido não pago pelo servidor.
+        storedOrder(40, "served", "dine_in");
+        when(payments.status(40)).thenReturn("pending");
+
+        assertThatThrownBy(() -> orders.changeStatus(RESTAURANT, 40, "complete", null, null))
+            .isInstanceOf(ApiException.class)
+            .hasMessage("Confirme o recebimento do pagamento antes de concluir o pedido");
+        verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.startsWith("UPDATE orders SET status"), any(Object[].class));
     }
 
     @Test

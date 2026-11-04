@@ -7,19 +7,19 @@ import { AdminPage, DateRange } from './admin-kit';
 import { Card, Empty, Stat, Tabs } from './kit';
 
 type OrderReport = { totals: { count: number; total_cents: number; revenue_cents: number }; byStatus: { status: string; count: number; total_cents: number }[] };
-type ProductRow = { id: number; name: string; quantity: number; revenue_cents: number };
+type StoreRow = { id: number; name: string; orders: number; revenue_cents: number };
 type ZoneRow = { id: number; name: string; orders: number; revenue_cents: number };
 type DayRow = { day: string; orders: number; revenue_cents: number };
-type CustomerRow = { id: number; name: string; orders: number; spend_cents: number };
+type CustomerSummary = { active: number; new_customers: number; returning: number; orders: number; average_ticket_cents: number };
 
 type Meta = { id: string; label: string; exportable: boolean };
 
 const TABS: Meta[] = [
   { id: 'orders', label: 'Pedidos', exportable: true },
-  { id: 'products', label: 'Pratos', exportable: true },
+  { id: 'restaurants', label: 'Lojas', exportable: true },
   { id: 'zones', label: 'Zonas', exportable: false },
   { id: 'daily', label: 'Diário', exportable: false },
-  { id: 'customers', label: 'Clientes', exportable: true },
+  { id: 'customers', label: 'Clientes', exportable: false },
 ];
 
 function isoDaysAgo(days: number) {
@@ -44,7 +44,7 @@ export default function ReportsPanel() {
       {exportable && <div className="pr-toolbar-actions"><a className="pr-btn" href={`/backend/admin/reports/export?report=${tab}&${query}`} target="_blank" rel="noreferrer"><Icon name="file" size={16} />Exportar CSV</a></div>}
     </div>
     {tab === 'orders' && <OrdersReport query={query} onMessage={setMessage} />}
-    {tab === 'products' && <ProductReport query={query} onMessage={setMessage} />}
+    {tab === 'restaurants' && <StoreReport query={query} onMessage={setMessage} />}
     {tab === 'zones' && <ZoneReport query={query} onMessage={setMessage} />}
     {tab === 'daily' && <DailyReport query={query} onMessage={setMessage} />}
     {tab === 'customers' && <CustomerReport query={query} onMessage={setMessage} />}
@@ -90,9 +90,10 @@ function ReportList({ rows, ranked }: { rows: { key: string | number; name: stri
   </section>;
 }
 
-function ProductReport({ query, onMessage }: { query: string; onMessage: (m: string) => void }) {
-  const rows = useReport<ProductRow[]>('/admin/reports/products', query, onMessage);
-  return <ReportList ranked rows={rows && rows.map((row) => ({ key: row.id, name: row.name, note: `${row.quantity} un.`, value: money(row.revenue_cents) }))} />;
+/** Volume por loja; o ranking de pratos é da própria loja (relatório no painel dela). */
+function StoreReport({ query, onMessage }: { query: string; onMessage: (m: string) => void }) {
+  const rows = useReport<StoreRow[]>('/admin/reports/restaurants', query, onMessage);
+  return <ReportList ranked rows={rows && rows.map((row) => ({ key: row.id, name: row.name, note: `${row.orders} pedidos`, value: money(row.revenue_cents) }))} />;
 }
 
 function ZoneReport({ query, onMessage }: { query: string; onMessage: (m: string) => void }) {
@@ -105,7 +106,13 @@ function DailyReport({ query, onMessage }: { query: string; onMessage: (m: strin
   return <ReportList rows={rows && rows.map((row) => ({ key: row.day, name: new Date(row.day).toLocaleDateString('pt-BR'), note: `${row.orders} pedidos`, value: money(row.revenue_cents) }))} />;
 }
 
+/** Clientes em números, sem nomes (LGPD): quem comprou é informação da loja, não da plataforma. */
 function CustomerReport({ query, onMessage }: { query: string; onMessage: (m: string) => void }) {
-  const rows = useReport<CustomerRow[]>('/admin/reports/customers', query, onMessage);
-  return <ReportList rows={rows && rows.map((row) => ({ key: row.id, name: row.name, note: `${row.orders} pedidos`, value: money(row.spend_cents) }))} />;
+  const data = useReport<CustomerSummary>('/admin/reports/customers', query, onMessage);
+  return <ReportList rows={data && [
+    { key: 'active', name: 'Clientes que pediram', note: 'no período', value: String(data.active) },
+    { key: 'new', name: 'Novos', note: 'primeiro pedido no período', value: String(data.new_customers) },
+    { key: 'returning', name: 'Recorrentes', note: 'já tinham pedido antes', value: String(data.returning) },
+    { key: 'ticket', name: 'Ticket médio', note: `${data.orders} pedidos`, value: money(data.average_ticket_cents) },
+  ]} />;
 }

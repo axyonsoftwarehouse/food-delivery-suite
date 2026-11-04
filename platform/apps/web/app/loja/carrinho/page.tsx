@@ -6,6 +6,7 @@ import { api, money, useApp } from '../../app-context';
 import { useCustomer } from '../customer-context';
 import { Icon } from '../../icons';
 import { Rolling, prefersReducedMotion } from '../motion';
+import { estimateMinutes, etaRange } from '../eta';
 
 /** Linha de escolha única (rádio) usada em "Como receber" e "Pagamento". */
 function Choice({ selected, label, hint, onClick }: { selected: boolean; label: string; hint?: string; onClick: () => void }) {
@@ -27,6 +28,7 @@ export default function CarrinhoPage() {
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
   const total = subtotal + orderFee - discount + serviceFee + tipCents;
   const cartRestaurant = cartEntries.length ? restaurantById.get(cartEntries[0].product.restaurant_id) : undefined;
+  const eta = etaRange(estimateMinutes(cartRestaurant?.prep_minutes, selectedZone?.delivery_minutes, orderType === 'delivery'));
   const minimum = selectedZone?.minimum_order_cents ?? 0;
   const minimumProgress = minimum > 0 ? Math.min(1, subtotal / minimum) : 1;
   const checkoutDisabled = busy || placing || cartBusy || cartEntries.some((entry) => !entry.available) || (orderType === 'delivery' && (!selectedAddress?.postal_code || !meetsMinimum || !cartCovered)) || (orderType === 'dine_in' && tableId === null) || (manual && (!manualMethodId || (offlineMethods.find((method) => method.id === manualMethodId)?.requires_proof && !proofUrl.trim()))) || (orderType === 'delivery' && contactPhone.replace(/\D/g, '').length < 10) || (cartRestaurantClosed && !scheduledFor);
@@ -209,7 +211,8 @@ export default function CarrinhoPage() {
           {tipCents > 0 && <div><dt>{'Gorjeta'}</dt><dd>{money(tipCents)}</dd></div>}
           <div className="lj-total"><dt>{'Total'}</dt><dd><Rolling value={money(total)} /></dd></div>
         </dl>
-        {orderType === 'delivery' && estimate?.distanceMeters != null && <p className="lj-help">{`Chega em cerca de ${Math.max(1, Math.round((estimate.durationSeconds ?? 0) / 60))} min · ${(estimate.distanceMeters / 1000).toFixed(1)} km`}</p>}
+        {/* Mesma regra da loja e do pedido gravado (preparo + zona, decisão de 29/10); antes o carrinho usava a rota em km e mostrava outro número. */}
+        {eta && orderType !== 'dine_in' && <p className="lj-help">{`${orderType === 'delivery' ? 'Chega' : 'Fica pronto'} em ${eta}${orderType === 'delivery' && estimate?.distanceMeters != null ? ` · ${(estimate.distanceMeters / 1000).toFixed(1)} km` : ''}`}</p>}
         {orderType === 'delivery' && !cartCovered && <p className="customer-minimum">{'Este restaurante não entrega no endereço selecionado. Escolha outro endereço ou esvazie o carrinho.'}</p>}
         {cartRestaurantClosed && <p className="customer-minimum">{'Este restaurante está fora do horário agora. Agende a entrega ou aguarde a reabertura.'}</p>}
         {orderType === 'delivery' && selectedAddress && !selectedAddress.postal_code && <p className="customer-minimum">{'Este endereço é anterior à validação por CEP. Cadastre-o novamente para continuar.'}</p>}

@@ -35,6 +35,23 @@ class ReportsServiceTest {
     }
 
     @Test
+    void customersReportIsAggregatedWithoutIdentities() {
+        when(jdbc.queryForMap(anyString(), any(Object[].class))).thenReturn(
+            Map.of("active", 10L, "orders", 25L, "total_cents", 100000L, "new_customers", 4L));
+
+        Map<String, Object> result = service.customers("2026-10-01", "2026-10-31");
+
+        assertThat(result).containsEntry("returning", 6L).containsEntry("average_ticket_cents", 4000L)
+            .doesNotContainKeys("id", "name", "email");
+    }
+
+    @Test
+    void oldIndividualReportsAreGoneFromTheExport() {
+        assertThatThrownBy(() -> service.reportCsv("customers", null, null)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.reportCsv("products", null, null)).isInstanceOf(ApiException.class);
+    }
+
+    @Test
     void rejectsInvalidScopeAndGrouping() {
         assertThatThrownBy(() -> service.earnings("nobody", "day", null, null)).isInstanceOf(ApiException.class);
         assertThatThrownBy(() -> service.earnings("admin", "hour", null, null)).isInstanceOf(ApiException.class);

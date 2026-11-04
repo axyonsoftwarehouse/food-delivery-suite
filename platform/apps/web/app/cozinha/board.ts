@@ -49,16 +49,21 @@ export function actionsForStatus(status: string): KitchenAction[] {
 }
 
 /** O que as regras precisam de um pedido — vale para a lista e para o bilhete aberto. */
-export type KitchenOrder = { status: string; created_at: string; order_type?: string | null };
+export type KitchenOrder = { status: string; created_at: string; order_type?: string | null; payment_status?: string | null };
 
 /** Consumo no local: o pedido pronto volta para a mesa. */
 export function canServe(order: KitchenOrder): boolean {
   return order.status === 'ready' && order.order_type === 'dine_in';
 }
 
-/** Encerra na cozinha o que não sai para entrega (retirada e consumo no local). */
-export function canComplete(order: KitchenOrder): boolean {
+/** Pronto para sair do quadro: o que não sai para entrega (retirada e consumo no local), sem olhar o pagamento. */
+export function awaitsCompletion(order: KitchenOrder): boolean {
   return (order.status === 'ready' && order.order_type !== 'delivery') || order.status === 'served';
+}
+
+/** Concluir exige o pagamento recebido (a API recusa com 409 sem ele): quem recebe é o caixa, no painel. */
+export function canComplete(order: KitchenOrder): boolean {
+  return awaitsCompletion(order) && order.payment_status === 'paid';
 }
 
 /** Atrasado = ainda aguardando aceite depois do limite (o mesmo critério do app). */

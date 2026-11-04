@@ -25,8 +25,14 @@ export function canServe(order: OrderListItem): boolean {
   return order.status === 'ready' && order.order_type === 'dine_in';
 }
 
-export function canComplete(order: OrderListItem): boolean {
+/** Pronto para sair do quadro: retirada/balcão pronto ou mesa servida, sem olhar o pagamento. */
+export function awaitsCompletion(order: OrderListItem): boolean {
   return (order.status === 'ready' && order.order_type !== 'delivery') || order.status === 'served';
+}
+
+/** Concluir exige o pagamento recebido (a API recusa com 409 sem ele): quem recebe é o caixa, no painel. */
+export function canComplete(order: OrderListItem): boolean {
+  return awaitsCompletion(order) && order.payment_status === 'paid';
 }
 
 export function actionsForStatus(status: OrderStatus): StatusAction[] {
