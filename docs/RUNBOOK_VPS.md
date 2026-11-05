@@ -290,9 +290,8 @@ md5 idêntico ao da VPS:
 | `foodie_platform-20261001-185611.sql` | `998ee962...` (deploy do E48) |
 
 **Regra de ouro:** copie o backup para **fora da VPS** depois de cada deploy
-(o `deploy.sh` gera um novo a cada publicação). O PC é a única cópia externa:
-backup externo de verdade (outro local/nuvem) e ensaio de restauração seguem na
-lista de prontidão de publicação.
+(o `deploy.sh` gera um novo a cada publicação). Além do PC, há o backup
+diário cifrado no R2 (§5), cujo ensaio de restauração foi feito em 04/11/2026.
 
 ```powershell
 # No seu PC, na raiz do repositório
@@ -310,7 +309,57 @@ curl -fsS http://localhost:4001/ready
 ```
 
 Faça um **ensaio de restauração** em um banco separado antes de precisar dele
-de verdade — está na lista de prontidão de publicação.
+de verdade. O último foi em 04/11/2026 (abaixo); repita todo mês.
+
+> **Não use o `restore.sh` para ensaio:** ele restaura **no banco do staging**.
+> O ensaio vai num MariaDB descartável, como abaixo.
+
+### Ensaio de restauração — 04/11/2026
+
+**Parte 1, feita (sem a chave privada):**
+
+- **R2:** um conjunto por dia em `foodie-backups/foodie/AAAA/MM/DD/<stamp>/`
+  (banco, uploads e configuração cifrados com `age`, mais `SHA256SUMS`). O de
+  04/11 06:03 UTC foi baixado na VPS: `sha256sum -c` **OK** nos três arquivos e
+  cabeçalho `age-encryption.org/v1` válido. Arquivos apagados depois.
+- **Dump:** o mesmo que subiu ao R2 nesse dia (`foodie_platform-20261104-060329.sql`)
+  foi restaurado num `mariadb:11.4` isolado (`--network none`, dados em `tmpfs`),
+  em **1 s**: 93 tabelas, schema `077`, 15 usuários, 6 lojas, 101 pedidos (último
+  #106, o mesmo do staging), 101 pagamentos, 3 assinaturas, nenhum pedido sem loja.
+  O container foi removido no fim.
+
+Comando usado (na VPS, em `/home/deploy/foodie-platform/deploy`):
+
+```bash
+D=backups/<dump>.sql; PW=$(openssl rand -hex 16)
+docker run -d --name ensaio-restauracao --network none --tmpfs /var/lib/mysql:rw,size=1g \
+  -e MARIADB_ROOT_PASSWORD=$PW -e MARIADB_DATABASE=foodie_platform mariadb:11.4
+until docker exec ensaio-restauracao mariadb -uroot -p$PW -e 'SELECT 1' >/dev/null 2>&1; do sleep 2; done
+docker exec -i ensaio-restauracao mariadb -uroot -p$PW foodie_platform < "$D"
+docker exec ensaio-restauracao mariadb -uroot -p$PW foodie_platform -e 'SELECT COUNT(*) FROM orders'
+docker rm -f ensaio-restauracao
+```
+
+**Parte 2, feita pelo dono em 04/11/2026** (só ele tem a chave privada `age`, no
+KeePassXC): o `foodie-20261104T060328Z-database.sql.age` do R2 decifrou no PC e
+começou com `MariaDB dump`. Para repetir, no PC, com a chave num arquivo temporário:
+
+```powershell
+# 1. Na VPS, baixe o conjunto mais recente para /tmp (não precisa de chave):
+ssh -i "$env:USERPROFILE\.ssh\foodie_vps" deploy@2.29.42.104 `
+  'P=$(rclone --config /home/deploy/backup-r2/foodie-rclone.conf lsf -R --dirs-only foodie-r2:foodie-backups/foodie/ | grep -E "T[0-9]{6}Z/$" | sort | tail -1); rm -rf /tmp/ensaio-r2; rclone --config /home/deploy/backup-r2/foodie-rclone.conf copy "foodie-r2:foodie-backups/foodie/$P" /tmp/ensaio-r2/ && ls /tmp/ensaio-r2'
+# 2. Traga para o PC e apague da VPS:
+scp -i "$env:USERPROFILE\.ssh\foodie_vps" "deploy@2.29.42.104:/tmp/ensaio-r2/*-database.sql.age" .
+ssh -i "$env:USERPROFILE\.ssh\foodie_vps" deploy@2.29.42.104 'rm -rf /tmp/ensaio-r2'
+# 3. Decifre e confira o começo do dump (deve aparecer "MariaDB dump"):
+age -d -i C:\caminho\foodie-age.key -o ensaio.sql (Get-Item *-database.sql.age).Name
+Get-Content ensaio.sql -TotalCount 3
+# 4. Apague o .age, o ensaio.sql e o arquivo temporário da chave.
+```
+
+Se o passo 3 mostrar `MariaDB dump`, o ensaio está completo (a parte 1 já provou
+que esse dump restaura). **O ensaio de 04/11/2026 está completo.** Repetir
+**mensalmente** (README do deploy).
 
 ## 6. Diagnóstico rápido
 
