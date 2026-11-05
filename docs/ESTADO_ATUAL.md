@@ -423,6 +423,10 @@ recusa e assim por diante.
   `docs/superpowers/specs/2026-11-04-lgpd-minimo-design.md`. **Falta:** revisão jurídica do rascunho
   dos textos (editáveis em Conteúdo → Páginas) e indicar o encarregado/canal do titular
   `(a confirmar com o dono)`.
+- **Ensaio de restauração (04/11/2026), completo:** os arquivos do R2 conferem (SHA-256 e
+  cabeçalho `age`), o dump do mesmo dia restaurou num MariaDB descartável com os números do staging
+  e o dono decifrou o `.age` do R2 com a chave privada (`MariaDB dump`). Repetir todo mês
+  (`RUNBOOK_VPS.md` §5).
 - **A receita da Foodie é só a assinatura.** A cobrança real da assinatura (item acima) passa a ser o
   único fluxo de dinheiro da plataforma.
 - **Recebimento livre por restaurante** — confirmação de pagamento na entrega
@@ -436,7 +440,7 @@ recusa e assim por diante.
   passou a repassar `MAIL_*` e `SPRING_MAIL_*` pelo Compose; falta configurar um provedor real e
   testar o link de verificação/recuperação. A **origem/CSRF** foi implementada nas PRs #96 e #97
   (`OriginCheckFilter` + domínio base na lista) e validada no staging. O ensaio de restauração do
-  R2, o teste de carga na VPS, a troca de credenciais e o ambiente de produção (domínio, conta
+  R2 foi feito em 04/11. O teste de carga na VPS, a troca de credenciais e o ambiente de produção (domínio, conta
   Mercado Pago e chave Pix) continuam pendentes.
 
 ### Prioridade média — produto e governança
@@ -546,7 +550,7 @@ novo o estorno pela loja com o **diálogo de motivo** e tirar os prints para o c
 exigido depois do roteiro do 3DS)`.
 
 **Depois da P0:** o **roteiro funcional da assinatura** no staging (servidor no ar desde a PR #46 e telas
-desde a PR #69, §4) e a prontidão de produção (SMTP real, ensaio de restauração do backup no R2, revisão
+desde a PR #69, §4) e a prontidão de produção (SMTP real, revisão
 de CSRF/origem, carga na VPS e troca de credenciais).
 
 **Histórico do E48 (encerrado em 01/10):** entregue e publicado (`4760fd3`, schema `054`), com
