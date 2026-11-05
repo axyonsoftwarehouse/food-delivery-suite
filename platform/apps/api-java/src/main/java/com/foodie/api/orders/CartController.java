@@ -80,9 +80,9 @@ public class CartController {
     }
 
     @PostMapping("/import")
-    public CartService.CartSnapshot importLocal(@CookieValue(value = "foodie_session", required = false) String token,
+    public CartService.ImportResult importLocal(@CookieValue(value = "foodie_session", required = false) String token,
                                                  @Valid @RequestBody ImportRequest request) {
-        return cart.importIfEmpty(customer(token), request.items());
+        return cart.importItems(customer(token), request.items(), Boolean.TRUE.equals(request.replace()));
     }
 
     @DeleteMapping
@@ -104,8 +104,8 @@ public class CartController {
 
     public record DeltaRequest(@NotNull Integer delta, @Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Size(max = 140) String note) {}
     public record NoteRequest(@Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Size(max = 140) String note, @Size(max = 140) String newNote) {}
-    public record ImportRequest(@NotNull @Size(max = 30) List<@Valid ImportItem> items) {}
-    public record ImportItem(@Positive long productId, @Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Positive @Max(20) int quantity) {}
+    public record ImportRequest(@NotNull @Size(max = 30) List<@Valid ImportItem> items, Boolean replace) {}
+    public record ImportItem(@Positive long productId, @Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Positive @Max(20) int quantity, @Size(max = 140) String note) {}
     public record CheckoutRequest(@Positive Long addressId, @Positive long expectedTotalCents,
                                   @Size(max = 32) String expectedVersion,
                                   @Size(max = 80) String idempotencyKey,

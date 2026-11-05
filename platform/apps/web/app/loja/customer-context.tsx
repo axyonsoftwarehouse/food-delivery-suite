@@ -274,7 +274,8 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
         let oldCart: { productId: number; quantity: number }[] = [];
         try { const saved = window.localStorage.getItem(key); if (saved) oldCart = legacyCart(JSON.parse(saved)); } catch { /* opcional */ }
         if (snapshot.items.length === 0 && oldCart.length > 0) {
-          snapshot = await request<CartSnapshot>('/cart/import', { method: 'POST', body: JSON.stringify({ items: oldCart }) });
+          const imported = await request<{ cart: CartSnapshot; imported: number; skipped: number; replaced: boolean }>('/cart/import', { method: 'POST', body: JSON.stringify({ items: oldCart }) });
+          snapshot = imported.cart;
         }
         try { window.localStorage.removeItem(key); } catch { /* opcional */ }
         if (!cancelled) applyCart(snapshot);

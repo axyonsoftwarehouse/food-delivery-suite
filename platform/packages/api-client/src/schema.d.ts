@@ -5281,6 +5281,14 @@ export interface components {
             orderId?: number;
             body: string;
         };
+        ImportResult: {
+            cart?: components["schemas"]["CartSnapshot"];
+            /** Format: int32 */
+            imported?: number;
+            /** Format: int32 */
+            skipped?: number;
+            replaced?: boolean;
+        };
         CheckoutRequest: {
             /** Format: int64 */
             addressId?: number;
@@ -9087,7 +9095,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["CartSnapshot"];
+                    "*/*": components["schemas"]["ImportResult"];
                 };
             };
         };
@@ -14891,8 +14899,8 @@ export interface operations {
     };
     tags_1: {
         parameters: {
-            query: {
-                zoneId: number;
+            query?: {
+                zoneId?: number;
                 restaurantId?: number;
             };
             header?: never;
@@ -14916,8 +14924,8 @@ export interface operations {
     };
     search: {
         parameters: {
-            query: {
-                zoneId: number;
+            query?: {
+                zoneId?: number;
                 q?: string;
                 restaurantId?: number;
                 categoryId?: number;
