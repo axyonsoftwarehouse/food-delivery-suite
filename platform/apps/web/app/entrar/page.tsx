@@ -9,6 +9,9 @@ import { roleHome, useApp } from '../app-context';
 import { Icon } from '../icons';
 import LegalLinks from '../legal-links';
 
+/** As contas de demonstração só aparecem como sugestão em desenvolvimento, nunca para visitantes. */
+const SHOW_DEMO_USERS = process.env.NODE_ENV === 'development';
+
 export default function Home() {
   const router = useRouter();
   const { user, initializing, authMode, setAuthMode, signupName, setSignupName, email, setEmail, password, setPassword, message, setMessage, busy, login, signup, forgotPassword, googleLogin, facebookLogin, otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, requestOtp, verifyOtp } = useApp();
@@ -74,7 +77,7 @@ export default function Home() {
         <form className="auth-form" key={authMode} onSubmit={authMode === 'login' ? login : signup}>
           <h2 className="m-rise">{authMode === 'login' ? 'Que bom te ver de novo' : 'Crie sua conta'}</h2>
           {authMode === 'signup' && <label className="ui-field auth-field m-rise" style={{ '--i': 2 } as React.CSSProperties}><span className="ui-label">{'Seu nome'}</span><span className="auth-input"><Icon name="user" size={18} /><input className="ui-input" value={signupName} onChange={(event) => setSignupName(event.target.value)} minLength={2} maxLength={120} autoComplete="name" placeholder="Como podemos te chamar?" required /></span></label>}
-          <label className="ui-field auth-field m-rise" style={{ '--i': 2 } as React.CSSProperties}><span className="ui-label">{'Email'}</span><span className="auth-input"><Icon name="mail" size={18} /><input className="ui-input" type="email" list={authMode === 'login' ? 'demo-users' : undefined} value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="voce@email.com" required /></span><datalist id="demo-users"><option value="admin@demo.local" /><option value="restaurante@demo.local" /><option value="entregador@demo.local" /><option value="cliente@demo.local" /></datalist></label>
+          <label className="ui-field auth-field m-rise" style={{ '--i': 2 } as React.CSSProperties}><span className="ui-label">{'Email'}</span><span className="auth-input"><Icon name="mail" size={18} /><input className="ui-input" type="email" list={authMode === 'login' && SHOW_DEMO_USERS ? 'demo-users' : undefined} value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="voce@email.com" required /></span>{SHOW_DEMO_USERS && <datalist id="demo-users"><option value="admin@demo.local" /><option value="restaurante@demo.local" /><option value="entregador@demo.local" /><option value="cliente@demo.local" /></datalist>}</label>
           {authMode === 'signup'
             ? <>
                 <p className="auth-terms m-rise" style={{ '--i': 3 } as React.CSSProperties}>{'Você define sua senha depois de confirmar o email.'}</p>

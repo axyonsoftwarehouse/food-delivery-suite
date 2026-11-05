@@ -171,7 +171,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [otpPhone, setOtpPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
-  const [email, setEmail] = useState('admin@demo.local');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -274,8 +274,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id, user?.role, refresh]);
 
   useEffect(() => {
-    const pending = user && (user.role === 'restaurant' || user.role === 'admin' || user.role === 'kitchen') ? orders.filter((order) => order.status === 'placed').length : 0;
-    document.title = pending ? `(${pending}) Foodie • Plataforma independente` : 'Foodie • Plataforma independente';
+    // Só a equipe da loja vê o contador de pedidos novos na aba; o resto do título é o da página.
+    const staff = user && (user.role === 'restaurant' || user.role === 'admin' || user.role === 'kitchen');
+    const base = document.title.replace(/^\(\d+\)\s*/, '');
+    const pending = staff ? orders.filter((order) => order.status === 'placed').length : 0;
+    const next = pending ? `(${pending}) ${base}` : base;
+    if (document.title !== next) document.title = next;
   }, [orders, user]);
 
   async function run(action: () => Promise<unknown>, success: string | (() => string)) {

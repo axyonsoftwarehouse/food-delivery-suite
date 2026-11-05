@@ -18,6 +18,8 @@ export default function RestaurantMenu() {
   const [selectedAddons, setSelectedAddons] = useState<number[]>([]);
   const [itemNote, setItemNote] = useState('');
   const [pickerError, setPickerError] = useState('');
+  // Grupo de opções com erro: o aviso aparece dentro dele e a ficha rola até lá (no rodapé ficava atrás dos botões).
+  const [errorGroupId, setErrorGroupId] = useState<number | null>(null);
 
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [justAdded, setJustAdded] = useState<number | null>(null);
@@ -106,10 +108,17 @@ export default function RestaurantMenu() {
   const addonTotal = selectedProduct ? applicableGroups.flatMap((group) => group.addons).filter((addon) => selectedAddons.includes(addon.id)).reduce((sum, addon) => sum + addon.price_cents, 0) : 0;
   const chosenPrice = selectedProduct ? selectedProduct.price_cents + (chosenVariation?.price_delta_cents ?? 0) + addonTotal : 0;
 
-  function toggleAddon(group: { name: string; max_select: number; addons: { id: number }[] }, addonId: number) {
+  function failGroup(groupId: number, message: string) {
+    setErrorGroupId(groupId);
+    setPickerError(message);
+    const node = document.querySelector(`.customer-sheet [data-group-id="${groupId}"]`);
+    node?.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }
+
+  function toggleAddon(group: { id: number; name: string; max_select: number; addons: { id: number }[] }, addonId: number) {
     if (selectedAddons.includes(addonId)) { setSelectedAddons(selectedAddons.filter((id) => id !== addonId)); return; }
     const selectedInGroup = group.addons.filter((addon) => selectedAddons.includes(addon.id));
-    if (selectedInGroup.length >= group.max_select) { setPickerError(`Escolha no máximo ${group.max_select} em "${group.name}".`); return; }
+    if (selectedInGroup.length >= group.max_select) { failGroup(group.id, `Escolha no máximo ${optionCount(group.max_select)} em "${group.name}".`); return; }
     setPickerError('');
     setSelectedAddons([...selectedAddons, addonId]);
   }
@@ -119,8 +128,8 @@ export default function RestaurantMenu() {
     for (const group of applicableGroups) {
       const count = group.addons.filter((addon) => selectedAddons.includes(addon.id)).length;
       const min = group.required ? Math.max(1, group.min_select) : group.min_select;
-      if (count < min) { setPickerError(`Escolha ao menos ${min} opção(ões) em "${group.name}".`); return; }
-      if (count > group.max_select) { setPickerError(`Escolha no máximo ${group.max_select} opção(ões) em "${group.name}".`); return; }
+      if (count < min) { failGroup(group.id, `Escolha ${min === 1 ? '' : 'ao menos '}${optionCount(min)} em "${group.name}".`); return; }
+      if (count > group.max_select) { failGroup(group.id, `Escolha no máximo ${optionCount(group.max_select)} em "${group.name}".`); return; }
     }
     setPickerError('');
     const product = visibleProducts.find((item) => item.id === selectedProduct.id);
@@ -254,8 +263,10 @@ export default function RestaurantMenu() {
             const min = group.required ? Math.max(1, group.min_select) : group.min_select;
             const count = group.addons.filter((addon) => selectedAddons.includes(addon.id)).length;
             const single = group.max_select === 1;
-            return <fieldset className="customer-option-group" key={group.id}>
+            const invalid = Boolean(pickerError) && errorGroupId === group.id;
+            return <fieldset className={`customer-option-group${invalid ? ' is-invalid' : ''}`} key={group.id} data-group-id={group.id} aria-invalid={invalid || undefined}>
               <legend><strong>{group.name}</strong><span className={`ui-badge ${min > 0 ? (count >= min ? 'ui-badge--success' : 'ui-badge--warning') : 'ui-badge--neutral'}`}>{min > 0 && count >= min ? <Icon name="check" size={12} /> : min === group.max_select ? `Escolha ${min}` : min > 0 ? `Escolha de ${min} a ${group.max_select}` : `Até ${group.max_select}`}</span></legend>
+              {invalid && <p className="customer-option-error" role="alert">{pickerError}</p>}
               <div className="customer-options">
                 {group.addons.map((addon) => {
                   const active = selectedAddons.includes(addon.id);
@@ -267,7 +278,7 @@ export default function RestaurantMenu() {
             </fieldset>;
           })}
           <label className="customer-item-note">{'Alguma observação?'}<textarea value={itemNote} onChange={(event) => setItemNote(event.target.value)} maxLength={140} rows={2} placeholder="Ex.: sem cebola, ponto da carne" /></label>
-          {pickerError && <Alert tone="error">{pickerError}</Alert>}
+          {pickerError && errorGroupId === null && <Alert tone="error">{pickerError}</Alert>}
         </div>
         <div className="customer-sheet-footer">
           <button type="button" className="customer-sheet-cancel" onClick={closeProduct}>{'Cancelar'}</button>
@@ -276,4 +287,8 @@ export default function RestaurantMenu() {
       </div>
     </div>}
   </>;
+}
+
+function optionCount(n: number) {
+  return n === 1 ? '1 opção' : `${n} opções`;
 }

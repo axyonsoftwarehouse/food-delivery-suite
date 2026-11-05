@@ -199,6 +199,9 @@
 .customer-item-note textarea { width: 100%; padding: 10px 12px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-size: 15px; font-weight: 400; resize: vertical; }
 .customer-option-group legend { box-sizing: border-box; margin: 0; padding: 12px 20px; background: var(--surface-muted); }
 .customer-option-group legend strong { font: 700 15px var(--font-sans); }
+.customer-option-group.is-invalid legend { background: var(--danger-soft); box-shadow: inset 3px 0 0 var(--danger); }
+.customer-option-error { margin: 0; padding: 10px 20px; background: var(--danger-soft); color: #9a3a2c; font-size: 13px; font-weight: 700; }
+[data-theme='dark'] .customer-option-error { color: var(--danger); }
 .customer-options { gap: 0; }
 .customer-option { padding: 15px 20px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: var(--surface); }
 .customer-option:hover, .customer-option.is-selected { border-color: var(--border); background: var(--surface); }
