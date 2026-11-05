@@ -114,4 +114,15 @@ class CartServiceTest {
         assertThat(result.imported()).isEqualTo(1);
         assertThat(result.skipped()).isEqualTo(1);
     }
+
+    @Test
+    void replaceOnEmptyCartInsertsWithoutDeleteAndIsNotReplaced() {
+        cartRows(false);
+        productsFrom(5L);
+        var result = service.importItems(CUSTOMER, List.of(item(1, null)), true);
+        verify(jdbc, never()).update(startsWith("DELETE FROM cart_items"), any(Object[].class));
+        verify(jdbc, org.mockito.Mockito.times(1)).update(startsWith(INSERT), any(Object[].class));
+        assertThat(result.replaced()).isFalse();
+        assertThat(result.imported()).isEqualTo(1);
+    }
 }

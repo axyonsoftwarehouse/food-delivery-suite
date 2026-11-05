@@ -104,7 +104,9 @@ public class CartController {
 
     public record DeltaRequest(@NotNull Integer delta, @Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Size(max = 140) String note) {}
     public record NoteRequest(@Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Size(max = 140) String note, @Size(max = 140) String newNote) {}
+    @io.swagger.v3.oas.annotations.media.Schema(name = "CartImportRequest")
     public record ImportRequest(@NotNull @Size(max = 30) List<@Valid ImportItem> items, Boolean replace) {}
+    @io.swagger.v3.oas.annotations.media.Schema(name = "CartImportItem")
     public record ImportItem(@Positive long productId, @Positive Long variationId, @Size(max = 20) List<@Positive Long> addonIds, @Positive @Max(20) int quantity, @Size(max = 140) String note) {}
     public record CheckoutRequest(@Positive Long addressId, @Positive long expectedTotalCents,
                                   @Size(max = 32) String expectedVersion,

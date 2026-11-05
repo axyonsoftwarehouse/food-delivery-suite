@@ -326,5 +326,6 @@ public class CartService {
                            String variationName, long unitPriceCents, List<Long> addonIds, List<String> addonNames,
                            String note, boolean available, String unavailableReason) {}
     public record CartSnapshot(List<CartItem> items, String version) {}
+    @io.swagger.v3.oas.annotations.media.Schema(name = "CartImportResult")
     public record ImportResult(CartSnapshot cart, int imported, int skipped, boolean replaced) {}
 }
