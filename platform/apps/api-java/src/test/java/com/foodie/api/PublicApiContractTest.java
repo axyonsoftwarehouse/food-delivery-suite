@@ -3,6 +3,7 @@ package com.foodie.api;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -90,6 +91,32 @@ class PublicApiContractTest {
             .andExpect(status().isBadRequest());
         mvc.perform(get("/catalog/search").param("zoneId", "4").param("restaurantId", "0"))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchWithoutZoneButWithRestaurantIsPublic() throws Exception {
+        when(catalog.search(isNull(), eq(""), eq(3L), isNull(), isNull(), isNull(), eq(12)))
+            .thenReturn(new CatalogRepository.SearchPage(List.of(Map.of("id", 9, "name", "Pizza")), null));
+
+        mvc.perform(get("/catalog/search").param("restaurantId", "3"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].name").value("Pizza"));
+        verify(catalog).search(isNull(), eq(""), eq(3L), isNull(), isNull(), isNull(), eq(12));
+    }
+
+    @Test
+    void searchWithoutZoneAndRestaurantIs400() throws Exception {
+        mvc.perform(get("/catalog/search")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void tagsWithoutZoneButWithRestaurantIsPublic() throws Exception {
+        when(catalog.tags(isNull(), eq(3L))).thenReturn(List.of(Map.of("id", 1, "name", "Vegano")));
+
+        mvc.perform(get("/catalog/tags").param("restaurantId", "3"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].name").value("Vegano"));
+        verify(catalog).tags(isNull(), eq(3L));
     }
 
     @Test
