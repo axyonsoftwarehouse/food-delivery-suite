@@ -4,6 +4,9 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useReasonDialog, type ReasonOptions } from './ReasonDialog';
 import { useConfirmDialog, type ConfirmOptions } from './ConfirmDialog';
 import { useCashDialog } from './CashDialog';
+import { roleHome } from './return-path';
+
+export { roleHome };
 
 export type Role = 'admin' | 'restaurant' | 'kitchen' | 'courier' | 'customer';
 export type User = { id: number; name: string; email: string; role: Role; restaurantId: number | null };
@@ -53,14 +56,6 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value ?? null);
 }
 
-export function roleHome(role: Role) {
-  if (role === 'customer') return '/loja';
-  // A cozinha tem tela própria, em tela cheia (KDS), fora do painel.
-  if (role === 'kitchen') return '/cozinha';
-  // O entregador tem área própria para o celular (área do entregador, parte A).
-  if (role === 'courier') return '/entregas';
-  return '/painel';
-}
 function beep() {
   try {
     const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;

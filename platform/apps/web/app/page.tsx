@@ -28,7 +28,7 @@ export default function Home() {
         <h1 className="m-rise">{'Seu próximo prato favorito está por aqui'}<span>.</span></h1>
         <p className="m-rise" style={{ '--i': 1 } as React.CSSProperties}>{'Descubra restaurantes da sua região e peça com facilidade.'}</p>
         <div className="home-actions m-rise" style={{ '--i': 2 } as React.CSSProperties}>
-          <Link className="home-primary m-shine" href={destination}>{'Fazer um pedido'}<Icon name="arrow-right" size={18} /></Link>
+          {user ? <Link className="home-primary m-shine" href={destination}>{'Fazer um pedido'}<Icon name="arrow-right" size={18} /></Link> : <a className="home-primary m-shine" href="#restaurantes">{'Fazer um pedido'}<Icon name="arrow-right" size={18} /></a>}
           <a className="home-secondary" href="#restaurantes">{'Ver restaurantes'}</a>
         </div>
       </div>

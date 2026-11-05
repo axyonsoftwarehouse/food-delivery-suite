@@ -1,27 +1,40 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import GoogleSignInButton from '../GoogleSignInButton';
 import FacebookSignInButton from '../FacebookSignInButton';
-import { roleHome, useApp } from '../app-context';
+import { useApp } from '../app-context';
+import { loginDestination } from '../return-path';
+import { GUEST_CART_KEY, readGuestCart } from '../loja/guest-cart';
 import { Icon } from '../icons';
 import LegalLinks from '../legal-links';
 
 /** As contas de demonstração só aparecem como sugestão em desenvolvimento, nunca para visitantes. */
 const SHOW_DEMO_USERS = process.env.NODE_ENV === 'development';
 
-export default function Home() {
+const LOADING = <main className="app-loading" role="status"><span className="app-loading-brand"><span className="app-loading-mark"><Icon name="sparkle" /></span>foodie<span>.</span></span><p>{'Carregando...'}</p></main>;
+
+export default function Page() {
+  return <Suspense fallback={LOADING}><Home /></Suspense>;
+}
+
+function Home() {
   const router = useRouter();
+  const voltar = useSearchParams().get('voltar');
   const { user, initializing, authMode, setAuthMode, signupName, setSignupName, email, setEmail, password, setPassword, message, setMessage, busy, login, signup, forgotPassword, googleLogin, facebookLogin, otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, requestOtp, verifyOtp } = useApp();
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    if (!initializing && user) router.replace(roleHome(user.role));
-  }, [initializing, user, router]);
+    if (initializing || !user) return;
+    // O localStorage pode lançar erro (modo privado, bloqueio): sem ele, não há carrinho de visitante.
+    let hasGuestCart = false;
+    try { hasGuestCart = readGuestCart(window.localStorage).items.length > 0; } catch { /* sem carrinho */ }
+    router.replace(loginDestination(user.role, voltar, hasGuestCart));
+  }, [initializing, user, router, voltar]);
 
-  if (initializing) return <main className="app-loading" role="status"><span className="app-loading-brand"><span className="app-loading-mark"><Icon name="sparkle" /></span>foodie<span>.</span></span><p>{'Carregando...'}</p></main>;
+  if (initializing) return LOADING;
   if (user) return <main className="app-loading" role="status"><p>{'Carregando...'}</p></main>;
 
   function switchMode(mode: 'login' | 'signup') {
@@ -73,6 +86,7 @@ export default function Home() {
           <button type="button" role="tab" aria-selected={authMode === 'login'} onClick={() => switchMode('login')} disabled={busy}>{'Entrar'}</button>
           <button type="button" role="tab" aria-selected={authMode === 'signup'} onClick={() => switchMode('signup')} disabled={busy}>{'Criar conta'}</button>
         </div>
+        {voltar === '/loja/carrinho' && <p className="auth-terms">{'Entre ou crie sua conta para finalizar o pedido.'}</p>}
         {message && <div className="ui-alert ui-alert--info auth-message" role="status">{message}</div>}
         <form className="auth-form" key={authMode} onSubmit={authMode === 'login' ? login : signup}>
           <h2 className="m-rise">{authMode === 'login' ? 'Que bom te ver de novo' : 'Crie sua conta'}</h2>
