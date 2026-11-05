@@ -540,3 +540,22 @@ span.lj-flyer { border-radius: 50%; background: var(--brand-500); }
 .lj-tabs button[aria-pressed='true'] { color: var(--lj-accent); }
 .lj-add { color: var(--lj-accent); }
 .lj-topnav a[aria-current='page'] { color: var(--lj-accent); }
+
+/* ---------------------- Cardápio sem login: faixa do CEP ---------------------- */
+/* Contraste (4,5:1) conferido nos dois temas: texto e botões sobre --brand-050, como na PR #104. */
+.lj-guest-login { padding: 8px 4px; font-size: 15px; }
+.lj-cep { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 16px; padding: 12px 16px; border-radius: 16px; background: var(--brand-050); color: var(--text); font-size: 14px; font-weight: 600; line-height: 1.4; }
+.lj-cep > .ui-icon, .lj-cep label .ui-icon { flex: none; color: var(--brand-700); }
+.lj-cep p { flex: 1; min-width: 0; margin: 0; }
+.lj-cep--form { flex-direction: column; align-items: stretch; }
+.lj-cep--form label { display: flex; align-items: center; gap: 8px; }
+.lj-cep-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lj-cep-row input { flex: 1 1 140px; min-width: 0; max-width: 220px; height: 44px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; font-size: 16px; letter-spacing: 0.5px; }
+.lj-cep-row input:focus-visible { outline: 2px solid var(--brand-700); outline-offset: 1px; }
+.lj-cep-submit { height: 44px; padding: 0 18px; border: 0; border-radius: 12px; background: var(--brand-700); color: var(--surface); font: inherit; font-weight: 700; cursor: pointer; }
+.lj-cep-change { padding: 6px 4px; border: 0; background: none; color: var(--brand-700); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.lj-cep-error { margin: 0; color: #9a3a2c; font-size: 13px; }
+.lj-cep-alert { margin: 0 0 16px; }
+[data-theme='dark'] .lj-cep-error { color: var(--danger); }
+/* O amarelo-escuro do aviso some no fundo escuro (#8a5a12 sobre #33270f): no tema escuro, o texto normal. */
+[data-theme='dark'] .lj-cep-alert .ui-alert--warning, [data-theme='dark'] .customer-sheet .ui-alert--warning { color: var(--text); }

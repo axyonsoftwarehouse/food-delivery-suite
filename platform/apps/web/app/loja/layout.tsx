@@ -44,7 +44,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [cartCount]);
   const notice = message || localMessage;
-  const initial = user.name.trim().charAt(0).toLocaleUpperCase('pt-BR');
+  const initial = (user?.name ?? '').trim().charAt(0).toLocaleUpperCase('pt-BR');
   // O Perfil tem o próprio formulário de endereço, na lista de endereços.
   const addressPanel = showAddressForm && pathname !== '/loja/perfil';
 
@@ -60,7 +60,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="lj-header-actions">
           <NotificationsBell onOpenOrder={(orderId) => router.push(`/loja/pedidos?order=${orderId}`)} />
-          <Link className="lj-avatar" href="/loja/perfil" aria-label={`Perfil de ${user.name}`}>{initial}</Link>
+          <Link className="lj-avatar" href="/loja/perfil" aria-label={`Perfil de ${user?.name ?? ''}`}>{initial}</Link>
         </div>
       </div>
     </header>
@@ -93,22 +93,69 @@ function Shell({ children }: { children: React.ReactNode }) {
   </main>;
 }
 
+/**
+ * Visitante (cardápio sem login): só a marca e o "Entrar", que volta para a mesma página.
+ * Sem a navegação do cliente, o sino, o seletor de endereço e o registro da indicação (rotas da conta).
+ */
+function GuestShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { message } = useApp();
+  const { connection, localMessage, cartCount, subtotal } = useCustomer();
+  const notice = message || localMessage;
+
+  return <main className="customer-app">
+    <header className="lj-header">
+      <div className="lj-header-inner">
+        <Link className="lj-brand" href="/" aria-label="Foodie, início"><span className="lj-brand-mark"><Icon name="sparkle" size={16} /></span>foodie</Link>
+        <div className="lj-header-actions">
+          <Link className="lj-text-button lj-guest-login" href={`/entrar?voltar=${encodeURIComponent(pathname)}`}>{'Entrar'}</Link>
+        </div>
+      </div>
+    </header>
+
+    {connection === 'offline' && <p className="lj-offline" role="status">{'Sem conexão. Tentando de novo…'}</p>}
+
+    <div className="lj-page customer-page" key={pathname}>
+      {children}
+    </div>
+
+    {notice && <div className="customer-toast" role="status" key={`${notice}-${cartCount}`}><span className="customer-toast-icon"><Icon name="check" size={14} /></span>{notice}</div>}
+
+    {cartCount > 0 && pathname !== '/loja/carrinho' && <Link className="lj-cartbar" href="/loja/carrinho">
+      <span className="lj-cartbar-count"><Rolling value={cartCount} /></span>
+      <span className="lj-cartbar-label">{'Ver carrinho'}</span>
+      <strong><Rolling value={money(subtotal)} /></strong>
+    </Link>}
+  </main>;
+}
+
+/** Rotas abertas ao visitante: o cardápio da loja e o carrinho. */
+function isGuestRoute(pathname: string) {
+  return /^\/loja\/restaurantes\/[1-9]\d*\/?$/.test(pathname) || pathname === '/loja/carrinho';
+}
+
 export default function LojaLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, initializing } = useApp();
+  const guestRoute = isGuestRoute(pathname);
 
   // Antes da checagem de login: o redirecionamento para /entrar perderia o código do link de indicação.
   useEffect(() => { captureReferralLink(); }, []);
 
   useEffect(() => {
     if (initializing) return;
-    if (!user) router.replace('/entrar');
+    if (!user) { if (!guestRoute) router.replace('/entrar'); }
     else if (user.role !== 'customer') router.replace('/painel');
-  }, [initializing, user, router]);
+  }, [initializing, user, router, guestRoute]);
+
+  if (!initializing && !user && guestRoute) {
+    return <CustomerProvider key="guest" guest><GuestShell>{children}</GuestShell></CustomerProvider>;
+  }
 
   if (initializing || !user || user.role !== 'customer') {
     return <main className="app-loading" role="status"><span className="app-loading-brand"><span className="app-loading-mark"><Icon name="sparkle" /></span>foodie<span>.</span></span><p>{'Carregando...'}</p></main>;
   }
 
-  return <CustomerProvider><Shell>{children}</Shell></CustomerProvider>;
+  return <CustomerProvider key="customer"><Shell>{children}</Shell></CustomerProvider>;
 }

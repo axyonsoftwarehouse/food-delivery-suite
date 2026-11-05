@@ -20,10 +20,10 @@ export default function PerfilClientePage() {
 
   return <div className="profile-page">
     <section className="profile-hero m-rise">
-      <span className="profile-avatar" aria-hidden="true">{user.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
+      <span className="profile-avatar" aria-hidden="true">{(user?.name ?? '').trim().charAt(0).toLocaleUpperCase('pt-BR')}</span>
       <div className="profile-id">
-        <h1>{user.name}</h1>
-        <p>{user.email}{security && <span className={`profile-badge${security.emailVerified ? ' is-ok' : ''}`}>{security.emailVerified ? <><Icon name="check" size={12} />{'Verificado'}</> : 'E-mail pendente'}</span>}</p>
+        <h1>{user?.name}</h1>
+        <p>{user?.email}{security && <span className={`profile-badge${security.emailVerified ? ' is-ok' : ''}`}>{security.emailVerified ? <><Icon name="check" size={12} />{'Verificado'}</> : 'E-mail pendente'}</span>}</p>
       </div>
     </section>
 

@@ -10,10 +10,11 @@ import RestaurantMedia from './restaurant-media';
 import { ReferralBlock } from './referral';
 import { estimateMinutes, etaRange } from './eta';
 import { FadeImg, Rolling, flyToCart, prefersReducedMotion } from './motion';
+import GuestCep from './guest-cep';
 
 export default function RestaurantMenu() {
   const { busy, setMessage } = useApp();
-  const { catalog, restaurantId, selectedAddress, selectedZone, setCategoryId, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, searchCachedAt, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId, cartEntries } = useCustomer();
+  const { restaurantId, selectedAddress, selectedZone, setCategoryId, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, searchCachedAt, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId, cartEntries, guest, menuDelivery, deliveryBlockedReason } = useCustomer();
   const [chosen, setChosen] = useState<number | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<number[]>([]);
   const [itemNote, setItemNote] = useState('');
@@ -61,7 +62,11 @@ export default function RestaurantMenu() {
     setPickerError('');
   }, [selectedProduct]);
 
-  useEffect(() => { api<{ id: number }[]>('/me/favorites').then((rows) => setFavorites(new Set(rows.map((row) => row.id)))).catch(() => {}); }, []);
+  // Favoritos são da conta: o visitante não chama a rota (sem 401).
+  useEffect(() => {
+    if (guest) return;
+    api<{ id: number }[]>('/me/favorites').then((rows) => setFavorites(new Set(rows.map((row) => row.id)))).catch(() => {});
+  }, [guest]);
 
   // Com a ficha do prato aberta: Esc fecha e a página de trás não rola.
   const closeRef = useRef(closeProduct);
@@ -168,7 +173,9 @@ export default function RestaurantMenu() {
   }
 
   const restaurant = restaurantId ? restaurantById.get(restaurantId) : undefined;
-  const covered = !!restaurant && !!selectedAddress && catalog.coverage.some((item) => item.restaurant_id === restaurant.id && item.zone_id === selectedAddress.zone_id);
+  // O cardápio aparece sempre; fora da área de entrega, só o "Adicionar" fica desabilitado, com o motivo.
+  const covered = !!restaurant && menuDelivery === 'covered';
+  const blocked = Boolean(deliveryBlockedReason);
   const sheetCover = selectedProduct ? visibleProducts.find((product) => product.id === selectedProduct.id) : undefined;
 
   return <>
@@ -188,10 +195,12 @@ export default function RestaurantMenu() {
       </div>
     </section>
 
-    {restaurant && <ReferralBlock restaurantId={restaurant.id} />}
+    {restaurant && !guest && <ReferralBlock restaurantId={restaurant.id} />}
 
     <section className="lj-menu" id="cardapio">
-      {!restaurant || !covered ? <div className="lj-empty"><Icon name="utensils" size={28} /><p>{!restaurant ? 'Restaurante não encontrado.' : !selectedAddress ? 'Adicione um endereço para ver o cardápio.' : 'Este restaurante não entrega no endereço escolhido.'}</p><Link className="lj-text-button" href="/loja">{'Ver restaurantes disponíveis'}</Link></div> : <>
+      {restaurant && (guest || !selectedAddress) && <GuestCep />}
+      {restaurant && !guest && selectedAddress && blocked && <div className="lj-cep-alert"><Alert tone="warning">{deliveryBlockedReason}</Alert></div>}
+      {!restaurant ? <div className="lj-empty"><Icon name="utensils" size={28} /><p>{'Restaurante não encontrado.'}</p><Link className="lj-text-button" href={guest ? '/' : '/loja'}>{'Ver restaurantes disponíveis'}</Link></div> : <>
       <label className="lj-search"><Icon name="search" size={18} /><span className="sr-only">{'Buscar pratos neste restaurante'}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar no cardápio" /><button type="button" className="lj-search-voice" onClick={voiceSearch} aria-label="Buscar por voz"><Icon name="mic" size={18} /></button></label>
       {/* Só as abas ficam presas no topo: a busca e as tags rolam com a página. */}
       <div className={`lj-sticky${compact ? ' is-compact' : ''}`}>
@@ -205,8 +214,7 @@ export default function RestaurantMenu() {
       {tags.length > 0 && <div className="lj-chips lj-chips--small" role="group" aria-label="Filtrar por tag">{tags.map((tag) => <button type="button" key={tag.id} aria-pressed={tagId === tag.id} onClick={() => setTagId(tagId === tag.id ? null : tag.id)}>{tag.name}{tagId === tag.id && <Icon name="x" size={12} />}</button>)}</div>}
       <h2 className="lj-menu-title lj-enter" key={`t-${categoryId}`}>{categoryId === null ? 'Cardápio' : availableCategories.find((category) => category.id === categoryId)?.name ?? 'Cardápio'}</h2>
       {searchCachedAt && <p className="lj-offline" role="status">{`Sem conexão: mostrando o cardápio salvo em ${new Date(searchCachedAt).toLocaleString('pt-BR')}.`}</p>}
-      {!selectedAddress ? <div className="lj-empty"><Icon name="map-pin" size={28} /><p>{'Adicione um endereço para ver o cardápio.'}</p></div>
-        : searchLoading && !visibleProducts.length ? <div className="lj-products" role="status"><span className="sr-only">{'Buscando pratos disponíveis...'}</span>{[0, 1, 2, 3].map((item) => <div className="lj-product lj-product--skeleton" key={item}><div className="lj-product-text"><Skeleton /><Skeleton /><Skeleton /></div><Skeleton className="lj-product-media" /></div>)}</div>
+      {searchLoading && !visibleProducts.length ? <div className="lj-products" role="status"><span className="sr-only">{'Buscando pratos disponíveis...'}</span>{[0, 1, 2, 3].map((item) => <div className="lj-product lj-product--skeleton" key={item}><div className="lj-product-text"><Skeleton /><Skeleton /><Skeleton /></div><Skeleton className="lj-product-media" /></div>)}</div>
         : searchError && !visibleProducts.length ? <div className="lj-empty" role="alert"><p>{searchError}</p></div>
         : visibleProducts.length === 0 ? <div className="lj-empty"><Icon name="search" size={28} /><p>{'Nenhum prato encontrado.'}</p></div>
         : <div className="lj-products" key={`${categoryId}-${tagId}`}>{visibleProducts.map((product, index) => {
@@ -225,8 +233,8 @@ export default function RestaurantMenu() {
               </div>
               <div className="lj-product-media">
                 {product.image_url ? <FadeImg src={product.image_url} alt="" loading="lazy" /> : <span className="lj-media-fallback"><Icon name="utensils" size={24} /></span>}
-                <button className={`lj-fav${favorite ? ' is-fav' : ''}`} type="button" aria-pressed={favorite} aria-label={favorite ? `Remover ${product.name} dos favoritos` : `Favoritar ${product.name}`} onClick={() => void toggleFavorite(product.id)}><Icon name="heart" size={16} filled={favorite} /></button>
-                <button className={`lj-add${justAdded === product.id ? ' is-added' : ''}`} type="button" onClick={(event) => quickAdd(product, event.currentTarget)} disabled={busy || cartBusy || productLoading || !cartLoaded || closed} title={closed ? 'Restaurante fora do horário de funcionamento' : undefined} aria-label={`${hasVariations ? 'Escolher opção de' : 'Adicionar'} ${product.name}`}><Icon name={justAdded === product.id ? 'check' : 'plus'} size={18} /></button>
+                {!guest && <button className={`lj-fav${favorite ? ' is-fav' : ''}`} type="button" aria-pressed={favorite} aria-label={favorite ? `Remover ${product.name} dos favoritos` : `Favoritar ${product.name}`} onClick={() => void toggleFavorite(product.id)}><Icon name="heart" size={16} filled={favorite} /></button>}
+                <button className={`lj-add${justAdded === product.id ? ' is-added' : ''}`} type="button" onClick={(event) => quickAdd(product, event.currentTarget)} disabled={busy || cartBusy || productLoading || !cartLoaded || closed || blocked} title={closed ? 'Restaurante fora do horário de funcionamento' : blocked ? deliveryBlockedReason : undefined} aria-label={`${hasVariations ? 'Escolher opção de' : 'Adicionar'} ${product.name}`}><Icon name={justAdded === product.id ? 'check' : 'plus'} size={18} /></button>
               </div>
             </article>;
           })}</div>}
@@ -279,10 +287,11 @@ export default function RestaurantMenu() {
           })}
           <label className="customer-item-note">{'Alguma observação?'}<textarea value={itemNote} onChange={(event) => setItemNote(event.target.value)} maxLength={140} rows={2} placeholder="Ex.: sem cebola, ponto da carne" /></label>
           {pickerError && errorGroupId === null && <Alert tone="error">{pickerError}</Alert>}
+          {blocked && <Alert tone="warning">{deliveryBlockedReason}</Alert>}
         </div>
         <div className="customer-sheet-footer">
           <button type="button" className="customer-sheet-cancel" onClick={closeProduct}>{'Cancelar'}</button>
-          <button type="button" className="customer-solid-button customer-sheet-add" onClick={confirmAdd} disabled={productLoading || cartBusy || !selectedProduct.variations.length}><span>{'Adicionar'}</span><strong><Rolling value={money(chosenPrice)} /></strong></button>
+          <button type="button" className="customer-solid-button customer-sheet-add" onClick={confirmAdd} disabled={productLoading || cartBusy || !selectedProduct.variations.length || blocked} title={blocked ? deliveryBlockedReason : undefined}><span>{'Adicionar'}</span><strong><Rolling value={money(chosenPrice)} /></strong></button>
         </div>
       </div>
     </div>}
