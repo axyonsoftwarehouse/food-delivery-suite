@@ -7,8 +7,9 @@ Foi feito um pedido de teste (#107, dinheiro), cancelado em seguida.
 Fluxo percorrido: home → página pública da loja → entrar → início logado → loja →
 item com opções → carrinho → pedido → acompanhamento → cancelamento → perfil.
 
-**Andamento (05/11):** itens **1, 3 e 4 corrigidos** na branch `fix/ux-cliente-rapidos`.
-Próximo: item 2 (cardápio sem login).
+**Andamento (06/11):** itens **1, 3 e 4 corrigidos** (PR #104). Item **2 resolvido** na branch
+`feat/cardapio-sem-login` (pendente de PR e conferência no staging). Item **8 em parte**: o cardápio já
+abre sem login, mas a página pública da loja ainda não mostra aberto/fechado, horário, taxa e mínimo.
 
 **Impressão geral:** a parte logada está boa — início com "Peça de novo", loja com
 tempo/taxa/mínimo, ficha do item com preço que atualiza, carrinho completo, linha do
@@ -30,6 +31,9 @@ em alguns detalhes de feedback.
    nem preço antes de se cadastrar — é onde mais se perde cliente.
    - Correção: cardápio público em `/restaurantes/[id]` e login só ao finalizar o
      pedido, voltando para o carrinho depois de entrar.
+   - **Resolvido (06/11, branch `feat/cardapio-sem-login`):** o visitante vê o cardápio, informa o
+     CEP e monta o carrinho sem login; o login só é pedido antes do pagamento, e o carrinho do
+     visitante vai para a conta depois de entrar. Falta a conferência no celular, no staging.
 
 ## Médios
 
