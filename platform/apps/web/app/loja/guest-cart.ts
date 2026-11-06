@@ -21,6 +21,7 @@ export const GUEST_CART_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const MAX_LINES = 30;
 const MAX_QUANTITY = 20;
+export const GUEST_MAX_QUANTITY = MAX_QUANTITY;
 const MAX_NOTE = 140;
 
 // Carrinho vazio: updatedAt 0 (nunca "vence" nada, pois não há o que expirar).
@@ -108,6 +109,27 @@ export function toImportItems(cart: GuestCart): { productId: number; variationId
     quantity: l.quantity,
     note: l.note,
   }));
+}
+
+/** Itens prontos para o `/cart/import`: quantidade inteira de 1 a 20, observação até 140 e no máximo 30 itens (um carrinho editado à mão não derruba o import inteiro com 400). */
+export function sanitizeImportItems(cart: GuestCart): ReturnType<typeof toImportItems> {
+  return toImportItems(cart).slice(0, MAX_LINES).map((item) => ({
+    ...item,
+    quantity: Math.min(Math.max(Math.floor(item.quantity) || 1, 1), MAX_QUANTITY),
+    note: item.note.slice(0, MAX_NOTE),
+  }));
+}
+
+/**
+ * Lê o carrinho válido e não vazio e apaga a chave na mesma chamada: quem importa é dono do carrinho
+ * a partir daqui (recarregar a página não importa duas vezes). Sem carrinho, devolve null.
+ */
+export function takeGuestCartForImport(store: Storage | null, now = Date.now()): GuestCart | null {
+  if (!store) return null;
+  const cart = readGuestCart(store, now);
+  if (cart.items.length === 0) return null;
+  try { store.removeItem(GUEST_CART_KEY); } catch { /* sem como apagar: segue com o carrinho lido */ }
+  return cart;
 }
 
 export function readGuestCep(store: Storage | null): string | null {

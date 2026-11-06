@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { addGuestLine, readGuestCart, readGuestCep, setGuestNote, setGuestQuantity, writeGuestCart, writeGuestCep, type GuestCart, type GuestCartLine } from './guest-cart';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { GUEST_MAX_QUANTITY, addGuestLine, readGuestCart, readGuestCep, setGuestNote, setGuestQuantity, writeGuestCart, writeGuestCep, type GuestCart, type GuestCartLine } from './guest-cart';
 
 /** O `window.localStorage` pode lançar (modo privado, site bloqueado): sem ele, tudo vive só na memória da aba. */
 export function guestStorage(): Storage | null {
@@ -31,47 +31,66 @@ const EMPTY: GuestCart = { restaurantId: null, updatedAt: 0, items: [] };
 export function useGuestCart(active: boolean) {
   const [cart, setCart] = useState<GuestCart>(EMPTY);
   const [loaded, setLoaded] = useState(false);
+  // O carrinho mais recente vive também numa ref: dois toques seguidos em "+" (antes de renderizar) compõem em vez de um apagar o outro.
+  const latest = useRef<GuestCart>(EMPTY);
 
   const reload = useCallback(() => {
-    setCart(readGuestCart(guestStorage()));
+    const next = readGuestCart(guestStorage());
+    latest.current = next;
+    setCart(next);
     setLoaded(true);
   }, []);
 
   useEffect(() => { if (active) reload(); }, [active, reload]);
 
   function save(next: GuestCart) {
+    latest.current = next;
     writeGuestCart(guestStorage(), next);
     setCart(next);
   }
 
-  /** Soma uma unidade à linha igual ou cria a linha nova. */
-  function add(restaurantId: number, line: Omit<GuestCartLine, 'quantity'>) {
-    const index = cart.restaurantId === restaurantId ? findLine(cart, line) : -1;
-    save(index >= 0 ? setGuestQuantity(cart, index, cart.items[index].quantity + 1) : addGuestLine(cart, restaurantId, { ...line, quantity: 1 }));
+  /** Soma uma unidade à linha igual ou cria a linha nova. Devolve false quando nada mudou (a linha já está em 20). */
+  function add(restaurantId: number, line: Omit<GuestCartLine, 'quantity'>): boolean {
+    const current = latest.current;
+    const index = current.restaurantId === restaurantId ? findLine(current, line) : -1;
+    if (index >= 0) {
+      if (current.items[index].quantity >= GUEST_MAX_QUANTITY) return false;
+      save(setGuestQuantity(current, index, current.items[index].quantity + 1));
+      return true;
+    }
+    save(addGuestLine(current, restaurantId, { ...line, quantity: 1 }));
+    return true;
   }
 
-  function changeQuantity(key: GuestLineKey, delta: number) {
-    const index = findLine(cart, key);
-    if (index >= 0) save(setGuestQuantity(cart, index, cart.items[index].quantity + delta));
+  /** Devolve false quando nada mudou (soma além de 20 ou linha inexistente). */
+  function changeQuantity(key: GuestLineKey, delta: number): boolean {
+    const current = latest.current;
+    const index = findLine(current, key);
+    if (index < 0) return false;
+    if (delta > 0 && current.items[index].quantity >= GUEST_MAX_QUANTITY) return false;
+    save(setGuestQuantity(current, index, current.items[index].quantity + delta));
+    return true;
   }
 
   function remove(key: GuestLineKey) {
-    const index = findLine(cart, key);
-    if (index >= 0) save(setGuestQuantity(cart, index, 0));
+    const current = latest.current;
+    const index = findLine(current, key);
+    if (index >= 0) save(setGuestQuantity(current, index, 0));
   }
 
   /** Trocar a observação move a linha e soma com outra igual, se houver (como no servidor). */
   function changeNote(key: GuestLineKey, newNote: string) {
-    const index = findLine(cart, key);
+    const current = latest.current;
+    const index = findLine(current, key);
     if (index < 0) return;
     const note = newNote.trim();
-    const target = findLine(cart, { ...key, note });
+    const target = findLine(current, { ...key, note });
     if (target >= 0 && target !== index) {
-      const merged = setGuestQuantity(cart, target, cart.items[target].quantity + cart.items[index].quantity);
+      const merged = setGuestQuantity(current, target, current.items[target].quantity + current.items[index].quantity);
       save(setGuestQuantity(merged, index, 0));
       return;
     }
-    save(setGuestNote(cart, index, note));
+    save(setGuestNote(current, index, note));
   }
 
   function clear() {

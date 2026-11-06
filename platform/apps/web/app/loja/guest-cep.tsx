@@ -16,8 +16,12 @@ export function formatCep(cep: string) {
  * Faixa do CEP no topo do cardápio (cardápio sem login): para o visitante e para o cliente sem endereço.
  * Sem CEP, pede o CEP; com a loja entregando, resume tempo e taxa "a partir de"; fora da área, avisa.
  */
-export default function GuestCep() {
-  const { guestCep, setGuestCep, guestZone, guestCepLoading, menuDelivery, deliveryBlockedReason, restaurantId, restaurantById } = useCustomer();
+export default function GuestCep({ scope = 'menu' }: { scope?: 'menu' | 'cart' }) {
+  const { guestCep, setGuestCep, guestZone, guestCepLoading, guestCepError, retryGuestCep, restaurantById, ...customer } = useCustomer();
+  // No cardápio vale a loja aberta; no carrinho, a loja do carrinho.
+  const menuDelivery = scope === 'cart' ? customer.cartDelivery : customer.menuDelivery;
+  const deliveryBlockedReason = scope === 'cart' ? customer.cartBlockedReason : customer.deliveryBlockedReason;
+  const restaurantId = scope === 'cart' ? customer.cartEntries[0]?.product.restaurant_id : customer.restaurantId;
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
@@ -39,6 +43,12 @@ export default function GuestCep() {
 
   if (guestCep && !editing && guestCepLoading) {
     return <div className="lj-cep" role="status"><Icon name="map-pin" size={18} /><p>{`Consultando o CEP ${formatCep(guestCep)}…`}</p></div>;
+  }
+
+  if (guestCep && !editing && guestCepError) {
+    return <div className="lj-cep-alert">
+      <Alert tone="warning" action={<span><button type="button" className="lj-cep-change" onClick={retryGuestCep}>{'Tentar de novo'}</button>{' '}<button type="button" className="lj-cep-change" onClick={change}>{'trocar'}</button></span>}>{`Não foi possível consultar o CEP ${formatCep(guestCep)}.`}</Alert>
+    </div>;
   }
 
   if (guestCep && !editing && menuDelivery === 'covered' && guestZone) {

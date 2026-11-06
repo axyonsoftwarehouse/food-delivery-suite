@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   GUEST_CART_KEY, GUEST_CART_MAX_AGE_MS, GUEST_CEP_KEY, addGuestLine, guestSubtotalCents, readGuestCart, readGuestCep,
-  setGuestNote, setGuestQuantity, toImportItems, writeGuestCart, writeGuestCep, type GuestCart, type GuestCartLine,
+  sanitizeImportItems, setGuestNote, setGuestQuantity, takeGuestCartForImport, toImportItems, writeGuestCart, writeGuestCep, type GuestCart, type GuestCartLine,
 } from './guest-cart.ts';
 
 function fakeStore(): Storage & { data: Map<string, string> } {
@@ -114,4 +114,34 @@ test('CEP guarda só 8 dígitos', () => {
   assert.equal(readGuestCep(store), '60000000');
   writeGuestCep(store, null);
   assert.equal(readGuestCep(store), null);
+});
+
+test('takeGuestCartForImport devolve o carrinho e apaga a chave na mesma chamada', () => {
+  const store = fakeStore();
+  const cart: GuestCart = { restaurantId: 3, updatedAt: 1000, items: [line()] };
+  writeGuestCart(store, cart);
+  assert.deepEqual(takeGuestCartForImport(store, 2000), cart);
+  assert.equal(store.data.has(GUEST_CART_KEY), false);
+  assert.equal(takeGuestCartForImport(store, 2000), null);
+});
+
+test('takeGuestCartForImport com o carrinho vencido ou sem armazenamento devolve null', () => {
+  const store = fakeStore();
+  writeGuestCart(store, { restaurantId: 3, updatedAt: 1000, items: [line()] });
+  assert.equal(takeGuestCartForImport(store, 1000 + GUEST_CART_MAX_AGE_MS + 1), null);
+  assert.equal(store.data.has(GUEST_CART_KEY), false);
+  assert.equal(takeGuestCartForImport(null), null);
+  assert.equal(takeGuestCartForImport(throwing), null);
+});
+
+test('sanitizeImportItems limita quantidade, observação e número de itens', () => {
+  const many = Array.from({ length: 35 }, (_, i) => line({ productId: i + 1 }));
+  assert.equal(sanitizeImportItems({ restaurantId: 1, updatedAt: 1, items: many }).length, 30);
+  const [a, b, c] = sanitizeImportItems({ restaurantId: 1, updatedAt: 1, items: [
+    line({ quantity: 99 }), line({ quantity: 0.4 }), line({ quantity: 2.9, note: 'x'.repeat(200) }),
+  ] });
+  assert.equal(a.quantity, 20);
+  assert.equal(b.quantity, 1);
+  assert.equal(c.quantity, 2);
+  assert.equal(c.note.length, 140);
 });

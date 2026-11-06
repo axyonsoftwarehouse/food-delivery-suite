@@ -6,7 +6,7 @@ import { Address, Catalog, Order, Product, Role, User, Zone, api, useApp } from 
 import { browserCache, cacheKey, readCache, writeCache } from './offline-cache';
 import { deliveryStatus, type DeliveryStatus } from './delivery-status';
 import { useGuestCart, useStoredCep } from './use-guest-cart';
-import type { GuestCartLine } from './guest-cart';
+import { guestSubtotalCents, readGuestCep, sanitizeImportItems, takeGuestCartForImport, writeGuestCart, type GuestCart, type GuestCartLine } from './guest-cart';
 
 type Restaurant = { id: number; name: string; slug: string; open?: boolean };
 type CartItem = { productId: number; variationId: number; quantity: number; restaurantId: number; name: string; priceCents: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; note?: string; available: boolean; unavailableReason: string | null };
@@ -29,6 +29,14 @@ type CustomerValue = {
   setGuestCep: (cep: string | null) => void;
   guestZone: GuestZone | null;
   guestCepLoading: boolean;
+  /** A consulta do CEP falhou por outro motivo que "sem cobertura" (rede, 5xx): o CEP continua guardado e dá para tentar de novo. */
+  guestCepError: boolean;
+  retryGuestCep: () => void;
+  /** Situação da entrega da loja do carrinho (endereço ou CEP guardado) e o motivo quando não entrega. */
+  cartDelivery: DeliveryStatus;
+  cartBlockedReason: string;
+  /** Última loja que o visitante abriu ou levou ao carrinho (para o link do carrinho vazio). */
+  lastRestaurantId: number | null;
   /** Situação da entrega da loja aberta no cardápio (endereço selecionado ou, sem ele, CEP guardado). */
   menuDelivery: DeliveryStatus;
   /** "Esta loja ainda não entrega no CEP 00000-000" quando a loja aberta não entrega ali; vazio caso contrário. */
@@ -182,6 +190,27 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return result as T;
 }
 
+type GuestImportOutcome = { cart: CartSnapshot | null; notice: string };
+
+/** Manda o carrinho do visitante para a conta (substitui o da conta). Se a chamada falhar, devolve o carrinho ao navegador. */
+async function importGuestCart(guest: GuestCart): Promise<GuestImportOutcome> {
+  try {
+    const result = await request<{ cart: CartSnapshot; imported: number; skipped: number; replaced: boolean }>('/cart/import', { method: 'POST', body: JSON.stringify({ items: sanitizeImportItems(guest), replace: true }) });
+    const notices: string[] = [];
+    if (result.imported === 0) notices.push('Os itens que você escolheu não estão mais disponíveis.');
+    else {
+      if (result.replaced) notices.push('Seu carrinho foi atualizado com os itens que você escolheu agora.');
+      if (result.skipped > 0) notices.push(`${result.skipped} ${result.skipped === 1 ? 'item não estava mais disponível e foi retirado' : 'itens não estavam mais disponíveis e foram retirados'}.`);
+      const cents = result.cart.items.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
+      if (cents !== guestSubtotalCents(guest)) notices.push('Os valores foram atualizados.');
+    }
+    return { cart: result.cart, notice: notices.join(' ') };
+  } catch (error) {
+    try { writeGuestCart(window.localStorage, guest); } catch { /* opcional */ }
+    return { cart: null, notice: error instanceof Error ? error.message : 'Não foi possível trazer seu carrinho para a conta.' };
+  }
+}
+
 export function CustomerProvider({ children, guest = false }: { children: React.ReactNode; guest?: boolean }) {
   const app = useApp();
   const pathname = usePathname();
@@ -196,6 +225,10 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   const [guestZone, setGuestZone] = useState<GuestZone | null>(null);
   const [cepLookupFailed, setCepLookupFailed] = useState(false);
   const [guestCepLoading, setGuestCepLoading] = useState(false);
+  const [guestCepError, setGuestCepError] = useState(false);
+  const [cepRetry, setCepRetry] = useState(0);
+  const lastRestaurant = useRef<number | null>(null);
+  const importing = useRef<Promise<GuestImportOutcome> | null>(null);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
@@ -292,9 +325,25 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   useEffect(() => {
     if (!user || guest) return;
     let cancelled = false;
+    // O CEP que o visitante informou já vem no formulário de endereço.
+    if (user.role === 'customer') {
+      let cep: string | null = null;
+      try { cep = readGuestCep(window.localStorage); } catch { /* opcional */ }
+      if (cep) setAddressForm((form) => (form.postalCode ? form : { ...form, postalCode: cep! }));
+    }
     async function load() {
       try {
-        let snapshot = await request<CartSnapshot>('/cart');
+        // Carrinho do visitante: entra na conta antes do legado. A promessa fica numa ref para a segunda
+        // execução do efeito (StrictMode) esperar o mesmo import em vez de ler a conta antes dele.
+        if (user!.role === 'customer' && !importing.current) {
+          const taken = takeGuestCartForImport(window.localStorage);
+          if (taken) importing.current = importGuestCart(taken);
+        }
+        const pending = importing.current;
+        const outcome = pending ? await pending : null;
+        if (importing.current === pending) importing.current = null;
+        if (outcome?.notice && !cancelled) setLocalMessage(outcome.notice);
+        let snapshot = outcome?.cart ?? await request<CartSnapshot>('/cart');
         const key = `foodie-cart-v1:${user!.id}`;
         let oldCart: { productId: number; quantity: number }[] = [];
         try { const saved = window.localStorage.getItem(key); if (saved) oldCart = legacyCart(JSON.parse(saved)); } catch { /* opcional */ }
@@ -345,9 +394,9 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   // Sem endereço (visitante ou cliente sem endereço cadastrado), a zona vem do CEP guardado.
   const cepMode = !selectedAddress;
   useEffect(() => {
-    if (!cepMode || !guestCep) { setGuestZone(null); setCepLookupFailed(false); setGuestCepLoading(false); return; }
+    if (!cepMode || !guestCep) { setGuestZone(null); setCepLookupFailed(false); setGuestCepError(false); setGuestCepLoading(false); return; }
     const controller = new AbortController();
-    setGuestCepLoading(true); setGuestZone(null); setCepLookupFailed(false);
+    setGuestCepLoading(true); setGuestZone(null); setCepLookupFailed(false); setGuestCepError(false);
     fetch(`/backend/zones/resolve?postalCode=${guestCep}`, { signal: controller.signal })
       .then(async (response) => {
         // 404: nenhuma zona atende o CEP ("Ainda não entregamos neste CEP").
@@ -357,10 +406,10 @@ export function CustomerProvider({ children, guest = false }: { children: React.
         const zone = data as Zone & { minimum_fee_cents?: number };
         setGuestZone({ id: zone.id, minimum_fee_cents: zone.minimum_fee_cents ?? zone.delivery_fee_cents, delivery_minutes: zone.delivery_minutes ?? null, minimum_order_cents: zone.minimum_order_cents ?? null });
       })
-      .catch((error) => { if (!controller.signal.aborted) setLocalMessage(error instanceof Error ? error.message : 'Não foi possível consultar o CEP.'); })
+      .catch((error) => { if (!controller.signal.aborted) { setGuestCepError(true); setLocalMessage(error instanceof Error ? error.message : 'Não foi possível consultar o CEP.'); } })
       .finally(() => { if (!controller.signal.aborted) setGuestCepLoading(false); });
     return () => controller.abort();
-  }, [cepMode, guestCep]);
+  }, [cepMode, guestCep, cepRetry]);
   const zoneId = selectedAddress?.zone_id ?? (cepMode ? guestZone?.id : undefined) ?? null;
   const coveredRestaurants = useMemo(() => new Set(app.catalog.coverage
     .filter((coverage) => coverage.zone_id === zoneId)
@@ -374,6 +423,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
     : cart;
   const cartEntries = items.map((item) => ({ product: { id: item.productId, name: item.name, restaurant_id: item.restaurantId, price_cents: item.priceCents }, variationId: item.variationId, variationName: item.variationName, unitPriceCents: item.unitPriceCents, addonIds: item.addonIds ?? [], addonNames: item.addonNames ?? [], note: item.note ?? '', quantity: item.quantity, available: item.available ?? true, unavailableReason: item.unavailableReason ?? null }));
   const cartRestaurantId = items[0]?.restaurantId;
+  const cartDelivery: DeliveryStatus = items.length > 0 && items[0].restaurantId ? deliveryStatus(zoneId, cepMode && cepLookupFailed, items[0].restaurantId, app.catalog.coverage) : 'no-location';
   const restaurantById = useMemo(() => new Map(app.catalog.restaurants.map((restaurant) => [restaurant.id, restaurant])), [app.catalog.restaurants]);
   const cartRestaurantClosed = cartRestaurantId !== undefined && restaurantById.get(cartRestaurantId)?.open === false;
   const cartCovered = !cartRestaurantId || coveredRestaurants.has(cartRestaurantId);
@@ -472,15 +522,20 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   }
 
   /** Motivo de não deixar adicionar no cardápio: a loja não entrega no CEP (ou endereço) escolhido. */
-  const blockedReason = menuDelivery === 'not-covered' || menuDelivery === 'unknown-cep'
+  const blockedText = (status: DeliveryStatus) => status === 'not-covered' || status === 'unknown-cep'
     ? (() => { const cep = cepMode ? guestCep : selectedAddress?.postal_code?.replace(/\D/g, ''); return cep && cep.length === 8 ? `Esta loja ainda não entrega no CEP ${cep.slice(0, 5)}-${cep.slice(5)}` : 'Esta loja ainda não entrega no endereço escolhido'; })()
     : '';
+  const blockedReason = blockedText(menuDelivery);
+  const cartBlockedReason = blockedText(cartDelivery);
+  // O link do carrinho vazio volta para a última loja vista.
+  if (restaurantId) lastRestaurant.current = restaurantId;
+  if (guest && cartRestaurantId) lastRestaurant.current = cartRestaurantId;
 
   /** Visitante: monta a linha local com os nomes e o preço unitário já calculados pela ficha. */
   function addGuest(restaurantId: number, line: Omit<GuestCartLine, 'quantity'>) {
     try {
-      guestCart.add(restaurantId, line);
-      setLocalMessage(`${line.name} adicionado ao carrinho.`);
+      if (guestCart.add(restaurantId, line)) setLocalMessage(`${line.name} adicionado ao carrinho.`);
+      else setLocalMessage('Quantidade máxima por item: 20.');
     } catch (error) { setLocalMessage(error instanceof Error ? error.message : 'Não foi possível alterar o carrinho.'); }
   }
 
@@ -497,7 +552,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   }
 
   async function changeQuantity(productId: number, variationId: number, addonIds: number[], note: string, delta: number) {
-    if (guest) { guestCart.changeQuantity({ productId, variationId, addonIds, note }, delta); setLocalMessage('Carrinho atualizado.'); return; }
+    if (guest) { setLocalMessage(guestCart.changeQuantity({ productId, variationId, addonIds, note }, delta) ? 'Carrinho atualizado.' : 'Quantidade máxima por item: 20.'); return; }
     const payload: { delta: number; variationId?: number; addonIds?: number[]; note?: string } = { delta };
     if (variationId) payload.variationId = variationId;
     if (addonIds.length) payload.addonIds = addonIds;
@@ -730,7 +785,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   if (!user && !guest) return null;
 
   const value: CustomerValue = {
-    user, guest, guestCep, setGuestCep, guestZone, guestCepLoading, menuDelivery, deliveryBlockedReason: blockedReason, catalog: app.catalog, zones: app.zones, addresses: app.addresses, orders: app.orders, busy: app.busy, message: app.message,
+    user, guest, guestCep, setGuestCep, guestZone, guestCepLoading, guestCepError, retryGuestCep: () => setCepRetry((n) => n + 1), cartDelivery, cartBlockedReason, lastRestaurantId: lastRestaurant.current, menuDelivery, deliveryBlockedReason: blockedReason, catalog: app.catalog, zones: app.zones, addresses: app.addresses, orders: app.orders, busy: app.busy, message: app.message,
     connection: app.connection, lastSync: app.lastSync, selectedAddressId, setSelectedAddressId, selectedAddress, selectedZone, restaurantId, availableCategories, restaurantById,
     search, setSearch, categoryId, setCategoryId, visibleProducts, nextCursor, searchLoading, searchError, searchCachedAt, loadMore,
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
