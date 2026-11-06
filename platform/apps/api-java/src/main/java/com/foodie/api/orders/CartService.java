@@ -128,23 +128,38 @@ public class CartService {
         return snapshot(customer.id());
     }
 
+    /**
+     * Importa o carrinho montado sem login. Valida tudo antes de gravar; com {@code replace}, só apaga o carrinho
+     * da conta se ao menos um item for válido. Sem {@code replace}, um carrinho com linhas não é tocado.
+     * {@code skipped} conta todo item de entrada que não virou linha (repetido, indisponível, outra loja, adicional inválido).
+     */
     @Transactional
-    public CartSnapshot importIfEmpty(User customer, List<CartController.ImportItem> items) {
+    public ImportResult importItems(User customer, List<CartController.ImportItem> items, boolean replace) {
         lock(customer.id());
-        if (!rows(customer.id()).isEmpty()) return snapshot(customer.id());
+        boolean hadRows = !rows(customer.id()).isEmpty();
+        if (hadRows && !replace) return new ImportResult(snapshot(customer.id()), 0, 0, false);
+        record Valid(long productId, long variationId, String addonKey, String note, int quantity) {}
+        List<Valid> valid = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         Long restaurantId = null;
         for (var item : items) {
             long variationId = item.variationId() == null ? 0 : item.variationId();
             String addonKey = AddonService.key(item.addonIds());
-            if (!seen.add(item.productId() + ":" + variationId + ":" + addonKey)) continue;
+            String note = OrderNotes.item(item.note());
+            if (!seen.add(item.productId() + ":" + variationId + ":" + addonKey + ":" + note)) continue;
             Long currentRestaurant = findAvailableRestaurant(item.productId(), variationId);
             if (currentRestaurant == null || restaurantId != null && !restaurantId.equals(currentRestaurant)) continue;
             try { addonService.validate(item.productId(), variationId, AddonService.parseKey(addonKey)); } catch (ApiException invalid) { continue; }
             restaurantId = currentRestaurant;
-            jdbc.update("INSERT INTO cart_items (user_id, product_id, variation_id, addon_key, quantity) VALUES (?, ?, ?, ?, ?)", customer.id(), item.productId(), variationId, addonKey, item.quantity());
+            valid.add(new Valid(item.productId(), variationId, addonKey, note, item.quantity()));
         }
-        return snapshot(customer.id());
+        boolean replaced = replace && hadRows && !valid.isEmpty();
+        if (replaced) jdbc.update("DELETE FROM cart_items WHERE user_id = ?", customer.id());
+        for (Valid line : valid) {
+            jdbc.update("INSERT INTO cart_items (user_id, product_id, variation_id, addon_key, note, quantity) VALUES (?, ?, ?, ?, ?, ?)",
+                customer.id(), line.productId(), line.variationId(), line.addonKey(), line.note(), line.quantity());
+        }
+        return new ImportResult(snapshot(customer.id()), valid.size(), items.size() - valid.size(), replaced);
     }
 
     public String suggestedContactPhone(long customerId) {
@@ -305,10 +320,12 @@ public class CartService {
         return new CartSnapshot(items, Tokens.hash(canonical.toString()).substring(0, 16));
     }
 
-    private record CartRow(long productId, long variationId, String addonKey, String note, int quantity, long restaurantId, String name, int priceCents,
+    record CartRow(long productId, long variationId, String addonKey, String note, int quantity, long restaurantId, String name, int priceCents,
                            String variationName, int variationDelta, boolean available, String unavailableReason) {}
     public record CartItem(long productId, long variationId, int quantity, long restaurantId, String name, int priceCents,
                            String variationName, long unitPriceCents, List<Long> addonIds, List<String> addonNames,
                            String note, boolean available, String unavailableReason) {}
     public record CartSnapshot(List<CartItem> items, String version) {}
+    @io.swagger.v3.oas.annotations.media.Schema(name = "CartImportResult")
+    public record ImportResult(CartSnapshot cart, int imported, int skipped, boolean replaced) {}
 }

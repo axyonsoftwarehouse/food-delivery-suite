@@ -81,18 +81,28 @@ public class CatalogRepository {
         return groups;
     }
 
-    public SearchPage search(long zoneId, String query, Long restaurantId, Long categoryId, Long tagId, Long after, int limit) {
+    public SearchPage search(Long zoneId, String query, Long restaurantId, Long categoryId, Long tagId, Long after, int limit) {
+        // Sem zona (cardápio público de uma loja), o catálogo parte da loja ativa e não filtra por cobertura.
+        String from = zoneId == null
+            ? """
+            FROM restaurants r
+            JOIN products p ON p.restaurant_id = r.id AND p.available = TRUE
+            WHERE r.active = TRUE
+            """
+            : """
+            FROM restaurant_zones rz
+            JOIN zones z ON z.id = rz.zone_id AND z.active = TRUE
+            JOIN restaurants r ON r.id = rz.restaurant_id AND r.active = TRUE
+            JOIN products p ON p.restaurant_id = r.id AND p.available = TRUE
+            WHERE rz.zone_id = :zoneId
+            """;
         StringBuilder sql = new StringBuilder("""
             SELECT p.id, p.restaurant_id, p.category_id, p.name, p.description, p.price_cents, p.is_combo,
               (SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.is_cover DESC, pi.sort, pi.id LIMIT 1) AS image_url,
               (SELECT COUNT(*) FROM product_variations v WHERE v.product_id = p.id AND v.available = TRUE) AS variation_count,
               (SELECT MIN(p.price_cents + v.price_delta_cents) FROM product_variations v WHERE v.product_id = p.id AND v.available = TRUE) AS from_price_cents,
               (SELECT GROUP_CONCAT(t.name SEPARATOR ',') FROM tags t JOIN product_tags pt ON pt.tag_id = t.id WHERE pt.product_id = p.id) AS tags
-            FROM restaurant_zones rz
-            JOIN zones z ON z.id = rz.zone_id AND z.active = TRUE
-            JOIN restaurants r ON r.id = rz.restaurant_id AND r.active = TRUE
-            JOIN products p ON p.restaurant_id = r.id AND p.available = TRUE
-            WHERE rz.zone_id = :zoneId
+            %FROM%
               AND (p.available_from IS NULL OR p.available_until IS NULL OR (%LOCAL_TIME%) BETWEEN p.available_from AND p.available_until)
               AND (p.stock IS NULL OR p.stock > 0)
             """);
@@ -103,9 +113,11 @@ public class CatalogRepository {
             params.put(name, value);
             return ":" + name;
         });
+        int fromMarker = sql.indexOf("%FROM%");
+        sql.replace(fromMarker, fromMarker + "%FROM%".length(), from.strip());
         int marker = sql.indexOf("%LOCAL_TIME%");
         sql.replace(marker, marker + "%LOCAL_TIME%".length(), localTime);
-        params.put("zoneId", zoneId);
+        if (zoneId != null) params.put("zoneId", zoneId);
         if (restaurantId != null) {
             sql.append(" AND r.id = :restaurantId");
             params.put("restaurantId", restaurantId);
@@ -145,12 +157,20 @@ public class CatalogRepository {
         return jdbc.queryForList("SELECT id, name, city, state, delivery_fee_cents, minimum_order_cents, delivery_minutes FROM zones WHERE active = TRUE ORDER BY name");
     }
 
-    public List<Map<String, Object>> tags(long zoneId, Long restaurantId) {
-        String sql = "SELECT DISTINCT t.id, t.name FROM tags t "
-            + "JOIN restaurants r ON r.id = t.restaurant_id AND r.active = TRUE "
-            + "JOIN restaurant_zones rz ON rz.restaurant_id = r.id "
-            + "JOIN zones z ON z.id = rz.zone_id AND z.active = TRUE "
-            + "WHERE rz.zone_id = ?" + (restaurantId == null ? "" : " AND r.id = ?") + " ORDER BY t.name";
-        return restaurantId == null ? jdbc.queryForList(sql, zoneId) : jdbc.queryForList(sql, zoneId, restaurantId);
+    public List<Map<String, Object>> tags(Long zoneId, Long restaurantId) {
+        StringBuilder sql = new StringBuilder("SELECT DISTINCT t.id, t.name FROM tags t JOIN restaurants r ON r.id = t.restaurant_id AND r.active = TRUE ");
+        List<Object> args = new java.util.ArrayList<>();
+        if (zoneId != null) {
+            sql.append("JOIN restaurant_zones rz ON rz.restaurant_id = r.id JOIN zones z ON z.id = rz.zone_id AND z.active = TRUE WHERE rz.zone_id = ?");
+            args.add(zoneId);
+        } else {
+            sql.append("WHERE 1 = 1");
+        }
+        if (restaurantId != null) {
+            sql.append(" AND r.id = ?");
+            args.add(restaurantId);
+        }
+        sql.append(" ORDER BY t.name");
+        return jdbc.queryForList(sql.toString(), args.toArray());
     }
 }

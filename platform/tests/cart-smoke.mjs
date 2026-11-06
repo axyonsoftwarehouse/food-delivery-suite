@@ -63,9 +63,18 @@ assert.deepEqual((await call('/cart', { cookie: other })).data.items, []);
 await call('/cart/items/999999999', { cookie: first, method: 'PATCH', body: { delta: 1 }, expected: 400 });
 
 const imported = (await call('/cart/import', { cookie: other, method: 'POST', body: { items: [{ productId: product.id, quantity: 2 }] } })).data;
-assert.equal(imported.items[0].quantity, 2);
+assert.equal(imported.cart.items[0].quantity, 2);
+assert.equal(imported.imported, 1);
+assert.equal(imported.replaced, false);
 const unchanged = (await call('/cart/import', { cookie: other, method: 'POST', body: { items: [{ productId: product.id, quantity: 1 }] } })).data;
-assert.equal(unchanged.items[0].quantity, 2);
+assert.equal(unchanged.cart.items[0].quantity, 2);
+assert.equal(unchanged.imported, 0);
+// replace: true troca o carrinho que já tinha itens (é o que o login do visitante manda).
+const replacedCart = (await call('/cart/import', { cookie: other, method: 'POST', body: { items: [{ productId: product.id, quantity: 3 }], replace: true } })).data;
+assert.equal(replacedCart.replaced, true);
+assert.equal(replacedCart.cart.items.length, 1);
+assert.equal(replacedCart.cart.items[0].productId, product.id);
+assert.equal(replacedCart.cart.items[0].quantity, 3);
 assert.deepEqual((await call('/cart', { cookie: other, method: 'DELETE' })).data.items, []);
 
 const address = (await call('/addresses', { cookie: first, method: 'POST', expected: 201,

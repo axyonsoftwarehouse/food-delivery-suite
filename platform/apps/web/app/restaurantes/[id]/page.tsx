@@ -29,7 +29,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function RestaurantPage({ params }: Props) {
-  const data = await storefront((await params).id);
+  const { id } = await params;
+  const data = await storefront(id);
   const whatsapp = data.whatsapp.replace(/\D/g, '');
   const instagram = data.instagram.replace(/^@/, '').trim();
   const instagramHandle = /^[A-Za-z0-9._]{1,30}$/.test(instagram) ? instagram : '';
@@ -49,7 +50,7 @@ export default async function RestaurantPage({ params }: Props) {
     <section className="storefront-body">
       {data.about && <p className="storefront-about">{data.about}</p>}
       <div className="storefront-links">
-        <Link className="home-primary m-shine" href="/loja">{'Ver pratos e pedir'}<Icon name="arrow-right" size={18} /></Link>
+        <Link className="home-primary m-shine" href={`/loja/restaurantes/${id}`}>{'Ver pratos e pedir'}<Icon name="arrow-right" size={18} /></Link>
         {whatsapp && <a className="home-secondary" href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener noreferrer"><Icon name="phone" size={16} />{'WhatsApp'}</a>}
         {instagramHandle && <a className="home-secondary" href={`https://www.instagram.com/${instagramHandle}/`} target="_blank" rel="noopener noreferrer"><Icon name="heart" size={16} />{'Instagram'}</a>}
       </div>

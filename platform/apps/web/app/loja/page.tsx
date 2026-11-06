@@ -55,7 +55,7 @@ export default function LojaPage() {
   const filtering = query.length > 0 || cuisine !== null;
 
   return <>
-    <h1 className="lj-hello">{`${greeting()}, ${user.name.split(' ')[0]}`}</h1>
+    <h1 className="lj-hello">{`${greeting()}, ${(user?.name ?? '').split(' ')[0]}`}</h1>
 
     <BannerCarousel />
 

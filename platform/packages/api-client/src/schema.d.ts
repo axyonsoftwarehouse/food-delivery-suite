@@ -5281,6 +5281,28 @@ export interface components {
             orderId?: number;
             body: string;
         };
+        CartImportItem: {
+            /** Format: int64 */
+            productId?: number;
+            /** Format: int64 */
+            variationId?: number;
+            addonIds?: number[];
+            /** Format: int32 */
+            quantity?: number;
+            note?: string;
+        };
+        CartImportRequest: {
+            items: components["schemas"]["CartImportItem"][];
+            replace?: boolean;
+        };
+        CartImportResult: {
+            cart?: components["schemas"]["CartSnapshot"];
+            /** Format: int32 */
+            imported?: number;
+            /** Format: int32 */
+            skipped?: number;
+            replaced?: boolean;
+        };
         CheckoutRequest: {
             /** Format: int64 */
             addressId?: number;
@@ -9077,7 +9099,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ImportRequest"];
+                "application/json": components["schemas"]["CartImportRequest"];
             };
         };
         responses: {
@@ -9087,7 +9109,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["CartSnapshot"];
+                    "*/*": components["schemas"]["CartImportResult"];
                 };
             };
         };
@@ -14891,8 +14913,8 @@ export interface operations {
     };
     tags_1: {
         parameters: {
-            query: {
-                zoneId: number;
+            query?: {
+                zoneId?: number;
                 restaurantId?: number;
             };
             header?: never;
@@ -14916,8 +14938,8 @@ export interface operations {
     };
     search: {
         parameters: {
-            query: {
-                zoneId: number;
+            query?: {
+                zoneId?: number;
                 q?: string;
                 restaurantId?: number;
                 categoryId?: number;

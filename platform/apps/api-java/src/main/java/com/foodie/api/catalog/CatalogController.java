@@ -48,7 +48,7 @@ public class CatalogController {
 
     @GetMapping("/catalog/search")
     public CatalogRepository.SearchPage search(
-        @RequestParam long zoneId,
+        @RequestParam(required = false) Long zoneId,
         @RequestParam(defaultValue = "") String q,
         @RequestParam(required = false) Long restaurantId,
         @RequestParam(required = false) Long categoryId,
@@ -56,7 +56,7 @@ public class CatalogController {
         @RequestParam(required = false) Long after,
         @RequestParam(defaultValue = "12") int limit
     ) {
-        if (zoneId < 1 || restaurantId != null && restaurantId < 1 || categoryId != null && categoryId < 1 || tagId != null && tagId < 1 || after != null && after < 1
+        if (zoneId == null && restaurantId == null || zoneId != null && zoneId < 1 || restaurantId != null && restaurantId < 1 || categoryId != null && categoryId < 1 || tagId != null && tagId < 1 || after != null && after < 1
             || limit < 1 || limit > 30 || q.strip().length() > 80) {
             throw new ApiException(400, "Filtros de catálogo inválidos");
         }
@@ -64,8 +64,8 @@ public class CatalogController {
     }
 
     @GetMapping("/catalog/tags")
-    public List<Map<String, Object>> tags(@RequestParam long zoneId, @RequestParam(required = false) Long restaurantId) {
-        if (zoneId < 1 || restaurantId != null && restaurantId < 1) throw new ApiException(400, "Filtro de catálogo inválido");
+    public List<Map<String, Object>> tags(@RequestParam(required = false) Long zoneId, @RequestParam(required = false) Long restaurantId) {
+        if (zoneId == null && restaurantId == null || zoneId != null && zoneId < 1 || restaurantId != null && restaurantId < 1) throw new ApiException(400, "Filtro de catálogo inválido");
         return catalog.tags(zoneId, restaurantId);
     }
 

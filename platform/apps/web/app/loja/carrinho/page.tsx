@@ -7,6 +7,9 @@ import { useCustomer } from '../customer-context';
 import { Icon } from '../../icons';
 import { Rolling, prefersReducedMotion } from '../motion';
 import { estimateMinutes, etaRange } from '../eta';
+import GuestCep from '../guest-cep';
+import { guestContinueReason } from '../delivery-status';
+import { Alert } from '../../ui';
 
 /** Linha de escolha única (rádio) usada em "Como receber" e "Pagamento". */
 function Choice({ selected, label, hint, onClick }: { selected: boolean; label: string; hint?: string; onClick: () => void }) {
@@ -17,13 +20,115 @@ function Choice({ selected, label, hint, onClick }: { selected: boolean; label: 
 }
 
 export default function CarrinhoPage() {
+  const { guest } = useCustomer();
+  return guest ? <GuestCartView /> : <AccountCart />;
+}
+
+/** Carrinho do visitante (cardápio sem login): itens, subtotal e entrega; o resto (endereço, pagamento, cupom) vem depois do login. */
+function GuestCartView() {
+  const { cartEntries, subtotal, cartLoaded, cartBusy, mutateCart, changeQuantity, removeItem, changeNote, guestCep, guestZone, guestCepLoading, guestCepError, cartDelivery, cartBlockedReason, lastRestaurantId, restaurantById } = useCustomer();
+  const restaurantId = cartEntries[0]?.product.restaurant_id;
+  const restaurant = restaurantId ? restaurantById.get(restaurantId) : undefined;
+  const storeId = restaurantId ?? lastRestaurantId;
+  const backHref = storeId ? `/loja/restaurantes/${storeId}` : '/#restaurantes';
+
+  if (!cartEntries.length) {
+    return <section className="lj-cart">
+      <div className="lj-empty lj-empty--page">
+        <Icon name="bag" size={32} />
+        <h1>{cartLoaded ? 'Seu carrinho está vazio' : 'Carregando seu carrinho…'}</h1>
+        {cartLoaded && <Link className="customer-solid-button" href={backHref}>{lastRestaurantId ? 'Voltar ao cardápio' : 'Ver restaurantes'}</Link>}
+      </div>
+    </section>;
+  }
+
+  const covered = cartDelivery === 'covered' && guestZone !== null;
+  const minimum = guestZone?.minimum_order_cents ?? 0;
+  const eta = covered ? etaRange(estimateMinutes(restaurant?.prep_minutes, guestZone.delivery_minutes)) : '';
+  const disabledReason = guestContinueReason(cartDelivery, guestCep !== null, guestCepLoading, guestCepError, cartBlockedReason);
+
+  return <section className="lj-cart" id="carrinho">
+    <header className="lj-cart-head">
+      <div><h1>{'Carrinho'}</h1>{restaurant && <Link href={`/loja/restaurantes/${restaurant.id}`}>{restaurant.name}</Link>}</div>
+      <div className="lj-cart-tools">
+        <button type="button" className="lj-round-button" onClick={() => mutateCart('/cart', 'DELETE', undefined, 'Carrinho esvaziado.')} aria-label="Esvaziar carrinho" title="Esvaziar"><Icon name="trash" size={18} /></button>
+      </div>
+    </header>
+
+    <div className="lj-cart-layout">
+      <div className="lj-cart-main">
+        <section className="lj-panel" aria-label="Itens">
+          <ul className="lj-items">{cartEntries.map(({ product, quantity, variationId, variationName, addonIds, addonNames, note, unitPriceCents }) => {
+            const key = `${product.id}-${variationId}-${addonIds.join('.')}-${note}`;
+            return <li className="lj-item" key={key}>
+              <div className="lj-item-text">
+                <strong>{product.name}</strong>
+                {(variationName || addonNames.length > 0) && <small>{[variationName, ...addonNames].filter(Boolean).join(' · ')}</small>}
+                <ItemNote note={note} name={product.name} disabled={cartBusy} onSave={(value) => changeNote(product.id, variationId, addonIds, note, value)} />
+                <Rolling value={money(unitPriceCents * quantity)} className="lj-item-price" />
+              </div>
+              <div className="lj-item-actions">
+                <div className="lj-stepper">
+                  <button type="button" onClick={() => void changeQuantity(product.id, variationId, addonIds, note, -1)} aria-label={quantity === 1 ? `Remover ${product.name}` : `Remover uma unidade de ${product.name}`}><Icon name={quantity === 1 ? 'trash' : 'minus'} size={15} /></button>
+                  <Rolling value={quantity} />
+                  <button type="button" onClick={() => void changeQuantity(product.id, variationId, addonIds, note, 1)} aria-label={`Adicionar uma unidade de ${product.name}`}><Icon name="plus" size={15} /></button>
+                </div>
+                <button type="button" className="lj-item-remove" onClick={() => void removeItem(product.id, variationId, addonIds, note)} aria-label={`Remover ${product.name} do carrinho`}>
+                  <Icon name="trash" size={13} />{'Remover'}
+                </button>
+              </div>
+            </li>;
+          })}</ul>
+          {restaurant && <Link className="lj-text-button" href={`/loja/restaurantes/${restaurant.id}`}><Icon name="plus" size={16} />{'Adicionar mais itens'}</Link>}
+        </section>
+        <section className="lj-panel" aria-label="Entrega">
+          <h2>{'Entrega'}</h2>
+          <GuestCep scope="cart" />
+        </section>
+      </div>
+
+      <aside className="lj-panel lj-summary" aria-label="Resumo do pedido" id="resumo">
+        {covered && minimum > subtotal && <div className="lj-minimum">
+          <span>{`Pedido mínimo da zona: ${money(minimum)} (faltam ${money(minimum - subtotal)})`}</span>
+          <span className="lj-minimum-track"><span style={{ transform: `scaleX(${Math.min(1, subtotal / minimum)})` }} /></span>
+        </div>}
+        <dl className="lj-totals">
+          <div><dt>{'Subtotal'}</dt><dd><Rolling value={money(subtotal)} /></dd></div>
+          {covered && <div><dt>{'Entrega'}</dt><dd>{`a partir de ${money(guestZone.minimum_fee_cents)}`}</dd></div>}
+        </dl>
+        {covered && minimum > 0 && minimum <= subtotal && <p className="lj-help">{`Pedido mínimo da zona: ${money(minimum)}`}</p>}
+        {eta && <p className="lj-help">{`Chega em ${eta}`}</p>}
+        {disabledReason && <p className="customer-minimum">{disabledReason}</p>}
+        <p className="lj-help">{'Os valores são confirmados ao entrar na sua conta'}</p>
+        <ContinueButton blocked={disabledReason !== ''} subtotal={subtotal} />
+      </aside>
+    </div>
+
+    <div className="lj-checkout-bar">
+      <ContinueButton blocked={disabledReason !== ''} subtotal={subtotal} />
+    </div>
+  </section>;
+}
+
+/** "Continuar" do visitante: leva ao login e volta ao carrinho; desabilitado enquanto a entrega não estiver confirmada. */
+function ContinueButton({ blocked, subtotal }: { blocked: boolean; subtotal: number }) {
+  return blocked
+    ? <button type="button" className="lj-checkout" disabled><span>{'Continuar'}</span></button>
+    : <Link className="lj-checkout" href="/entrar?voltar=/loja/carrinho"><span>{'Continuar'}</span><Rolling value={money(subtotal)} /></Link>;
+}
+
+function ImportNotice({ lines, onDismiss }: { lines: string[]; onDismiss: () => void }) {
+  return <Alert tone="info" action={<button type="button" className="lj-text-button" onClick={onDismiss}>Dispensar</button>}>{lines.join(' ')}</Alert>;
+}
+
+function AccountCart() {
   const { busy } = useApp();
   const [frequencyDays, setFrequencyDays] = useState(7);
   const [firstRunAt, setFirstRunAt] = useState('');
   const [recurringBusy, setRecurringBusy] = useState(false);
   const [recurringMessage, setRecurringMessage] = useState('');
   const [removing, setRemoving] = useState<string | null>(null);
-  const { cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
+  const { importNotice, dismissImportNotice, cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
   const parsedTip = Number(tip.replace(',', '.'));
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
   const total = subtotal + orderFee - discount + serviceFee + tipCents;
@@ -73,6 +178,7 @@ export default function CarrinhoPage() {
 
   if (!cartEntries.length) {
     return <section className="lj-cart">
+      {importNotice && <ImportNotice lines={importNotice.lines} onDismiss={dismissImportNotice} />}
       <div className="lj-empty lj-empty--page">
         <Icon name="bag" size={32} />
         <h1>{placing ? 'Abrindo o pagamento…' : cartLoaded ? 'Seu carrinho está vazio' : 'Carregando seu carrinho…'}</h1>
@@ -82,6 +188,7 @@ export default function CarrinhoPage() {
   }
 
   return <section className="lj-cart" id="carrinho">
+    {importNotice && <ImportNotice lines={importNotice.lines} onDismiss={dismissImportNotice} />}
     <header className="lj-cart-head">
       <div><h1>{'Carrinho'}</h1>{cartRestaurant && <Link href={`/loja/restaurantes/${cartRestaurant.id}`}>{cartRestaurant.name}</Link>}</div>
       <div className="lj-cart-tools">

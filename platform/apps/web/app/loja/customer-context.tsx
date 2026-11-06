@@ -2,8 +2,11 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Address, Catalog, Order, Product, Role, User, Zone, api, useApp } from '../app-context';
+import { Address, Catalog, Order, Product, Role, User, Zone, api, money, useApp } from '../app-context';
 import { browserCache, cacheKey, readCache, writeCache } from './offline-cache';
+import { deliveryStatus, type DeliveryStatus } from './delivery-status';
+import { guestStorage, useGuestCart, useStoredCep } from './use-guest-cart';
+import { guestSubtotalCents, importNoticeLines, readGuestCep, sanitizeImportItems, takeGuestCartForImport, writeGuestCart, type GuestCart, type GuestCartLine } from './guest-cart';
 
 type Restaurant = { id: number; name: string; slug: string; open?: boolean };
 type CartItem = { productId: number; variationId: number; quantity: number; restaurantId: number; name: string; priceCents: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; note?: string; available: boolean; unavailableReason: string | null };
@@ -15,8 +18,29 @@ type CartSnapshot = { items: CartItem[]; version: string };
 type SearchPage = { items: Product[]; nextCursor: number | null };
 type Estimate = { feeCents: number; distanceMeters: number | null; durationSeconds: number | null; feeMode: string };
 
+/** Zona do CEP guardado (`/zones/resolve`), usada pelo visitante e pelo cliente sem endereço. */
+export type GuestZone = { id: number; minimum_fee_cents: number; delivery_minutes: number | null; minimum_order_cents: number | null };
+
 type CustomerValue = {
-  user: User;
+  /** Null no modo visitante (cardápio e carrinho sem login). */
+  user: User | null;
+  guest: boolean;
+  guestCep: string | null;
+  setGuestCep: (cep: string | null) => void;
+  guestZone: GuestZone | null;
+  guestCepLoading: boolean;
+  /** A consulta do CEP falhou por outro motivo que "sem cobertura" (rede, 5xx): o CEP continua guardado e dá para tentar de novo. */
+  guestCepError: boolean;
+  retryGuestCep: () => void;
+  /** Situação da entrega da loja do carrinho (endereço ou CEP guardado) e o motivo quando não entrega. */
+  cartDelivery: DeliveryStatus;
+  cartBlockedReason: string;
+  /** Última loja que o visitante abriu ou levou ao carrinho (para o link do carrinho vazio). */
+  lastRestaurantId: number | null;
+  /** Situação da entrega da loja aberta no cardápio (endereço selecionado ou, sem ele, CEP guardado). */
+  menuDelivery: DeliveryStatus;
+  /** "Esta loja ainda não entrega no CEP 00000-000" quando a loja aberta não entrega ali; vazio caso contrário. */
+  deliveryBlockedReason: string;
   catalog: Catalog;
   zones: Zone[];
   addresses: Address[];
@@ -103,6 +127,9 @@ type CustomerValue = {
   submitReview: (orderId: number, rating: number, comment: string) => Promise<boolean>;
   loadHistory: (after?: number) => Promise<{ items: Order[]; nextCursor: number | null }>;
   localMessage: string;
+  /** Resultado da importação do carrinho do visitante (fica na tela do carrinho até ser dispensado). */
+  importNotice: { lines: string[] } | null;
+  dismissImportNotice: () => void;
   showAddressForm: boolean;
   setShowAddressForm: (value: boolean) => void;
   addressForm: { postalCode: string; label: string; street: string; number: string; neighborhood: string };
@@ -166,14 +193,54 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return result as T;
 }
 
-export function CustomerProvider({ children }: { children: React.ReactNode }) {
+type GuestImportOutcome = { cart: CartSnapshot | null; lines: string[] };
+
+/** Falha de rede (sem resposta HTTP): só nesse caso o carrinho do visitante volta ao navegador. */
+class NetworkError extends Error {}
+
+async function importRequest<T>(path: string, body: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`/backend${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch {
+    throw new NetworkError('Sem conexão para trazer seu carrinho para a conta.');
+  }
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error ?? 'Não foi possível trazer seu carrinho para a conta.');
+  return result as T;
+}
+
+/** Manda o carrinho do visitante para a conta (substitui o da conta). Se a rede falhar, devolve o carrinho ao navegador. */
+async function importGuestCart(guest: GuestCart): Promise<GuestImportOutcome> {
+  try {
+    const result = await importRequest<{ cart: CartSnapshot; imported: number; skipped: number; replaced: boolean }>('/cart/import', { items: sanitizeImportItems(guest), replace: true });
+    const cents = result.cart.items.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
+    return { cart: result.cart, lines: importNoticeLines(result, guestSubtotalCents(guest), cents, money) };
+  } catch (error) {
+    // Erro HTTP (400/409/5xx): não restaura, para um import posterior não apagar o que a pessoa fez na conta.
+    if (error instanceof NetworkError) { try { writeGuestCart(guestStorage(), guest); } catch { /* opcional */ } }
+    return { cart: null, lines: [error instanceof Error ? error.message : 'Não foi possível trazer seu carrinho para a conta.'] };
+  }
+}
+
+export function CustomerProvider({ children, guest = false }: { children: React.ReactNode; guest?: boolean }) {
   const app = useApp();
   const pathname = usePathname();
   const router = useRouter();
   const offlineCache = useMemo(() => browserCache(), []);
   const leaving = useRef(false);
   const restaurantId = Number(/^\/loja\/restaurantes\/([1-9]\d*)\/?$/.exec(pathname)?.[1] ?? 0) || null;
-  const user = app.user;
+  // Visitante: nenhuma rota autenticada é chamada (sem 401 no console), e o carrinho fica no navegador.
+  const user = guest ? null : app.user;
+  const guestCart = useGuestCart(guest);
+  const [guestCep, setGuestCep] = useStoredCep();
+  const [guestZone, setGuestZone] = useState<GuestZone | null>(null);
+  const [cepLookupFailed, setCepLookupFailed] = useState(false);
+  const [guestCepLoading, setGuestCepLoading] = useState(false);
+  const [guestCepError, setGuestCepError] = useState(false);
+  const [cepRetry, setCepRetry] = useState(0);
+  const lastRestaurant = useRef<number | null>(null);
+  const importing = useRef<Promise<GuestImportOutcome> | null>(null);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
@@ -190,6 +257,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [cartLoaded, setCartLoaded] = useState(false);
   const [cartBusy, setCartBusy] = useState(false);
   const [localMessage, setLocalMessage] = useState('');
+  const [importNotice, setImportNotice] = useState<{ lines: string[] } | null>(null);
   // A barra mostra `message || localMessage`: um aviso geral antigo (ex.: "Pedido cancelado.") escondia o
   // aviso novo do carrinho — em 05/10/2026 escondeu o "Pagamento aprovado" do cartão. O aviso mais novo vence.
   const setAppMessage = app.setMessage;
@@ -219,7 +287,10 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [tip, setTip] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   // Telefone de contato da entrega: sugere o do último pedido ou o do cadastro (área do entregador, parte A).
-  useEffect(() => { request<{ phone: string | null }>('/cart/contact-phone').then((data) => { if (data.phone) setContactPhone(data.phone); }).catch(() => {}); }, []);
+  useEffect(() => {
+    if (guest) return;
+    request<{ phone: string | null }>('/cart/contact-phone').then((data) => { if (data.phone) setContactPhone(data.phone); }).catch(() => {});
+  }, [guest]);
   const [tables, setTables] = useState<{ id: number; number: string; capacity: number }[]>([]);
   const [tableId, setTableId] = useState<number | null>(null);
   const [partySize, setPartySize] = useState(2);
@@ -265,18 +336,35 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   }, [addressForm.postalCode]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || guest) return;
     let cancelled = false;
+    // O CEP que o visitante informou já vem no formulário de endereço.
+    if (user.role === 'customer') {
+      let cep: string | null = null;
+      try { cep = readGuestCep(guestStorage()); } catch { /* opcional */ }
+      if (cep) setAddressForm((form) => (form.postalCode ? form : { ...form, postalCode: cep! }));
+    }
     async function load() {
       try {
-        let snapshot = await request<CartSnapshot>('/cart');
+        // Carrinho do visitante: entra na conta antes do legado. A promessa fica numa ref para a segunda
+        // execução do efeito (StrictMode) esperar o mesmo import em vez de ler a conta antes dele.
+        if (user!.role === 'customer' && !importing.current) {
+          const taken = takeGuestCartForImport(guestStorage());
+          if (taken) importing.current = importGuestCart(taken);
+        }
+        const pending = importing.current;
+        const outcome = pending ? await pending : null;
+        if (importing.current === pending) importing.current = null;
+        if (outcome && outcome.lines.length > 0 && !cancelled) setImportNotice({ lines: outcome.lines });
+        let snapshot = outcome?.cart ?? await request<CartSnapshot>('/cart');
         const key = `foodie-cart-v1:${user!.id}`;
         let oldCart: { productId: number; quantity: number }[] = [];
-        try { const saved = window.localStorage.getItem(key); if (saved) oldCart = legacyCart(JSON.parse(saved)); } catch { /* opcional */ }
+        try { const saved = guestStorage()?.getItem(key); if (saved) oldCart = legacyCart(JSON.parse(saved)); } catch { /* opcional */ }
         if (snapshot.items.length === 0 && oldCart.length > 0) {
-          snapshot = await request<CartSnapshot>('/cart/import', { method: 'POST', body: JSON.stringify({ items: oldCart }) });
+          const imported = await request<{ cart: CartSnapshot; imported: number; skipped: number; replaced: boolean }>('/cart/import', { method: 'POST', body: JSON.stringify({ items: oldCart }) });
+          snapshot = imported.cart;
         }
-        try { window.localStorage.removeItem(key); } catch { /* opcional */ }
+        try { guestStorage()?.removeItem(key); } catch { /* opcional */ }
         if (!cancelled) applyCart(snapshot);
       } catch (error) {
         if (!cancelled) setLocalMessage(error instanceof Error ? error.message : 'Não foi possível carregar o carrinho.');
@@ -286,9 +374,10 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     }
     void load();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, guest]);
 
   async function refreshCart() {
+    if (guest) { guestCart.reload(); return; }
     setCartBusy(true);
     try {
       const snapshot = await request<CartSnapshot>('/cart');
@@ -299,6 +388,11 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function mutateCart(path: string, method: string, body: unknown, success: string) {
+    if (guest) {
+      // Só o "Esvaziar" chega aqui pela tela; as demais rotas do carrinho são da conta.
+      if (path === '/cart' && method === 'DELETE') { guestCart.clear(); setLocalMessage(success); }
+      return;
+    }
     if (!cartLoaded || cartBusy) return;
     setCartBusy(true);
     try {
@@ -308,39 +402,67 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     finally { setCartBusy(false); }
   }
 
-  const selectedAddress = app.addresses.find((address) => address.id === selectedAddressId) ?? app.addresses[0];
-  const selectedZone = app.zones.find((zone) => zone.id === selectedAddress?.zone_id);
+  const selectedAddress = guest ? undefined : app.addresses.find((address) => address.id === selectedAddressId) ?? app.addresses[0];
+  const selectedZone = guest ? undefined : app.zones.find((zone) => zone.id === selectedAddress?.zone_id);
+  // Sem endereço (visitante ou cliente sem endereço cadastrado), a zona vem do CEP guardado.
+  const cepMode = !selectedAddress;
+  useEffect(() => {
+    if (!cepMode || !guestCep) { setGuestZone(null); setCepLookupFailed(false); setGuestCepError(false); setGuestCepLoading(false); return; }
+    const controller = new AbortController();
+    setGuestCepLoading(true); setGuestZone(null); setCepLookupFailed(false); setGuestCepError(false);
+    fetch(`/backend/zones/resolve?postalCode=${guestCep}`, { signal: controller.signal })
+      .then(async (response) => {
+        // 404: nenhuma zona atende o CEP ("Ainda não entregamos neste CEP").
+        if (response.status === 404) { setCepLookupFailed(true); return; }
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? 'Não foi possível consultar o CEP.');
+        const zone = data as Zone & { minimum_fee_cents?: number };
+        setGuestZone({ id: zone.id, minimum_fee_cents: zone.minimum_fee_cents ?? zone.delivery_fee_cents, delivery_minutes: zone.delivery_minutes ?? null, minimum_order_cents: zone.minimum_order_cents ?? null });
+      })
+      .catch((error) => { if (!controller.signal.aborted) { setGuestCepError(true); setLocalMessage(error instanceof Error ? error.message : 'Não foi possível consultar o CEP.'); } })
+      .finally(() => { if (!controller.signal.aborted) setGuestCepLoading(false); });
+    return () => controller.abort();
+  }, [cepMode, guestCep, cepRetry]);
+  const zoneId = selectedAddress?.zone_id ?? (cepMode ? guestZone?.id : undefined) ?? null;
   const coveredRestaurants = useMemo(() => new Set(app.catalog.coverage
-    .filter((coverage) => coverage.zone_id === selectedAddress?.zone_id)
-    .map((coverage) => coverage.restaurant_id)), [app.catalog.coverage, selectedAddress?.zone_id]);
-  const availableCategories = app.catalog.categories.filter((category) => coveredRestaurants.has(category.restaurant_id) && category.restaurant_id === restaurantId);
-  const cartEntries = cart.map((item) => ({ product: { id: item.productId, name: item.name, restaurant_id: item.restaurantId, price_cents: item.priceCents }, variationId: item.variationId, variationName: item.variationName, unitPriceCents: item.unitPriceCents, addonIds: item.addonIds ?? [], addonNames: item.addonNames ?? [], note: item.note ?? '', quantity: item.quantity, available: item.available ?? true, unavailableReason: item.unavailableReason ?? null }));
-  const cartRestaurantId = cart[0]?.restaurantId;
+    .filter((coverage) => coverage.zone_id === zoneId)
+    .map((coverage) => coverage.restaurant_id)), [app.catalog.coverage, zoneId]);
+  const menuDelivery: DeliveryStatus = restaurantId ? deliveryStatus(zoneId, cepMode && cepLookupFailed, restaurantId, app.catalog.coverage) : 'no-location';
+  // A busca só filtra pela zona quando a loja entrega nela; sem zona (ou fora dela), vem o cardápio inteiro da loja.
+  const searchZoneId = menuDelivery === 'covered' ? zoneId : null;
+  const availableCategories = app.catalog.categories.filter((category) => category.restaurant_id === restaurantId);
+  const items: CartItem[] = guest
+    ? guestCart.cart.items.map((line) => ({ ...line, restaurantId: guestCart.cart.restaurantId ?? 0, priceCents: line.unitPriceCents, available: true, unavailableReason: null }))
+    : cart;
+  const cartEntries = items.map((item) => ({ product: { id: item.productId, name: item.name, restaurant_id: item.restaurantId, price_cents: item.priceCents }, variationId: item.variationId, variationName: item.variationName, unitPriceCents: item.unitPriceCents, addonIds: item.addonIds ?? [], addonNames: item.addonNames ?? [], note: item.note ?? '', quantity: item.quantity, available: item.available ?? true, unavailableReason: item.unavailableReason ?? null }));
+  const cartRestaurantId = items[0]?.restaurantId;
+  const cartDelivery: DeliveryStatus = items.length > 0 && items[0].restaurantId ? deliveryStatus(zoneId, cepMode && cepLookupFailed, items[0].restaurantId, app.catalog.coverage) : 'no-location';
   const restaurantById = useMemo(() => new Map(app.catalog.restaurants.map((restaurant) => [restaurant.id, restaurant])), [app.catalog.restaurants]);
   const cartRestaurantClosed = cartRestaurantId !== undefined && restaurantById.get(cartRestaurantId)?.open === false;
   const cartCovered = !cartRestaurantId || coveredRestaurants.has(cartRestaurantId);
   const cartCount = cartEntries.reduce((sum, entry) => sum + entry.quantity, 0);
   const subtotal = cartEntries.reduce((sum, entry) => sum + entry.unitPriceCents * entry.quantity, 0);
   useEffect(() => {
-    if (!cartLoaded || !cartEntries.length) { setCampaign(null); return; }
+    if (guest || !cartLoaded || !cartEntries.length) { setCampaign(null); return; }
     let active = true;
     request<{ campaignId?: number; name?: string; discountCents: number }>('/cart/campaign')
       .then((result) => { if (active) setCampaign(result.campaignId && result.name ? { campaignId: result.campaignId, name: result.name, discountCents: result.discountCents } : null); })
       .catch(() => { if (active) setCampaign(null); });
     return () => { active = false; };
-  }, [cartVersion, cartLoaded]);
+  }, [cartVersion, cartLoaded, guest]);
   const fee = deliveryEstimate?.feeCents ?? selectedZone?.delivery_fee_cents ?? 0;
-  const meetsMinimum = subtotal >= (selectedZone?.minimum_order_cents ?? 0);
+  const meetsMinimum = subtotal >= (selectedZone?.minimum_order_cents ?? (cepMode ? guestZone?.minimum_order_cents : null) ?? 0);
 
   useEffect(() => {
     const version = ++searchVersion.current;
-    if (!selectedAddress?.zone_id || !restaurantId || !coveredRestaurants.has(restaurantId)) { setVisibleProducts([]); setNextCursor(null); setSearchError(''); setSearchCachedAt(null); setSearchLoading(false); return () => { searchVersion.current++; }; }
+    if (!restaurantId) { setVisibleProducts([]); setNextCursor(null); setSearchError(''); setSearchCachedAt(null); setSearchLoading(false); return () => { searchVersion.current++; }; }
     const controller = new AbortController();
     setSearchLoading(true); setSearchError(''); setSearchCachedAt(null); setVisibleProducts([]); setNextCursor(null);
     const timer = window.setTimeout(async () => {
-      const key = cacheKey('search', selectedAddress.zone_id, restaurantId, search.trim(), categoryId, tagId, '');
+      const key = cacheKey('search', searchZoneId ?? 0, restaurantId, search.trim(), categoryId, tagId, '');
       try {
-        const params = new URLSearchParams({ zoneId: String(selectedAddress.zone_id), restaurantId: String(restaurantId), q: search.trim(), limit: '12' });
+        const params = new URLSearchParams({ restaurantId: String(restaurantId), q: search.trim(), limit: '12' });
+        if (searchZoneId !== null) params.set('zoneId', String(searchZoneId));
         if (categoryId !== null) params.set('categoryId', String(categoryId));
         if (tagId !== null) params.set('tagId', String(tagId));
         const page = await request<SearchPage>(`/catalog/search?${params}`, { signal: controller.signal });
@@ -361,13 +483,15 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
       } finally { if (!controller.signal.aborted && searchVersion.current === version) setSearchLoading(false); }
     }, 250);
     return () => { window.clearTimeout(timer); controller.abort(); searchVersion.current++; };
-  }, [selectedAddress?.zone_id, restaurantId, coveredRestaurants, search, categoryId, tagId, offlineCache]);
+  }, [searchZoneId, restaurantId, search, categoryId, tagId, offlineCache]);
 
   useEffect(() => {
-    if (!selectedAddress?.zone_id || !restaurantId) { setTags([]); setTagId(null); return; }
+    if (!restaurantId) { setTags([]); setTagId(null); return; }
     let cancelled = false;
-    const key = cacheKey('tags', selectedAddress.zone_id, restaurantId);
-    fetch(`/backend/catalog/tags?zoneId=${selectedAddress.zone_id}&restaurantId=${restaurantId}`, { credentials: 'same-origin' })
+    const key = cacheKey('tags', searchZoneId ?? 0, restaurantId);
+    const params = new URLSearchParams({ restaurantId: String(restaurantId) });
+    if (searchZoneId !== null) params.set('zoneId', String(searchZoneId));
+    fetch(`/backend/catalog/tags?${params}`, { credentials: 'same-origin' })
       .then((response) => response.json())
       .then((data) => {
         if (cancelled || !Array.isArray(data)) return;
@@ -380,15 +504,16 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
         setTags(cached?.data ?? []);
       });
     return () => { cancelled = true; };
-  }, [selectedAddress?.zone_id, restaurantId, offlineCache]);
+  }, [searchZoneId, restaurantId, offlineCache]);
 
   async function loadMore() {
-    if (!selectedAddress || !restaurantId || nextCursor === null || searchLoading) return;
+    if (!restaurantId || nextCursor === null || searchLoading) return;
     const version = searchVersion.current;
-    const key = cacheKey('search', selectedAddress.zone_id, restaurantId, search.trim(), categoryId, tagId, nextCursor);
+    const key = cacheKey('search', searchZoneId ?? 0, restaurantId, search.trim(), categoryId, tagId, nextCursor);
     setSearchLoading(true); setSearchError('');
     try {
-      const params = new URLSearchParams({ zoneId: String(selectedAddress.zone_id), restaurantId: String(restaurantId), q: search.trim(), after: String(nextCursor), limit: '12' });
+      const params = new URLSearchParams({ restaurantId: String(restaurantId), q: search.trim(), after: String(nextCursor), limit: '12' });
+      if (searchZoneId !== null) params.set('zoneId', String(searchZoneId));
       if (categoryId !== null) params.set('categoryId', String(categoryId));
       if (tagId !== null) params.set('tagId', String(tagId));
       const page = await request<SearchPage>(`/catalog/search?${params}`);
@@ -409,9 +534,29 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     } finally { if (searchVersion.current === version) setSearchLoading(false); }
   }
 
+  /** Motivo de não deixar adicionar no cardápio: a loja não entrega no CEP (ou endereço) escolhido. */
+  const blockedText = (status: DeliveryStatus) => status === 'not-covered' || status === 'unknown-cep'
+    ? (() => { const cep = cepMode ? guestCep : selectedAddress?.postal_code?.replace(/\D/g, ''); return cep && cep.length === 8 ? `Esta loja ainda não entrega no CEP ${cep.slice(0, 5)}-${cep.slice(5)}` : 'Esta loja ainda não entrega no endereço escolhido'; })()
+    : '';
+  const blockedReason = blockedText(menuDelivery);
+  const cartBlockedReason = blockedText(cartDelivery);
+  // O link do carrinho vazio volta para a última loja vista.
+  if (restaurantId) lastRestaurant.current = restaurantId;
+  if (guest && cartRestaurantId) lastRestaurant.current = cartRestaurantId;
+
+  /** Visitante: monta a linha local com os nomes e o preço unitário já calculados pela ficha. */
+  function addGuest(restaurantId: number, line: Omit<GuestCartLine, 'quantity'>) {
+    try {
+      if (guestCart.add(restaurantId, line)) setLocalMessage(`${line.name} adicionado ao carrinho.`);
+      else setLocalMessage('Quantidade máxima por item: 20.');
+    } catch (error) { setLocalMessage(error instanceof Error ? error.message : 'Não foi possível alterar o carrinho.'); }
+  }
+
   async function add(product: Product, variationId = 0, addonIds: number[] = [], note = '') {
     if (restaurantById.get(product.restaurant_id)?.open === false) { setLocalMessage('Este restaurante está fora do horário de funcionamento agora.'); return; }
     if (cartRestaurantId && cartRestaurantId !== product.restaurant_id) { setLocalMessage('Um pedido pode reunir pratos de um restaurante por vez. Finalize ou esvazie o carrinho atual.'); return; }
+    if (blockedReason && product.restaurant_id === restaurantId) { setLocalMessage(`${blockedReason}.`); return; }
+    if (guest) { addGuest(product.restaurant_id, { productId: product.id, variationId: 0, addonIds: [], note: note.trim(), name: product.name, variationName: null, addonNames: [], unitPriceCents: product.price_cents }); return; }
     const payload: { delta: number; variationId?: number; addonIds?: number[]; note?: string } = { delta: 1 };
     if (variationId) payload.variationId = variationId;
     if (addonIds.length) payload.addonIds = addonIds;
@@ -420,6 +565,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function changeQuantity(productId: number, variationId: number, addonIds: number[], note: string, delta: number) {
+    if (guest) { setLocalMessage(guestCart.changeQuantity({ productId, variationId, addonIds, note }, delta) ? 'Carrinho atualizado.' : 'Quantidade máxima por item: 20.'); return; }
     const payload: { delta: number; variationId?: number; addonIds?: number[]; note?: string } = { delta };
     if (variationId) payload.variationId = variationId;
     if (addonIds.length) payload.addonIds = addonIds;
@@ -428,6 +574,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function removeItem(productId: number, variationId: number, addonIds: number[], note: string) {
+    if (guest) { guestCart.remove({ productId, variationId, addonIds, note }); setLocalMessage('Item removido do carrinho.'); return; }
     const params = new URLSearchParams();
     if (variationId) params.set('variationId', String(variationId));
     for (const addonId of addonIds) params.append('addonIds', String(addonId));
@@ -438,6 +585,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
 
   /** A observação faz parte da linha: trocar move a linha (e soma com outra igual, se houver). */
   async function changeNote(productId: number, variationId: number, addonIds: number[], note: string, newNote: string) {
+    if (guest) { guestCart.changeNote({ productId, variationId, addonIds, note }, newNote); setLocalMessage(newNote.trim() ? 'Observação salva.' : 'Observação removida.'); return; }
     const payload = { variationId: variationId || undefined, addonIds: addonIds.length ? addonIds : undefined, note, newNote: newNote.trim() };
     await mutateCart(`/cart/items/${productId}/note`, 'PUT', payload, newNote.trim() ? 'Observação salva.' : 'Observação removida.');
   }
@@ -468,13 +616,25 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
 
   async function addSelected(variationId: number, addonIds: number[], note = '') {
     if (!selectedProduct) return;
+    if (guest) {
+      const detail = selectedProduct;
+      if (restaurantById.get(detail.restaurant_id)?.open === false) { setLocalMessage('Este restaurante está fora do horário de funcionamento agora.'); return; }
+      if (blockedReason && detail.restaurant_id === restaurantId) { setLocalMessage(`${blockedReason}.`); return; }
+      // Mesmo cálculo do `chosenPrice` da ficha: preço base + opção + adicionais escolhidos.
+      const variation = detail.variations.find((item) => item.id === variationId);
+      const addons = detail.addonGroups.flatMap((group) => group.addons).filter((addon, index, all) => addonIds.includes(addon.id) && all.findIndex((other) => other.id === addon.id) === index);
+      const unitPriceCents = detail.price_cents + (variation?.price_delta_cents ?? 0) + addons.reduce((sum, addon) => sum + addon.price_cents, 0);
+      addGuest(detail.restaurant_id, { productId: detail.id, variationId: variation?.id ?? 0, addonIds: addons.map((addon) => addon.id), note: note.trim(), name: detail.name, variationName: variation?.name ?? null, addonNames: addons.map((addon) => addon.name), unitPriceCents });
+      setSelectedProduct(null);
+      return;
+    }
     const product = { ...selectedProduct } as unknown as Product;
     await add(product, variationId, addonIds, note);
     setSelectedProduct(null);
   }
 
   async function applyCoupon() {
-    if (cartBusy || couponBusy || !couponCode.trim()) return;
+    if (guest || cartBusy || couponBusy || !couponCode.trim()) return;
     if (!cartRestaurantId) { setLocalMessage('Adicione um prato antes de aplicar o cupom.'); return; }
     setCouponBusy(true); setLocalMessage('');
     try {
@@ -513,12 +673,13 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
 
   async function saveAddress(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (guest) return;
     const ok = await app.run(() => request('/addresses', { method: 'POST', body: JSON.stringify(addressForm) }), 'Endereço cadastrado.');
     if (ok) { setShowAddressForm(false); setAddressForm({ postalCode: '', label: 'Casa', street: '', number: '', neighborhood: '' }); }
   }
 
   async function placeOrder() {
-    if (!cartRestaurantId || !cartEntries.length || (cartRestaurantClosed && !scheduledFor) || cartBusy || placing) return;
+    if (guest || !cartRestaurantId || !cartEntries.length || (cartRestaurantClosed && !scheduledFor) || cartBusy || placing) return;
     if (orderType === 'delivery' && (!selectedAddress?.postal_code || !cartCovered || !meetsMinimum)) return;
     if (orderType === 'dine_in' && tableId === null) { setLocalMessage('Escolha a mesa para o consumo no local.'); return; }
     if (manual && manualMethodId === null) { setLocalMessage('Escolha um método de pagamento manual.'); return; }
@@ -582,30 +743,30 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    if (!selectedAddress || !cartRestaurantId) { setDeliveryEstimate(null); return; }
+    if (guest || !selectedAddress || !cartRestaurantId) { setDeliveryEstimate(null); return; }
     const controller = new AbortController();
     fetch(`/backend/delivery/estimate?addressId=${selectedAddress.id}&restaurantId=${cartRestaurantId}`, { signal: controller.signal, credentials: 'same-origin' })
       .then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error ?? 'estimate'); return data; })
       .then((data) => { if (!controller.signal.aborted) setDeliveryEstimate(data); })
       .catch(() => { if (!controller.signal.aborted) setDeliveryEstimate(null); });
     return () => controller.abort();
-  }, [selectedAddress?.id, cartRestaurantId]);
+  }, [guest, selectedAddress?.id, cartRestaurantId]);
 
   useEffect(() => {
-    if (orderType !== 'dine_in' || !cartRestaurantId) { setTables([]); return; }
+    if (guest || orderType !== 'dine_in' || !cartRestaurantId) { setTables([]); return; }
     let active = true;
     fetch(`/backend/restaurants/${cartRestaurantId}/tables`, { credentials: 'same-origin' })
       .then((response) => (response.ok ? response.json() : []))
       .then((data) => { if (active) setTables(Array.isArray(data) ? data : []); })
       .catch(() => { if (active) setTables([]); });
     return () => { active = false; };
-  }, [orderType, cartRestaurantId]);
+  }, [guest, orderType, cartRestaurantId]);
 
   useEffect(() => { if (tableId !== null && !tables.some((table) => table.id === tableId)) setTableId(null); }, [tables, tableId]);
 
   useEffect(() => {
     // A disponibilidade e a public key são da loja do carrinho: cada loja recebe na própria conta.
-    if (!cartRestaurantId) { setOnlineCharges(false); setCardTransparent(false); return; }
+    if (guest || !cartRestaurantId) { setOnlineCharges(false); setCardTransparent(false); return; }
     let active = true;
     fetch(`/backend/payments/public-config?restaurantId=${cartRestaurantId}`, { credentials: 'same-origin' })
       .then((response) => (response.ok ? response.json() : null))
@@ -616,7 +777,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => { if (active) { setOnlineCharges(false); setCardTransparent(false); } });
     return () => { active = false; };
-  }, [cartRestaurantId]);
+  }, [guest, cartRestaurantId]);
 
   useEffect(() => { if (!onlineCharges && modality === 'online') setModality('on_delivery'); }, [onlineCharges, modality]);
 
@@ -625,27 +786,27 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (leaving.current) { leaving.current = false; setPlacing(false); } }, [pathname]);
 
   useEffect(() => {
-    if (!cartRestaurantId) { setOfflineMethods([]); return; }
+    if (guest || !cartRestaurantId) { setOfflineMethods([]); return; }
     let active = true;
     fetch(`/backend/offline-payment-methods?restaurantId=${cartRestaurantId}`, { credentials: 'same-origin' })
       .then((response) => (response.ok ? response.json() : []))
       .then((data) => { if (active) setOfflineMethods(Array.isArray(data) ? data : []); })
       .catch(() => { if (active) setOfflineMethods([]); });
     return () => { active = false; };
-  }, [cartRestaurantId]);
+  }, [guest, cartRestaurantId]);
 
-  if (!user) return null;
+  if (!user && !guest) return null;
 
   const value: CustomerValue = {
-    user, catalog: app.catalog, zones: app.zones, addresses: app.addresses, orders: app.orders, busy: app.busy, message: app.message,
+    user, guest, guestCep, setGuestCep, guestZone, guestCepLoading, guestCepError, retryGuestCep: () => setCepRetry((n) => n + 1), cartDelivery, cartBlockedReason, lastRestaurantId: lastRestaurant.current, menuDelivery, deliveryBlockedReason: blockedReason, catalog: app.catalog, zones: app.zones, addresses: app.addresses, orders: app.orders, busy: app.busy, message: app.message,
     connection: app.connection, lastSync: app.lastSync, selectedAddressId, setSelectedAddressId, selectedAddress, selectedZone, restaurantId, availableCategories, restaurantById,
     search, setSearch, categoryId, setCategoryId, visibleProducts, nextCursor, searchLoading, searchError, searchCachedAt, loadMore,
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
-    cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
+    cartLoaded: guest ? guestCart.loaded : cartLoaded, cartBusy, refreshCart, mutateCart, add, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, selectedProduct, productLoading, openProduct, closeProduct, addSelected,
     tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor,
     orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
     manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, submitReview, loadHistory,
-    localMessage, showAddressForm, setShowAddressForm, addressForm, setAddressForm,
+    localMessage, importNotice, dismissImportNotice: () => setImportNotice(null), showAddressForm, setShowAddressForm, addressForm, setAddressForm,
     postalZone, postalMessage, postalLoading, saveAddress, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality,
     onlineCharges, cardTransparent, placing,
     placeOrder, expandedOrderId, setExpandedOrderId, showAllOrders, setShowAllOrders, cancelOrder,

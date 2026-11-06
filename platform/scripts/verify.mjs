@@ -53,7 +53,7 @@ run('Testes Java (api-java)', 'mvn', [...mvnOffline, '-q', '-Dmaven.repo.local=.
 // já deixou passar um erro de tipo real (código 0). Aqui a checagem roda sem
 // cache, como num checkout limpo do CI.
 run('Tipos do site (tsc)', 'npx', ['tsc', '--noEmit', '--incremental', 'false'], { cwd: join(root, 'apps/web') });
-run('Testes do site (node --test)', 'node', ['--test', 'app/online-payment.test.ts', 'app/cash.test.ts', 'app/quantity.test.ts', 'app/subscription-format.test.ts', 'app/loja/order-status.test.ts', 'app/loja/eta.test.ts', 'app/loja/offline-cache.test.ts', 'app/painel/finish-order.test.ts', 'sentry.shared.test.ts'], { cwd: join(root, 'apps/web') });
+run('Testes do site (node --test)', 'node', ['--test', 'app/online-payment.test.ts', 'app/cash.test.ts', 'app/quantity.test.ts', 'app/subscription-format.test.ts', 'app/loja/order-status.test.ts', 'app/loja/eta.test.ts', 'app/loja/offline-cache.test.ts', 'app/loja/guest-cart.test.ts', 'app/loja/delivery-status.test.ts', 'app/return-path.test.ts', 'app/painel/finish-order.test.ts', 'sentry.shared.test.ts'], { cwd: join(root, 'apps/web') });
 run('Build do site (next build)', 'npm', ['run', 'build'], { cwd: join(root, 'apps/web') });
 run('Tipos do app da cozinha (tsc)', 'pnpm', ['--filter', '@foodie/kitchen', 'typecheck'], { cwd: root });
 run('Testes do app da cozinha (jest)', 'pnpm', ['--filter', '@foodie/kitchen', 'test'], { cwd: root });

@@ -513,6 +513,11 @@ três cobranças Pix. Só depois disso o roteiro funcional da assinatura e as de
 fazem sentido. Em paralelo, a P1.5 operacional (SMTP real, restauração do R2, carga na VPS e rotação de
 credenciais) e a P2 (produto) seguem no backlog.
 
+**Cardápio sem login (06/11/2026):** o item 2 da revisão de UX (`docs/REVISAO_UX_CLIENTE.md`) está
+implementado na branch `feat/cardapio-sem-login` (spec `docs/superpowers/specs/2026-11-05-cardapio-sem-login-design.md`):
+o visitante vê o cardápio, informa o CEP e monta o carrinho, e o login só vem antes do pagamento. Falta PR,
+deploy no staging e a conferência no celular, no staging `(a confirmar)`.
+
 **Roteiro do pagamento ainda pendente:** não há registro de que o fechamento do pagamento tenha sido
 repetido depois de 15/10 `(a confirmar com o dono do produto)`. Como as PRs #54, #57, #58, #64 e a rodada
 de 21/10 mexeram em pagamento, 3DS, login, sessão e acesso, o roteiro deve rodar sobre o `f4dd4c8`.

@@ -1,6 +1,8 @@
 package com.foodie.api.catalog;
 
 import com.foodie.api.ApiException;
+import com.foodie.api.routing.DeliveryFee;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,12 +27,20 @@ public class PostalCoverageService {
     public Map<String, Object> resolve(String postalCode) {
         String digits = normalize(postalCode);
         List<Map<String, Object>> matches = jdbc.queryForList(
-            "SELECT z.id, z.name, z.city, z.state, z.delivery_fee_cents, z.minimum_order_cents, z.delivery_minutes "
+            "SELECT z.id, z.name, z.city, z.state, z.delivery_fee_cents, z.base_fee_cents, z.per_km_cents, "
+                + "z.minimum_order_cents, z.delivery_minutes "
                 + "FROM zone_postal_ranges p JOIN zones z ON z.id = p.zone_id AND z.active = TRUE "
                 + "WHERE p.postal_start <= ? AND p.postal_end >= ? ORDER BY p.id LIMIT 1",
             digits, digits);
         if (matches.isEmpty()) throw new ApiException(404, "Ainda não entregamos neste CEP");
-        return matches.getFirst();
+        Map<String, Object> zone = new LinkedHashMap<>(matches.getFirst());
+        Number base = (Number) zone.remove("base_fee_cents");
+        Number perKm = (Number) zone.remove("per_km_cents");
+        long fixed = ((Number) zone.get("delivery_fee_cents")).longValue();
+        // Taxa mínima: a de 1 km (zona por km) ou a fixa; base e por km não vão na resposta.
+        zone.put("minimum_fee_cents", DeliveryFee.compute(fixed,
+            base == null ? null : base.intValue(), perKm == null ? null : perKm.intValue(), 1000L));
+        return zone;
     }
 
     public void requireAddressZone(String postalCode, long zoneId) {
