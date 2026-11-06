@@ -8,6 +8,7 @@ import { Icon } from '../../icons';
 import { Rolling, prefersReducedMotion } from '../motion';
 import { estimateMinutes, etaRange } from '../eta';
 import GuestCep from '../guest-cep';
+import { guestContinueReason } from '../delivery-status';
 
 /** Linha de escolha única (rádio) usada em "Como receber" e "Pagamento". */
 function Choice({ selected, label, hint, onClick }: { selected: boolean; label: string; hint?: string; onClick: () => void }) {
@@ -41,10 +42,9 @@ function GuestCartView() {
   }
 
   const covered = cartDelivery === 'covered' && guestZone !== null;
-  const blocked = cartDelivery === 'not-covered' || cartDelivery === 'unknown-cep';
   const minimum = guestZone?.minimum_order_cents ?? 0;
   const eta = covered ? etaRange(estimateMinutes(restaurant?.prep_minutes, guestZone.delivery_minutes)) : '';
-  const disabledReason = blocked ? cartBlockedReason : guestCep && guestCepLoading ? 'Consultando o CEP…' : '';
+  const disabledReason = guestContinueReason(cartDelivery, guestCep !== null, guestCepLoading, guestCepError, cartBlockedReason);
 
   return <section className="lj-cart" id="carrinho">
     <header className="lj-cart-head">
@@ -98,20 +98,22 @@ function GuestCartView() {
         {covered && minimum > 0 && minimum <= subtotal && <p className="lj-help">{`Pedido mínimo da zona: ${money(minimum)}`}</p>}
         {eta && <p className="lj-help">{`Chega em ${eta}`}</p>}
         {disabledReason && <p className="customer-minimum">{disabledReason}</p>}
-        {guestCepError && <p className="customer-minimum">{'Não foi possível consultar o CEP. Tente de novo antes de continuar.'}</p>}
         <p className="lj-help">{'Os valores são confirmados ao entrar na sua conta'}</p>
-        {disabledReason
-          ? <button type="button" className="lj-checkout" disabled><span>{'Continuar'}</span></button>
-          : <Link className="lj-checkout" href="/entrar?voltar=/loja/carrinho"><span>{'Continuar'}</span><Rolling value={money(subtotal)} /></Link>}
+        <ContinueButton blocked={disabledReason !== ''} subtotal={subtotal} />
       </aside>
     </div>
 
     <div className="lj-checkout-bar">
-      {disabledReason
-        ? <button type="button" className="lj-checkout" disabled><span>{'Continuar'}</span></button>
-        : <Link className="lj-checkout" href="/entrar?voltar=/loja/carrinho"><span>{'Continuar'}</span><Rolling value={money(subtotal)} /></Link>}
+      <ContinueButton blocked={disabledReason !== ''} subtotal={subtotal} />
     </div>
   </section>;
+}
+
+/** "Continuar" do visitante: leva ao login e volta ao carrinho; desabilitado enquanto a entrega não estiver confirmada. */
+function ContinueButton({ blocked, subtotal }: { blocked: boolean; subtotal: number }) {
+  return blocked
+    ? <button type="button" className="lj-checkout" disabled><span>{'Continuar'}</span></button>
+    : <Link className="lj-checkout" href="/entrar?voltar=/loja/carrinho"><span>{'Continuar'}</span><Rolling value={money(subtotal)} /></Link>;
 }
 
 function AccountCart() {

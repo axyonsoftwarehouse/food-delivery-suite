@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Address, Catalog, Order, Product, Role, User, Zone, api, useApp } from '../app-context';
 import { browserCache, cacheKey, readCache, writeCache } from './offline-cache';
 import { deliveryStatus, type DeliveryStatus } from './delivery-status';
-import { useGuestCart, useStoredCep } from './use-guest-cart';
+import { guestStorage, useGuestCart, useStoredCep } from './use-guest-cart';
 import { guestSubtotalCents, readGuestCep, sanitizeImportItems, takeGuestCartForImport, writeGuestCart, type GuestCart, type GuestCartLine } from './guest-cart';
 
 type Restaurant = { id: number; name: string; slug: string; open?: boolean };
@@ -206,7 +206,7 @@ async function importGuestCart(guest: GuestCart): Promise<GuestImportOutcome> {
     }
     return { cart: result.cart, notice: notices.join(' ') };
   } catch (error) {
-    try { writeGuestCart(window.localStorage, guest); } catch { /* opcional */ }
+    try { writeGuestCart(guestStorage(), guest); } catch { /* opcional */ }
     return { cart: null, notice: error instanceof Error ? error.message : 'Não foi possível trazer seu carrinho para a conta.' };
   }
 }
@@ -328,7 +328,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
     // O CEP que o visitante informou já vem no formulário de endereço.
     if (user.role === 'customer') {
       let cep: string | null = null;
-      try { cep = readGuestCep(window.localStorage); } catch { /* opcional */ }
+      try { cep = readGuestCep(guestStorage()); } catch { /* opcional */ }
       if (cep) setAddressForm((form) => (form.postalCode ? form : { ...form, postalCode: cep! }));
     }
     async function load() {
@@ -336,7 +336,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
         // Carrinho do visitante: entra na conta antes do legado. A promessa fica numa ref para a segunda
         // execução do efeito (StrictMode) esperar o mesmo import em vez de ler a conta antes dele.
         if (user!.role === 'customer' && !importing.current) {
-          const taken = takeGuestCartForImport(window.localStorage);
+          const taken = takeGuestCartForImport(guestStorage());
           if (taken) importing.current = importGuestCart(taken);
         }
         const pending = importing.current;
@@ -346,12 +346,12 @@ export function CustomerProvider({ children, guest = false }: { children: React.
         let snapshot = outcome?.cart ?? await request<CartSnapshot>('/cart');
         const key = `foodie-cart-v1:${user!.id}`;
         let oldCart: { productId: number; quantity: number }[] = [];
-        try { const saved = window.localStorage.getItem(key); if (saved) oldCart = legacyCart(JSON.parse(saved)); } catch { /* opcional */ }
+        try { const saved = guestStorage()?.getItem(key); if (saved) oldCart = legacyCart(JSON.parse(saved)); } catch { /* opcional */ }
         if (snapshot.items.length === 0 && oldCart.length > 0) {
           const imported = await request<{ cart: CartSnapshot; imported: number; skipped: number; replaced: boolean }>('/cart/import', { method: 'POST', body: JSON.stringify({ items: oldCart }) });
           snapshot = imported.cart;
         }
-        try { window.localStorage.removeItem(key); } catch { /* opcional */ }
+        try { guestStorage()?.removeItem(key); } catch { /* opcional */ }
         if (!cancelled) applyCart(snapshot);
       } catch (error) {
         if (!cancelled) setLocalMessage(error instanceof Error ? error.message : 'Não foi possível carregar o carrinho.');

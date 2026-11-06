@@ -13,3 +13,21 @@ export function deliveryStatus(
   if (zoneId === null) return cepLookupFailed ? 'unknown-cep' : 'no-location';
   return coverage.some((item) => item.zone_id === zoneId && item.restaurant_id === restaurantId) ? 'covered' : 'not-covered';
 }
+
+/**
+ * Carrinho do visitante: só continua para o login com a loja entregando no CEP. Devolve o motivo
+ * quando não pode ("" quando pode).
+ */
+export function guestContinueReason(
+  status: DeliveryStatus,
+  hasCep: boolean,
+  cepLoading: boolean,
+  cepError: boolean,
+  blockedReason: string,
+): string {
+  if (!hasCep) return 'Informe o CEP para continuar.';
+  if (cepLoading) return 'Consultando o CEP…';
+  if (cepError) return 'Não foi possível consultar o CEP. Tente de novo antes de continuar.';
+  if (status === 'covered') return '';
+  return blockedReason || 'Esta loja ainda não entrega no CEP informado.';
+}
