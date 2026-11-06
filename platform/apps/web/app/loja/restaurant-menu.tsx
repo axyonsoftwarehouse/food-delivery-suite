@@ -182,7 +182,7 @@ export default function RestaurantMenu() {
     <section className="lj-store" aria-label="Restaurante">
       <div className="lj-store-cover" ref={coverRef}>
         {restaurant ? <RestaurantMedia restaurant={restaurant} className="lj-store-media" /> : <span className="lj-store-media" />}
-        <Link className="lj-round-button lj-store-back" href="/loja" aria-label="Voltar para restaurantes"><Icon name="arrow-left" size={20} /></Link>
+        <Link className="lj-round-button lj-store-back" href={guest ? '/#restaurantes' : '/loja'} aria-label="Voltar para restaurantes"><Icon name="arrow-left" size={20} /></Link>
       </div>
       <div className="lj-store-info">
         <h1 ref={titleRef}>{restaurant?.name ?? 'Restaurante'}</h1>

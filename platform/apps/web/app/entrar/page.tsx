@@ -7,7 +7,7 @@ import GoogleSignInButton from '../GoogleSignInButton';
 import FacebookSignInButton from '../FacebookSignInButton';
 import { useApp } from '../app-context';
 import { loginDestination } from '../return-path';
-import { GUEST_CART_KEY, readGuestCart } from '../loja/guest-cart';
+import { readGuestCart } from '../loja/guest-cart';
 import { Icon } from '../icons';
 import LegalLinks from '../legal-links';
 

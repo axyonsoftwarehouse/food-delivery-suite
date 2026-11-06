@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  GUEST_CART_KEY, GUEST_CART_MAX_AGE_MS, GUEST_CEP_KEY, addGuestLine, guestSubtotalCents, readGuestCart, readGuestCep,
+  GUEST_CART_KEY, GUEST_CART_MAX_AGE_MS, GUEST_CEP_KEY, addGuestLine, guestSubtotalCents, importNoticeLines, readGuestCart, readGuestCep,
   sanitizeImportItems, setGuestNote, setGuestQuantity, takeGuestCartForImport, toImportItems, writeGuestCart, writeGuestCep, type GuestCart, type GuestCartLine,
 } from './guest-cart.ts';
 
@@ -144,4 +144,20 @@ test('sanitizeImportItems limita quantidade, observação e número de itens', (
   assert.equal(b.quantity, 1);
   assert.equal(c.quantity, 2);
   assert.equal(c.note.length, 140);
+});
+
+test('importNoticeLines: nada importado, substituição, itens retirados e preço novo', () => {
+  const fmt = (cents: number) => `R$ ${(cents / 100).toFixed(2)}`;
+  assert.deepEqual(importNoticeLines({ imported: 0, skipped: 2, replaced: false }, 1000, 0, fmt),
+    ['Os itens que você escolheu não estão mais disponíveis.']);
+  assert.deepEqual(importNoticeLines({ imported: 1, skipped: 0, replaced: false }, 1000, 1000, fmt), []);
+  assert.deepEqual(importNoticeLines({ imported: 1, skipped: 0, replaced: true }, 1000, 1000, fmt),
+    ['Seu carrinho foi atualizado com os itens que você escolheu agora.']);
+  assert.deepEqual(importNoticeLines({ imported: 1, skipped: 0, replaced: false }, 1000, 1250, fmt),
+    ['Os valores foram atualizados. Subtotal agora: R$ 12.50.']);
+  // Com item retirado o subtotal muda sempre: só o aviso de retirada, sem linha de valores.
+  assert.deepEqual(importNoticeLines({ imported: 2, skipped: 1, replaced: false }, 3000, 2000, fmt),
+    ['1 item não estava mais disponível e foi retirado.']);
+  assert.deepEqual(importNoticeLines({ imported: 1, skipped: 2, replaced: true }, 3000, 1000, fmt),
+    ['Seu carrinho foi atualizado com os itens que você escolheu agora.', '2 itens não estavam mais disponíveis e foram retirados.']);
 });

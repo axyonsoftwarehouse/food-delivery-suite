@@ -2,11 +2,11 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Address, Catalog, Order, Product, Role, User, Zone, api, useApp } from '../app-context';
+import { Address, Catalog, Order, Product, Role, User, Zone, api, money, useApp } from '../app-context';
 import { browserCache, cacheKey, readCache, writeCache } from './offline-cache';
 import { deliveryStatus, type DeliveryStatus } from './delivery-status';
 import { guestStorage, useGuestCart, useStoredCep } from './use-guest-cart';
-import { guestSubtotalCents, readGuestCep, sanitizeImportItems, takeGuestCartForImport, writeGuestCart, type GuestCart, type GuestCartLine } from './guest-cart';
+import { guestSubtotalCents, importNoticeLines, readGuestCep, sanitizeImportItems, takeGuestCartForImport, writeGuestCart, type GuestCart, type GuestCartLine } from './guest-cart';
 
 type Restaurant = { id: number; name: string; slug: string; open?: boolean };
 type CartItem = { productId: number; variationId: number; quantity: number; restaurantId: number; name: string; priceCents: number; variationName: string | null; unitPriceCents: number; addonIds: number[]; addonNames: string[]; note?: string; available: boolean; unavailableReason: string | null };
@@ -127,6 +127,9 @@ type CustomerValue = {
   submitReview: (orderId: number, rating: number, comment: string) => Promise<boolean>;
   loadHistory: (after?: number) => Promise<{ items: Order[]; nextCursor: number | null }>;
   localMessage: string;
+  /** Resultado da importação do carrinho do visitante (fica na tela do carrinho até ser dispensado). */
+  importNotice: { lines: string[] } | null;
+  dismissImportNotice: () => void;
   showAddressForm: boolean;
   setShowAddressForm: (value: boolean) => void;
   addressForm: { postalCode: string; label: string; street: string; number: string; neighborhood: string };
@@ -190,24 +193,33 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return result as T;
 }
 
-type GuestImportOutcome = { cart: CartSnapshot | null; notice: string };
+type GuestImportOutcome = { cart: CartSnapshot | null; lines: string[] };
 
-/** Manda o carrinho do visitante para a conta (substitui o da conta). Se a chamada falhar, devolve o carrinho ao navegador. */
+/** Falha de rede (sem resposta HTTP): só nesse caso o carrinho do visitante volta ao navegador. */
+class NetworkError extends Error {}
+
+async function importRequest<T>(path: string, body: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`/backend${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch {
+    throw new NetworkError('Sem conexão para trazer seu carrinho para a conta.');
+  }
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error ?? 'Não foi possível trazer seu carrinho para a conta.');
+  return result as T;
+}
+
+/** Manda o carrinho do visitante para a conta (substitui o da conta). Se a rede falhar, devolve o carrinho ao navegador. */
 async function importGuestCart(guest: GuestCart): Promise<GuestImportOutcome> {
   try {
-    const result = await request<{ cart: CartSnapshot; imported: number; skipped: number; replaced: boolean }>('/cart/import', { method: 'POST', body: JSON.stringify({ items: sanitizeImportItems(guest), replace: true }) });
-    const notices: string[] = [];
-    if (result.imported === 0) notices.push('Os itens que você escolheu não estão mais disponíveis.');
-    else {
-      if (result.replaced) notices.push('Seu carrinho foi atualizado com os itens que você escolheu agora.');
-      if (result.skipped > 0) notices.push(`${result.skipped} ${result.skipped === 1 ? 'item não estava mais disponível e foi retirado' : 'itens não estavam mais disponíveis e foram retirados'}.`);
-      const cents = result.cart.items.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
-      if (cents !== guestSubtotalCents(guest)) notices.push('Os valores foram atualizados.');
-    }
-    return { cart: result.cart, notice: notices.join(' ') };
+    const result = await importRequest<{ cart: CartSnapshot; imported: number; skipped: number; replaced: boolean }>('/cart/import', { items: sanitizeImportItems(guest), replace: true });
+    const cents = result.cart.items.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
+    return { cart: result.cart, lines: importNoticeLines(result, guestSubtotalCents(guest), cents, money) };
   } catch (error) {
-    try { writeGuestCart(guestStorage(), guest); } catch { /* opcional */ }
-    return { cart: null, notice: error instanceof Error ? error.message : 'Não foi possível trazer seu carrinho para a conta.' };
+    // Erro HTTP (400/409/5xx): não restaura, para um import posterior não apagar o que a pessoa fez na conta.
+    if (error instanceof NetworkError) { try { writeGuestCart(guestStorage(), guest); } catch { /* opcional */ } }
+    return { cart: null, lines: [error instanceof Error ? error.message : 'Não foi possível trazer seu carrinho para a conta.'] };
   }
 }
 
@@ -245,6 +257,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   const [cartLoaded, setCartLoaded] = useState(false);
   const [cartBusy, setCartBusy] = useState(false);
   const [localMessage, setLocalMessage] = useState('');
+  const [importNotice, setImportNotice] = useState<{ lines: string[] } | null>(null);
   // A barra mostra `message || localMessage`: um aviso geral antigo (ex.: "Pedido cancelado.") escondia o
   // aviso novo do carrinho — em 05/10/2026 escondeu o "Pagamento aprovado" do cartão. O aviso mais novo vence.
   const setAppMessage = app.setMessage;
@@ -342,7 +355,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
         const pending = importing.current;
         const outcome = pending ? await pending : null;
         if (importing.current === pending) importing.current = null;
-        if (outcome?.notice && !cancelled) setLocalMessage(outcome.notice);
+        if (outcome && outcome.lines.length > 0 && !cancelled) setImportNotice({ lines: outcome.lines });
         let snapshot = outcome?.cart ?? await request<CartSnapshot>('/cart');
         const key = `foodie-cart-v1:${user!.id}`;
         let oldCart: { productId: number; quantity: number }[] = [];
@@ -793,7 +806,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
     tags, tagId, setTagId, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor,
     orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
     manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, submitReview, loadHistory,
-    localMessage, showAddressForm, setShowAddressForm, addressForm, setAddressForm,
+    localMessage, importNotice, dismissImportNotice: () => setImportNotice(null), showAddressForm, setShowAddressForm, addressForm, setAddressForm,
     postalZone, postalMessage, postalLoading, saveAddress, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality,
     onlineCharges, cardTransparent, placing,
     placeOrder, expandedOrderId, setExpandedOrderId, showAllOrders, setShowAllOrders, cancelOrder,

@@ -9,6 +9,7 @@ import { Rolling, prefersReducedMotion } from '../motion';
 import { estimateMinutes, etaRange } from '../eta';
 import GuestCep from '../guest-cep';
 import { guestContinueReason } from '../delivery-status';
+import { Alert } from '../../ui';
 
 /** Linha de escolha única (rádio) usada em "Como receber" e "Pagamento". */
 function Choice({ selected, label, hint, onClick }: { selected: boolean; label: string; hint?: string; onClick: () => void }) {
@@ -29,7 +30,7 @@ function GuestCartView() {
   const restaurantId = cartEntries[0]?.product.restaurant_id;
   const restaurant = restaurantId ? restaurantById.get(restaurantId) : undefined;
   const storeId = restaurantId ?? lastRestaurantId;
-  const backHref = storeId ? `/loja/restaurantes/${storeId}` : '/loja';
+  const backHref = storeId ? `/loja/restaurantes/${storeId}` : '/#restaurantes';
 
   if (!cartEntries.length) {
     return <section className="lj-cart">
@@ -116,6 +117,10 @@ function ContinueButton({ blocked, subtotal }: { blocked: boolean; subtotal: num
     : <Link className="lj-checkout" href="/entrar?voltar=/loja/carrinho"><span>{'Continuar'}</span><Rolling value={money(subtotal)} /></Link>;
 }
 
+function ImportNotice({ lines, onDismiss }: { lines: string[]; onDismiss: () => void }) {
+  return <Alert tone="info" action={<button type="button" className="lj-text-button" onClick={onDismiss}>Dispensar</button>}>{lines.join(' ')}</Alert>;
+}
+
 function AccountCart() {
   const { busy } = useApp();
   const [frequencyDays, setFrequencyDays] = useState(7);
@@ -123,7 +128,7 @@ function AccountCart() {
   const [recurringBusy, setRecurringBusy] = useState(false);
   const [recurringMessage, setRecurringMessage] = useState('');
   const [removing, setRemoving] = useState<string | null>(null);
-  const { cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
+  const { importNotice, dismissImportNotice, cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
   const parsedTip = Number(tip.replace(',', '.'));
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
   const total = subtotal + orderFee - discount + serviceFee + tipCents;
@@ -173,6 +178,7 @@ function AccountCart() {
 
   if (!cartEntries.length) {
     return <section className="lj-cart">
+      {importNotice && <ImportNotice lines={importNotice.lines} onDismiss={dismissImportNotice} />}
       <div className="lj-empty lj-empty--page">
         <Icon name="bag" size={32} />
         <h1>{placing ? 'Abrindo o pagamento…' : cartLoaded ? 'Seu carrinho está vazio' : 'Carregando seu carrinho…'}</h1>
@@ -182,6 +188,7 @@ function AccountCart() {
   }
 
   return <section className="lj-cart" id="carrinho">
+    {importNotice && <ImportNotice lines={importNotice.lines} onDismiss={dismissImportNotice} />}
     <header className="lj-cart-head">
       <div><h1>{'Carrinho'}</h1>{cartRestaurant && <Link href={`/loja/restaurantes/${cartRestaurant.id}`}>{cartRestaurant.name}</Link>}</div>
       <div className="lj-cart-tools">

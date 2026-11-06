@@ -155,3 +155,24 @@ export function writeGuestCep(store: Storage | null, cep: string | null): void {
     // armazenamento indisponível: o CEP é só conveniência.
   }
 }
+
+/**
+ * Linhas do aviso mostrado depois de o carrinho do visitante entrar na conta. Quando algum item saiu
+ * (`skipped > 0`) o subtotal sempre muda, então a linha de valores só aparece sem itens retirados.
+ */
+export function importNoticeLines(
+  result: { imported: number; skipped: number; replaced: boolean },
+  guestSubtotal: number,
+  serverSubtotal: number,
+  formatMoney: (cents: number) => string,
+): string[] {
+  if (result.imported === 0) return ['Os itens que você escolheu não estão mais disponíveis.'];
+  const lines: string[] = [];
+  if (result.replaced) lines.push('Seu carrinho foi atualizado com os itens que você escolheu agora.');
+  if (result.skipped > 0) {
+    lines.push(`${result.skipped} ${result.skipped === 1 ? 'item não estava mais disponível e foi retirado' : 'itens não estavam mais disponíveis e foram retirados'}.`);
+  } else if (serverSubtotal !== guestSubtotal) {
+    lines.push(`Os valores foram atualizados. Subtotal agora: ${formatMoney(serverSubtotal)}.`);
+  }
+  return lines;
+}
