@@ -11,6 +11,10 @@ item com opções → carrinho → pedido → acompanhamento → cancelamento �
 `feat/cardapio-sem-login` (pendente de PR e conferência no staging). Item **8 em parte**: o cardápio já
 abre sem login, mas a página pública da loja ainda não mostra aberto/fechado, horário, taxa e mínimo.
 
+**Andamento (07/11):** itens **5, 6 e 7 resolvidos** na branch `fix/ux-itens-5-a-7` (pendente de PR e
+conferência no staging). Item 5: tocar no card abre a ficha, inclusive em prato sem opções; o "+" segue
+colocando direto no carrinho o prato sem opções.
+
 **Impressão geral:** a parte logada está boa — início com "Peça de novo", loja com
 tempo/taxa/mínimo, ficha do item com preço que atualiza, carrinho completo, linha do
 tempo do pedido e perfil com LGPD. Os problemas maiores estão **antes do login** e

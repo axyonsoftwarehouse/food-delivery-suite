@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, useApp } from './app-context';
 import PixPayment from './PixPayment';
 
-type Item = { name: string; quantity: number; unit_price_cents: number; note?: string | null };
+/** `addons` vem da API já junto ("Bacon, Queijo"), como na tela da cozinha. */
+type Item = { name: string; quantity: number; unit_price_cents: number; variation_name?: string | null; addons?: string | null; note?: string | null };
 type Event = { from_status: string | null; to_status: string; reason: string | null; created_at: string };
 type PaymentImage = { qr_code?: string | null; qr_code_base64?: string | null; ticket_url?: string | null };
 type Payment = {
@@ -122,7 +123,7 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
 
   return <div className="order-details" aria-live="polite">
     <div className="order-details-grid">
-      <div><h3>Itens</h3><ul>{detail.items.map((item, index) => <li key={index}><span>{item.quantity} × {item.name}{item.note && <em className="order-details-note">{`Obs.: ${item.note}`}</em>}</span><strong>{money(item.quantity * item.unit_price_cents)}</strong></li>)}</ul></div>
+      <div><h3>Itens</h3><ul>{detail.items.map((item, index) => <li key={index}><span>{item.quantity} × {item.name}{(item.variation_name || item.addons) && <small className="order-details-options">{[item.variation_name, item.addons].filter(Boolean).join(' · ')}</small>}{item.note &&<em className="order-details-note">{`Obs.: ${item.note}`}</em>}</span><strong>{money(item.quantity * item.unit_price_cents)}</strong></li>)}</ul></div>
       <div><h3>Andamento</h3><ol>{detail.history.map((event, index) => <li key={index}><strong>{statusLabels[event.to_status] ?? event.to_status}</strong>{event.reason && <em> · {event.reason}</em>}<time dateTime={event.created_at}>{date(event.created_at)}</time></li>)}</ol></div>
     </div>
     {/* Uma linha por valor: na mesma linha, "Subtotal R$ 109,60 Entrega R$ 5,90" lia como um texto só. */}
@@ -137,7 +138,8 @@ export default function OrderDetails({ orderId, status }: { orderId: number; sta
     </dl>
     <div className="order-details-actions">
       <a className="ui-btn ui-btn--secondary ui-btn--sm" href={`/backend/orders/${orderId}/invoice`} target="_blank" rel="noreferrer">Fatura</a>
-      <button className="ui-btn ui-btn--secondary ui-btn--sm" type="button" onClick={() => void track()}>Rastrear entrega</button>
+      {/* Só faz sentido com o pedido a caminho: antes disso não há entregador em rota; cancelado, nunca. */}
+      {status === 'picked_up' && <button className="ui-btn ui-btn--secondary ui-btn--sm" type="button" onClick={() => void track()}>Rastrear entrega</button>}
       {user?.role === 'customer' && ['delivered', 'completed', 'served'].includes(status) && <button className="ui-btn ui-btn--danger ui-btn--sm" type="button" onClick={() => void requestRefund()}>Solicitar reembolso</button>}
     </div>
     {payment && payment.method === 'pix' && payment.modality === 'online' && payment.status === 'pending' && (

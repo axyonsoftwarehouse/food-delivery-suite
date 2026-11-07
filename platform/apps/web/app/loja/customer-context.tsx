@@ -86,7 +86,8 @@ type CustomerValue = {
   setOrderNote: (value: string) => void;
   selectedProduct: ProductDetail | null;
   productLoading: boolean;
-  openProduct: (product: Product) => Promise<void>;
+  /** `details`: abre a ficha mesmo em prato sem opções (toque no card); sem ele, prato sem opções vai direto ao carrinho ("+"). */
+  openProduct: (product: Product, options?: { details?: boolean }) => Promise<void>;
   closeProduct: () => void;
   addSelected: (variationId: number, addonIds: number[], note?: string) => Promise<void>;
   tags: { id: number; name: string }[];
@@ -590,8 +591,8 @@ export function CustomerProvider({ children, guest = false }: { children: React.
     await mutateCart(`/cart/items/${productId}/note`, 'PUT', payload, newNote.trim() ? 'Observação salva.' : 'Observação removida.');
   }
 
-  async function openProduct(product: Product) {
-    if (!product.variation_count) { await add(product); return; }
+  async function openProduct(product: Product, options: { details?: boolean } = {}) {
+    if (!product.variation_count && !options.details) { await add(product); return; }
     setProductLoading(true);
     const key = cacheKey('product', product.id);
     try {
