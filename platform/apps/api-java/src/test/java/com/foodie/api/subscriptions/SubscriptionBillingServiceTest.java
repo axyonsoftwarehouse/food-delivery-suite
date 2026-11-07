@@ -96,6 +96,27 @@ class SubscriptionBillingServiceTest {
     }
 
     @Test
+    void pixCarriesTheOwnerFirstName() {
+        // O sandbox do Mercado Pago escolhe o resultado pelo primeiro nome do pagador ("APRO" aprova). Sem ele,
+        // o Pix da assinatura nunca era aprovado no teste (roteiro de 07/11/2026); o cartão já mandava.
+        when(jdbc.queryForList(argThat(s -> s != null && s.contains("FROM users")), any(Object[].class)))
+            .thenReturn(List.of(Map.of("name", "APRO Dono Teste", "email", "dono@loja.com.br")));
+        subscription("active", Instant.parse("2026-10-01T00:00:00Z"));
+        when(charges.insert(anyLong(), anyLong(), anyString(), anyInt(), anyString(), any(), any())).thenReturn(42L);
+        when(gateway.create(any(), any())).thenReturn(new PaymentGateway.Charge("ORDSUB9", "sub-42", 9900, "pending", "pending",
+            "00020126...", "base64", "https://mp/ticket", null));
+
+        service(true).generateForSubscription(7);
+
+        ArgumentCaptor<PaymentGateway.ChargeRequest> request = ArgumentCaptor.forClass(PaymentGateway.ChargeRequest.class);
+        verify(gateway).create(any(), request.capture());
+        assertEquals("pix", request.getValue().method());
+        assertEquals("dono@loja.com.br", request.getValue().payerEmail());
+        assertEquals("APRO", request.getValue().payerFirstName());
+        assertEquals("sub-42", request.getValue().externalReference());
+    }
+
+    @Test
     void notDueYetDoesNothing() {
         subscription("active", Instant.parse("2030-01-01T00:00:00Z"));
 

@@ -315,8 +315,11 @@ public class SubscriptionBillingService {
             return Optional.empty();
         }
         if (!CHARGEABLE.contains((String) subscription.get("status"))) return Optional.empty();
+        // Pagador = dono da loja. O primeiro nome vai como no cartão: o sandbox decide o resultado por ele.
+        Map<String, Object> owner = owner(saved.restaurantId());
         var created = gateway.create(account.credentials(), new PaymentGateway.ChargeRequest(chargeId, saved.amountCents(), "pix",
-            "Assinatura Foodie — loja " + saved.restaurantId(), ownerEmail(saved.restaurantId()), "sub-" + chargeId)
+            "Assinatura Foodie — loja " + saved.restaurantId(), (String) owner.get("email"), "sub-" + chargeId,
+            null, null, null, null, null, com.foodie.api.payments.OnlinePaymentService.primeiroNome((String) owner.get("name")))
             .withExternalReference("sub-" + chargeId));
         if (created == null || created.externalId() == null) throw new com.foodie.api.ApiException(503, "Cobrança sem identificação no provedor");
         charges.markCreated(chargeId, created.externalId(), "sub-" + chargeId, created.qrCode(), created.qrCodeBase64(), created.ticketUrl(), created.expiresAt(), created.rawStatus());
@@ -398,14 +401,7 @@ public class SubscriptionBillingService {
             Timestamp.from(charge.periodStart()), Timestamp.from(charge.periodEnd()));
     }
 
-    /** O e-mail do dono da loja, usado como pagador da cobrança. Vazio quando não há dono cadastrado. */
-    private String ownerEmail(long restaurantId) {
-        List<Map<String, Object>> owners = jdbc.queryForList(
-            "SELECT email FROM users WHERE restaurant_id = ? AND role = 'restaurant' ORDER BY id LIMIT 1", restaurantId);
-        return owners.isEmpty() ? null : (String) owners.getFirst().get("email");
-    }
-
-    /** Nome e e-mail do dono, usados como pagador do cartão. */
+    /** Nome e e-mail do dono, usados como pagador do Pix e do cartão. Vazio quando não há dono cadastrado. */
     private Map<String, Object> owner(long restaurantId) {
         List<Map<String, Object>> owners = jdbc.queryForList(
             "SELECT name, email FROM users WHERE restaurant_id = ? AND role = 'restaurant' ORDER BY id LIMIT 1", restaurantId);

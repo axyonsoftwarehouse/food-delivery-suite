@@ -76,3 +76,19 @@ export function daysUntil(value: string | null | undefined) {
 export function badgeClass(tone: BadgeTone) {
   return tone === 'neutral' ? 'pr-badge' : `pr-badge is-${tone}`;
 }
+
+// Mesmos domínios reservados que a API recusa (`OnlinePaymentService.emailValido`).
+const RESERVED_TLDS = new Set(['local', 'localhost', 'test', 'invalid', 'example', 'internal', 'lan', 'home']);
+
+/**
+ * E-mail para começar preenchido no "E-mail do titular". O Mercado Pago recusa endereços de demonstração
+ * (`@demo.local`): em vez de mostrar um valor que vai dar erro, o campo vem vazio.
+ */
+export function deliverableEmail(email: string | null | undefined) {
+  const value = (email ?? '').trim();
+  const [local, domain, ...rest] = value.split('@');
+  if (!local || !domain || rest.length) return '';
+  const host = domain.toLowerCase();
+  if (!host.includes('.') || host.startsWith('.') || host.endsWith('.')) return '';
+  return RESERVED_TLDS.has(host.slice(host.lastIndexOf('.') + 1)) ? '' : value;
+}

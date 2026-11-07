@@ -20,17 +20,17 @@ O produto funciona de ponta a ponta no staging (cliente, loja, cozinha, entregad
 online com a conta da loja e estornos). O que separa isso do lançamento é, sobretudo, **não código**:
 o ambiente de produção, a cobrança da assinatura (única receita), o e-mail real e o jurídico.
 
-**Caminho crítico:** ~~decidir a conta que recebe a assinatura (A1)~~ (feito em 07/11) → provar a cobrança no staging
-(A2) → **teste de carga** (B9) → montar a produção (B1, B3–B6) → primeira transação real (F1).
+**Caminho crítico:** ~~decidir a conta que recebe a assinatura (A1)~~ (feito em 07/11) → ~~provar a cobrança no staging
+(A2, A3)~~ (feito em 07/11) → **teste de carga** (B9) → montar a produção (B1, B3–B6) → primeira transação real (F1).
 
 ## A. Receita — assinatura das lojas
 
 | # | Item | Dono | Estado | Fonte |
 | --- | --- | --- | --- | --- |
 | A1 | Decidir a **conta da empresa** que recebe a assinatura | Werner | feito (07/11): **a conta Mercado Pago do Werner** recebe a assinatura. O token e a public key dela vão em `SUBSCRIPTIONS_ACCOUNT_*` | decisão do dono |
-| A2 | Configurar a conta de teste da assinatura no staging (`SUBSCRIPTIONS_*`, cobrança real ligada) | Werner | pendente: A1 decidido; falta gravar as credenciais de teste da conta do Werner no `deploy/.env` | `HOMOLOGACAO_ASSINATURA_P0.md` §2 |
-| A3 | Rodar a homologação da P0: reativar as três assinaturas, ver as cobranças Pix nascerem e pagar uma | Código + Werner | bloqueado por A2 | `HOMOLOGACAO_ASSINATURA_P0.md` |
-| A4 | Roteiro funcional da assinatura no painel da loja (Pix e cartão com 3DS) | Código + Werner | bloqueado por A2 | `ESTADO_ATUAL.md` §4 |
+| A2 | Configurar a conta de teste da assinatura no staging (`SUBSCRIPTIONS_*`, cobrança real ligada) | Werner | feito (07/11): as três `SUBSCRIPTIONS_*` (conta de teste no papel da Foodie) foram acrescentadas ao `deploy/.env`; às 16:50:53 UTC o log da API mostrou `Cobrança real da assinatura LIGADA` | `HOMOLOGACAO_ASSINATURA_P0.md` §2 |
+| A3 | Rodar a homologação da P0: reativar as três assinaturas, ver as cobranças Pix nascerem e pagar uma | Código + Werner | feito (07/11): reativadas as três assinaturas, nasceram as cobranças Pix #1 a #3. A loja 1 pagou com cartão de teste (`APRO-AUTH`): cobrança #4 `card/paid`, Pix #3 `cancelled`, assinatura `active` até 07/12. Os três webhooks às 17:15 UTC deram 200, sem reenvio manual. O Pix não pôde ser pago no sandbox (faltava o nome do pagador); corrigido na branch `fix/assinatura-pix-pagador` | `HOMOLOGACAO_ASSINATURA_P0.md` |
+| A4 | Roteiro funcional da assinatura no painel da loja (Pix e cartão com 3DS) | Código + Werner | em parte (07/11): cartão sem verificação do banco passou. Faltam o Pix (depende da correção do nome do pagador e de um dono de loja com nome `APRO…`) e o cartão com a página do banco (`APRO-CHOK`) | `ESTADO_ATUAL.md` §4 |
 
 ## B. Ambiente de produção
 

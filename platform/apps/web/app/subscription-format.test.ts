@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chargeStatus, hasPix, methodLabel, period, subscriptionStatus } from './subscription-format.ts';
+import { chargeStatus, deliverableEmail, hasPix, methodLabel, period, subscriptionStatus } from './subscription-format.ts';
 
 test('status da assinatura tem rótulo em português e desconhecido não quebra', () => {
   assert.equal(subscriptionStatus('active')?.label, 'Ativa');
@@ -30,4 +30,14 @@ test('Pix só aparece quando há QR ou link', () => {
   assert.equal(hasPix({ id: 1, method: 'pix', amount_cents: 100, status: 'pending', period_start: null, period_end: null }), false);
   assert.equal(hasPix({ id: 2, method: 'pix', amount_cents: 100, status: 'pending', period_start: null, period_end: null, qr_code: '000201' }), true);
   assert.equal(hasPix({ id: 3, method: 'pix', amount_cents: 100, status: 'pending', period_start: null, period_end: null, ticket_url: 'https://mp' }), true);
+});
+
+test('e-mail inicial do titular: só o que o Mercado Pago aceita, senão vazio', () => {
+  assert.equal(deliverableEmail('dono@loja.com.br'), 'dono@loja.com.br');
+  assert.equal(deliverableEmail('  Dono@Loja.com.br '), 'Dono@Loja.com.br');
+  assert.equal(deliverableEmail('restaurante@demo.local'), '');
+  assert.equal(deliverableEmail('carga@foodie.test'), '');
+  assert.equal(deliverableEmail('sem-dominio@'), '');
+  assert.equal(deliverableEmail('sem-ponto@loja'), '');
+  assert.equal(deliverableEmail(undefined), '');
 });
