@@ -490,8 +490,8 @@ O que documentos anteriores traziam sem lastro, agora checado na VPS:
   (4 GB / 40 GB) são compatíveis.
 
 ### Decisões de negócio em aberto
-- Quem opera: marca própria ou cliente?
-- Conta da empresa que mantém o sistema (recebe a assinatura) — em discussão (14/10)
+- ~~Quem opera: marca própria ou cliente?~~ **Decidido em 07/11: marca própria** (a Foodie opera a plataforma e liga clientes a restaurantes).
+- ~~Conta da empresa que mantém o sistema (recebe a assinatura)~~ **Decidido em 07/11: a conta Mercado Pago do Werner.**
 - Licença do pacote comercial e do kit visual de terceiros (Figma)
 - Tokens do Mapbox configurados?
 

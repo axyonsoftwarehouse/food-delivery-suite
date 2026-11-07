@@ -15,6 +15,7 @@ import com.foodie.api.ApiException;
 import com.foodie.api.admin.ModuleAccessService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.hours.RestaurantHoursService;
 import com.foodie.api.permissions.PermissionService;
 import com.foodie.api.permissions.Permissions;
 import java.util.List;
@@ -44,14 +45,41 @@ class StorefrontControllerTest {
     @MockitoBean
     private JdbcTemplate jdbc;
 
+    @MockitoBean
+    private RestaurantHoursService hours;
+
     @Test
     void publicStorefrontReturnsData() throws Exception {
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(
-            Map.of("name", "Cozinha Demo", "headline", "Comida caseira", "about", "Feito na hora")));
+            Map.of("name", "Cozinha Demo", "timezone", "America/Fortaleza", "prep_minutes", 20, "headline", "Comida caseira", "about", "Feito na hora")));
+        when(jdbc.queryForMap(anyString(), any(Object[].class))).thenReturn(Map.of(
+            "zones", 2L, "fee_min_cents", 0, "fee_max_cents", 599, "minimum_min_cents", 1500, "minimum_max_cents", 2000,
+            "minutes_min", 15, "minutes_max", 30));
+        when(hours.isOpen(1L, "America/Fortaleza")).thenReturn(true);
+        when(hours.list(1L)).thenReturn(List.of(Map.of("dayOfWeek", 1, "opensAt", "11:00", "closesAt", "22:00", "overnight", false)));
 
         mvc.perform(get("/public/restaurants/1/storefront"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.name").value("Cozinha Demo"));
+            .andExpect(jsonPath("$.name").value("Cozinha Demo"))
+            .andExpect(jsonPath("$.timezone").doesNotExist())
+            .andExpect(jsonPath("$.open").value(true))
+            .andExpect(jsonPath("$.hours[0].opensAt").value("11:00"))
+            .andExpect(jsonPath("$.delivery.fee_max_cents").value(599))
+            .andExpect(jsonPath("$.delivery.minimum_min_cents").value(1500));
+    }
+
+    @Test
+    void publicStorefrontWithoutZonesHasNoDelivery() throws Exception {
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(
+            Map.of("name", "Cozinha Demo", "timezone", "America/Fortaleza", "headline", "", "about", "")));
+        when(jdbc.queryForMap(anyString(), any(Object[].class))).thenReturn(Map.of("zones", 0L));
+        when(hours.isOpen(1L, "America/Fortaleza")).thenReturn(false);
+        when(hours.list(1L)).thenReturn(List.of());
+
+        mvc.perform(get("/public/restaurants/1/storefront"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.open").value(false))
+            .andExpect(jsonPath("$.delivery").doesNotExist());
     }
 
     @Test

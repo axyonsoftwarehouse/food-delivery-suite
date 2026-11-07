@@ -66,11 +66,12 @@
 
 .lj-chips { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
 .lj-chips::-webkit-scrollbar { display: none; }
-.lj-chips button { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer; }
+.lj-chips button { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 44px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer; }
 .lj-chips button:hover { border-color: var(--text-muted); }
 .lj-chips button[aria-pressed='true'] { border-color: var(--brand-500); background: var(--brand-500); color: #fff; font-weight: 600; }
 .lj-chips button[aria-pressed='true']:hover { border-color: var(--brand-600); background: var(--brand-600); }
-.lj-chips--small button { height: 30px; padding: 0 12px; font-size: 13px; }
+/* Filtros com 44 px de altura: mínimo recomendado para toque (revisão de UX, item 16). */
+.lj-chips--small button { height: 44px; padding: 0 14px; font-size: 13px; }
 
 .lj-empty { display: grid; justify-items: center; gap: 10px; padding: 40px 20px; border-radius: 20px; background: var(--surface); color: var(--text-muted); text-align: center; }
 .lj-empty p { max-width: 340px; margin: 0; font-size: 15px; line-height: 1.5; }
@@ -179,7 +180,8 @@
 .lj-add:hover:not(:disabled) { transform: scale(1.08); }
 .lj-add:active:not(:disabled) { transform: scale(0.92); }
 .lj-add:disabled { opacity: 0.5; cursor: not-allowed; }
-.lj-fav { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgb(255 255 255 / 0.92); color: #5f645d; cursor: pointer; }
+/* Alvo de toque de 44 px (revisão de UX, item 16); o círculo visível continua com 30 px. */
+.lj-fav { position: absolute; top: -1px; right: -1px; display: grid; place-items: center; box-sizing: border-box; width: 44px; height: 44px; padding: 7px; border: 0; border-radius: 50%; background: rgb(255 255 255 / 0.92); background-clip: content-box; color: #5f645d; cursor: pointer; }
 .lj-fav:hover, .lj-fav.is-fav { color: #d93f45; }
 .lj-fav.is-fav .ui-icon { animation: m-heart 0.5s var(--ease-spring); }
 .lj-product.is-closed { opacity: 0.6; }
@@ -426,7 +428,7 @@ span.lj-flyer { border-radius: 50%; background: var(--brand-500); }
 .lj-add.is-added { background: var(--brand-500); color: #fff; animation: m-pop 0.35s var(--ease-spring); }
 
 /* Favorito: o coração estoura */
-.lj-fav::after { content: ''; position: absolute; inset: 0; border: 2px solid #d93f45; border-radius: 50%; opacity: 0; pointer-events: none; }
+.lj-fav::after { content: ''; position: absolute; inset: 7px; border: 2px solid #d93f45; border-radius: 50%; opacity: 0; pointer-events: none; }
 .lj-fav.is-fav::after { animation: m-burst 0.5s var(--ease-out); }
 
 /* Cardápio: capa com profundidade, barra compacta e sublinhado que desliza */

@@ -63,6 +63,22 @@
 .storefront-body { padding: var(--space-8) 0 var(--space-10); }
 .storefront-about { max-width: 68ch; margin: 0 0 var(--space-6); color: var(--text-muted); font-size: 17px; line-height: 1.7; white-space: pre-wrap; }
 .storefront-links { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.storefront-status { display: inline-flex; align-items: center; gap: 8px; margin-top: 4px; padding: 6px 12px; border-radius: var(--radius-pill); background: rgb(0 0 0 / 0.45); color: #fff; font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.storefront-status > span { width: 9px; height: 9px; border-radius: 50%; background: #c9ced3; }
+.storefront-status.is-open > span { background: #4ade80; box-shadow: 0 0 0 3px rgb(74 222 128 / 0.3); }
+.storefront-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--space-3); margin: var(--space-8) 0 var(--space-3); }
+.storefront-facts > div { padding: 16px 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
+.storefront-facts dt { color: var(--text-muted); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.storefront-facts dd { margin: 4px 0 0; color: var(--text); font: 800 var(--text-lg) var(--font-display); }
+.storefront-note { margin: 0 0 var(--space-6); color: var(--text-muted); font-size: var(--text-sm); line-height: 1.5; }
+.storefront-hours { max-width: 460px; margin: var(--space-6) 0 var(--space-8); }
+.storefront-hours h2 { margin: 0 0 var(--space-3); font: 800 var(--text-xl) var(--font-display); }
+.storefront-hours dl { display: grid; margin: 0; }
+.storefront-hours dl > div { display: flex; justify-content: space-between; gap: var(--space-4); padding: 9px 0; border-bottom: 1px solid var(--border); }
+.storefront-hours dt { color: var(--text); font-weight: var(--weight-semibold); }
+.storefront-hours dd { margin: 0; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.storefront-hours dd.is-closed { color: var(--text-muted); }
+.storefront-hours > p { margin: 0; color: var(--text-muted); }
 
 /* Telas de conta */
 .account-page { display: grid; place-content: center; justify-items: center; gap: var(--space-6); min-height: 100vh; padding: 24px 16px; background: radial-gradient(700px 400px at 50% 0%, rgb(var(--hero-fade)), transparent 70%), var(--background); color: var(--text); font-family: var(--font-sans); }
