@@ -45,13 +45,13 @@ o ambiente de produção, a cobrança da assinatura (única receita), o e-mail r
 | B6 | Banco de produção nasce limpo: sem dados e contas de demonstração do staging | Código + Operação | pendente | `REVISAO_UX_CLIENTE.md`, "Dados do staging" |
 | B7 | Backup diário cifrado no Cloudflare R2 (bucket `foodie-backups`) e ensaio de restauração | Operação | feito (R2 em 20/10, ensaio em 04/11); na virada, conferir que o backup pega o banco de produção | `RUNBOOK_VPS.md` §5 |
 | B8 | Sentry na API e no site (projetos `foodie-api` e `foodie-web`) | Operação | feito (PRs #65–#67); na virada, conferir o ambiente marcado nos eventos `(a confirmar)` | `ESTADO_ATUAL.md` §4 |
-| B9 | **Teste de carga na VPS** — prioridade máxima | Código + Operação | pendente | `ESTADO_ATUAL.md` §4, prontidão |
+| B9 | **Teste de carga na VPS** — prioridade máxima | Código + Operação | em andamento (07/11): plano e scripts prontos, validados no ambiente local; falta publicar, rodar o `load:setup` na VPS e fazer as rodadas | `PLANO_TESTE_CARGA.md` |
 
 ## C. Contas e comunicação com o cliente
 
 | # | Item | Dono | Estado | Fonte |
 | --- | --- | --- | --- | --- |
-| C1 | Escolher e configurar um provedor de **SMTP** real (candidatos: Resend, Amazon SES, Brevo) | Werner + Operação | pendente (código pronto, `MAIL_PROVIDER=smtp`) | `ESTADO_ATUAL.md` §4 |
+| C1 | Configurar o **SMTP** real com o **Resend** | Werner + Operação | em andamento (07/11): Resend escolhido e conta criada; falta verificar o domínio e gravar `MAIL_*`/`SPRING_MAIL_*` no `.env`. Sem domínio verificado, o Resend só envia para o e-mail da própria conta | `ESTADO_ATUAL.md` §4 |
 | C1.1 | SPF, DKIM e DMARC no domínio de produção, para o e-mail não cair no spam | Werner + Operação | bloqueado por B1 e C1 | — |
 | C2 | Testar no staging o link de verificação de e-mail e o de recuperação de senha | Código | bloqueado por C1 | `ESTADO_ATUAL.md` §4 |
 | C3 | Confirmar se o cadastro trava sem e-mail verificado (define se C1 é bloqueador) | Código | `(a confirmar)` | `ESTADO_ATUAL.md`, cabeçalho (rodada de 21/10) |
