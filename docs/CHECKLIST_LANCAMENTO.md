@@ -45,7 +45,7 @@ o ambiente de produção, a cobrança da assinatura (única receita), o e-mail r
 | B6 | Banco de produção nasce limpo: sem dados e contas de demonstração do staging | Código + Operação | pendente | `REVISAO_UX_CLIENTE.md`, "Dados do staging" |
 | B7 | Backup diário cifrado no Cloudflare R2 (bucket `foodie-backups`) e ensaio de restauração | Operação | feito (R2 em 20/10, ensaio em 04/11); na virada, conferir que o backup pega o banco de produção | `RUNBOOK_VPS.md` §5 |
 | B8 | Sentry na API e no site (projetos `foodie-api` e `foodie-web`) | Operação | feito (PRs #65–#67); na virada, conferir o ambiente marcado nos eventos `(a confirmar)` | `ESTADO_ATUAL.md` §4 |
-| B9 | **Teste de carga na VPS** — prioridade máxima | Código + Operação | em andamento (07/11): plano e scripts prontos, validados no ambiente local; falta publicar, rodar o `load:setup` na VPS e fazer as rodadas | `PLANO_TESTE_CARGA.md` |
+| B9 | **Teste de carga na VPS** — prioridade máxima | Código + Operação | em andamento (07/11): scripts publicados, dados de carga criados no staging e validação aprovada lá; faltam as rodadas (níveis 1 a 4) | `PLANO_TESTE_CARGA.md` |
 
 ## C. Contas e comunicação com o cliente
 

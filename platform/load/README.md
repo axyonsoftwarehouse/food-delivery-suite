@@ -15,17 +15,24 @@ toca o celular de ninguém.
 
 ## 1. Preparar (uma vez por ambiente)
 
-Na VPS, na pasta do deploy (`/home/deploy/foodie-platform/deploy`), depois de publicar o commit que
-traz estes arquivos:
+As contas de carga têm uma **senha própria**, guardada no PC em `%USERPROFILE%\.foodie\carga-senha`
+(fora do repositório). Para criar o arquivo, se ainda não existir:
 
 ```bash
-docker compose --profile tools run --rm --build seed pnpm --filter @foodie/tools load:setup
+mkdir -p ~/.foodie && node -e "process.stdout.write(require('crypto').randomBytes(18).toString('base64url'))" > ~/.foodie/carga-senha
+```
+
+A preparação roda na VPS, mas é disparada do PC. A senha vai pela entrada padrão do SSH, então não
+aparece na linha de comando da VPS nem nos logs:
+
+```bash
+ssh -i ~/.ssh/foodie_vps deploy@2.29.42.104 'read -r LOAD_PASSWORD; export LOAD_PASSWORD; cd /home/deploy/foodie-platform/deploy && docker compose --profile tools run --rm --build -e LOAD_PASSWORD -e LOAD_HISTORY_PER_STORE=500 seed pnpm --filter @foodie/tools load:setup' < ~/.foodie/carga-senha
 ```
 
 Padrão: 20 lojas, 500 clientes e 90 entregadores. Para mudar, passe `-e LOAD_STORES=…`,
-`-e LOAD_CUSTOMERS=…`, `-e LOAD_COURIERS=…`. Para medir a lista de pedidos com histórico, passe
-`-e LOAD_HISTORY_PER_STORE=2000`. As contas usam a senha da demonstração (`DEMO_PASSWORD`, que já está
-no ambiente do serviço `seed`).
+`-e LOAD_CUSTOMERS=…`, `-e LOAD_COURIERS=…`. `LOAD_HISTORY_PER_STORE` cria pedidos antigos, para a
+lista de pedidos da loja não ser medida vazia. Sem `LOAD_PASSWORD`, a preparação usa o `DEMO_PASSWORD`,
+que hoje está vazio no staging.
 
 ## 2. Rodar (do PC, nunca da VPS)
 
@@ -33,14 +40,14 @@ O gerador de carga não pode disputar CPU com o sistema medido, por isso o teste
 a validação (1 usuário por perfil, 1 minuto), que precisa passar inteira antes de qualquer nível:
 
 ```bash
-k6 run -e NIVEL=0 -e LOAD_PASSWORD="<senha da demonstração>" platform/load/cenarios.js
+k6 run -e NIVEL=0 -e LOAD_PASSWORD="$(cat ~/.foodie/carga-senha)" platform/load/cenarios.js
 ```
 
 Depois, um nível por vez (`NIVEL=1` esperado, `2` folga 3×, `3` ruptura, `4` resistência de 60 min).
 Guarde o resumo:
 
 ```bash
-k6 run -e NIVEL=1 -e LOAD_PASSWORD="<senha da demonstração>" --summary-export=resultado-nivel1.json platform/load/cenarios.js
+k6 run -e NIVEL=1 -e LOAD_PASSWORD="$(cat ~/.foodie/carga-senha)" --summary-export=resultado-nivel1.json platform/load/cenarios.js
 ```
 
 Opções:
