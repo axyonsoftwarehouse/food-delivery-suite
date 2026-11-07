@@ -59,4 +59,13 @@ class SettingsServiceTest {
         assertThatThrownBy(() -> service.update(Map.of(SettingsCatalog.ORDER_DELIVERY, "talvez")))
             .isInstanceOf(ApiException.class);
     }
+
+    @Test
+    void adminViewNaoDevolveChaveSecreta() {
+        when(repository.storedValues()).thenReturn(Map.of());
+        var chaves = service.adminView().stream().map(entrada -> (String) entrada.get("key")).toList();
+        // Chave de integração que não é pública não pode aparecer na tela de configurações.
+        assertThat(chaves).doesNotContain("integrations.recaptcha_secret", "integrations.openai_api_key");
+        assertThat(chaves).contains(SettingsCatalog.RECAPTCHA_SITE_KEY);
+    }
 }

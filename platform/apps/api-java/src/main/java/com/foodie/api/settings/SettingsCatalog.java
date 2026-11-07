@@ -59,8 +59,6 @@ public final class SettingsCatalog {
     public static final String SOCIAL_WHATSAPP = "social.whatsapp";
 
     public static final String RECAPTCHA_SITE_KEY = "integrations.recaptcha_site_key";
-    public static final String RECAPTCHA_SECRET = "integrations.recaptcha_secret";
-    public static final String OPENAI_API_KEY = "integrations.openai_api_key";
     public static final String STORAGE_DRIVER = "integrations.storage_driver";
     public static final String STORAGE_PUBLIC_BASE_URL = "integrations.storage_public_base_url";
 
@@ -118,9 +116,8 @@ public final class SettingsCatalog {
         new Descriptor(SOCIAL_INSTAGRAM, "Instagram", "text", "", "Analytics"),
         new Descriptor(SOCIAL_WHATSAPP, "WhatsApp", "text", "", "Analytics"),
 
+        // Só a site key é pública; chaves secretas ficam no ambiente, nunca numa tabela que o admin lê.
         new Descriptor(RECAPTCHA_SITE_KEY, "reCAPTCHA site key", "text", "", "Integrações"),
-        new Descriptor(RECAPTCHA_SECRET, "reCAPTCHA secret", "text", "", "Integrações"),
-        new Descriptor(OPENAI_API_KEY, "OpenAI API key", "text", "", "Integrações"),
         new Descriptor(STORAGE_DRIVER, "Driver de storage (local/s3)", "text", "local", "Integrações"),
         new Descriptor(STORAGE_PUBLIC_BASE_URL, "URL pública do storage", "text", "", "Integrações"),
         new Descriptor(PAYMENT_PIX_KEY, "Chave Pix estática", "text", "", "Integrações"),
