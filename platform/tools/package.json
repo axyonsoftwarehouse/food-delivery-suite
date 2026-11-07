@@ -8,7 +8,9 @@
   },
   "scripts": {
     "seed": "tsx src/seed.ts",
-    "smoke": "tsx src/smoke.ts"
+    "smoke": "tsx src/smoke.ts",
+    "load:setup": "tsx src/load-setup.ts",
+    "load:clean": "tsx src/load-clean.ts"
   },
   "dependencies": {
     "dotenv": "18.0.3",
