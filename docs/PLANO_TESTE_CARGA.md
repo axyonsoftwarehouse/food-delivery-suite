@@ -1,8 +1,15 @@
 # Plano do teste de carga
 
 Criado em **07/11/2026**. Item **B9** de `CHECKLIST_LANCAMENTO.md` (prioridade máxima).
-Estado (07/11): **scripts prontos e validados no ambiente local** (`platform/load/README.md`).
-Falta publicar, rodar o `load:setup` na VPS e fazer as rodadas.
+Estado (07/11): **dados de carga criados no staging e validação (nível 0) aprovada lá**
+(`platform/load/README.md`). Falta combinar a janela e fazer as rodadas, a começar pelo nível 1.
+
+**Staging, 07/11 (commit `5441efb`):** o `load:setup` criou 20 lojas (ids 8 a 27), 500 clientes,
+90 entregadores e 10 mil pedidos de histórico (500 por loja) em 52 s. A senha das contas de carga é
+própria (arquivo `%USERPROFILE%\.foodie\carga-senha` no PC do Werner), porque o `DEMO_PASSWORD` está
+vazio no staging. O nível 0 contra o staging teve 364 chamadas, 0% de erros e um pedido criado. Essa
+rodada achou um defeito do próprio script, já corrigido: o visitante "sem cache" montava endereços de
+arquivos estáticos colados (404).
 
 > **Convenção.** Os números de carga deste plano são **palpite** (não houve levantamento com
 > lojas reais) e estão marcados assim. Quando houver dado real — lojas fechadas, pedidos por noite —

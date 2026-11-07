@@ -1,10 +1,10 @@
 // Teste de carga do Foodie — docs/PLANO_TESTE_CARGA.md.
 //
-//   k6 run -e NIVEL=0 -e LOAD_PASSWORD=... platform/load/cenarios.js
+//   k6 run -e NIVEL=0 -e LOAD_PASSWORD="$(cat ~/.foodie/carga-senha)" platform/load/cenarios.js
 //
 // NIVEL: 0 = validação (1 usuário por perfil, 1 min) · 1 = esperado · 2 = folga 3× · 3 = ruptura · 4 = resistência.
 // BASE_URL: o site (padrão: staging). As chamadas passam pelo /backend do Next, como no navegador.
-// LOAD_PASSWORD: a senha das contas de carga (a da demonstração). Nunca vai para o repositório.
+// LOAD_PASSWORD: a senha das contas de carga (arquivo ~/.foodie/carga-senha, fora do repositório).
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import exec from 'k6/execution';
@@ -190,7 +190,8 @@ export function visitante(data) {
   check(home, { 'home 200': (r) => r.status === 200 });
   // Metade dos visitantes chega sem cache: baixa o JavaScript e o CSS da página, como um navegador novo.
   if (Math.random() < 0.5 && home.body) {
-    const assets = [...new Set(String(home.body).match(/\/_next\/static\/[^"'\s)]+/g) || [])].slice(0, 25);
+    // No JSON embutido da página os caminhos vêm colados; o "?" para cada um no fim do próprio arquivo.
+    const assets = [...new Set(String(home.body).match(/\/_next\/static\/[\w\-/.~]+?\.(?:js|css|woff2)/g) || [])].slice(0, 25);
     if (assets.length) http.batch(assets.map((path) => ['GET', `${BASE}${path}`, null, { tags: { name: 'GET /_next/static', tipo: 'estatico' } }]));
   }
   pause(3, 8);

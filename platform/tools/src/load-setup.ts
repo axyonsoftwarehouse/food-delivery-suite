@@ -1,11 +1,10 @@
 // Prepara os dados do teste de carga (docs/PLANO_TESTE_CARGA.md §6): lojas, clientes e entregadores
 // só de carga, numa zona própria. Pode rodar de novo sem duplicar nada.
 //
-// Na VPS:  docker compose --profile tools run --rm --build seed pnpm --filter @foodie/tools load:setup
+// Na VPS: o comando completo (com a senha pela entrada padrão do SSH) está em platform/load/README.md.
 //
-// As contas usam a senha da demonstração (DEMO_PASSWORD, já no ambiente do serviço `seed`), ou
-// LOAD_PASSWORD, se definida. Ninguém das lojas de carga inscreve push: pedido novo não toca o
-// celular de ninguém.
+// As contas usam LOAD_PASSWORD (a senha de carga; ver platform/load/README.md) ou, sem ela, o
+// DEMO_PASSWORD. Ninguém das lojas de carga inscreve push: pedido novo não toca o celular de ninguém.
 import 'dotenv/config';
 import { db } from './db.js';
 import { hashPassword } from './password.js';
@@ -161,7 +160,7 @@ try {
   console.log(`Zona de carga #${zoneId} (CEP ${CARGA_POSTAL_START}–${CARGA_POSTAL_END}), taxa ${fee} centavos.`);
   console.log(`Lojas: ${stores.length} (ids ${stores[0] ?? '-'}–${stores.at(-1) ?? '-'}), 2 contas por loja, ${MENU.length} pratos cada.`);
   console.log(`Clientes: ${customers.length}. Entregadores: ${couriers}. Histórico: ${HISTORY_PER_STORE} pedidos por loja.`);
-  console.log(`E-mails: carga-cliente-0001@${CARGA_DOMAIN}, carga-loja-01a@${CARGA_DOMAIN}, carga-entregador-001@${CARGA_DOMAIN} (senha da demonstração).`);
+  console.log(`E-mails: carga-cliente-0001@${CARGA_DOMAIN}, carga-loja-01a@${CARGA_DOMAIN}, carga-entregador-001@${CARGA_DOMAIN} (senha de carga).`);
 } finally {
   await db.end();
 }
