@@ -76,9 +76,9 @@ public class SettingsService {
         for (Map.Entry<String, String> entry : incoming.entrySet()) {
             SettingsCatalog.Descriptor descriptor = SettingsCatalog.BY_KEY.get(entry.getKey());
             if (descriptor == null) throw new ApiException(400, "Configuração desconhecida: " + entry.getKey());
-            // O painel recebe o segredo mascarado: salvar o formulário sem digitar de novo não pode apagar a chave.
-            if (descriptor.secret() && (entry.getValue() == null || entry.getValue().isBlank()
-                || entry.getValue().startsWith(MASK))) continue;
+            // O painel recebe o segredo mascarado: mandar o mascarado de volta é "não mexi".
+            // Campo vazio continua valendo como "apagar a chave", senão não haveria como removê-la.
+            if (descriptor.secret() && entry.getValue() != null && entry.getValue().startsWith(MASK)) continue;
             repository.upsert(descriptor.key(), normalize(descriptor, entry.getValue()));
         }
     }
