@@ -86,4 +86,11 @@ class SettingsServiceTest {
         service.update(Map.of(SettingsCatalog.OPENAI_API_KEY, SettingsService.MASK + "abcd"));
         verify(repository, never()).upsert(anyString(), anyString());
     }
+
+    @Test
+    void campoVazioNoSegredoApagaAChave() {
+        when(repository.storedValues()).thenReturn(Map.of(SettingsCatalog.OPENAI_API_KEY, "sk-antiga"));
+        service.update(Map.of(SettingsCatalog.OPENAI_API_KEY, ""));
+        verify(repository).upsert(SettingsCatalog.OPENAI_API_KEY, "");
+    }
 }
