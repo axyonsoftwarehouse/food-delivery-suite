@@ -2,7 +2,9 @@ package com.foodie.api.settings;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,11 +63,27 @@ class SettingsServiceTest {
     }
 
     @Test
-    void adminViewNaoDevolveChaveSecreta() {
+    void adminViewMascaraChaveSecretaESomeComOSegredoDoRecaptcha() {
+        when(repository.storedValues()).thenReturn(Map.of(SettingsCatalog.OPENAI_API_KEY, "sk-teste-1234567890abcd"));
+
+        var entradas = service.adminView();
+        var chaves = entradas.stream().map(entrada -> (String) entrada.get("key")).toList();
+        var openai = entradas.stream()
+            .filter(entrada -> SettingsCatalog.OPENAI_API_KEY.equals(entrada.get("key")))
+            .findFirst()
+            .orElseThrow();
+
+        assertThat(chaves).doesNotContain("integrations.recaptcha_secret");
+        assertThat(chaves).contains(SettingsCatalog.RECAPTCHA_SITE_KEY, SettingsCatalog.OPENAI_API_KEY);
+        // Só os quatro últimos caracteres, com o resto mascarado: nunca a chave inteira.
+        assertThat((String) openai.get("value")).isEqualTo(SettingsService.MASK + "abcd").doesNotContain("sk-teste");
+        assertThat(openai.get("secret")).isEqualTo(true);
+    }
+
+    @Test
+    void salvarOFormularioComOValorMascaradoNaoApagaAChave() {
         when(repository.storedValues()).thenReturn(Map.of());
-        var chaves = service.adminView().stream().map(entrada -> (String) entrada.get("key")).toList();
-        // Chave de integração que não é pública não pode aparecer na tela de configurações.
-        assertThat(chaves).doesNotContain("integrations.recaptcha_secret", "integrations.openai_api_key");
-        assertThat(chaves).contains(SettingsCatalog.RECAPTCHA_SITE_KEY);
+        service.update(Map.of(SettingsCatalog.OPENAI_API_KEY, SettingsService.MASK + "abcd"));
+        verify(repository, never()).upsert(anyString(), anyString());
     }
 }
