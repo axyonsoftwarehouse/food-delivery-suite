@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 /** Configurações de sistema (E02): leitura com padrões, validação e escrita. */
 @Service
 public class SettingsService {
+    /** Prefixo do valor mascarado devolvido ao painel; o que começa assim nunca é gravado. */
+    static final String MASK = "••••••";
+
     private final SettingsRepository repository;
 
     public SettingsService(SettingsRepository repository) {
@@ -61,7 +64,9 @@ public class SettingsService {
             entry.put("label", descriptor.label());
             entry.put("type", descriptor.type());
             entry.put("group", descriptor.group());
-            entry.put("value", values.getOrDefault(descriptor.key(), descriptor.defaultValue()));
+            String value = values.getOrDefault(descriptor.key(), descriptor.defaultValue());
+            entry.put("value", descriptor.secret() ? mask(value) : value);
+            entry.put("secret", descriptor.secret());
             return entry;
         }).toList();
     }
@@ -71,6 +76,9 @@ public class SettingsService {
         for (Map.Entry<String, String> entry : incoming.entrySet()) {
             SettingsCatalog.Descriptor descriptor = SettingsCatalog.BY_KEY.get(entry.getKey());
             if (descriptor == null) throw new ApiException(400, "Configuração desconhecida: " + entry.getKey());
+            // O painel recebe o segredo mascarado: salvar o formulário sem digitar de novo não pode apagar a chave.
+            if (descriptor.secret() && (entry.getValue() == null || entry.getValue().isBlank()
+                || entry.getValue().startsWith(MASK))) continue;
             repository.upsert(descriptor.key(), normalize(descriptor, entry.getValue()));
         }
     }
@@ -166,5 +174,12 @@ public class SettingsService {
                 yield value;
             }
         };
+    }
+
+    /** Mostra só os quatro últimos caracteres: dá para conferir qual chave está lá sem expor o segredo. */
+    static String mask(String value) {
+        if (value == null || value.isBlank()) return "";
+        String tail = value.length() <= 4 ? value : value.substring(value.length() - 4);
+        return MASK + tail;
     }
 }
