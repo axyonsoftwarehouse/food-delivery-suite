@@ -644,10 +644,25 @@ costuma dizer de quem é.
 > (`docker ps`: `0.0.0.0:80->80`, `0.0.0.0:443->443`), um Caddy compartilhado com os outros
 > projetos da VPS (Story Verse, Umami). O Caddy do perfil `public` do `foodie-staging` está
 > **parado** (`docker compose --profile public ps caddy` vazio). A configuração do edge fica **fora
-> deste repositório**. Em 07/11 ele servia o domínio base e o `api.`, mas **não** os subdomínios
-> `admin.`, `cliente.`, `restaurante.` e `entregador.` (TLS "internal error"). Corrigir na
-> configuração do edge `(a confirmar: caminho do Caddyfile dele)`. **Não ative o perfil `public`**
-> enquanto o edge estiver de pé: os dois disputariam a porta 443.
+> deste repositório**, em `/home/deploy/edge/Caddyfile` (Compose em `/home/deploy/edge`, projeto
+> `edge`). **Não ative o perfil `public`** enquanto o edge estiver de pé: os dois disputariam a
+> porta 443.
+>
+> **Corrigido em 07/11/2026:** os subdomínios de papel estavam escritos sem o `staging.`
+> (`cliente.2.29.42.104.sslip.io` em vez de `cliente.staging.2.29.42.104.sslip.io`), então o Caddy
+> nunca pediu certificado para os nomes que o Foodie usa (TLS "internal error"). Backup em
+> `Caddyfile.bak-20261107-subdominios`. Depois do `caddy reload`, os quatro responderam 200, e o
+> Story Verse, o QA e o Umami continuaram no ar.
+>
+> **Como mudar o Caddyfile do edge sem derrubar os outros projetos:**
+> 1. `cp -p Caddyfile Caddyfile.bak-<data>-<motivo>`;
+> 2. gerar o arquivo novo num temporário e validar dentro do contêiner:
+>    `docker cp <tmp> edge-caddy-1:/tmp/validar && docker exec edge-caddy-1 caddy validate --config /tmp/validar --adapter caddyfile`;
+> 3. gravar **por cima**, mantendo o inode (o arquivo é montado direto no contêiner):
+>    `cat <tmp> > Caddyfile`. Não use `sed -i` nem `mv`, que trocam o inode, e o contêiner continuaria
+>    lendo o arquivo antigo;
+> 4. `docker exec edge-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`.
+>    É um reload sem queda, não um restart.
 
 Histórico: de 25/09/2026 até data `(a confirmar)`, o Caddy do `foodie-staging` ocupava as portas
 80/443 (`docker-proxy`). O legado não disputa mais as portas.

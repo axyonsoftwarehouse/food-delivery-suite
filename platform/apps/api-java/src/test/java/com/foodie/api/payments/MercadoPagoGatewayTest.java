@@ -43,6 +43,30 @@ class MercadoPagoGatewayTest {
     }
 
     @Test
+    void pixExpirationComesFromThePaymentInsideTheOrder() {
+        // Formato real lido no staging em 07/11/2026 (order Pix da assinatura): a API de Orders põe o
+        // prazo em transactions.payments[].date_of_expiration, não na order. Lendo só a order, o
+        // expires_at ficava sempre vazio e o Pix vencido nunca era liberado.
+        Map<String, Object> order = Map.of(
+            "id", "ORDTST01",
+            "external_reference", "sub-1",
+            "status", "action_required",
+            "status_detail", "waiting_transfer",
+            "created_date", "2026-11-07T17:15:38.195Z",
+            "transactions", Map.of("payments", java.util.List.of(Map.of(
+                "amount", "99.00",
+                "status", "action_required",
+                "status_detail", "waiting_transfer",
+                "date_of_expiration", "2026-11-08T17:15:38.587+00:00",
+                "payment_method", Map.of("id", "pix", "type", "bank_transfer", "qr_code", "000201...")))));
+
+        PaymentGateway.Charge charge = new MercadoPagoGateway("https://api.mercadopago.com", "").fromOrder(order);
+
+        assertEquals(java.time.Instant.parse("2026-11-08T17:15:38.587Z"), charge.expiresAt());
+        assertEquals("000201...", charge.qrCode());
+    }
+
+    @Test
     void webhookIsRejectedWithoutASecret() {
         // Falha fechada: sem MERCADOPAGO_WEBHOOK_SECRET o gateway recusa a notificação, mesmo que ela
         // pareça válida. Com segredo configurado e sem assinatura também recusa (o ts/v1 faltam).
