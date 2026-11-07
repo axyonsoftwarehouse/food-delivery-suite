@@ -8,7 +8,7 @@ import CardPaymentForm from '../CardPaymentForm';
 import { Icon } from '../icons';
 import PixPayment from '../PixPayment';
 import {
-  badgeClass, chargeStatus, dateTime, day, daysUntil, hasPix, methodLabel, period,
+  badgeClass, chargeStatus, dateTime, day, daysUntil, deliverableEmail, hasPix, methodLabel, period,
   subscriptionStatus, type SubscriptionCharge,
 } from '../subscription-format';
 import { Alert } from '../ui';
@@ -43,7 +43,8 @@ export default function SubscriptionPanel() {
   const [loading, setLoading] = useState(true);
   const [payOpen, setPayOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
-  const [cardEmail, setCardEmail] = useState(user?.email ?? '');
+  // E-mail de demonstração (.local) é recusado pelo Mercado Pago: nesse caso o campo vem vazio.
+  const [cardEmail, setCardEmail] = useState(deliverableEmail(user?.email));
   const [cardError, setCardError] = useState('');
   const [cardBusy, setCardBusy] = useState(false);
   const [cardDone, setCardDone] = useState(false);

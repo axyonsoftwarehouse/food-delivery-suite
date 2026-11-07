@@ -61,7 +61,7 @@ na VPS **sem depender de IA** para cada passo.
 | Projeto Compose (staging) | `foodie-staging` |
 | Domínio (web) | `staging.2.29.42.104.sslip.io` |
 | API | `api.staging.2.29.42.104.sslip.io` |
-| Portas 80/443 | ocupadas pelo **Caddy do `foodie-staging`** (via `docker-proxy`) |
+| Portas 80/443 | ocupadas pelo **`edge-caddy-1`**, um Caddy compartilhado com os outros projetos da VPS (conferido em 07/11/2026). O Caddy do `foodie-staging` está **parado**; ver §9 |
 
 > **Atenção ao caminho.** Não existe `/home/deploy/foodie-platform/platform/`.
 > O que foi implantado na VPS é o **conteúdo da pasta `platform/`** do
@@ -640,9 +640,17 @@ costuma dizer de quem é.
 
 ## 9. Perfil público (Caddy)
 
-Confirmado: o Caddy do `foodie-staging` é **quem ocupa as portas 80/443**
-(`docker-proxy`), publicado desde 25/09/2026. O legado não disputa mais as
-portas.
+> **Atualizado em 07/11/2026.** Quem ocupa as portas 80/443 hoje é o **`edge-caddy-1`**
+> (`docker ps`: `0.0.0.0:80->80`, `0.0.0.0:443->443`), um Caddy compartilhado com os outros
+> projetos da VPS (Story Verse, Umami). O Caddy do perfil `public` do `foodie-staging` está
+> **parado** (`docker compose --profile public ps caddy` vazio). A configuração do edge fica **fora
+> deste repositório**. Em 07/11 ele servia o domínio base e o `api.`, mas **não** os subdomínios
+> `admin.`, `cliente.`, `restaurante.` e `entregador.` (TLS "internal error"). Corrigir na
+> configuração do edge `(a confirmar: caminho do Caddyfile dele)`. **Não ative o perfil `public`**
+> enquanto o edge estiver de pé: os dois disputariam a porta 443.
+
+Histórico: de 25/09/2026 até data `(a confirmar)`, o Caddy do `foodie-staging` ocupava as portas
+80/443 (`docker-proxy`). O legado não disputa mais as portas.
 
 Desativar:
 

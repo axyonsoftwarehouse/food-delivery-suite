@@ -20,17 +20,17 @@ O produto funciona de ponta a ponta no staging (cliente, loja, cozinha, entregad
 online com a conta da loja e estornos). O que separa isso do lançamento é, sobretudo, **não código**:
 o ambiente de produção, a cobrança da assinatura (única receita), o e-mail real e o jurídico.
 
-**Caminho crítico:** ~~decidir a conta que recebe a assinatura (A1)~~ (feito em 07/11) → provar a cobrança no staging
-(A2) → **teste de carga** (B9) → montar a produção (B1, B3–B6) → primeira transação real (F1).
+**Caminho crítico:** ~~decidir a conta que recebe a assinatura (A1)~~ (feito em 07/11) → ~~provar a cobrança no staging
+(A2, A3)~~ (feito em 07/11) → **teste de carga** (B9) → montar a produção (B1, B3–B6) → primeira transação real (F1).
 
 ## A. Receita — assinatura das lojas
 
 | # | Item | Dono | Estado | Fonte |
 | --- | --- | --- | --- | --- |
 | A1 | Decidir a **conta da empresa** que recebe a assinatura | Werner | feito (07/11): **a conta Mercado Pago do Werner** recebe a assinatura. O token e a public key dela vão em `SUBSCRIPTIONS_ACCOUNT_*` | decisão do dono |
-| A2 | Configurar a conta de teste da assinatura no staging (`SUBSCRIPTIONS_*`, cobrança real ligada) | Werner | pendente: A1 decidido; falta gravar as credenciais de teste da conta do Werner no `deploy/.env` | `HOMOLOGACAO_ASSINATURA_P0.md` §2 |
-| A3 | Rodar a homologação da P0: reativar as três assinaturas, ver as cobranças Pix nascerem e pagar uma | Código + Werner | bloqueado por A2 | `HOMOLOGACAO_ASSINATURA_P0.md` |
-| A4 | Roteiro funcional da assinatura no painel da loja (Pix e cartão com 3DS) | Código + Werner | bloqueado por A2 | `ESTADO_ATUAL.md` §4 |
+| A2 | Configurar a conta de teste da assinatura no staging (`SUBSCRIPTIONS_*`, cobrança real ligada) | Werner | feito (07/11): as três `SUBSCRIPTIONS_*` (conta de teste no papel da Foodie) foram acrescentadas ao `deploy/.env`; às 16:50:53 UTC o log da API mostrou `Cobrança real da assinatura LIGADA` | `HOMOLOGACAO_ASSINATURA_P0.md` §2 |
+| A3 | Rodar a homologação da P0: reativar as três assinaturas, ver as cobranças Pix nascerem e pagar uma | Código + Werner | feito (07/11): reativadas as três assinaturas, nasceram as cobranças Pix #1 a #3. A loja 1 pagou com cartão de teste (`APRO-AUTH`): cobrança #4 `card/paid`, Pix #3 `cancelled`, assinatura `active` até 07/12. Os três webhooks às 17:15 UTC deram 200, sem reenvio manual. O Pix não pôde ser pago no sandbox (faltava o nome do pagador); corrigido na branch `fix/assinatura-pix-pagador` | `HOMOLOGACAO_ASSINATURA_P0.md` |
+| A4 | Roteiro funcional da assinatura no painel da loja (Pix e cartão com 3DS) | Código + Werner | em parte (07/11): cartão sem verificação do banco passou. Faltam o Pix (depende da correção do nome do pagador e de um dono de loja com nome `APRO…`) e o cartão com a página do banco (`APRO-CHOK`) | `ESTADO_ATUAL.md` §4 |
 
 ## B. Ambiente de produção
 
@@ -62,7 +62,7 @@ o ambiente de produção, a cobrança da assinatura (única receita), o e-mail r
 | # | Item | Dono | Estado | Fonte |
 | --- | --- | --- | --- | --- |
 | D1 | Revisão de termos, privacidade e reembolso (editáveis em Conteúdo → Páginas) | Werner | feito (07/11): o dono leu e aprovou os três textos. Não houve revisão de advogado | `ESTADO_ATUAL.md` §4, LGPD mínima |
-| D2 | Indicar o **encarregado** (LGPD, art. 41): a pessoa que atende os titulares e a ANPD. Pode ser alguém da Foodie (o próprio dono) ou um serviço contratado. Nome e contato (ex.: um e-mail de privacidade) vão na política de privacidade. Agente de pequeno porte pode ficar dispensado de nomear, mas continua obrigado a manter o canal `(a confirmar com o jurídico)` | Werner | em andamento (07/11): **o encarregado é o Werner**. Falta o canal de contato e publicar nome e contato na Política de privacidade. Pode ser o e-mail atual da Axyon `(a confirmar: qual)`; um e-mail próprio de privacidade pode vir depois | idem |
+| D2 | Indicar o **encarregado** (LGPD, art. 41): a pessoa que atende os titulares e a ANPD. Pode ser alguém da Foodie (o próprio dono) ou um serviço contratado. Nome e contato (ex.: um e-mail de privacidade) vão na política de privacidade. Agente de pequeno porte pode ficar dispensado de nomear, mas continua obrigado a manter o canal `(a confirmar com o jurídico)` | Werner | feito no código (07/11): **o encarregado é o Werner Saboia**, com contato em `axyonsoftwarehouse@gmail.com` até existir o e-mail do domínio de produção. A migration `V079` acrescenta a seção à Política de privacidade; vale depois do deploy. Ao trocar o e-mail, editar em Conteúdo → Páginas | idem |
 | D3 | Licença do kit visual de terceiros (Figma) | Werner | não se aplica (07/11): o kit só serviu de inspiração, e nada dele foi usado | decisão do dono |
 | D4 | Quem opera: marca própria ou cliente (afeta termos e contas) | Werner | feito (07/11): **marca própria**. A Foodie opera a plataforma com o próprio nome e é a ponte entre clientes e restaurantes; os restaurantes assinam e vendem. Não é um software entregue a um cliente para operar com a marca dele. Nos termos e na política, a plataforma continua **operada pela Axyon Software House** | decisão do dono |
 | D5 | Reescrita do histórico do Git para tirar nomes de fornecedor (repositório público) | Código + equipe | pendente (adiada até a equipe pausar) | memória do projeto `(a confirmar)` |

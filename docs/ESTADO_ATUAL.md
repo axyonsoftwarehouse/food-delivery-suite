@@ -87,6 +87,13 @@ continuam `expired` e `subscription_charges` continua vazia. **Falta:** preenche
 `SUBSCRIPTIONS_*` no `deploy/.env` (valores com o Werner), reativar as três
 assinaturas no painel e conferir a geração das três cobranças Pix no sandbox.
 
+**Fechado em 07/11:** a cobrança foi ligada no staging, as três cobranças Pix nasceram e a loja 1
+pagou com cartão de teste; o webhook conciliou sozinho (200) e a assinatura ficou `active` até 07/12.
+Detalhes no `CHECKLIST_LANCAMENTO.md`, itens A2 e A3. Achados: o Pix da assinatura saía sem o nome do
+pagador, o que impedia o teste no sandbox (corrigido na branch `fix/assinatura-pix-pagador`), e o
+prazo do Pix (`expires_at`) fica vazio, porque o gateway lê `date_of_expiration`, campo da API antiga
+de Payments; na API de Orders o prazo é `expiration_time` `(a confirmar: em que campo a resposta o traz)`.
+
 ### 0.2 O que entrou no deploy de 03/11 (`f4dd4c8`)
 
 - **P0 da assinatura** (PR #93): Compose repassa `SUBSCRIPTIONS_*`, log de cobrança
