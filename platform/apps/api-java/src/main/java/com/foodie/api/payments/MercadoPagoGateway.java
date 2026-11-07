@@ -466,7 +466,7 @@ public class MercadoPagoGateway implements PaymentGateway {
      * explica a recusa para quem está na tela. O id guardado é o da <b>order</b>, que é o que a
      * notificação e a consulta usam.
      */
-    private Charge fromOrder(Map<String, Object> order) {
+    Charge fromOrder(Map<String, Object> order) {
         Map<String, Object> pagamento = primeiroPagamento(order);
         String status = pagamento != null ? str(pagamento.get("status")) : str(order.get("status"));
         String detalhe = pagamento != null ? str(pagamento.get("status_detail")) : str(order.get("status_detail"));
@@ -481,7 +481,17 @@ public class MercadoPagoGateway implements PaymentGateway {
         return new Charge(str(order.get("id")), str(order.get("external_reference")), centavos,
             normalizado, textoOu(detalhe, status),
             meio == null ? null : str(meio.get("qr_code")), meio == null ? null : str(meio.get("qr_code_base64")),
-            meio == null ? null : str(meio.get("ticket_url")), instant(order.get("date_of_expiration")), desafio);
+            meio == null ? null : str(meio.get("ticket_url")), prazo(order, pagamento), desafio);
+    }
+
+    /**
+     * Prazo do Pix. A API de Orders o põe no pagamento ({@code transactions.payments[].date_of_expiration}),
+     * conferido numa order real do staging em 07/11/2026; a order não traz o campo. A leitura da order
+     * fica como reserva.
+     */
+    private static Instant prazo(Map<String, Object> order, Map<String, Object> pagamento) {
+        Instant doPagamento = pagamento == null ? null : instant(pagamento.get("date_of_expiration"));
+        return doPagamento != null ? doPagamento : instant(order.get("date_of_expiration"));
     }
 
     /** Caminho antigo (Payments API), só para consultar cobrança criada antes desta mudança. */
