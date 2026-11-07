@@ -43,7 +43,8 @@
   --border: #e6ebe2;
   --border-strong: #d5ddd0;
   --text: #20231d;
-  --text-muted: #71786c;
+  /* 5,1:1 sobre o --background (o #71786c anterior dava 4,28:1, abaixo do mínimo de 4,5:1). */
+  --text-muted: #656c61;
   --text-faint: #98a196;
   --focus-ring: #b5dcc4;
 

@@ -5,12 +5,14 @@ import com.foodie.api.ApiException;
 import com.foodie.api.admin.ModuleAccessService;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.auth.User;
+import com.foodie.api.hours.RestaurantHoursService;
 import com.foodie.api.permissions.PermissionService;
 import com.foodie.api.permissions.Permissions;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,12 +30,15 @@ public class StorefrontController {
     private final PermissionService permissions;
     private final ModuleAccessService modules;
     private final JdbcTemplate jdbc;
+    private final RestaurantHoursService hours;
 
-    public StorefrontController(AuthService auth, PermissionService permissions, ModuleAccessService modules, JdbcTemplate jdbc) {
+    public StorefrontController(AuthService auth, PermissionService permissions, ModuleAccessService modules, JdbcTemplate jdbc,
+                                RestaurantHoursService hours) {
         this.auth = auth;
         this.permissions = permissions;
         this.modules = modules;
         this.jdbc = jdbc;
+        this.hours = hours;
     }
 
     @GetMapping("/restaurant/storefront")
@@ -59,12 +64,34 @@ public class StorefrontController {
         return mine(token);
     }
 
+    /**
+     * Página pública da loja, antes do login (revisão de UX, item 8): além do texto da loja, diz se ela
+     * está aberta, o horário da semana e, como o visitante ainda não informou o CEP, a faixa de taxa,
+     * pedido mínimo e tempo de entrega das zonas que a loja atende.
+     */
     @GetMapping("/public/restaurants/{id}/storefront")
     public Map<String, Object> publicStorefront(@PathVariable @Positive long id) {
-        return jdbc.queryForList(
-            "SELECT r.name, s.headline, s.about, s.cover_url, s.whatsapp, s.instagram FROM storefronts s "
+        Map<String, Object> row = jdbc.queryForList(
+            "SELECT r.name, r.timezone, r.prep_minutes, s.headline, s.about, s.cover_url, s.whatsapp, s.instagram FROM storefronts s "
                 + "JOIN restaurants r ON r.id = s.restaurant_id WHERE s.restaurant_id = ? AND s.published = TRUE AND r.active = TRUE", id)
             .stream().findFirst().orElseThrow(() -> new ApiException(404, "Página não encontrada"));
+        Map<String, Object> page = new LinkedHashMap<>(row);
+        String timezone = (String) page.remove("timezone");
+        page.put("open", hours.isOpen(id, timezone));
+        page.put("hours", hours.list(id));
+        page.put("delivery", deliverySummary(id));
+        return page;
+    }
+
+    /** Faixa das zonas ativas que a loja atende; {@code null} quando ela não entrega em nenhuma. */
+    private Map<String, Object> deliverySummary(long restaurantId) {
+        Map<String, Object> zones = jdbc.queryForMap(
+            "SELECT COUNT(*) AS zones, MIN(z.delivery_fee_cents) AS fee_min_cents, MAX(z.delivery_fee_cents) AS fee_max_cents, "
+                + "MIN(z.minimum_order_cents) AS minimum_min_cents, MAX(z.minimum_order_cents) AS minimum_max_cents, "
+                + "MIN(z.delivery_minutes) AS minutes_min, MAX(z.delivery_minutes) AS minutes_max "
+                + "FROM restaurant_zones rz JOIN zones z ON z.id = rz.zone_id AND z.active = TRUE WHERE rz.restaurant_id = ?", restaurantId);
+        if (zones == null || !(zones.get("zones") instanceof Number count) || count.longValue() == 0) return null;
+        return zones;
     }
 
     @GetMapping("/public/storefronts")

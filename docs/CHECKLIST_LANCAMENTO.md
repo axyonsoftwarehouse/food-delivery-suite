@@ -20,15 +20,15 @@ O produto funciona de ponta a ponta no staging (cliente, loja, cozinha, entregad
 online com a conta da loja e estornos). O que separa isso do lançamento é, sobretudo, **não código**:
 o ambiente de produção, a cobrança da assinatura (única receita), o e-mail real e o jurídico.
 
-**Caminho crítico:** decidir a conta que recebe a assinatura (A1) → provar a cobrança no staging
+**Caminho crítico:** ~~decidir a conta que recebe a assinatura (A1)~~ (feito em 07/11) → provar a cobrança no staging
 (A2) → **teste de carga** (B9) → montar a produção (B1, B3–B6) → primeira transação real (F1).
 
 ## A. Receita — assinatura das lojas
 
 | # | Item | Dono | Estado | Fonte |
 | --- | --- | --- | --- | --- |
-| A1 | Decidir a **conta da empresa** que recebe a assinatura | Werner | pendente (em discussão desde 14/10) | `ESTADO_ATUAL.md` §4, decisões em aberto |
-| A2 | Configurar a conta de teste da assinatura no staging (`SUBSCRIPTIONS_*`, cobrança real ligada) | Werner | bloqueado: credenciais só com o dono | `HOMOLOGACAO_ASSINATURA_P0.md` §2 |
+| A1 | Decidir a **conta da empresa** que recebe a assinatura | Werner | feito (07/11): **a conta Mercado Pago do Werner** recebe a assinatura. O token e a public key dela vão em `SUBSCRIPTIONS_ACCOUNT_*` | decisão do dono |
+| A2 | Configurar a conta de teste da assinatura no staging (`SUBSCRIPTIONS_*`, cobrança real ligada) | Werner | pendente: A1 decidido; falta gravar as credenciais de teste da conta do Werner no `deploy/.env` | `HOMOLOGACAO_ASSINATURA_P0.md` §2 |
 | A3 | Rodar a homologação da P0: reativar as três assinaturas, ver as cobranças Pix nascerem e pagar uma | Código + Werner | bloqueado por A2 | `HOMOLOGACAO_ASSINATURA_P0.md` |
 | A4 | Roteiro funcional da assinatura no painel da loja (Pix e cartão com 3DS) | Código + Werner | bloqueado por A2 | `ESTADO_ATUAL.md` §4 |
 
@@ -61,10 +61,10 @@ o ambiente de produção, a cobrança da assinatura (única receita), o e-mail r
 
 | # | Item | Dono | Estado | Fonte |
 | --- | --- | --- | --- | --- |
-| D1 | Revisão jurídica de termos, privacidade e reembolso (editáveis em Conteúdo → Páginas) | Jurídico | pendente (rascunho no ar desde 04/11) | `ESTADO_ATUAL.md` §4, LGPD mínima |
-| D2 | Indicar o **encarregado** (LGPD, art. 41): a pessoa que atende os titulares e a ANPD. Pode ser alguém da Foodie (o próprio dono) ou um serviço contratado. Nome e contato (ex.: um e-mail de privacidade) vão na política de privacidade. Agente de pequeno porte pode ficar dispensado de nomear, mas continua obrigado a manter o canal `(a confirmar com o jurídico)` | Werner + Jurídico | pendente | idem |
+| D1 | Revisão de termos, privacidade e reembolso (editáveis em Conteúdo → Páginas) | Werner | feito (07/11): o dono leu e aprovou os três textos. Não houve revisão de advogado | `ESTADO_ATUAL.md` §4, LGPD mínima |
+| D2 | Indicar o **encarregado** (LGPD, art. 41): a pessoa que atende os titulares e a ANPD. Pode ser alguém da Foodie (o próprio dono) ou um serviço contratado. Nome e contato (ex.: um e-mail de privacidade) vão na política de privacidade. Agente de pequeno porte pode ficar dispensado de nomear, mas continua obrigado a manter o canal `(a confirmar com o jurídico)` | Werner | em andamento (07/11): **o encarregado é o Werner**. Falta o canal de contato e publicar nome e contato na Política de privacidade. Pode ser o e-mail atual da Axyon `(a confirmar: qual)`; um e-mail próprio de privacidade pode vir depois | idem |
 | D3 | Licença do kit visual de terceiros (Figma) | Werner | não se aplica (07/11): o kit só serviu de inspiração, e nada dele foi usado | decisão do dono |
-| D4 | Quem opera: marca própria ou cliente (afeta termos e contas) | Werner | pendente | idem |
+| D4 | Quem opera: marca própria ou cliente (afeta termos e contas) | Werner | feito (07/11): **marca própria**. A Foodie opera a plataforma com o próprio nome e é a ponte entre clientes e restaurantes; os restaurantes assinam e vendem. Não é um software entregue a um cliente para operar com a marca dele. Nos termos e na política, a plataforma continua **operada pela Axyon Software House** | decisão do dono |
 | D5 | Reescrita do histórico do Git para tirar nomes de fornecedor (repositório público) | Código + equipe | pendente (adiada até a equipe pausar) | memória do projeto `(a confirmar)` |
 
 ## E. Produto e experiência
@@ -73,11 +73,11 @@ o ambiente de produção, a cobrança da assinatura (única receita), o e-mail r
 | --- | --- | --- | --- | --- |
 | E1 | Conferir no staging os itens 5 a 7 da revisão de UX | Código | em parte (07/11): PR #108 mesclada e publicada (`852f11e`); item 5 conferido como visitante no celular (o toque na descrição do prato sem opções abre a ficha, sem mexer no carrinho, e "Adicionar" coloca o prato no carrinho). Os itens 6 e 7 pedem um pedido com cliente logado | `REVISAO_UX_CLIENTE.md` |
 | E2 | Conferir a rolagem do `/entrar` num celular real (cardápio sem login) | Werner | pendente | `REVISAO_UX_CLIENTE.md`, item 2 |
-| E3 | UX item 8: página pública da loja com aberto/fechado, horário, taxa e mínimo | Código | pendente | `REVISAO_UX_CLIENTE.md` |
+| E3 | UX item 8: página pública da loja com aberto/fechado, horário, taxa e mínimo | Código | em andamento (07/11): branch `feat/ux-loja-publica-e-acessibilidade`; falta PR e conferência no staging | `REVISAO_UX_CLIENTE.md` |
 | E4 | UX item 9: o login cita Google e Facebook, mas só existe SMS | Código | pendente | idem |
 | E5 | UX item 10: "Indique esta loja" acima do cardápio | Código | pendente | idem |
 | E6 | UX item 13: loja sem foto mostra foto de hambúrguer | Código | pendente | idem |
-| E7 | UX itens 16 e 17: alvos de toque abaixo de 44 px e contraste abaixo de 4,5:1 | Código | pendente | idem |
+| E7 | UX itens 16 e 17: alvos de toque abaixo de 44 px e contraste abaixo de 4,5:1 | Código | em andamento (07/11): mesma branch do E3; falta PR e conferência no staging | idem |
 | E8 | UX itens 11, 12, 14, 15 e 18 (detalhes) | Código | pendente; podem ir depois do lançamento | idem |
 | E9 | Homologar no staging recorrência e campanhas | Código + Werner | pendente (código testado, nunca visto publicado) | `ESTADO_ATUAL.md` §3 |
 

@@ -10,8 +10,9 @@ app:
   migrate-only: ${MIGRATE_ONLY:false}
   payments:
     default-provider: ${PAYMENTS_DEFAULT_PROVIDER:mercadopago}
-    # Caminho de teste/homologação: permite criar cobrança online nova (hoje o produto exige
-    # recebimento direto pelo restaurante). Em produção fica desligado.
+    # Liga o pagamento online (Pix e cartão) no checkout. A cobrança cai sempre na conta Mercado Pago
+    # da própria loja, vinculada por OAuth (não há conta global da Foodie para pedidos). Desligada, o
+    # checkout só oferece pagamento na entrega. Staging e produção: true; padrão do código: false.
     allow-direct-online-charges: ${PAYMENTS_ALLOW_DIRECT_ONLINE_CHARGES:false}
     # Chave AES-256 (32 bytes em base64) que cifra os tokens do Mercado Pago de cada loja.
     # Gerar com: openssl rand -base64 32. Sem ela, a vinculação de contas responde 503.
