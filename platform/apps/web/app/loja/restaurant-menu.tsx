@@ -172,6 +172,11 @@ export default function RestaurantMenu() {
     void openProduct(product);
   }
 
+  function openDetails(product: (typeof visibleProducts)[number], target: Element) {
+    if (target.closest('.lj-fav, .lj-add') || productLoading) return;
+    void openProduct(product, { details: true });
+  }
+
   const restaurant = restaurantId ? restaurantById.get(restaurantId) : undefined;
   // O cardápio aparece sempre; fora da área de entrega, só o "Adicionar" fica desabilitado, com o motivo.
   const covered = !!restaurant && menuDelivery === 'covered';
@@ -224,10 +229,12 @@ export default function RestaurantMenu() {
             const fromPrice = product.from_price_cents ?? product.price_cents;
             const favorite = favorites.has(product.id);
             const labels = [product.is_combo ? 'Combo' : '', ...(product.tags ? product.tags.split(',').map((tag) => tag.trim()) : [])].filter(Boolean);
-            return <article className={`lj-product lj-enter${closed ? ' is-closed' : ''}`} style={{ '--i': Math.min(index, 8) } as React.CSSProperties} key={product.id}>
+            // Tocar em qualquer parte do card abre a ficha (no celular o "+" é um alvo pequeno); favoritar e "+" seguem com a ação deles.
+            // O botão no nome é o caminho do teclado/leitor de tela: o clique dele sobe até o card.
+            return <article className={`lj-product lj-enter${closed ? ' is-closed' : ''}`} style={{ '--i': Math.min(index, 8) } as React.CSSProperties} key={product.id} onClick={(event) => openDetails(product, event.target as Element)}>
               <div className="lj-product-text">
                 {labels.length > 0 && <span className="lj-product-labels">{labels.join(' · ')}</span>}
-                <h3>{product.name}</h3>
+                <h3><button type="button" className="lj-product-open" aria-label={`Ver detalhes de ${product.name}`}>{product.name}</button></h3>
                 {product.description && <p>{product.description}</p>}
                 <span className="lj-product-price">{hasVariations ? `a partir de ${money(fromPrice)}` : money(product.price_cents)}</span>
               </div>
@@ -291,7 +298,7 @@ export default function RestaurantMenu() {
         </div>
         <div className="customer-sheet-footer">
           <button type="button" className="customer-sheet-cancel" onClick={closeProduct}>{'Cancelar'}</button>
-          <button type="button" className="customer-solid-button customer-sheet-add" onClick={confirmAdd} disabled={productLoading || cartBusy || !selectedProduct.variations.length || blocked} title={blocked ? deliveryBlockedReason : undefined}><span>{'Adicionar'}</span><strong><Rolling value={money(chosenPrice)} /></strong></button>
+          <button type="button" className="customer-solid-button customer-sheet-add" onClick={confirmAdd} disabled={productLoading || cartBusy || (!selectedProduct.variations.length && (sheetCover?.variation_count ?? 0) > 0) || blocked} title={blocked ? deliveryBlockedReason : undefined}><span>{'Adicionar'}</span><strong><Rolling value={money(chosenPrice)} /></strong></button>
         </div>
       </div>
     </div>}
