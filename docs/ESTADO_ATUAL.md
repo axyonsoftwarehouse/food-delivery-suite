@@ -832,6 +832,7 @@ Ver `docs/RUNBOOK_VPS.md`. Dois pontos que já custaram tempo:
 
 ## 8. Referências
 
+- **O que falta para lançar:** `docs/CHECKLIST_LANCAMENTO.md`
 - **Decisão grande:** `docs/PLANO_RECONSTRUCAO_PROPRIA.md`
 - **Mapa de épicos:** `docs/PLANO_EPICOS.md`
 - **Pendências atuais:** `docs/PENDENCIAS_IMPLEMENTACAO_2026-09-28.md`
