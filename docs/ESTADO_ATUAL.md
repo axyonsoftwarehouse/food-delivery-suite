@@ -177,6 +177,9 @@ pendente** — não há código Apple no backend).
 - Endereço, carrinho persistente, checkout transacional com idempotência
 - Ciclo do pedido com estados normais e excepcionais
 - Home pública em `/`, login em `/entrar`, navegação por restaurantes
+- Página pública `/para-restaurantes` (S01, 09/11): planos ativos com preço lidos de
+  `GET /public/subscription-packages`, teste grátis, perguntas frequentes e chamada para o WhatsApp
+  das configurações do admin (grupo Analytics, campo WhatsApp). Publicação no staging **(a confirmar)**
 - Tipos de pedido: entrega, retirada, consumo no local, PDV de balcão
 
 ### Deploy e verificação

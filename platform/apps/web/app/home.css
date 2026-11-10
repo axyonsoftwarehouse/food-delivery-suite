@@ -80,6 +80,47 @@
 .storefront-hours dd.is-closed { color: var(--text-muted); }
 .storefront-hours > p { margin: 0; color: var(--text-muted); }
 
+/* Para restaurantes (/para-restaurantes): sem animação de entrada, o conteúdo já chega visível */
+.partner-hero { width: var(--page); margin: 0 auto; padding: var(--space-8) 0 var(--space-6); }
+.partner-hero h1 { max-width: 860px; }
+.partner-eyebrow { display: inline-block; margin-bottom: var(--space-3); padding: 6px 12px; border-radius: var(--radius-pill); background: var(--brand-050); color: var(--brand-700); font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.partner-hero h1 { margin: 0; font: 800 clamp(36px, 5vw, 64px)/1.04 var(--font-display); letter-spacing: -2px; color: var(--hero-ink); }
+.partner-hero h1 span { color: var(--brand-500); }
+.partner-hero > p { max-width: 620px; margin: 20px 0 0; color: var(--text-muted); font-size: 18px; line-height: 1.6; }
+.partner-hero .home-actions { margin-top: 28px; }
+.partner-hero > .partner-trial { display: flex; align-items: center; gap: 8px; margin-top: var(--space-5); color: var(--text); font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.partner-trial .ui-icon { flex: none; color: var(--brand-700); }
+.partner-benefits li:hover, .partner-benefits li:hover > span { transform: none; }
+.partner-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.partner-plans li { padding: 26px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.partner-plan-name { display: block; font: 800 var(--text-xl) var(--font-display); }
+.partner-plan-price { margin: 10px 0 0; color: var(--text-muted); font-size: var(--text-md); }
+.partner-plan-price span { color: var(--text); font: 800 clamp(30px, 3.4vw, 40px) var(--font-display); letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.partner-plan-trial { margin: 8px 0 0; color: var(--brand-700); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.partner-included { margin-top: var(--space-6); }
+.partner-included h3 { margin: 0 0 var(--space-3); font: 800 var(--text-lg) var(--font-display); }
+.partner-included ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px var(--space-5); margin: 0; padding: 0; list-style: none; }
+.partner-included li { display: flex; align-items: center; gap: 10px; color: var(--text); }
+.partner-included .ui-icon { flex: none; color: var(--brand-700); }
+.partner-faq { display: grid; gap: var(--space-3); max-width: 760px; }
+.partner-faq details { border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
+.partner-faq summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 44px; padding: 16px 20px; color: var(--text); font-weight: var(--weight-bold); cursor: pointer; list-style: none; }
+.partner-faq summary::-webkit-details-marker { display: none; }
+.partner-faq summary::after { content: '+'; flex: none; color: var(--brand-700); font: 800 22px/1 var(--font-display); }
+.partner-faq details[open] summary::after { content: '−'; }
+.partner-faq summary:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; border-radius: 18px; }
+.partner-faq details p { margin: 0; padding: 0 20px 18px; color: var(--text-muted); line-height: 1.6; }
+.partner-cta { text-align: center; }
+.partner-cta h2 { margin-bottom: var(--space-3); }
+.partner-cta p { max-width: 520px; margin: 0 auto var(--space-5); color: var(--text-muted); font-size: 17px; line-height: 1.6; }
+.home-footer-link { color: inherit; font-weight: var(--weight-bold); text-decoration: underline; text-underline-offset: 3px; }
+.home-footer-link:hover { color: var(--brand-700); }
+@media (max-width: 860px) {
+  .partner-hero { padding-top: var(--space-4); }
+  .partner-hero > p { font-size: 16px; }
+  .partner-cta .home-primary { width: 100%; justify-content: center; }
+}
+
 /* Telas de conta */
 .account-page { display: grid; place-content: center; justify-items: center; gap: var(--space-6); min-height: 100vh; padding: 24px 16px; background: radial-gradient(700px 400px at 50% 0%, rgb(var(--hero-fade)), transparent 70%), var(--background); color: var(--text); font-family: var(--font-sans); }
 .account-brand { display: inline-flex; align-items: center; color: var(--hero-ink); text-decoration: none; font: 800 28px var(--font-display); letter-spacing: -1.4px; }
