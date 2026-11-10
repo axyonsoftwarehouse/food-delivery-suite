@@ -4,11 +4,12 @@ import { siteUrl } from './site-url';
 
 type PublicRestaurant = { id: number; active?: boolean | number };
 
-/** Páginas públicas: a home, as páginas legais e a vitrine de cada loja ativa. */
+/** Páginas públicas: a home, "Para restaurantes", as páginas legais e a vitrine de cada loja ativa. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = await siteUrl();
   const pages: MetadataRoute.Sitemap = [
     { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
+    { url: `${base}/para-restaurantes`, changeFrequency: 'weekly', priority: 0.8 },
     ...LEGAL_PAGES.map((page) => ({ url: `${base}/paginas/${page.slug}`, changeFrequency: 'monthly' as const, priority: 0.3 })),
   ];
   try {

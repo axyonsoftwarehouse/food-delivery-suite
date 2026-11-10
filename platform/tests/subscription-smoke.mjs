@@ -52,4 +52,14 @@ if (snapshot.charge) {
   }
 }
 
-console.log(`Assinatura: plano "${snapshot.subscription.package_name}" (${snapshot.subscription.status}) e ${charges.length} cobrança(s) no recibo; contrato da tela preservado.`);
+// 4) Página "Para restaurantes" (S01): os planos ativos, sem login, só com nome, preço e período.
+const plans = await call('/public/subscription-packages');
+assert.equal(typeof plans.trial_days, 'number', 'trial_days deveria ser numérico');
+assert.ok(Array.isArray(plans.packages) && plans.packages.length > 0, 'o seed deveria ter ao menos um plano ativo');
+for (const plan of plans.packages) {
+  assert.deepEqual(Object.keys(plan).sort(), ['name', 'period_days', 'price_cents'], `plano público com campos a mais: ${JSON.stringify(plan)}`);
+  assert.equal(typeof plan.price_cents, 'number', 'o preço do plano deveria ser numérico em centavos');
+}
+assert.ok(plans.packages.some((plan) => plan.name === snapshot.subscription.package_name), 'o plano da loja demo deveria aparecer na lista pública');
+
+console.log(`Assinatura: plano "${snapshot.subscription.package_name}" (${snapshot.subscription.status}) e ${charges.length} cobrança(s) no recibo; ${plans.packages.length} plano(s) na página pública; contrato da tela preservado.`);
