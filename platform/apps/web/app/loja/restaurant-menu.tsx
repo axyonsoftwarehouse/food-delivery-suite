@@ -14,7 +14,7 @@ import GuestCep from './guest-cep';
 
 export default function RestaurantMenu() {
   const { busy, setMessage } = useApp();
-  const { restaurantId, selectedAddress, selectedZone, setCategoryId, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, searchCachedAt, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId, cartEntries, guest, menuDelivery, deliveryBlockedReason } = useCustomer();
+  const { restaurantId, selectedAddress, deliveryTerms, setCategoryId, search, setSearch, availableCategories, categoryId, visibleProducts, searchLoading, searchError, searchCachedAt, loadMore, nextCursor, openProduct, cartBusy, cartLoaded, restaurantById, selectedProduct, productLoading, closeProduct, addSelected, tags, tagId, setTagId, cartEntries, guest, menuDelivery, deliveryBlockedReason } = useCustomer();
   const [chosen, setChosen] = useState<number | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<number[]>([]);
   const [itemNote, setItemNote] = useState('');
@@ -180,6 +180,8 @@ export default function RestaurantMenu() {
   const restaurant = restaurantId ? restaurantById.get(restaurantId) : undefined;
   // O cardápio aparece sempre; fora da área de entrega, só o "Adicionar" fica desabilitado, com o motivo.
   const covered = !!restaurant && menuDelivery === 'covered';
+  // Taxa, mínimo e tempo desta loja no bairro do cliente.
+  const terms = deliveryTerms(restaurantId);
   const blocked = Boolean(deliveryBlockedReason);
   const sheetCover = selectedProduct ? visibleProducts.find((product) => product.id === selectedProduct.id) : undefined;
 
@@ -192,10 +194,10 @@ export default function RestaurantMenu() {
       <div className="lj-store-info">
         <h1 ref={titleRef}>{restaurant?.name ?? 'Restaurante'}</h1>
         {restaurant && <p className="lj-store-sub"><span className={`lj-dot${restaurant.open ? '' : ' is-off'}`} aria-hidden="true" />{restaurant.open ? 'Aberto agora' : 'Fechado agora'}{restaurant.cuisines ? ` · ${restaurant.cuisines}` : ''}</p>}
-        {covered && selectedZone && <dl className="lj-store-facts">
-          {restaurant && etaRange(estimateMinutes(restaurant.prep_minutes, selectedZone.delivery_minutes)) && <div><dt>{'Tempo'}</dt><dd>{etaRange(estimateMinutes(restaurant.prep_minutes, selectedZone.delivery_minutes))}</dd></div>}
-          <div><dt>{'Entrega'}</dt><dd>{selectedZone.delivery_fee_cents ? money(selectedZone.delivery_fee_cents) : 'Grátis'}</dd></div>
-          <div><dt>{'Pedido mínimo'}</dt><dd>{selectedZone.minimum_order_cents ? money(selectedZone.minimum_order_cents) : 'Sem mínimo'}</dd></div>
+        {covered && selectedAddress && terms && <dl className="lj-store-facts">
+          {restaurant && etaRange(estimateMinutes(restaurant.prep_minutes, terms.delivery_minutes)) && <div><dt>{'Tempo'}</dt><dd>{etaRange(estimateMinutes(restaurant.prep_minutes, terms.delivery_minutes))}</dd></div>}
+          <div><dt>{'Entrega'}</dt><dd>{terms.fee_cents ? money(terms.fee_cents) : 'Grátis'}</dd></div>
+          <div><dt>{'Pedido mínimo'}</dt><dd>{terms.minimum_order_cents ? money(terms.minimum_order_cents) : 'Sem mínimo'}</dd></div>
         </dl>}
       </div>
     </section>

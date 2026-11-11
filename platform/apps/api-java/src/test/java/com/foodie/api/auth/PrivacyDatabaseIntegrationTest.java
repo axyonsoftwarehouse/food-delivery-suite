@@ -39,8 +39,9 @@ class PrivacyDatabaseIntegrationTest {
         privacy = new PrivacyService(jdbc, new AuthRepository(jdbc), new PasswordVerifier(), Mockito.mock(MailService.class));
         String suffix = UUID.randomUUID().toString();
         restaurantId = insert("INSERT INTO restaurants (name, slug) VALUES (?, ?)", "Privacidade", "privacidade-" + suffix);
-        zoneId = insert("INSERT INTO zones (name, slug, city, state, delivery_fee_cents) VALUES ('Centro', ?, 'Fortaleza', 'CE', 500)",
-            "privacidade-" + suffix);
+        // Bairro próprio do teste (chave única por execução, para não colidir com o "Centro" do seed).
+        zoneId = insert("INSERT INTO zones (name, neighborhood_key, slug, city, city_key, state) VALUES ('Centro', ?, ?, 'Fortaleza', 'fortaleza', 'CE')",
+            "privacidade " + suffix, "privacidade-" + suffix);
         customerId = new AuthRepository(jdbc).createCustomer("Maria Titular", "maria-" + suffix + "@demo.local", "hash").id();
         jdbc.update("UPDATE users SET phone = ? WHERE id = ?", "+5585" + (int) (Math.random() * 1_0000_0000), customerId);
         long addressId = insert("INSERT INTO addresses (user_id, zone_id, label, street, number, neighborhood) "

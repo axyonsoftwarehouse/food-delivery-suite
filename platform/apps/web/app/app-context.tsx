@@ -13,12 +13,14 @@ export type User = { id: number; name: string; email: string; role: Role; restau
 export type Restaurant = { id: number; name: string; slug: string; active: boolean; open: boolean; timezone: string; service_fee_percent?: number; cover_url?: string | null; cuisines?: string | null; prep_minutes?: number };
 export type Category = { id: number; restaurant_id: number; name: string };
 export type Product = { id: number; restaurant_id: number; category_id: number; name: string; description: string; price_cents: number; image_url?: string | null; variation_count?: number; from_price_cents?: number | null; tags?: string | null; is_combo?: boolean };
-export type Catalog = { restaurants: Restaurant[]; categories: Category[]; products: Product[]; coverage: { restaurant_id: number; zone_id: number }[] };
-export type Zone = { id: number; name: string; city: string; state: string; delivery_fee_cents: number; minimum_order_cents: number; delivery_minutes?: number };
+/** Onde a loja entrega e quanto cobra em cada bairro: a taxa é da loja, não do bairro. */
+export type Coverage = { restaurant_id: number; zone_id: number; fee_cents: number; minimum_order_cents: number; delivery_minutes: number };
+export type Catalog = { restaurants: Restaurant[]; categories: Category[]; products: Product[]; coverage: Coverage[] };
+/** Um bairro (cidade + UF + bairro). */
+export type Zone = { id: number; name: string; city: string; state: string };
 export type Address = { id: number; zone_id: number; postal_code: string | null; label: string; street: string; number: string; neighborhood: string; complement: string; zone_name: string; city: string; state: string };
 export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; customer_name?: string | null; created_at: string; updated_at?: string; scheduled_at?: string | null; estimated_minutes?: number | null; payment_method: string | null; payment_modality?: string | null; payment_status: string | null; payment_due_cents: number | null; order_type?: string | null; table_id?: number | null; table_number?: string | null; party_size?: number | null; has_delivery_code?: number | boolean; pay_deadline?: string | null; accept_deadline?: string | null; payment_raw_status?: string | null; payment_rejection_message?: string | null; items_summary?: string | null; customer_note?: string | null };
 export type Courier = { id: number; name: string; email: string; suspended: boolean; approved: boolean; restaurant_id?: number | null; restaurant_name?: string | null; ratingAverage?: number | null; ratingCount?: number };
-export type PostalRange = { id: number; zone_id: number; zone_name: string; postal_start: string; postal_end: string };
 
 export const POLL_INTERVAL_MS = 8000;
 export const LATE_ORDER_MINUTES = 10;
@@ -99,7 +101,6 @@ type AppValue = {
   addresses: Address[];
   orders: Order[];
   couriers: Courier[];
-  postalRanges: PostalRange[];
   permissions: string[];
   modules: string[];
   connection: 'online' | 'offline';
@@ -158,7 +159,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
-  const [postalRanges, setPostalRanges] = useState<PostalRange[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [modules, setModules] = useState<string[]>([]);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -184,7 +184,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const version = ++refreshVersion.current;
     try {
       const me = activeUser === undefined ? (await api<{ user: User | null }>('/me')).user : activeUser;
-      const [catalogData, orderData, courierData, zoneData, addressData, postalRangeData, permissionData, moduleData] = await Promise.all([
+      const [catalogData, orderData, courierData, zoneData, addressData, permissionData, moduleData] = await Promise.all([
         api<Catalog>(me?.role === 'customer' ? '/catalog/meta' : '/catalog'),
         me ? api<Order[]>('/orders') : Promise.resolve([]),
         // O entregador é da loja (decisão de 08/10/2026): a loja vê os dela; sem permissão de despacho a lista fica vazia.
@@ -192,7 +192,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           : me?.role === 'restaurant' || me?.role === 'kitchen' ? api<Courier[]>('/restaurant/couriers').catch(() => [] as Courier[]) : Promise.resolve([] as Courier[]),
         api<Zone[]>('/zones'),
         me?.role === 'customer' ? api<Address[]>('/addresses') : Promise.resolve([]),
-        me?.role === 'admin' ? api<PostalRange[]>('/admin/postal-ranges') : Promise.resolve([]),
         me ? api<{ role: string; permissions: string[] }>('/me/permissions') : Promise.resolve({ role: '', permissions: [] as string[] }),
         me?.role === 'restaurant' ? api<{ modules: string[] }>('/restaurant/modules').then((data) => data.modules).catch(() => [] as string[]) : Promise.resolve([] as string[]),
       ]);
@@ -205,7 +204,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCouriers(courierData);
       setZones(zoneData);
       setAddresses(addressData);
-      setPostalRanges(postalRangeData);
       setPermissions(permissionData.permissions);
       setModules(moduleData);
       setUser(me);
@@ -401,7 +399,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   const value: AppValue = {
-    user, initializing, busy, message, setMessage, catalog, zones, addresses, orders, couriers, postalRanges, permissions, modules,
+    user, initializing, busy, message, setMessage, catalog, zones, addresses, orders, couriers, permissions, modules,
     connection, lastSync, newOrderNotice, setNewOrderNotice, expandedOrderId, setExpandedOrderId,
     email, setEmail, password, setPassword, authMode, setAuthMode, signupName, setSignupName,
     otpPhone, setOtpPhone, otpCode, setOtpCode, otpSent, googleLogin, facebookLogin, requestOtp, verifyOtp,

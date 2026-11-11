@@ -24,6 +24,11 @@ async function restaurant(name: string, slug: string): Promise<number> {
   return (await firstId('SELECT id FROM restaurants WHERE slug = ?', [slug]))!;
 }
 
+/** A loja entrega no bairro com taxa R$ 5,99, mínimo R$ 15,00 e 20 min. Não mexe em valores já ajustados. */
+async function coverage(restaurantId: number, zoneId: number) {
+  await db.query('INSERT IGNORE INTO restaurant_zones (restaurant_id, zone_id, fee_cents, minimum_order_cents, delivery_minutes) VALUES (?, ?, 599, 1500, 20)', [restaurantId, zoneId]);
+}
+
 async function category(restaurantId: number, name: string): Promise<number> {
   const existing = await firstId('SELECT id FROM categories WHERE restaurant_id = ? AND name = ?', [restaurantId, name]);
   return existing ?? insert('INSERT INTO categories (restaurant_id, name) VALUES (?, ?)', [restaurantId, name]);
@@ -137,14 +142,29 @@ async function ledger(party: string, partyId: number | null, orderId: number | n
 }
 
 try {
-  await db.query("INSERT INTO zones (name, slug, city, state, delivery_fee_cents, minimum_order_cents) VALUES ('Fortaleza • demonstração', 'fortaleza-demo', 'Fortaleza', 'CE', 599, 1500) ON DUPLICATE KEY UPDATE name = VALUES(name)");
-  const zoneId = (await firstId("SELECT id FROM zones WHERE slug = 'fortaleza-demo'", []))!;
-  await db.query("INSERT INTO zone_postal_ranges (zone_id, postal_start, postal_end) SELECT ?, '60000000', '60000999' WHERE NOT EXISTS (SELECT 1 FROM zone_postal_ranges WHERE zone_id = ? AND postal_start = '60000000' AND postal_end = '60000999')", [zoneId, zoneId]);
+  // Taxa por bairro (09/11/2026): a zona é um bairro e a taxa é da loja no bairro. A zona demo antiga
+  // (slug fortaleza-demo) vira o bairro "Centro", para os endereços e pedidos de demonstração continuarem nela.
+  await db.query("INSERT INTO zones (name, neighborhood_key, slug, city, city_key, state) VALUES ('Centro', 'centro', 'fortaleza-demo', 'Fortaleza', 'fortaleza', 'CE') ON DUPLICATE KEY UPDATE name = 'Centro', neighborhood_key = 'centro', city_key = 'fortaleza'");
+  const zoneId = (await firstId("SELECT id FROM zones WHERE state = 'CE' AND city_key = 'fortaleza' AND neighborhood_key = 'centro'", []))!;
+  // Bairro sem loja, usado pelo smoke de cobertura para ligar e desligar uma loja.
+  await db.query("INSERT INTO zones (name, neighborhood_key, slug, city, city_key, state) VALUES ('Bairro de Teste', 'bairro de teste', 'fortaleza-teste', 'Fortaleza', 'fortaleza', 'CE') ON DUPLICATE KEY UPDATE name = VALUES(name)");
+  const testZoneId = (await firstId("SELECT id FROM zones WHERE state = 'CE' AND city_key = 'fortaleza' AND neighborhood_key = 'bairro de teste'", []))!;
+  // Bairro do smoke do fluxo completo (tools/src/smoke.ts), também sem loja no seed.
+  await db.query("INSERT INTO zones (name, neighborhood_key, slug, city, city_key, state) VALUES ('Bairro do Fluxo', 'bairro do fluxo', 'fortaleza-fluxo', 'Fortaleza', 'fortaleza', 'CE') ON DUPLICATE KEY UPDATE name = VALUES(name)");
+  const flowZoneId = (await firstId("SELECT id FROM zones WHERE state = 'CE' AND city_key = 'fortaleza' AND neighborhood_key = 'bairro do fluxo'", []))!;
+  // CEPs fictícios dos smokes já ficam no cache, para os testes não dependerem do ViaCEP:
+  // 60000001 → Centro, 60000002 → Bairro de Teste, 60000003 → Fortaleza sem bairro (o cliente escolhe),
+  // 60000004 → Bairro do Fluxo.
+  await db.query(
+    "INSERT INTO postal_code_cache (postal_code, zone_id, city, state, neighborhood) VALUES ('60000001', ?, 'Fortaleza', 'CE', 'Centro'), ('60000002', ?, 'Fortaleza', 'CE', 'Bairro de Teste'), ('60000003', NULL, 'Fortaleza', 'CE', ''), ('60000004', ?, 'Fortaleza', 'CE', 'Bairro do Fluxo') "
+      + 'ON DUPLICATE KEY UPDATE zone_id = VALUES(zone_id), city = VALUES(city), state = VALUES(state), neighborhood = VALUES(neighborhood), looked_up_at = CURRENT_TIMESTAMP',
+    [zoneId, testZoneId, flowZoneId],
+  );
 
   const cozinha = await restaurant('Cozinha Demo', 'cozinha-demo');
   const cantina = await restaurant('Cantina do Bairro', 'cantina-do-bairro');
   const doceria = await restaurant('Doceria Estrela', 'doceria-estrela');
-  for (const id of [cozinha, cantina, doceria]) await db.query('INSERT IGNORE INTO restaurant_zones (restaurant_id, zone_id) VALUES (?, ?)', [id, zoneId]);
+  for (const id of [cozinha, cantina, doceria]) await coverage(id, zoneId);
 
   const fullAccessRoles = (await db.query('SELECT id FROM admin_roles WHERE full_access = TRUE AND active = TRUE ORDER BY id LIMIT 1')) as { id: number }[];
   const adminRoleId = fullAccessRoles[0]?.id ?? null;
@@ -264,7 +284,8 @@ try {
     if (!addressId) {
       addressId = await insert("INSERT INTO addresses (user_id, zone_id, postal_code, label, street, number, neighborhood) VALUES (?, ?, '60000001', 'Casa', 'Rua Demo', '100', 'Centro')", [customerId, zoneId]);
     }
-    const fee = Number(((await db.query('SELECT delivery_fee_cents FROM zones WHERE id = ?', [zoneId])) as { delivery_fee_cents: number }[])[0].delivery_fee_cents);
+    // Taxa da loja demo no bairro (a mesma de `coverage`).
+    const fee = 599;
     const demoOrders: { restaurantId: number; items: [number, string, number, number][]; daysAgo: number; rating: number; comment: string }[] = [
       { restaurantId: cozinha, items: [[caseiro, 'Prato da casa', 2990, 1], [suco, 'Suco natural', 1290, 2]], daysAgo: 2, rating: 5, comment: 'Chegou quentinho e muito saboroso!' },
       { restaurantId: cantina, items: [[lasanha, 'Lasanha à bolonhesa', 3690, 1], [limonada, 'Limonada italiana', 1490, 1]], daysAgo: 5, rating: 4, comment: 'Massa ótima; a limonada podia ter mais gelo.' },
@@ -306,7 +327,7 @@ try {
   const sushi = await restaurant('Sushi Nori', 'sushi-nori');
   const verde = await restaurant('Verde Vivo', 'verde-vivo');
   const burger = await restaurant('Burger House', 'burger-house');
-  for (const rid of [sushi, verde, burger]) await db.query('INSERT IGNORE INTO restaurant_zones (restaurant_id, zone_id) VALUES (?, ?)', [rid, zoneId]);
+  for (const rid of [sushi, verde, burger]) await coverage(rid, zoneId);
   await linkCuisine(cJaponesa, sushi);
   await linkCuisine(cVegana, verde);
   await linkCuisine(cBurger, burger);

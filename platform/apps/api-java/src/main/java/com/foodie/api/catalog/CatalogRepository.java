@@ -94,7 +94,7 @@ public class CatalogRepository {
             JOIN zones z ON z.id = rz.zone_id AND z.active = TRUE
             JOIN restaurants r ON r.id = rz.restaurant_id AND r.active = TRUE
             JOIN products p ON p.restaurant_id = r.id AND p.available = TRUE
-            WHERE rz.zone_id = :zoneId
+            WHERE rz.zone_id = :zoneId AND rz.active = TRUE
             """;
         StringBuilder sql = new StringBuilder("""
             SELECT p.id, p.restaurant_id, p.category_id, p.name, p.description, p.price_cents, p.is_combo,
@@ -149,19 +149,23 @@ public class CatalogRepository {
 
     public record SearchPage(List<Map<String, Object>> items, Long nextCursor) {}
 
+    /** Onde cada loja entrega e quanto cobra em cada bairro (a taxa é da loja, não do bairro). */
     public List<Map<String, Object>> coverage() {
-        return jdbc.queryForList("SELECT rz.restaurant_id, rz.zone_id FROM restaurant_zones rz JOIN zones z ON z.id = rz.zone_id WHERE z.active = TRUE");
+        return jdbc.queryForList("SELECT rz.restaurant_id, rz.zone_id, rz.fee_cents, rz.minimum_order_cents, rz.delivery_minutes "
+            + "FROM restaurant_zones rz JOIN zones z ON z.id = rz.zone_id WHERE z.active = TRUE AND rz.active = TRUE");
     }
 
+    /** Bairros que alguma loja atende. Sem preço: ele está em {@link #coverage()}. */
     public List<Map<String, Object>> zones() {
-        return jdbc.queryForList("SELECT id, name, city, state, delivery_fee_cents, minimum_order_cents, delivery_minutes FROM zones WHERE active = TRUE ORDER BY name");
+        return jdbc.queryForList("SELECT DISTINCT z.id, z.name, z.city, z.state FROM zones z "
+            + "JOIN restaurant_zones rz ON rz.zone_id = z.id AND rz.active = TRUE WHERE z.active = TRUE ORDER BY z.city, z.name");
     }
 
     public List<Map<String, Object>> tags(Long zoneId, Long restaurantId) {
         StringBuilder sql = new StringBuilder("SELECT DISTINCT t.id, t.name FROM tags t JOIN restaurants r ON r.id = t.restaurant_id AND r.active = TRUE ");
         List<Object> args = new java.util.ArrayList<>();
         if (zoneId != null) {
-            sql.append("JOIN restaurant_zones rz ON rz.restaurant_id = r.id JOIN zones z ON z.id = rz.zone_id AND z.active = TRUE WHERE rz.zone_id = ?");
+            sql.append("JOIN restaurant_zones rz ON rz.restaurant_id = r.id AND rz.active = TRUE JOIN zones z ON z.id = rz.zone_id AND z.active = TRUE WHERE rz.zone_id = ?");
             args.add(zoneId);
         } else {
             sql.append("WHERE 1 = 1");

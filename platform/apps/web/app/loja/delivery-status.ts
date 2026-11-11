@@ -15,6 +15,19 @@ export function deliveryStatus(
 }
 
 /**
+ * Taxa, mínimo e tempo da loja no bairro (taxa por bairro, 09/11/2026): a taxa é da loja, não do bairro.
+ * Sem bairro ou com a loja fora dele, não há condição de entrega.
+ */
+export function deliveryTermsFor<T extends { zone_id: number; restaurant_id: number }>(
+  zoneId: number | null,
+  restaurantId: number | null | undefined,
+  coverage: T[],
+): T | undefined {
+  if (zoneId === null || !restaurantId) return undefined;
+  return coverage.find((item) => item.zone_id === zoneId && item.restaurant_id === restaurantId);
+}
+
+/**
  * Carrinho do visitante: só continua para o login com a loja entregando no CEP. Devolve o motivo
  * quando não pode ("" quando pode).
  */

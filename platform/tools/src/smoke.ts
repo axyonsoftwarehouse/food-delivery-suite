@@ -28,10 +28,10 @@ async function login(email: string): Promise<string> {
 const admin = await login('admin@demo.local');
 const customer = await login('cliente@demo.local');
 const unique = Date.now().toString(36);
-const zone = await request<{ id: number }>('/admin/zones', admin, 'POST', { name: `Zona Teste ${unique}`, slug: `zona-${unique}`, city: 'Fortaleza', state: 'CE', deliveryFeeCents: 599, minimumOrderCents: 2000 }, 201);
-const postalCode = String(70000000 + Date.now() % 9_999_999);
-await request('/admin/postal-ranges', admin, 'POST', { zoneId: zone.id, postalStart: postalCode, postalEnd: postalCode }, 201);
-assert.equal((await request<{ id: number }>(`/zones/resolve?postalCode=${postalCode}`)).id, zone.id);
+// Entrega por bairro (09/11/2026): o CEP 60000004 é o "Bairro do Fluxo" no cache do seed (sem ViaCEP).
+const postalCode = '60000004';
+const zone = await request<{ id: number; covered: boolean }>(`/zones/resolve?postalCode=${postalCode}`);
+assert.ok(zone.id, 'o seed deveria deixar o CEP 60000004 no cache como "Bairro do Fluxo"');
 const restaurant = await request<{ id: number }>('/admin/restaurants', admin, 'POST', { name: `Restaurante Teste ${unique}`, slug: `teste-${unique}` }, 201);
 const support = `/admin/support/restaurants/${restaurant.id}`;
 const reason = 'Montagem do cardápio no teste automatizado';
@@ -63,8 +63,11 @@ await request('/admin/restaurant-users', admin, 'POST', { restaurantId: restaura
 const restaurantSession = await login(staffEmail);
 const supportLog = await request<{ entries: { action: string; actorName: string; reason: string }[] }>('/restaurant/support-log', restaurantSession);
 assert.ok(supportLog.entries.some((entry) => entry.action === 'product.update' && entry.actorName === 'Suporte Foodie' && entry.reason === reason));
-await request('/addresses', customer, 'POST', { postalCode: '99999999', label: 'Teste', street: 'Rua de demonstração', number: '100', neighborhood: 'Centro' }, 404);
-const address = await request<{ id: number; zoneId: number }>('/addresses', customer, 'POST', { postalCode, label: 'Teste', street: 'Rua de demonstração', number: '100', neighborhood: 'Centro' }, 201);
+// Bairro sem loja não aceita endereço (numa base nova; numa base reaproveitada outra loja já pode entregar lá).
+if (!zone.covered) await request('/addresses', customer, 'POST', { postalCode, label: 'Teste', street: 'Rua de demonstração', number: '100', neighborhood: 'Bairro do Fluxo' }, 404);
+// A loja de teste entrega no bairro com a própria taxa e mínimo.
+await request('/admin/coverage', admin, 'POST', { restaurantId: restaurant.id, zoneId: zone.id, feeCents: 599, minimumOrderCents: 2000, deliveryMinutes: 20 }, 201);
+const address = await request<{ id: number; zoneId: number }>('/addresses', customer, 'POST', { postalCode, label: 'Teste', street: 'Rua de demonstração', number: '100', neighborhood: 'Bairro do Fluxo' }, 201);
 assert.equal(address.zoneId, zone.id);
 const catalog = await request<{ products: { id: number }[] }>('/catalog');
 assert.ok(catalog.products.some((item) => item.id === product.id));
@@ -73,8 +76,10 @@ await request(`/cart/items/${product.id}`, customer, 'PATCH', { delta: 1 });
 const cart = await request<{ version: string }>('/cart', customer);
 const checkoutBody = { addressId: address.id, expectedTotalCents: 3099, expectedVersion: cart.version, paymentMethod: 'cash', contactPhone: '85999990000', idempotencyKey: `smoke-${unique}` };
 await request('/cart/checkout', customer, 'POST', { ...checkoutBody, expectedVersion: 'deadbeef' }, 409);
+// Com a loja fora do bairro, o checkout recusa; de volta ao bairro, passa.
+await request(`/admin/coverage?restaurantId=${restaurant.id}&zoneId=${zone.id}`, admin, 'DELETE');
 await request('/cart/checkout', customer, 'POST', checkoutBody, 400);
-await request('/admin/coverage', admin, 'POST', { restaurantId: restaurant.id, zoneId: zone.id }, 201);
+await request('/admin/coverage', admin, 'POST', { restaurantId: restaurant.id, zoneId: zone.id, feeCents: 599, minimumOrderCents: 2000, deliveryMinutes: 20 }, 201);
 const order = await request<{ id: number; status: string; subtotalCents: number; deliveryFeeCents: number; totalCents: number }>('/cart/checkout', customer, 'POST', checkoutBody, 201);
 const retry = await request<{ id: number }>('/cart/checkout', customer, 'POST', checkoutBody, 201);
 assert.equal(retry.id, order.id, 'Retry idempotente deve devolver o mesmo pedido');

@@ -18,12 +18,22 @@ public class PasswordVerifier {
     private static final int LEGACY_N = 16384;
 
     private final SecureRandom random = new SecureRandom();
+    private final ScryptGate gate;
+
+    /** Todas as instâncias dividem o mesmo limite de hashes simultâneos ({@link ScryptGate}). */
+    public PasswordVerifier() {
+        this(ScryptGate.DEFAULT);
+    }
+
+    PasswordVerifier(ScryptGate gate) {
+        this.gate = gate;
+    }
 
     public String hash(String password) {
         byte[] saltBytes = new byte[16];
         random.nextBytes(saltBytes);
         String salt = HexFormat.of().formatHex(saltBytes);
-        byte[] hash = SCrypt.generate(password.getBytes(StandardCharsets.UTF_8), salt.getBytes(StandardCharsets.UTF_8), N, R, P, DK_LEN);
+        byte[] hash = gate.run(() -> SCrypt.generate(password.getBytes(StandardCharsets.UTF_8), salt.getBytes(StandardCharsets.UTF_8), N, R, P, DK_LEN));
         return N + ":" + R + ":" + P + ":" + salt + ":" + HexFormat.of().formatHex(hash);
     }
 
@@ -31,8 +41,8 @@ public class PasswordVerifier {
         if (password == null || stored == null) return false;
         Params params = params(stored);
         if (params == null) return false;
-        byte[] actual = SCrypt.generate(password.getBytes(StandardCharsets.UTF_8), params.salt().getBytes(StandardCharsets.UTF_8),
-            params.n(), params.r(), params.p(), DK_LEN);
+        byte[] actual = gate.run(() -> SCrypt.generate(password.getBytes(StandardCharsets.UTF_8), params.salt().getBytes(StandardCharsets.UTF_8),
+            params.n(), params.r(), params.p(), DK_LEN));
         return MessageDigest.isEqual(actual, HexFormat.of().parseHex(params.hash()));
     }
 

@@ -1467,7 +1467,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["zones"];
         put?: never;
         post: operations["zone"];
         delete?: never;
@@ -1748,22 +1748,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/postal-ranges": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["postalRanges"];
-        put?: never;
-        post: operations["addPostalRange"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/pages": {
         parameters: {
             query?: never;
@@ -1902,7 +1886,7 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["coverage"];
-        delete?: never;
+        delete: operations["removeCoverage"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2324,22 +2308,6 @@ export interface paths {
         patch: operations["change"];
         trace?: never;
     };
-    "/admin/zones/{id}/pricing": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["zonePricing"];
-        trace?: never;
-    };
     "/admin/support/restaurants/{id}/timezone": {
         parameters: {
             query?: never;
@@ -2747,7 +2715,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["zones"];
+        get: operations["zones_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4283,7 +4251,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["zones_1"];
+        get: operations["zones_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4815,22 +4783,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["deletePackage"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/postal-ranges/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["deletePostalRange"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5383,13 +5335,8 @@ export interface components {
         };
         ZoneRequest: {
             name: string;
-            slug: string;
             city: string;
             state: string;
-            /** Format: int32 */
-            deliveryFeeCents?: number;
-            /** Format: int32 */
-            minimumOrderCents?: number;
         };
         SuspensionRequest: {
             suspended?: boolean;
@@ -5471,12 +5418,6 @@ export interface components {
         LabelRequest: {
             label: string;
         };
-        PostalRangeRequest: {
-            /** Format: int64 */
-            zoneId?: number;
-            postalStart: string;
-            postalEnd: string;
-        };
         PageRequest: {
             slug: string;
             title: string;
@@ -5530,6 +5471,12 @@ export interface components {
             restaurantId?: number;
             /** Format: int64 */
             zoneId?: number;
+            /** Format: int32 */
+            feeCents?: number;
+            /** Format: int32 */
+            minimumOrderCents?: number;
+            /** Format: int32 */
+            deliveryMinutes?: number;
         };
         BannerRequest: {
             title?: string;
@@ -5545,6 +5492,8 @@ export interface components {
             number: string;
             neighborhood: string;
             complement?: string;
+            /** Format: int64 */
+            zoneId?: number;
         };
         TableUpdateRequest: {
             number?: string;
@@ -5639,18 +5588,6 @@ export interface components {
             variationId?: number;
             addonIds?: number[];
             note?: string;
-        };
-        ZonePricingRequest: {
-            /** Format: int32 */
-            deliveryFeeCents?: number;
-            /** Format: int32 */
-            baseFeeCents?: number;
-            /** Format: int32 */
-            perKmCents?: number;
-            /** Format: int32 */
-            minimumOrderCents?: number;
-            /** Format: int32 */
-            deliveryMinutes?: number;
         };
         SupportRequestTimezoneRequest: {
             reason?: string;
@@ -9432,6 +9369,30 @@ export interface operations {
             };
         };
     };
+    zones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
     zone: {
         parameters: {
             query?: never;
@@ -10163,58 +10124,6 @@ export interface operations {
             };
         };
     };
-    postalRanges: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    addPostalRange: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PostalRangeRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     list_4: {
         parameters: {
             query?: never;
@@ -10653,6 +10562,33 @@ export interface operations {
                 content: {
                     "*/*": {
                         [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    removeCoverage: {
+        parameters: {
+            query: {
+                restaurantId: number;
+                zoneId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                foodie_session?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: boolean;
                     };
                 };
             };
@@ -11864,36 +11800,6 @@ export interface operations {
             };
         };
     };
-    zonePricing: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ZonePricingRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     timezone: {
         parameters: {
             query?: never;
@@ -13056,7 +12962,7 @@ export interface operations {
             };
         };
     };
-    zones: {
+    zones_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -15494,7 +15400,7 @@ export interface operations {
             };
         };
     };
-    zones_1: {
+    zones_2: {
         parameters: {
             query?: {
                 from?: string;
@@ -16366,32 +16272,6 @@ export interface operations {
         };
     };
     deletePackage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: {
-                foodie_session?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: boolean;
-                    };
-                };
-            };
-        };
-    };
-    deletePostalRange: {
         parameters: {
             query?: never;
             header?: never;

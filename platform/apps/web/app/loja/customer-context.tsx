@@ -2,9 +2,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Address, Catalog, Order, Product, Role, User, Zone, api, money, useApp } from '../app-context';
+import { Address, Catalog, Coverage, Order, Product, Role, User, Zone, api, money, useApp } from '../app-context';
 import { browserCache, cacheKey, readCache, writeCache } from './offline-cache';
-import { deliveryStatus, type DeliveryStatus } from './delivery-status';
+import { deliveryStatus, deliveryTermsFor, type DeliveryStatus } from './delivery-status';
 import { guestStorage, useGuestCart, useStoredCep } from './use-guest-cart';
 import { guestSubtotalCents, importNoticeLines, readGuestCep, sanitizeImportItems, takeGuestCartForImport, writeGuestCart, type GuestCart, type GuestCartLine } from './guest-cart';
 
@@ -18,8 +18,13 @@ type CartSnapshot = { items: CartItem[]; version: string };
 type SearchPage = { items: Product[]; nextCursor: number | null };
 type Estimate = { feeCents: number; distanceMeters: number | null; durationSeconds: number | null; feeMode: string };
 
-/** Zona do CEP guardado (`/zones/resolve`), usada pelo visitante e pelo cliente sem endereço. */
-export type GuestZone = { id: number; minimum_fee_cents: number; delivery_minutes: number | null; minimum_order_cents: number | null };
+/**
+ * Bairro do CEP (`/zones/resolve`). CEP sem bairro (cidade com CEP único) vem com `id` nulo e as opções
+ * da cidade em `choices`, para a pessoa escolher. A taxa não vem aqui: é da loja, em `catalog.coverage`.
+ */
+export type PostalPlace = { postal_code: string; city: string; state: string; id: number | null; name: string | null; covered: boolean; choices?: { id: number; name: string }[] };
+/** O CEP guardado do visitante e do cliente sem endereço. */
+export type GuestZone = PostalPlace;
 
 type CustomerValue = {
   /** Null no modo visitante (cardápio e carrinho sem login). */
@@ -28,6 +33,11 @@ type CustomerValue = {
   guestCep: string | null;
   setGuestCep: (cep: string | null) => void;
   guestZone: GuestZone | null;
+  /** Bairro escolhido pelo visitante quando o CEP não traz bairro. */
+  guestChoiceId: number | null;
+  setGuestChoiceId: (value: number | null) => void;
+  /** Taxa, mínimo e tempo da loja no bairro atual (endereço ou CEP guardado); indefinido se ela não entrega ali. */
+  deliveryTerms: (restaurantId: number | null | undefined) => Coverage | undefined;
   guestCepLoading: boolean;
   /** A consulta do CEP falhou por outro motivo que "sem cobertura" (rede, 5xx): o CEP continua guardado e dá para tentar de novo. */
   guestCepError: boolean;
@@ -135,7 +145,10 @@ type CustomerValue = {
   setShowAddressForm: (value: boolean) => void;
   addressForm: { postalCode: string; label: string; street: string; number: string; neighborhood: string };
   setAddressForm: (value: { postalCode: string; label: string; street: string; number: string; neighborhood: string }) => void;
-  postalZone: Zone | null;
+  postalZone: PostalPlace | null;
+  /** Bairro escolhido no endereço novo quando o CEP não traz bairro. */
+  addressZoneChoice: number | null;
+  setAddressZoneChoice: (value: number | null) => void;
   postalMessage: string;
   postalLoading: boolean;
   saveAddress: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
@@ -236,6 +249,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   const guestCart = useGuestCart(guest);
   const [guestCep, setGuestCep] = useStoredCep();
   const [guestZone, setGuestZone] = useState<GuestZone | null>(null);
+  const [guestChoiceId, setGuestChoiceId] = useState<number | null>(null);
   const [cepLookupFailed, setCepLookupFailed] = useState(false);
   const [guestCepLoading, setGuestCepLoading] = useState(false);
   const [guestCepError, setGuestCepError] = useState(false);
@@ -265,7 +279,8 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   useEffect(() => { if (localMessage) setAppMessage(''); }, [localMessage, setAppMessage]);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [addressForm, setAddressForm] = useState({ postalCode: '', label: 'Casa', street: '', number: '', neighborhood: '' });
-  const [postalZone, setPostalZone] = useState<Zone | null>(null);
+  const [postalZone, setPostalZone] = useState<PostalPlace | null>(null);
+  const [addressZoneChoice, setAddressZoneChoice] = useState<number | null>(null);
   const [postalMessage, setPostalMessage] = useState('');
   const [postalLoading, setPostalLoading] = useState(false);
   const [showAllOrders, setShowAllOrders] = useState(false);
@@ -323,13 +338,18 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   }
 
   useEffect(() => {
+    setAddressZoneChoice(null);
     if (addressForm.postalCode.length !== 8) { setPostalZone(null); setPostalMessage(''); setPostalLoading(false); return; }
     const controller = new AbortController();
     setPostalLoading(true); setPostalZone(null); setPostalMessage('');
     const timer = window.setTimeout(() => {
       fetch(`/backend/zones/resolve?postalCode=${addressForm.postalCode}`, { signal: controller.signal })
-        .then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error ?? 'CEP sem cobertura'); return data as Zone; })
-        .then((zone) => { setPostalZone(zone); setPostalMessage(''); })
+        .then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error ?? 'Não foi possível consultar o CEP'); return data as PostalPlace; })
+        .then((place) => {
+          setPostalZone(place); setPostalMessage('');
+          // O bairro do CEP já preenche o campo, se a pessoa ainda não digitou.
+          if (place.name) setAddressForm((form) => (form.neighborhood ? form : { ...form, neighborhood: place.name! }));
+        })
         .catch((error) => { if (!controller.signal.aborted) setPostalMessage(error instanceof Error ? error.message : 'Não foi possível consultar o CEP'); })
         .finally(() => { if (!controller.signal.aborted) setPostalLoading(false); });
     }, 300);
@@ -408,23 +428,25 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   // Sem endereço (visitante ou cliente sem endereço cadastrado), a zona vem do CEP guardado.
   const cepMode = !selectedAddress;
   useEffect(() => {
+    setGuestChoiceId(null);
     if (!cepMode || !guestCep) { setGuestZone(null); setCepLookupFailed(false); setGuestCepError(false); setGuestCepLoading(false); return; }
     const controller = new AbortController();
     setGuestCepLoading(true); setGuestZone(null); setCepLookupFailed(false); setGuestCepError(false);
     fetch(`/backend/zones/resolve?postalCode=${guestCep}`, { signal: controller.signal })
       .then(async (response) => {
-        // 404: nenhuma zona atende o CEP ("Ainda não entregamos neste CEP").
+        // 404: o CEP não existe ("CEP não encontrado").
         if (response.status === 404) { setCepLookupFailed(true); return; }
         const data = await response.json();
         if (!response.ok) throw new Error(data.error ?? 'Não foi possível consultar o CEP.');
-        const zone = data as Zone & { minimum_fee_cents?: number };
-        setGuestZone({ id: zone.id, minimum_fee_cents: zone.minimum_fee_cents ?? zone.delivery_fee_cents, delivery_minutes: zone.delivery_minutes ?? null, minimum_order_cents: zone.minimum_order_cents ?? null });
+        setGuestZone(data as PostalPlace);
       })
       .catch((error) => { if (!controller.signal.aborted) { setGuestCepError(true); setLocalMessage(error instanceof Error ? error.message : 'Não foi possível consultar o CEP.'); } })
       .finally(() => { if (!controller.signal.aborted) setGuestCepLoading(false); });
     return () => controller.abort();
   }, [cepMode, guestCep, cepRetry]);
-  const zoneId = selectedAddress?.zone_id ?? (cepMode ? guestZone?.id : undefined) ?? null;
+  const zoneId = selectedAddress?.zone_id ?? (cepMode ? (guestZone?.id ?? guestChoiceId) : undefined) ?? null;
+  const coverage = app.catalog.coverage;
+  const deliveryTerms = (id: number | null | undefined) => deliveryTermsFor(zoneId, id, coverage);
   const coveredRestaurants = useMemo(() => new Set(app.catalog.coverage
     .filter((coverage) => coverage.zone_id === zoneId)
     .map((coverage) => coverage.restaurant_id)), [app.catalog.coverage, zoneId]);
@@ -451,8 +473,10 @@ export function CustomerProvider({ children, guest = false }: { children: React.
       .catch(() => { if (active) setCampaign(null); });
     return () => { active = false; };
   }, [cartVersion, cartLoaded, guest]);
-  const fee = deliveryEstimate?.feeCents ?? selectedZone?.delivery_fee_cents ?? 0;
-  const meetsMinimum = subtotal >= (selectedZone?.minimum_order_cents ?? (cepMode ? guestZone?.minimum_order_cents : null) ?? 0);
+  // Taxa e mínimo da loja do carrinho no bairro do cliente (a taxa é da loja, não do bairro).
+  const cartTerms = deliveryTerms(cartRestaurantId);
+  const fee = deliveryEstimate?.feeCents ?? cartTerms?.fee_cents ?? 0;
+  const meetsMinimum = subtotal >= (cartTerms?.minimum_order_cents ?? 0);
 
   useEffect(() => {
     const version = ++searchVersion.current;
@@ -675,8 +699,10 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   async function saveAddress(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (guest) return;
-    const ok = await app.run(() => request('/addresses', { method: 'POST', body: JSON.stringify(addressForm) }), 'Endereço cadastrado.');
-    if (ok) { setShowAddressForm(false); setAddressForm({ postalCode: '', label: 'Casa', street: '', number: '', neighborhood: '' }); }
+    // Sem bairro no CEP, vai o bairro escolhido na lista.
+    const zoneChoice = postalZone && postalZone.id === null ? addressZoneChoice : null;
+    const ok = await app.run(() => request('/addresses', { method: 'POST', body: JSON.stringify({ ...addressForm, ...(zoneChoice ? { zoneId: zoneChoice } : {}) }) }), 'Endereço cadastrado.');
+    if (ok) { setShowAddressForm(false); setAddressForm({ postalCode: '', label: 'Casa', street: '', number: '', neighborhood: '' }); setAddressZoneChoice(null); }
   }
 
   async function placeOrder() {
@@ -799,7 +825,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
   if (!user && !guest) return null;
 
   const value: CustomerValue = {
-    user, guest, guestCep, setGuestCep, guestZone, guestCepLoading, guestCepError, retryGuestCep: () => setCepRetry((n) => n + 1), cartDelivery, cartBlockedReason, lastRestaurantId: lastRestaurant.current, menuDelivery, deliveryBlockedReason: blockedReason, catalog: app.catalog, zones: app.zones, addresses: app.addresses, orders: app.orders, busy: app.busy, message: app.message,
+    user, guest, guestCep, setGuestCep, guestZone, guestChoiceId, setGuestChoiceId, deliveryTerms, guestCepLoading, guestCepError, retryGuestCep: () => setCepRetry((n) => n + 1), cartDelivery, cartBlockedReason, lastRestaurantId: lastRestaurant.current, menuDelivery, deliveryBlockedReason: blockedReason, catalog: app.catalog, zones: app.zones, addresses: app.addresses, orders: app.orders, busy: app.busy, message: app.message,
     connection: app.connection, lastSync: app.lastSync, selectedAddressId, setSelectedAddressId, selectedAddress, selectedZone, restaurantId, availableCategories, restaurantById,
     search, setSearch, categoryId, setCategoryId, visibleProducts, nextCursor, searchLoading, searchError, searchCachedAt, loadMore,
     cartEntries, cartCount, subtotal, fee, estimate: deliveryEstimate, meetsMinimum, cartCovered, cartRestaurantClosed,
@@ -808,7 +834,7 @@ export function CustomerProvider({ children, guest = false }: { children: React.
     orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee,
     manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, submitReview, loadHistory,
     localMessage, importNotice, dismissImportNotice: () => setImportNotice(null), showAddressForm, setShowAddressForm, addressForm, setAddressForm,
-    postalZone, postalMessage, postalLoading, saveAddress, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality,
+    postalZone, addressZoneChoice, setAddressZoneChoice, postalMessage, postalLoading, saveAddress, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality,
     onlineCharges, cardTransparent, placing,
     placeOrder, expandedOrderId, setExpandedOrderId, showAllOrders, setShowAllOrders, cancelOrder,
   };
