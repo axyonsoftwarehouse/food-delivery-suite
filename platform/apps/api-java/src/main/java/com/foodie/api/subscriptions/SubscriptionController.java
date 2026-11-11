@@ -283,7 +283,7 @@ public class SubscriptionController {
         if (restaurant.isEmpty()) throw new ApiException(400, "Restaurante indisponível");
         Integer address = jdbc.query("SELECT 1 FROM addresses WHERE id = ? AND user_id = ?", rs -> rs.next() ? 1 : null, body.addressId(), customer.id());
         if (address == null) throw new ApiException(400, "Endereço não encontrado");
-        Integer coverage = jdbc.query("SELECT 1 FROM addresses a JOIN restaurant_zones rz ON rz.zone_id = a.zone_id WHERE a.id = ? AND rz.restaurant_id = ?", rs -> rs.next() ? 1 : null, body.addressId(), body.restaurantId());
+        Integer coverage = jdbc.query("SELECT 1 FROM addresses a JOIN restaurant_zones rz ON rz.zone_id = a.zone_id AND rz.active = TRUE WHERE a.id = ? AND rz.restaurant_id = ?", rs -> rs.next() ? 1 : null, body.addressId(), body.restaurantId());
         if (coverage == null) throw new ApiException(400, "Restaurante não atende este endereço");
         Set<String> unique = new HashSet<>();
         for (Item item : body.items()) {

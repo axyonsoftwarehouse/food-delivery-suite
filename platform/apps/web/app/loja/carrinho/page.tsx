@@ -26,7 +26,7 @@ export default function CarrinhoPage() {
 
 /** Carrinho do visitante (cardápio sem login): itens, subtotal e entrega; o resto (endereço, pagamento, cupom) vem depois do login. */
 function GuestCartView() {
-  const { cartEntries, subtotal, cartLoaded, cartBusy, mutateCart, changeQuantity, removeItem, changeNote, guestCep, guestZone, guestCepLoading, guestCepError, cartDelivery, cartBlockedReason, lastRestaurantId, restaurantById } = useCustomer();
+  const { cartEntries, subtotal, cartLoaded, cartBusy, mutateCart, changeQuantity, removeItem, changeNote, guestCep, deliveryTerms, guestCepLoading, guestCepError, cartDelivery, cartBlockedReason, lastRestaurantId, restaurantById } = useCustomer();
   const restaurantId = cartEntries[0]?.product.restaurant_id;
   const restaurant = restaurantId ? restaurantById.get(restaurantId) : undefined;
   const storeId = restaurantId ?? lastRestaurantId;
@@ -42,9 +42,11 @@ function GuestCartView() {
     </section>;
   }
 
-  const covered = cartDelivery === 'covered' && guestZone !== null;
-  const minimum = guestZone?.minimum_order_cents ?? 0;
-  const eta = covered ? etaRange(estimateMinutes(restaurant?.prep_minutes, guestZone.delivery_minutes)) : '';
+  // Taxa, mínimo e tempo da loja do carrinho no bairro do CEP.
+  const terms = cartDelivery === 'covered' ? deliveryTerms(restaurantId) : undefined;
+  const covered = terms !== undefined;
+  const minimum = terms?.minimum_order_cents ?? 0;
+  const eta = terms ? etaRange(estimateMinutes(restaurant?.prep_minutes, terms.delivery_minutes)) : '';
   const disabledReason = guestContinueReason(cartDelivery, guestCep !== null, guestCepLoading, guestCepError, cartBlockedReason);
 
   return <section className="lj-cart" id="carrinho">
@@ -89,14 +91,14 @@ function GuestCartView() {
 
       <aside className="lj-panel lj-summary" aria-label="Resumo do pedido" id="resumo">
         {covered && minimum > subtotal && <div className="lj-minimum">
-          <span>{`Pedido mínimo da zona: ${money(minimum)} (faltam ${money(minimum - subtotal)})`}</span>
+          <span>{`Pedido mínimo da loja: ${money(minimum)} (faltam ${money(minimum - subtotal)})`}</span>
           <span className="lj-minimum-track"><span style={{ transform: `scaleX(${Math.min(1, subtotal / minimum)})` }} /></span>
         </div>}
         <dl className="lj-totals">
           <div><dt>{'Subtotal'}</dt><dd><Rolling value={money(subtotal)} /></dd></div>
-          {covered && <div><dt>{'Entrega'}</dt><dd>{`a partir de ${money(guestZone.minimum_fee_cents)}`}</dd></div>}
+          {terms && <div><dt>{'Entrega'}</dt><dd>{terms.fee_cents ? money(terms.fee_cents) : 'Grátis'}</dd></div>}
         </dl>
-        {covered && minimum > 0 && minimum <= subtotal && <p className="lj-help">{`Pedido mínimo da zona: ${money(minimum)}`}</p>}
+        {covered && minimum > 0 && minimum <= subtotal && <p className="lj-help">{`Pedido mínimo da loja: ${money(minimum)}`}</p>}
         {eta && <p className="lj-help">{`Chega em ${eta}`}</p>}
         {disabledReason && <p className="customer-minimum">{disabledReason}</p>}
         <p className="lj-help">{'Os valores são confirmados ao entrar na sua conta'}</p>
@@ -128,13 +130,15 @@ function AccountCart() {
   const [recurringBusy, setRecurringBusy] = useState(false);
   const [recurringMessage, setRecurringMessage] = useState('');
   const [removing, setRemoving] = useState<string | null>(null);
-  const { importNotice, dismissImportNotice, cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
+  const { importNotice, dismissImportNotice, cartEntries, subtotal, estimate, meetsMinimum, cartCovered, cartRestaurantClosed, selectedAddress, selectedZone, deliveryTerms, cartBusy, cartLoaded, refreshCart, mutateCart, changeQuantity, removeItem, changeNote, orderNote, setOrderNote, paymentMethod, setPaymentMethod, changeFor, setChangeFor, modality, setModality, placing, placeOrder, couponCode, setCouponCode, appliedCoupon, couponBusy, applyCoupon, removeCoupon, discount, campaign, scheduledFor, setScheduledFor, orderType, setOrderType, tip, setTip, contactPhone, setContactPhone, tables, tableId, setTableId, partySize, setPartySize, orderFee, serviceFee, manual, setManual, offlineMethods, manualMethodId, setManualMethodId, proofUrl, setProofUrl, proofNote, setProofNote, onlineCharges, cardTransparent, restaurantById } = useCustomer();
   const parsedTip = Number(tip.replace(',', '.'));
   const tipCents = orderType === 'delivery' && Number.isFinite(parsedTip) && parsedTip > 0 ? Math.round(parsedTip * 100) : 0;
   const total = subtotal + orderFee - discount + serviceFee + tipCents;
   const cartRestaurant = cartEntries.length ? restaurantById.get(cartEntries[0].product.restaurant_id) : undefined;
-  const eta = etaRange(estimateMinutes(cartRestaurant?.prep_minutes, selectedZone?.delivery_minutes, orderType === 'delivery'));
-  const minimum = selectedZone?.minimum_order_cents ?? 0;
+  // Tempo e mínimo da loja no bairro do endereço escolhido (a taxa é da loja, não do bairro).
+  const terms = deliveryTerms(cartRestaurant?.id);
+  const eta = etaRange(estimateMinutes(cartRestaurant?.prep_minutes, terms?.delivery_minutes, orderType === 'delivery'));
+  const minimum = terms?.minimum_order_cents ?? 0;
   const minimumProgress = minimum > 0 ? Math.min(1, subtotal / minimum) : 1;
   const checkoutDisabled = busy || placing || cartBusy || cartEntries.some((entry) => !entry.available) || (orderType === 'delivery' && (!selectedAddress?.postal_code || !meetsMinimum || !cartCovered)) || (orderType === 'dine_in' && tableId === null) || (manual && (!manualMethodId || (offlineMethods.find((method) => method.id === manualMethodId)?.requires_proof && !proofUrl.trim()))) || (orderType === 'delivery' && contactPhone.replace(/\D/g, '').length < 10) || (cartRestaurantClosed && !scheduledFor);
   const payNow = !manual && modality === 'online';

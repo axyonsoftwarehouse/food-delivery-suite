@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -66,65 +67,50 @@ public class AdminController {
     public ResponseEntity<Map<String, Object>> zone(@CookieValue(value = "foodie_session", required = false) String token,
                                                      @Valid @RequestBody ZoneRequest body) {
         User actor = admin(token, AdminPermissions.ZONES_MANAGE);
-        long id = insert("INSERT INTO zones (name, slug, city, state, delivery_fee_cents, minimum_order_cents) VALUES (?, ?, ?, ?, ?, ?)",
-            body.name().trim(), body.slug(), body.city().trim(), body.state(), body.deliveryFeeCents(), body.minimumOrderCents());
-        audit(actor, "create", "zone", id, "Zona " + body.name().trim());
-        return created(Map.of("id", id, "name", body.name().trim(), "slug", body.slug(), "city", body.city().trim(), "state", body.state(), "deliveryFeeCents", body.deliveryFeeCents(), "minimumOrderCents", body.minimumOrderCents()));
+        // A zona é um bairro (cidade + UF + bairro); se já existe com outra grafia, reaproveita.
+        long id = postalCoverage.zoneFor(body.city(), body.state(), body.name());
+        audit(actor, "create", "zone", id, "Bairro " + body.name().trim() + " / " + body.city().trim() + "-" + body.state());
+        return created(jdbc.queryForMap("SELECT id, name, city, state FROM zones WHERE id = ?", id));
     }
 
-    @PatchMapping("/zones/{id}/pricing")
-    public Map<String, Object> zonePricing(@CookieValue(value = "foodie_session", required = false) String token,
-                                           @PathVariable @Positive long id,
-                                           @Valid @RequestBody ZonePricingRequest body) {
-        User actor = admin(token, AdminPermissions.ZONES_MANAGE);
-        int changed = jdbc.update("UPDATE zones SET delivery_fee_cents = ?, base_fee_cents = ?, per_km_cents = ?, minimum_order_cents = ?, delivery_minutes = COALESCE(?, delivery_minutes) WHERE id = ?",
-            body.deliveryFeeCents(), body.baseFeeCents(), body.perKmCents(), body.minimumOrderCents(), body.deliveryMinutes(), id);
-        if (changed == 0) throw new ApiException(404, "Zona não encontrada");
-        audit(actor, "update", "zone", id, "Preços da zona");
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("id", id);
-        result.put("deliveryFeeCents", body.deliveryFeeCents());
-        result.put("baseFeeCents", body.baseFeeCents());
-        result.put("perKmCents", body.perKmCents());
-        result.put("minimumOrderCents", body.minimumOrderCents());
-        result.put("deliveryMinutes", jdbc.queryForObject("SELECT delivery_minutes FROM zones WHERE id = ?", Integer.class, id));
-        result.put("distancePricing", body.perKmCents() != null && body.perKmCents() > 0);
-        return result;
+    /** Todos os bairros conhecidos (inclusive os que nenhuma loja atende ainda), por cidade. */
+    @GetMapping("/zones")
+    public List<Map<String, Object>> zones(@CookieValue(value = "foodie_session", required = false) String token) {
+        admin(token, AdminPermissions.ZONES_MANAGE);
+        return jdbc.queryForList("SELECT id, name, city, state FROM zones WHERE active = TRUE ORDER BY state, city, name LIMIT 2000");
     }
 
+    /** Taxa, mínimo e tempo da loja num bairro (cria ou atualiza o vínculo). A taxa é da loja, não do bairro. */
     @PostMapping("/coverage")
     public ResponseEntity<Map<String, Object>> coverage(@CookieValue(value = "foodie_session", required = false) String token,
                                                          @Valid @RequestBody CoverageRequest body) {
         User actor = admin(token, AdminPermissions.ZONES_MANAGE);
         Integer match = jdbc.query("SELECT 1 FROM restaurants r JOIN zones z ON z.id = ? AND z.active = TRUE WHERE r.id = ? AND r.active = TRUE",
             rs -> rs.next() ? 1 : null, body.zoneId(), body.restaurantId());
-        if (match == null) throw new ApiException(400, "Restaurante ou zona indisponível");
-        jdbc.update("INSERT INTO restaurant_zones (restaurant_id, zone_id) VALUES (?, ?)", body.restaurantId(), body.zoneId());
-        audit(actor, "create", "coverage", body.restaurantId(), "Cobertura restaurante " + body.restaurantId() + " / zona " + body.zoneId());
-        return created(Map.of("restaurantId", body.restaurantId(), "zoneId", body.zoneId()));
+        if (match == null) throw new ApiException(400, "Restaurante ou bairro indisponível");
+        jdbc.update("INSERT INTO restaurant_zones (restaurant_id, zone_id, fee_cents, minimum_order_cents, delivery_minutes, active) VALUES (?, ?, ?, ?, ?, TRUE) "
+                + "ON DUPLICATE KEY UPDATE fee_cents = VALUES(fee_cents), minimum_order_cents = VALUES(minimum_order_cents), "
+                + "delivery_minutes = VALUES(delivery_minutes), active = TRUE",
+            body.restaurantId(), body.zoneId(), body.feeCents(), body.minimumOrderCents(), body.deliveryMinutes());
+        audit(actor, "update", "coverage", body.restaurantId(), "Entrega da loja " + body.restaurantId() + " no bairro " + body.zoneId());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("restaurantId", body.restaurantId());
+        result.put("zoneId", body.zoneId());
+        result.put("feeCents", body.feeCents());
+        result.put("minimumOrderCents", body.minimumOrderCents());
+        result.put("deliveryMinutes", body.deliveryMinutes());
+        return created(result);
     }
 
-    @GetMapping("/postal-ranges")
-    public List<Map<String, Object>> postalRanges(@CookieValue(value = "foodie_session", required = false) String token) {
-        admin(token, AdminPermissions.ZONES_MANAGE);
-        return postalCoverage.ranges();
-    }
-
-    @PostMapping("/postal-ranges")
-    public ResponseEntity<Map<String, Object>> addPostalRange(@CookieValue(value = "foodie_session", required = false) String token,
-                                                                @Valid @RequestBody PostalRangeRequest body) {
+    /** A loja deixa de entregar no bairro. Pedidos antigos continuam com a taxa que foi cobrada. */
+    @DeleteMapping("/coverage")
+    public Map<String, Boolean> removeCoverage(@CookieValue(value = "foodie_session", required = false) String token,
+                                               @RequestParam @Positive long restaurantId, @RequestParam @Positive long zoneId) {
         User actor = admin(token, AdminPermissions.ZONES_MANAGE);
-        postalCoverage.addRange(body.zoneId(), body.postalStart(), body.postalEnd());
-        audit(actor, "create", "postal_range", body.zoneId(), "Faixa " + body.postalStart() + "–" + body.postalEnd());
-        return created(Map.of("zoneId", body.zoneId(), "postalStart", postalCoverage.normalize(body.postalStart()), "postalEnd", postalCoverage.normalize(body.postalEnd())));
-    }
-
-    @DeleteMapping("/postal-ranges/{id}")
-    public Map<String, Boolean> deletePostalRange(@CookieValue(value = "foodie_session", required = false) String token,
-                                                   @PathVariable @Positive long id) {
-        User actor = admin(token, AdminPermissions.ZONES_MANAGE);
-        postalCoverage.deleteRange(id);
-        audit(actor, "delete", "postal_range", id, "Faixa removida");
+        if (jdbc.update("DELETE FROM restaurant_zones WHERE restaurant_id = ? AND zone_id = ?", restaurantId, zoneId) == 0) {
+            throw new ApiException(404, "A loja não entrega neste bairro");
+        }
+        audit(actor, "delete", "coverage", restaurantId, "Loja " + restaurantId + " deixou o bairro " + zoneId);
         return Map.of("ok", true);
     }
 
@@ -252,23 +238,14 @@ public class AdminController {
         return ResponseEntity.status(201).body(body);
     }
 
+    /** Bairro: {@code name} é o nome do bairro. */
     public record ZoneRequest(@NotBlank @Size(min = 2, max = 120) String name,
-                              @NotBlank @Pattern(regexp = "[a-z0-9]+(?:-[a-z0-9]+)*") @Size(max = 140) String slug,
                               @NotBlank @Size(min = 2, max = 120) String city,
-                              @NotBlank @Pattern(regexp = "[A-Z]{2}") String state,
-                              @Min(0) @Max(1_000_000) int deliveryFeeCents,
-                              @Min(0) @Max(10_000_000) int minimumOrderCents) {}
-    public record CoverageRequest(@Positive long restaurantId, @Positive long zoneId) {}
-    public record ZonePricingRequest(@Min(0) @Max(1_000_000) int deliveryFeeCents,
-                                     @Min(0) @Max(1_000_000) Integer baseFeeCents,
-                                     @Min(0) @Max(1_000_000) Integer perKmCents,
-                                     @Min(0) @Max(10_000_000) int minimumOrderCents,
-                                     @Min(5) @Max(180) Integer deliveryMinutes) {
-        public ZonePricingRequest(int deliveryFeeCents, Integer baseFeeCents, Integer perKmCents, int minimumOrderCents) {
-            this(deliveryFeeCents, baseFeeCents, perKmCents, minimumOrderCents, null);
-        }
-    }
-    public record PostalRangeRequest(@Positive long zoneId, @NotBlank String postalStart, @NotBlank String postalEnd) {}
+                              @NotBlank @Pattern(regexp = "[A-Z]{2}") String state) {}
+    public record CoverageRequest(@Positive long restaurantId, @Positive long zoneId,
+                                  @Min(0) @Max(1_000_000) int feeCents,
+                                  @Min(0) @Max(10_000_000) int minimumOrderCents,
+                                  @Min(5) @Max(180) int deliveryMinutes) {}
     public record RestaurantRequest(@NotBlank @Size(min = 2, max = 160) String name,
                                     @NotBlank @Pattern(regexp = "[a-z0-9]+(?:-[a-z0-9]+)*") @Size(max = 180) String slug) {}
     public record ServiceFeeRequest(@jakarta.validation.constraints.NotNull @DecimalMin("0") @DecimalMax("30") java.math.BigDecimal percent) {}

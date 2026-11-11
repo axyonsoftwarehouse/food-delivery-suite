@@ -21,7 +21,7 @@ function cuisinesOf(restaurant: Restaurant) {
 }
 
 export default function LojaPage() {
-  const { user, catalog, orders, selectedAddress, selectedZone, setShowAddressForm } = useCustomer();
+  const { user, catalog, orders, selectedAddress, deliveryTerms, setShowAddressForm } = useCustomer();
   const [search, setSearch] = useState('');
   const [cuisine, setCuisine] = useState<string | null>(null);
 
@@ -51,7 +51,8 @@ export default function LojaPage() {
     return list;
   }, [orders, covered]);
 
-  const fee = selectedZone ? (selectedZone.delivery_fee_cents ? `Entrega ${money(selectedZone.delivery_fee_cents)}` : 'Entrega grátis') : '';
+  // A taxa é de cada loja no bairro do endereço.
+  const feeLabel = (cents: number | undefined) => cents === undefined ? '' : cents ? `Entrega ${money(cents)}` : 'Entrega grátis';
   const filtering = query.length > 0 || cuisine !== null;
 
   return <>
@@ -91,13 +92,14 @@ export default function LojaPage() {
           <p>{covered.length ? 'Nada encontrado com esse filtro.' : 'Ainda não há restaurantes entregando neste endereço.'}</p>
         </div> : <div className="lj-grid">{restaurants.map((restaurant, index) => {
           const kinds = cuisinesOf(restaurant).slice(0, 2).join(', ');
+          const terms = deliveryTerms(restaurant.id);
           return <Link key={restaurant.id} className={`lj-rest lj-enter${restaurant.open ? '' : ' is-closed'}`} style={{ '--i': Math.min(index, 8) } as React.CSSProperties} href={`/loja/restaurantes/${restaurant.id}`}>
             <span className="lj-rest-frame">
               <RestaurantMedia restaurant={restaurant} className="lj-rest-media" />
               {!restaurant.open && <span className="lj-rest-badge">{'Fechado agora'}</span>}
             </span>
             <strong className="lj-rest-name">{restaurant.name}</strong>
-            <span className="lj-rest-meta">{[kinds, ...(restaurant.open ? [etaRange(estimateMinutes(restaurant.prep_minutes, selectedZone?.delivery_minutes)), fee] : ['Agende seu pedido'])].filter(Boolean).join(' · ')}</span>
+            <span className="lj-rest-meta">{[kinds, ...(restaurant.open ? [etaRange(estimateMinutes(restaurant.prep_minutes, terms?.delivery_minutes)), feeLabel(terms?.fee_cents)] : ['Agende seu pedido'])].filter(Boolean).join(' · ')}</span>
           </Link>;
         })}</div>}
       </section>

@@ -2,6 +2,7 @@ package com.foodie.api;
 
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -38,38 +39,43 @@ class PublicApiContractTest {
         when(catalog.restaurants()).thenReturn(List.of(Map.of("id", 1, "name", "Cozinha Demo", "slug", "cozinha-demo")));
         when(catalog.categories()).thenReturn(List.of(Map.of("id", 2, "restaurant_id", 1, "name", "Pratos")));
         when(catalog.products()).thenReturn(List.of(Map.of("id", 3, "restaurant_id", 1, "category_id", 2, "name", "Prato", "description", "", "price_cents", 2990)));
-        when(catalog.coverage()).thenReturn(List.of(Map.of("restaurant_id", 1, "zone_id", 4)));
+        // A taxa, o mínimo e o tempo são da loja em cada bairro (taxa por bairro, 09/11).
+        when(catalog.coverage()).thenReturn(List.of(Map.of("restaurant_id", 1, "zone_id", 4, "fee_cents", 599, "minimum_order_cents", 1500, "delivery_minutes", 25)));
 
         mvc.perform(get("/catalog"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.restaurants[0].slug").value("cozinha-demo"))
             .andExpect(jsonPath("$.categories[0].restaurant_id").value(1))
             .andExpect(jsonPath("$.products[0].price_cents").value(2990))
-            .andExpect(jsonPath("$.coverage[0].zone_id").value(4));
+            .andExpect(jsonPath("$.coverage[0].zone_id").value(4))
+            .andExpect(jsonPath("$.coverage[0].fee_cents").value(599))
+            .andExpect(jsonPath("$.coverage[0].minimum_order_cents").value(1500))
+            .andExpect(jsonPath("$.coverage[0].delivery_minutes").value(25));
     }
 
     @Test
-    void zonesKeepPrototypeResponseShape() throws Exception {
-        when(catalog.zones()).thenReturn(List.of(Map.of("id", 4, "name", "Fortaleza", "city", "Fortaleza", "state", "CE", "delivery_fee_cents", 599, "minimum_order_cents", 1500)));
+    void zonesAreNeighborhoodsWithoutPrice() throws Exception {
+        when(catalog.zones()).thenReturn(List.of(Map.of("id", 4, "name", "Centro", "city", "Fortaleza", "state", "CE")));
 
         mvc.perform(get("/zones"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].delivery_fee_cents").value(599))
-            .andExpect(jsonPath("$[0].minimum_order_cents").value(1500));
+            .andExpect(jsonPath("$[0].name").value("Centro"))
+            .andExpect(jsonPath("$[0].city").value("Fortaleza"));
     }
 
     @Test
-    void postalCodeResolvesZoneAndRejectsUncoveredAddress() throws Exception {
-        when(postalCoverage.resolve("60000001")).thenReturn(Map.of("id", 4, "name", "Fortaleza", "city", "Fortaleza", "state", "CE", "delivery_fee_cents", 599, "minimum_order_cents", 1500));
-        when(postalCoverage.resolve("99999999")).thenThrow(new ApiException(404, "Ainda não entregamos neste CEP"));
+    void postalCodeResolvesTheNeighborhoodAndRejectsUnknownCep() throws Exception {
+        when(postalCoverage.resolve(eq("60000001"), any())).thenReturn(Map.of("id", 4, "name", "Centro", "city", "Fortaleza", "state", "CE", "covered", true));
+        when(postalCoverage.resolve(eq("99999999"), any())).thenThrow(new ApiException(404, "CEP não encontrado. Confira os números"));
 
         mvc.perform(get("/zones/resolve").param("postalCode", "60000001"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id").value(4));
+            .andExpect(jsonPath("$.id").value(4))
+            .andExpect(jsonPath("$.covered").value(true));
         mvc.perform(get("/zones/resolve").param("postalCode", "99999999"))
             .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.error").value("Ainda não entregamos neste CEP"));
-        verify(postalCoverage).resolve("60000001");
+            .andExpect(jsonPath("$.error").value("CEP não encontrado. Confira os números"));
+        verify(postalCoverage).resolve(eq("60000001"), any());
     }
 
     @Test

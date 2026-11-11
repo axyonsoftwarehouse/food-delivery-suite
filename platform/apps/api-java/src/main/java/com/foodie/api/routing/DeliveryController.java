@@ -40,18 +40,21 @@ public class DeliveryController {
         User user = auth.requireUser(token, "customer", "admin");
         adminPermissions.requireIfAdmin(user, AdminPermissions.ORDERS_MANAGE);
         List<Map<String, Object>> addresses = jdbc.queryForList(
-            "SELECT a.id, a.user_id, a.latitude, a.longitude, z.delivery_fee_cents, z.base_fee_cents, z.per_km_cents "
+            "SELECT a.id, a.user_id, a.zone_id, a.latitude, a.longitude "
                 + "FROM addresses a JOIN zones z ON z.id = a.zone_id AND z.active = TRUE WHERE a.id = ?", addressId);
         if (addresses.isEmpty()) throw new ApiException(404, "Endereço não encontrado ou zona indisponível");
         Map<String, Object> address = addresses.getFirst();
         if (!"admin".equals(user.role()) && ((Number) address.get("user_id")).longValue() != user.id()) {
             throw new ApiException(403, "Acesso não autorizado");
         }
+        // A taxa é da loja no bairro do endereço (taxa por bairro, sem cobrança por km).
         List<Map<String, Object>> restaurants = jdbc.queryForList(
-            "SELECT id, latitude, longitude FROM restaurants WHERE id = ? AND active = TRUE", restaurantId);
-        if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante indisponível");
+            "SELECT r.id, r.latitude, r.longitude, rz.fee_cents AS delivery_fee_cents FROM restaurants r "
+                + "JOIN restaurant_zones rz ON rz.restaurant_id = r.id AND rz.zone_id = ? AND rz.active = TRUE WHERE r.id = ? AND r.active = TRUE",
+            address.get("zone_id"), restaurantId);
+        if (restaurants.isEmpty()) throw new ApiException(400, "Restaurante não atende este endereço");
 
-        DeliveryService.Estimate estimate = delivery.estimate(address, restaurants.getFirst(), address);
+        DeliveryService.Estimate estimate = delivery.estimate(restaurants.getFirst(), restaurants.getFirst(), address);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("addressId", addressId);
         result.put("restaurantId", restaurantId);

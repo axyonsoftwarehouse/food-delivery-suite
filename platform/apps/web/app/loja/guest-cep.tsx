@@ -17,7 +17,7 @@ export function formatCep(cep: string) {
  * Sem CEP, pede o CEP; com a loja entregando, resume tempo e taxa "a partir de"; fora da área, avisa.
  */
 export default function GuestCep({ scope = 'menu' }: { scope?: 'menu' | 'cart' }) {
-  const { guestCep, setGuestCep, guestZone, guestCepLoading, guestCepError, retryGuestCep, restaurantById, ...customer } = useCustomer();
+  const { guestCep, setGuestCep, guestZone, guestChoiceId, setGuestChoiceId, deliveryTerms, guestCepLoading, guestCepError, retryGuestCep, restaurantById, ...customer } = useCustomer();
   // No cardápio vale a loja aberta; no carrinho, a loja do carrinho.
   const menuDelivery = scope === 'cart' ? customer.cartDelivery : customer.menuDelivery;
   const deliveryBlockedReason = scope === 'cart' ? customer.cartBlockedReason : customer.deliveryBlockedReason;
@@ -51,13 +51,36 @@ export default function GuestCep({ scope = 'menu' }: { scope?: 'menu' | 'cart' }
     </div>;
   }
 
+  // CEP sem bairro (cidade com CEP único): a pessoa escolhe o bairro entre os que alguma loja atende.
+  if (guestCep && !editing && guestZone && guestZone.id === null && guestChoiceId === null) {
+    const choices = guestZone.choices ?? [];
+    if (!choices.length) {
+      return <div className="lj-cep-alert">
+        <Alert tone="warning" action={<button type="button" className="lj-cep-change" onClick={change}>{'trocar'}</button>}>{`Ainda não entregamos em ${guestZone.city}.`}</Alert>
+      </div>;
+    }
+    return <div className="lj-cep lj-cep--form">
+      <label htmlFor="lj-cep-neighborhood"><Icon name="map-pin" size={18} /><span>{`Em qual bairro de ${guestZone.city}?`}</span></label>
+      <div className="lj-cep-row">
+        <select id="lj-cep-neighborhood" defaultValue="" onChange={(event) => { const id = Number(event.target.value); if (id) setGuestChoiceId(id); }}>
+          <option value="" disabled>{'Escolha o bairro'}</option>
+          {choices.map((choice) => <option key={choice.id} value={choice.id}>{choice.name}</option>)}
+        </select>
+        <button type="button" className="lj-cep-change" onClick={change}>{'trocar CEP'}</button>
+      </div>
+    </div>;
+  }
+
   if (guestCep && !editing && menuDelivery === 'covered' && guestZone) {
     const restaurant = restaurantId ? restaurantById.get(restaurantId) : undefined;
-    const eta = etaRange(estimateMinutes(restaurant?.prep_minutes, guestZone.delivery_minutes));
-    const fee = `taxa a partir de ${money(guestZone.minimum_fee_cents)}`;
+    // Taxa e tempo desta loja no bairro do CEP (cada loja tem a sua).
+    const terms = deliveryTerms(restaurantId);
+    const eta = etaRange(estimateMinutes(restaurant?.prep_minutes, terms?.delivery_minutes));
+    const fee = terms ? (terms.fee_cents ? `taxa de ${money(terms.fee_cents)}` : 'entrega grátis') : '';
+    const where = guestZone.name ?? guestZone.choices?.find((choice) => choice.id === guestChoiceId)?.name;
     return <div className="lj-cep" role="status">
       <Icon name="map-pin" size={18} />
-      <p>{eta ? `Entrega em ${eta} · ${fee}` : `Entrega com ${fee}`}{` · CEP ${formatCep(guestCep)}`}</p>
+      <p>{[eta ? `Entrega em ${eta}` : 'Entrega', fee, where, `CEP ${formatCep(guestCep)}`].filter(Boolean).join(' · ')}</p>
       <button type="button" className="lj-cep-change" onClick={change}>{'trocar'}</button>
     </div>;
   }

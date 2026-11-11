@@ -1,6 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deliveryStatus, guestContinueReason } from './delivery-status.ts';
+import { deliveryStatus, deliveryTermsFor, guestContinueReason } from './delivery-status.ts';
+
+test('a taxa é da loja no bairro: cada loja tem a sua', () => {
+  const coverage = [
+    { zone_id: 5, restaurant_id: 3, fee_cents: 500 },
+    { zone_id: 5, restaurant_id: 9, fee_cents: 800 },
+    { zone_id: 6, restaurant_id: 3, fee_cents: 900 },
+  ];
+  assert.equal(deliveryTermsFor(5, 3, coverage)?.fee_cents, 500);
+  assert.equal(deliveryTermsFor(5, 9, coverage)?.fee_cents, 800);
+  assert.equal(deliveryTermsFor(6, 3, coverage)?.fee_cents, 900);
+  assert.equal(deliveryTermsFor(7, 3, coverage), undefined);
+  assert.equal(deliveryTermsFor(null, 3, coverage), undefined);
+  assert.equal(deliveryTermsFor(5, null, coverage), undefined);
+});
 
 test('sem zona e sem consulta de CEP: no-location', () => {
   assert.equal(deliveryStatus(null, false, 3, []), 'no-location');

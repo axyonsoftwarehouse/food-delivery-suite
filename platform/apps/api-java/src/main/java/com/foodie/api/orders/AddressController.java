@@ -1,5 +1,6 @@
 package com.foodie.api.orders;
 
+import com.foodie.api.ApiException;
 import com.foodie.api.auth.AuthService;
 import com.foodie.api.catalog.PostalCoverageService;
 import com.foodie.api.routing.GeocodingService;
@@ -47,7 +48,11 @@ public class AddressController {
         long userId = auth.requireUser(token, "customer").id();
         String postalCode = postalCoverage.normalize(request.postalCode());
         Map<String, Object> zone = postalCoverage.resolve(postalCode);
-        long zoneId = ((Number) zone.get("id")).longValue();
+        // CEP sem bairro (cidade com CEP único): o cliente escolhe o bairro entre os que alguma loja atende.
+        long zoneId = postalCoverage.zoneForAddress(zone, request.zoneId());
+        if (zone.get("id") != null && !Boolean.TRUE.equals(zone.get("covered"))) {
+            throw new ApiException(404, "Ainda não entregamos no seu bairro");
+        }
         GeneratedKeyHolder key = new GeneratedKeyHolder();
         String complement = request.complement() == null ? "" : request.complement().trim();
         jdbc.update(connection -> {
@@ -91,5 +96,10 @@ public class AddressController {
                                  @NotBlank @Size(min = 3, max = 180) String street,
                                  @NotBlank @Size(min = 1, max = 30) String number,
                                  @NotBlank @Size(min = 2, max = 120) String neighborhood,
-                                 @Size(max = 120) String complement) {}
+                                 @Size(max = 120) String complement,
+                                 @Positive Long zoneId) {
+        public AddressRequest(String postalCode, String label, String street, String number, String neighborhood, String complement) {
+            this(postalCode, label, street, number, neighborhood, complement, null);
+        }
+    }
 }

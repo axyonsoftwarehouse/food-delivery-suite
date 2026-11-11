@@ -602,6 +602,20 @@ class OrderServiceTest {
     }
 
     @Test
+    void deliveryTermsComeFromTheStoreInTheNeighborhoodWithoutPerKm() {
+        Map<String, Object> address = Map.of("id", 9L, "zone_id", 4L, "street", "Rua A");
+        Map<String, Object> terms = Map.of("fee_cents", 700, "minimum_order_cents", 2500, "delivery_minutes", 30);
+
+        Map<String, Object> merged = OrderService.withDeliveryTerms(address, terms);
+
+        assertThat(merged).containsEntry("delivery_fee_cents", 700).containsEntry("minimum_order_cents", 2500)
+            .containsEntry("delivery_minutes", 30).containsEntry("street", "Rua A");
+        assertThat(merged.get("per_km_cents")).isNull();
+        assertThat(merged.get("base_fee_cents")).isNull();
+        assertThat(OrderService.estimatedMinutes(Map.of("prep_minutes", 20), merged)).isEqualTo(50);
+    }
+
+    @Test
     void listColumnsCarryTheEstimate() {
         assertThat(OrderService.ORDER_BASE_SQL).contains("o.estimated_minutes");
     }

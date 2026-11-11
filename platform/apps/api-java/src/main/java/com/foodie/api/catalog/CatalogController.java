@@ -3,6 +3,7 @@ package com.foodie.api.catalog;
 import java.util.List;
 import java.util.Map;
 import com.foodie.api.ApiException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Positive;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -74,8 +75,16 @@ public class CatalogController {
         return catalog.zones();
     }
 
+    /** Bairro do CEP (ou as opções da cidade, quando o CEP não traz bairro). A taxa vem da loja, em {@code coverage}. */
     @GetMapping("/zones/resolve")
-    public Map<String, Object> resolveZone(@RequestParam String postalCode) {
-        return postalCoverage.resolve(postalCode);
+    public Map<String, Object> resolveZone(@RequestParam String postalCode, HttpServletRequest request) {
+        return postalCoverage.resolve(postalCode, clientIp(request));
+    }
+
+    private static String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
+        String remote = request.getRemoteAddr();
+        return remote == null || remote.isBlank() ? null : remote;
     }
 }
