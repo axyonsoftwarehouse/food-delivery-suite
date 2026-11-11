@@ -105,6 +105,14 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: OSV-Scanner no pom.xml (falha só em crítica)
+        env:
+          # Críticas aceitas como risco documentado (decisão do dono, 11/11/2026).
+          # As duas são do spring-webmvc 6.2.19 e só têm correção na 7.0.9
+          # (Spring Boot 4); a API não usa XsltView nem SSE com fragmentos de view.
+          # Rever ao migrar para o Spring Boot 4 ou se sair correção na linha 6.2.
+          #   GHSA-j9f9-w8pj-32f8: corrupção do stream SSE com fragmentos de view
+          #   GHSA-pc63-qcmh-9cmg: XsltView com mapeamento /** (SSRF e RCE)
+          CRITICAS_ACEITAS: '["GHSA-j9f9-w8pj-32f8","GHSA-pc63-qcmh-9cmg"]'
         run: |
           set -u
           rc=0
@@ -118,17 +126,20 @@ jobs:
           fi
           total=$(jq '[.results[]?.packages[]?.vulnerabilities[]?.id] | unique | length' osv.json)
           # Crítica = severidade GHSA "CRITICAL" ou pontuação CVSS do grupo >= 9.0.
-          criticas=$(jq -r '
+          criticas=$(jq -r --argjson aceitas "$CRITICAS_ACEITAS" '
             [ .results[]?.packages[]? as $p
               | ($p.vulnerabilities // [])[]
               | select((.database_specific.severity // "") == "CRITICAL")
+              | select(([.id] + (.aliases // [])) | any(. as $i | $aceitas | index($i)) | not)
               | "\($p.package.name)@\($p.package.version) \(.id)" ] as $a
             | [ .results[]?.packages[]? as $p
               | ($p.groups // [])[]
               | select(((.max_severity // "0") | tonumber? // 0) >= 9)
+              | select(((.ids // []) + (.aliases // [])) | any(. as $i | $aceitas | index($i)) | not)
               | "\($p.package.name)@\($p.package.version) \(.ids[0])" ] as $b
             | ($a + $b) | unique | .[]' osv.json)
           echo "Vulnerabilidades distintas (todos os níveis): $total"
+          echo "Críticas aceitas como risco documentado (não falham o job): $CRITICAS_ACEITAS"
           if [ -n "$criticas" ]; then
             echo "::error::Vulnerabilidade crítica nas dependências Java:"
             echo "$criticas"
