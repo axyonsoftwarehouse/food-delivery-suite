@@ -71,6 +71,19 @@ public class SubscriptionController {
 
     // ----- E20: pacotes e assinatura da loja -----
 
+    /**
+     * Planos da página pública "Para restaurantes" (S01), sem login. Só os ativos, e só nome, preço e
+     * período: nada de id, comissão ou assinaturas. O teste grátis é da instalação, não do plano.
+     */
+    @GetMapping("/public/subscription-packages")
+    public Map<String, Object> publicPackages() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("trial_days", trialDaysDefault);
+        result.put("packages", jdbc.queryForList(
+            "SELECT name, price_cents, period_days FROM subscription_packages WHERE active = TRUE ORDER BY price_cents, name"));
+        return result;
+    }
+
     @GetMapping("/admin/subscription-packages")
     public List<Map<String, Object>> packages(@CookieValue(value = "foodie_session", required = false) String token) {
         admin(token);

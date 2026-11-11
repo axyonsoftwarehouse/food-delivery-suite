@@ -52,7 +52,7 @@ um item de painel, veja a tela.
 
 | # | Item | Para quem | Tamanho | Quando |
 | --- | --- | --- | --- | --- |
-| S01 | Página "Para restaurantes" com planos e preço | Lojista | M | Antes de abrir |
+| S01 | Página "Para restaurantes" com planos e preço | Lojista | M | Antes de abrir (feito em 09/11, texto aprovado) |
 | S02 | Cadastro da loja pelo próprio lojista, com teste grátis | Lojista | G | Antes de abrir (ou logo depois, ver decisão) |
 | S03 | Primeiros passos no painel da loja | Lojista | M | Antes de abrir |
 | S04 | Menu do painel da loja em grupos | Lojista | P | Primeiras semanas |
@@ -114,6 +114,14 @@ escreve? (3) Sem o S02, a chamada leva para onde (WhatsApp, e-mail, formulário)
 
 **Dependências.** Domínio de produção (B1) para o texto final e o contato.
 
+**Andamento (09/11).** Decisões do dono: preço público; texto e perguntas em rascunho do agente,
+com revisão do Werner no PR; chamada para o WhatsApp. Feito na branch `feat/para-restaurantes`,
+desenho em `docs/superpowers/specs/2026-11-09-para-restaurantes-design.md`. O contato vem de
+configurações do admin, grupo Analytics, campo WhatsApp (sem ele, telefone e depois e-mail de suporte). Os planos
+não têm itens próprios no banco: a página mostra uma lista única, "Todos os planos incluem".
+Texto e perguntas frequentes aprovados pelo Werner em 09/11. Pendente: o WhatsApp comercial preenchido no admin do staging e a
+conferência no staging depois da publicação **(a confirmar)**.
+
 ### S02 — Cadastro da loja pelo próprio lojista, com teste grátis
 
 **Problema.** A loja só nasce pelo admin. O `PLANO_TESTE_CARGA.md` §6 cita `POST /admin/restaurants`
@@ -152,6 +160,14 @@ usar o painel? (4) Se preferir começar sem autocadastro, o S01 leva a um formul
 este item fica para depois.
 
 **Dependências.** S01; contrato com as lojas (D6); SMTP real (C1), se houver verificação de e-mail.
+
+**Andamento (09/11).** Decisões do dono: a loja se publica **sozinha** ao cumprir o mínimo; aceita
+**CPF ou CNPJ**; o responsável **verifica o e-mail** antes de usar o painel (Resend, item C1). O
+pagamento online pela conta Mercado Pago da loja é **opcional** (o padrão é pagar na entrega), então
+não entra no mínimo. A área de entrega vira **taxa por bairro definida pela loja**, pré-requisito
+deste item: desenho aprovado em `docs/superpowers/specs/2026-11-09-taxa-por-bairro-design.md`. Os
+números do mínimo (sugestão: 5 pratos, horário, endereço e telefone, ao menos um bairro ou só
+retirada) entram na especificação do S02.
 
 **Risco.** É a primeira rota pública que cria dados de loja. Pede revisão de segurança própria
 (abuso, enumeração de contas, lojas falsas).

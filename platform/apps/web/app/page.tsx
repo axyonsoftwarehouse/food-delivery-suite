@@ -20,7 +20,7 @@ export default function Home() {
   return <main className="home">
     <header className="home-header">
       <Link className="home-brand" href="/" aria-label="Foodie, início"><span className="home-brand-mark"><Icon name="sparkle" size={18} /></span>foodie<span>.</span></Link>
-      <nav aria-label="Navegação principal"><a href="#restaurantes">{'Restaurantes'}</a><a href="#como-funciona">{'Como funciona'}</a><Link className="home-login" href={destination}>{user ? 'Abrir' : 'Entrar'}</Link></nav>
+      <nav aria-label="Navegação principal"><a href="#restaurantes">{'Restaurantes'}</a><a href="#como-funciona">{'Como funciona'}</a><Link href="/para-restaurantes">{'Para restaurantes'}</Link><Link className="home-login" href={destination}>{user ? 'Abrir' : 'Entrar'}</Link></nav>
     </header>
 
     <section className="home-hero">
@@ -54,6 +54,6 @@ export default function Home() {
       <ol className="home-steps">{STEPS.map((step, index) => <li key={step.title} className="m-rise" style={{ '--i': index + 1 } as React.CSSProperties}><span><Icon name={step.icon} size={22} /></span><strong>{step.title}</strong><p>{step.text}</p></li>)}</ol>
     </section>
 
-    <footer className="home-footer"><Link className="home-brand" href="/"><span className="home-brand-mark"><Icon name="sparkle" size={14} /></span>foodie<span>.</span></Link><LegalLinks /><span>{'© 2026 Axyon Software House'}</span></footer>
+    <footer className="home-footer"><Link className="home-brand" href="/"><span className="home-brand-mark"><Icon name="sparkle" size={14} /></span>foodie<span>.</span></Link><Link className="home-footer-link" href="/para-restaurantes">{'Para restaurantes'}</Link><LegalLinks /><span>{'© 2026 Axyon Software House'}</span></footer>
   </main>;
 }
