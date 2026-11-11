@@ -200,8 +200,6 @@ export default function RestaurantMenu() {
       </div>
     </section>
 
-    {restaurant && !guest && <ReferralBlock restaurantId={restaurant.id} />}
-
     <section className="lj-menu" id="cardapio">
       {restaurant && (guest || !selectedAddress) && <GuestCep />}
       {restaurant && !guest && selectedAddress && blocked && <div className="lj-cep-alert"><Alert tone="warning">{deliveryBlockedReason}</Alert></div>}
@@ -249,6 +247,8 @@ export default function RestaurantMenu() {
       {nextCursor !== null && <button type="button" className="lj-load-more" onClick={loadMore} disabled={searchLoading}>{searchLoading ? 'Carregando...' : 'Ver mais pratos'}</button>}
       </>}
     </section>
+
+    {restaurant && !guest && <ReferralBlock restaurantId={restaurant.id} />}
 
     {selectedProduct && <div className="ui-modal-backdrop customer-sheet-backdrop" role="presentation" onClick={closeProduct}>
       <div className="customer-sheet" role="dialog" aria-modal="true" aria-label={`Opções de ${selectedProduct.name}`} onClick={(event) => event.stopPropagation()}>
