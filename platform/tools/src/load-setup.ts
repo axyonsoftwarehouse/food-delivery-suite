@@ -114,16 +114,23 @@ async function history(restaurantId: number, zoneId: number, customers: { id: nu
 }
 
 try {
+  // Taxa por bairro (09/11/2026): a zona de carga é um bairro fictício, e a taxa é das lojas nele.
   await db.query(
-    "INSERT INTO zones (name, slug, city, state, delivery_fee_cents, minimum_order_cents) VALUES ('Carga • teste de carga', ?, 'Fortaleza', 'CE', 599, 0) ON DUPLICATE KEY UPDATE name = VALUES(name)",
+    "INSERT INTO zones (name, neighborhood_key, slug, city, city_key, state) VALUES ('Carga • teste de carga', 'carga • teste de carga', ?, 'Fortaleza', 'fortaleza', 'CE') ON DUPLICATE KEY UPDATE name = VALUES(name)",
     [CARGA_ZONE_SLUG],
   );
   const zoneId = (await firstId('SELECT id FROM zones WHERE slug = ?', [CARGA_ZONE_SLUG]))!;
-  await db.query(
-    'INSERT INTO zone_postal_ranges (zone_id, postal_start, postal_end) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM zone_postal_ranges WHERE zone_id = ? AND postal_start = ?)',
-    [zoneId, CARGA_POSTAL_START, CARGA_POSTAL_END, zoneId, CARGA_POSTAL_START],
-  );
-  const fee = Number(((await db.query('SELECT delivery_fee_cents FROM zones WHERE id = ?', [zoneId])) as { delivery_fee_cents: number }[])[0].delivery_fee_cents);
+  const fee = 599;
+  // Os CEPs fictícios dos clientes de carga já ficam no cache: o pedido confere o bairro do CEP e,
+  // sem isso, cada um iria ao ViaCEP (que não conhece esses CEPs).
+  for (let start = Number(CARGA_POSTAL_START); start <= Number(CARGA_POSTAL_END); start += 100) {
+    const values = Array.from({ length: Math.min(100, Number(CARGA_POSTAL_END) - start + 1) }, (_, offset) => String(start + offset));
+    await db.query(
+      `INSERT INTO postal_code_cache (postal_code, zone_id, city, state, neighborhood) VALUES ${values.map(() => "(?, ?, 'Fortaleza', 'CE', 'Carga')").join(', ')} `
+        + 'ON DUPLICATE KEY UPDATE zone_id = VALUES(zone_id), looked_up_at = CURRENT_TIMESTAMP',
+      values.flatMap((postal) => [postal, zoneId]),
+    );
+  }
 
   const customers: { id: number; addressId: number }[] = [];
   for (let index = 1; index <= CUSTOMERS; index += 1) {
@@ -139,7 +146,7 @@ try {
     const slug = storeSlug(index);
     await db.query('INSERT INTO restaurants (name, slug) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)', [`Carga ${pad(index, 2)}`, slug]);
     const restaurantId = (await firstId('SELECT id FROM restaurants WHERE slug = ?', [slug]))!;
-    await db.query('INSERT IGNORE INTO restaurant_zones (restaurant_id, zone_id) VALUES (?, ?)', [restaurantId, zoneId]);
+    await db.query('INSERT IGNORE INTO restaurant_zones (restaurant_id, zone_id, fee_cents, minimum_order_cents, delivery_minutes) VALUES (?, ?, ?, 0, 20)', [restaurantId, zoneId, fee]);
     // Vitrine publicada: sem ela a página pública /restaurantes/{id} responde 404.
     await db.query("INSERT INTO storefronts (restaurant_id, headline, about, published) VALUES (?, 'Loja do teste de carga', 'Dados de teste: não faça pedidos aqui.', TRUE) "
       + 'ON DUPLICATE KEY UPDATE published = TRUE', [restaurantId]);

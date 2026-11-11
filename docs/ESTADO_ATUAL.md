@@ -193,6 +193,13 @@ pendente** — não há código Apple no backend).
 
 ## 3. O que está no limbo (feito, mas precisa confirmar)
 
+- **Taxa de entrega por bairro, definida pela loja** — PR 1 feito em 09/11 (branch
+  `feat/taxa-por-bairro`, migration `V080`): a zona passou a ser o bairro do CEP (ViaCEP, depois
+  BrasilAPI, com cache) e a taxa, o mínimo e o tempo passaram para o vínculo loja × bairro; as faixas
+  de CEP e a taxa por km saíram. Desenho e decisões em
+  `docs/superpowers/specs/2026-11-09-taxa-por-bairro-design.md`. **Ao publicar no staging, rodar o
+  seed uma vez** (grava os CEPs de demonstração no cache). Falta o PR 2 (tela "Área de entrega" da
+  loja). Publicação no staging **(a confirmar)**.
 - **Descontos são da loja** — implementado em 03/10 e **publicado em 05/10** (`c910409`, PR #39,
   schema `056`): o campo `restaurants.discount_percent` saiu (migration `V056`) e o admin passou a
   **só ler** campanhas e cupons, que agora pertencem sempre a uma loja. Efeito conferido no banco do

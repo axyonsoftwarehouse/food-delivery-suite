@@ -86,10 +86,10 @@ public class StorefrontController {
     /** Faixa das zonas ativas que a loja atende; {@code null} quando ela não entrega em nenhuma. */
     private Map<String, Object> deliverySummary(long restaurantId) {
         Map<String, Object> zones = jdbc.queryForMap(
-            "SELECT COUNT(*) AS zones, MIN(z.delivery_fee_cents) AS fee_min_cents, MAX(z.delivery_fee_cents) AS fee_max_cents, "
-                + "MIN(z.minimum_order_cents) AS minimum_min_cents, MAX(z.minimum_order_cents) AS minimum_max_cents, "
-                + "MIN(z.delivery_minutes) AS minutes_min, MAX(z.delivery_minutes) AS minutes_max "
-                + "FROM restaurant_zones rz JOIN zones z ON z.id = rz.zone_id AND z.active = TRUE WHERE rz.restaurant_id = ?", restaurantId);
+            "SELECT COUNT(*) AS zones, MIN(rz.fee_cents) AS fee_min_cents, MAX(rz.fee_cents) AS fee_max_cents, "
+                + "MIN(rz.minimum_order_cents) AS minimum_min_cents, MAX(rz.minimum_order_cents) AS minimum_max_cents, "
+                + "MIN(rz.delivery_minutes) AS minutes_min, MAX(rz.delivery_minutes) AS minutes_max "
+                + "FROM restaurant_zones rz JOIN zones z ON z.id = rz.zone_id AND z.active = TRUE WHERE rz.restaurant_id = ? AND rz.active = TRUE", restaurantId);
         if (zones == null || !(zones.get("zones") instanceof Number count) || count.longValue() == 0) return null;
         return zones;
     }

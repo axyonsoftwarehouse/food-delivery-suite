@@ -38,10 +38,11 @@ assert.ok(product, 'Prato da casa demonstrativo indisponível');
 const restaurantId = product.restaurant_id;
 
 const catalog = await call('/catalog');
-const zones = await call('/zones');
-const coverage = catalog.coverage.find((item) => item.restaurant_id === restaurantId);
-assert.ok(coverage, 'Restaurante demo sem cobertura de zona');
-const zone = zones.find((item) => item.id === coverage.zone_id);
+// O CEP 60000001 é o bairro Centro do seed; a taxa é da loja nesse bairro.
+const centro = await call('/zones/resolve?postalCode=60000001');
+const coverage = catalog.coverage.find((item) => item.restaurant_id === restaurantId && item.zone_id === centro.id);
+assert.ok(coverage, 'Restaurante demo não entrega no bairro do CEP 60000001');
+const zone = { id: centro.id, delivery_fee_cents: coverage.fee_cents };
 const address = await call('/addresses', { cookie: customer, method: 'POST', expected: 201,
   body: { postalCode: '60000001', label: 'Exceções', street: 'Rua de Teste', number: '1', neighborhood: 'Centro' } });
 assert.equal(address.zoneId, zone.id, 'CEP 60000001 deveria resolver a zona do restaurante demo');

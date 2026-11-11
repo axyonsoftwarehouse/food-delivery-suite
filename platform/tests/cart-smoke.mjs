@@ -34,13 +34,15 @@ const email = 'cliente@demo.local';
 const otherEmail = 'cliente2@demo.local';
 await waitForApi();
 const catalog = (await call('/catalog')).data;
-const zones = (await call('/zones')).data;
-const demoZone = zones.find((zone) => zone.name === 'Fortaleza • demonstração');
-assert.ok(demoZone, 'Execute o seed demonstrativo antes do teste');
+// O CEP 60000001 é o bairro Centro do seed (no cache, sem consultar o ViaCEP).
+const demoZone = (await call('/zones/resolve?postalCode=60000001')).data;
+assert.ok(demoZone.id, 'Execute o seed demonstrativo antes do teste');
 const product = catalog.products.find((item) => item.name === 'Prato da casa' && catalog.coverage.some((coverage) =>
   coverage.restaurant_id === item.restaurant_id && coverage.zone_id === demoZone.id));
 assert.ok(product, 'Cadastre um produto com cobertura antes do teste');
-const zone = demoZone;
+// A taxa é da loja no bairro (taxa por bairro, 09/11/2026), não do bairro.
+const link = catalog.coverage.find((coverage) => coverage.restaurant_id === product.restaurant_id && coverage.zone_id === demoZone.id);
+const zone = { id: demoZone.id, delivery_fee_cents: link.fee_cents };
 
 const first = session((await call('/auth/login', { method: 'POST', body: { email, password } })).response);
 const secondDevice = session((await call('/auth/login', { method: 'POST', body: { email, password } })).response);

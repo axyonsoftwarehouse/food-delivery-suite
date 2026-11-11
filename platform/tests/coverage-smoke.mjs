@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
-// Cobertura por CEP: cadastrar faixa, resolver a zona e conferir que o checkout
-// reconfere a cobertura — inclusive quando ela muda depois do endereço criado.
+// Entrega por bairro (desenho de 09/11/2026): o CEP diz o bairro, e a taxa é da loja no bairro.
+// Usa só CEPs que o seed deixa no cache (sem consultar o ViaCEP):
+//   60000002 → "Bairro de Teste" (sem loja no seed); 60000003 → Fortaleza sem bairro (o cliente escolhe).
 const base = process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:4001';
 const password = process.env.DEMO_PASSWORD;
 if (!password) throw new Error('DEMO_PASSWORD ausente');
@@ -37,76 +38,75 @@ const product = products.find((item) => item.name === 'Prato da casa' && item.av
 assert.ok(product, 'Prato da casa demonstrativo indisponível');
 const restaurantId = product.restaurant_id;
 
-const catalog = await call('/catalog');
-const zones = await call('/zones');
-const coverage = catalog.coverage.find((item) => item.restaurant_id === restaurantId);
-assert.ok(coverage, 'Restaurante demo sem cobertura de zona');
-const zone = zones.find((item) => item.id === coverage.zone_id);
+const bairro = await call('/zones/resolve?postalCode=60000002');
+assert.ok(bairro.id, 'o CEP 60000002 deveria estar no cache do seed como "Bairro de Teste"');
+const removeLink = () => fetch(`${base}/admin/coverage?restaurantId=${restaurantId}&zoneId=${bairro.id}`, { method: 'DELETE', headers: { Cookie: admin } });
+await removeLink(); // uma execução anterior pode ter deixado o vínculo
 
-// 1) uma faixa de CEP livre, sem sobrepor as que já existem no seed
-const antes = await call('/admin/postal-ranges', { cookie: admin });
-const sobrepoe = (inicio, fim) => antes.some((r) => Number(r.postal_start) <= fim && Number(r.postal_end) >= inicio);
-let inicio = 69900000;
-while (sobrepoe(inicio, inicio + 99)) inicio += 100;
-const postalStart = String(inicio);
-const postalEnd = String(inicio + 99);
+// 1) bairro sem loja: o CEP é reconhecido, mas não dá para cadastrar endereço nele
+assert.equal((await call('/zones/resolve?postalCode=60000002')).covered, false, 'bairro sem loja não deveria estar coberto');
+const semLoja = await call('/addresses', { cookie: customer, method: 'POST', expected: 404,
+  body: { postalCode: '60000002', label: 'Cobertura', street: 'Rua da Cobertura', number: '10', neighborhood: 'Bairro de Teste' } });
+assert.match(semLoja.error, /não entregamos no seu bairro/);
 
-const criada = await call('/admin/postal-ranges', { cookie: admin, method: 'POST', expected: 201,
-  body: { zoneId: zone.id, postalStart, postalEnd } });
-assert.equal(criada.postalStart, postalStart, 'faixa deveria ser normalizada');
+// 2) a loja passa a entregar no bairro com a própria taxa
+await call('/admin/coverage', { cookie: admin, method: 'POST', expected: 201,
+  body: { restaurantId, zoneId: bairro.id, feeCents: 777, minimumOrderCents: 0, deliveryMinutes: 15 } });
+assert.equal((await call('/zones/resolve?postalCode=60000002')).covered, true);
+const link = (await call('/catalog')).coverage.find((item) => item.restaurant_id === restaurantId && item.zone_id === bairro.id);
+assert.equal(link?.fee_cents, 777, 'a cobertura do catálogo deveria trazer a taxa da loja no bairro');
+assert.equal(link?.delivery_minutes, 15);
 
-// 2) resolver a zona pelo CEP
-const resolvida = await call(`/zones/resolve?postalCode=${postalStart}`);
-assert.equal(resolvida.id, zone.id, `CEP ${postalStart} deveria resolver a zona ${zone.id}`);
-
-// 3) o endereço nasce na zona da faixa
 const address = await call('/addresses', { cookie: customer, method: 'POST', expected: 201,
-  body: { postalCode: postalStart, label: 'Cobertura', street: 'Rua da Cobertura', number: '10', neighborhood: 'Centro' } });
-assert.equal(address.zoneId, zone.id, 'endereço deveria ficar na zona resolvida pelo CEP');
+  body: { postalCode: '60000002', label: 'Cobertura', street: 'Rua da Cobertura', number: '10', neighborhood: 'Bairro de Teste' } });
+assert.equal(address.zoneId, bairro.id, 'o endereço deveria ficar no bairro do CEP');
 
-async function checkout(expected = 201) {
+async function checkout(feeCents, expected = 201) {
   await call('/cart', { cookie: customer, method: 'DELETE' });
   await call(`/cart/items/${product.id}`, { cookie: customer, method: 'PATCH', body: { delta: 1 } });
   const cart = await call('/cart', { cookie: customer });
   return call('/cart/checkout', { cookie: customer, method: 'POST', expected,
     body: { addressId: address.id, expectedVersion: cart.version,
-      expectedTotalCents: product.price_cents + zone.delivery_fee_cents,
+      expectedTotalCents: product.price_cents + feeCents,
       paymentMethod: 'cash', contactPhone: '85999990000', idempotencyKey: `coverage-${randomUUID()}` } });
 }
 
-// 4) com a faixa cadastrada, o checkout passa
-const pedido = await checkout();
+// 3) o pedido cobra a taxa da loja no bairro
+const pedido = await checkout(777);
 assert.ok(pedido.id, 'checkout deveria devolver o pedido');
 
-// 5) entradas inválidas e fora de cobertura
-const faixaRepetida = await call('/admin/postal-ranges', { cookie: admin, method: 'POST', expected: 409,
-  body: { zoneId: zone.id, postalStart, postalEnd } });
-assert.match(faixaRepetida.error, /já está coberta/, 'faixa sobreposta deveria ser recusada');
-const cepInvalido = await call('/zones/resolve?postalCode=123', { expected: 400 });
-assert.match(cepInvalido.error, /8 dígitos/, 'CEP malformado deveria ser recusado');
-const semCobertura = await call('/zones/resolve?postalCode=99999999', { expected: 404 });
-assert.match(semCobertura.error, /não entregamos/, 'CEP fora de faixa deveria devolver 404');
+// 4) a loja muda a taxa: o próximo pedido já sai com a nova
+await call('/admin/coverage', { cookie: admin, method: 'POST', expected: 201,
+  body: { restaurantId, zoneId: bairro.id, feeCents: 888, minimumOrderCents: 0, deliveryMinutes: 15 } });
+const reajustado = await checkout(888);
+assert.ok(reajustado.id);
 
-// 6) a cobertura muda depois do endereço criado: o mesmo CEP passa para outra zona
-const outra = await call('/admin/zones', { cookie: admin, method: 'POST', expected: 201,
-  body: { name: 'Zona do teste de cobertura', slug: `cobertura-${randomUUID().slice(0, 8)}`, city: 'Fortaleza',
-    state: 'CE', deliveryFeeCents: 500, minimumOrderCents: 1000 } });
-const faixa = (await call('/admin/postal-ranges', { cookie: admin })).find((r) => r.postal_start === postalStart);
-await call(`/admin/postal-ranges/${faixa.id}`, { cookie: admin, method: 'DELETE' });
-await call('/admin/postal-ranges', { cookie: admin, method: 'POST', expected: 201,
-  body: { zoneId: outra.id, postalStart, postalEnd } });
+// 5) o mesmo bairro com outra grafia não vira um bairro novo
+const repetido = await call('/admin/zones', { cookie: admin, method: 'POST', expected: 201,
+  body: { name: '  bairro DE  teste ', city: 'Fortaleza', state: 'CE' } });
+assert.equal(repetido.id, bairro.id, '"bairro DE teste" deveria ser o mesmo "Bairro de Teste"');
 
-const mudou = await checkout(409);
-assert.match(mudou.error, /cobertura deste endereço mudou/,
-  'checkout deveria recusar quando a cobertura do endereço mudou');
+// 6) CEP sem bairro: o cliente escolhe entre os bairros da cidade que alguma loja atende
+const cidade = await call('/zones/resolve?postalCode=60000003');
+assert.equal(cidade.id, null, 'CEP sem bairro não tem bairro próprio');
+assert.ok(cidade.choices.some((choice) => choice.id === bairro.id), 'o bairro atendido deveria estar entre as opções');
+const semEscolha = await call('/addresses', { cookie: customer, method: 'POST', expected: 400,
+  body: { postalCode: '60000003', label: 'Cidade', street: 'Rua Única', number: '1', neighborhood: 'Bairro de Teste' } });
+assert.match(semEscolha.error, /Escolha o seu bairro/);
+await call('/addresses', { cookie: customer, method: 'POST', expected: 400,
+  body: { postalCode: '60000003', label: 'Cidade', street: 'Rua Única', number: '1', neighborhood: 'Outro', zoneId: 999999 } });
+const escolhido = await call('/addresses', { cookie: customer, method: 'POST', expected: 201,
+  body: { postalCode: '60000003', label: 'Cidade', street: 'Rua Única', number: '1', neighborhood: 'Bairro de Teste', zoneId: bairro.id } });
+assert.equal(escolhido.zoneId, bairro.id);
 
-// 7) cobertura removida por completo: o CEP deixa de ser atendido
-const faixaNova = (await call('/admin/postal-ranges', { cookie: admin })).find((r) => r.postal_start === postalStart);
-await call(`/admin/postal-ranges/${faixaNova.id}`, { cookie: admin, method: 'DELETE' });
-const caiu = await checkout(404);
-assert.match(caiu.error, /não entregamos/, 'checkout deveria recusar CEP sem cobertura');
+// 7) CEP malformado
+assert.match((await call('/zones/resolve?postalCode=123', { expected: 400 })).error, /8 dígitos/);
 
-assert.equal((await call(`/zones/resolve?postalCode=${postalStart}`, { expected: 404 })).error.includes('não entregamos'), true);
+// 8) a loja deixa o bairro: o checkout recusa e o bairro volta a ficar sem loja
+await call(`/admin/coverage?restaurantId=${restaurantId}&zoneId=${bairro.id}`, { cookie: admin, method: 'DELETE' });
+const caiu = await checkout(888, 400);
+assert.match(caiu.error, /não atende este endereço/, 'checkout deveria recusar bairro que a loja deixou');
+assert.equal((await call('/zones/resolve?postalCode=60000002')).covered, false);
 
-console.log(`Cobertura por CEP validada: faixa ${postalStart}–${postalEnd} cadastrada e resolvida para a zona ${zone.id}, `
-  + `checkout aceito no pedido #${pedido.id}, recusado com 409 quando a cobertura mudou e com 404 quando ela caiu.`);
+console.log(`Entrega por bairro validada: bairro #${bairro.id} sem loja recusado, taxa da loja cobrada no pedido #${pedido.id} `
+  + `(R$ 7,77) e reajustada no #${reajustado.id} (R$ 8,88), CEP sem bairro com escolha, e checkout recusado quando a loja saiu do bairro.`);
