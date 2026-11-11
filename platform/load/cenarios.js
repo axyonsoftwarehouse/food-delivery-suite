@@ -19,7 +19,10 @@ const CUSTOMERS = Number(__ENV.LOAD_CUSTOMERS || 500);
 const COURIERS = Number(__ENV.LOAD_COURIERS || 90);
 const DOMAIN = 'carga.local';
 const STORE_PREFIX = 'carga-foodie-';
-const POLL_SECONDS = 8; // POLL_INTERVAL_MS do app-context.tsx
+// Ritmo de `app/poll-plan.ts` (S18 etapa 1).
+const POLL_SECONDS = 8; // FAST_POLL_MS
+const IDLE_CUSTOMER_SECONDS = 30; // IDLE_CUSTOMER_POLL_MS
+const SLOW_SECONDS = 180; // SLOW_REFRESH_MS
 
 const pedidosCriados = new Counter('pedidos_criados');
 const pedidosRecusados = new Counter('pedidos_recusados');
@@ -156,24 +159,36 @@ export function setup() {
 
 // ---------- Perfis ----------
 
-// Consulta automática do app-context (a cada 8 s, aba visível), por papel.
+// Consulta automática do app-context, por papel (S18 etapa 1, `app/poll-plan.ts`): a cada tique vão
+// só os pedidos (e os entregadores, para a loja); catálogo, zonas, endereços, permissões e módulos
+// vão na entrada e depois a cada SLOW_SECONDS. O estado é por usuário virtual, como a aba aberta.
+const slow = { last: 0 };
+function slowDue() {
+  if (Date.now() - slow.last < SLOW_SECONDS * 1000) return false;
+  slow.last = Date.now();
+  return true;
+}
+
 function pollCustomer() {
-  get('/catalog/meta', 'GET /catalog/meta');
+  if (slowDue()) {
+    get('/catalog/meta', 'GET /catalog/meta');
+    get('/zones', 'GET /zones');
+    get('/addresses', 'GET /addresses');
+    get('/me/permissions', 'GET /me/permissions');
+  }
   const orders = json(get('/orders', 'GET /orders'));
-  get('/zones', 'GET /zones');
-  get('/addresses', 'GET /addresses');
-  get('/me/permissions', 'GET /me/permissions');
-  get('/orders/chat/unread', 'GET /orders/chat/unread');
   return Array.isArray(orders) ? orders : [];
 }
 
 function pollRestaurant() {
-  get('/catalog', 'GET /catalog');
+  if (slowDue()) {
+    get('/catalog', 'GET /catalog');
+    get('/zones', 'GET /zones');
+    get('/me/permissions', 'GET /me/permissions');
+    get('/restaurant/modules', 'GET /restaurant/modules');
+  }
   const orders = json(get('/orders', 'GET /orders'));
   get('/restaurant/couriers', 'GET /restaurant/couriers');
-  get('/zones', 'GET /zones');
-  get('/me/permissions', 'GET /me/permissions');
-  get('/restaurant/modules', 'GET /restaurant/modules');
   return Array.isArray(orders) ? orders : [];
 }
 
@@ -208,12 +223,15 @@ export function visitante(data) {
   }
 }
 
-// 2. Cliente logado navegando: a consulta de 8 s, o sino a cada 15 s e uma olhada no cardápio de vez em quando.
+// 2. Cliente logado navegando, sem pedido em andamento: a consulta do app-context a cada 30 s
+// (IDLE_CUSTOMER_SECONDS), as mensagens não lidas a cada 8 s, o sino a cada 15 s e uma olhada no cardápio.
 export function clienteLogado(data) {
   if (!login(customerEmail(0, BROWSING_ACCOUNTS))) { sleep(30); return; }
   const storeId = pick(data.stores);
+  const appEvery = Math.round(IDLE_CUSTOMER_SECONDS / POLL_SECONDS);
   for (let tick = 0; tick < 8; tick += 1) {
-    pollCustomer();
+    if (tick % appEvery === 0) pollCustomer();
+    get('/orders/chat/unread', 'GET /orders/chat/unread');
     if (tick % 2 === 0) get('/notifications', 'GET /notifications');
     if (tick % 3 === 0) browseMenu(data, storeId);
     sleep(POLL_SECONDS);
@@ -273,6 +291,7 @@ export function comprador(data) {
   // Acompanhamento: a consulta de 8 s, o código de entrega e a conversa com a loja.
   for (let tick = 0; tick < 15; tick += 1) {
     pollCustomer();
+    get('/orders/chat/unread', 'GET /orders/chat/unread');
     get(`/orders/${order.id}/delivery-code`, 'GET /orders/{id}/delivery-code', 'leitura', { responseCallback: okOr404 });
     get(`/orders/${order.id}/chat?with=store`, 'GET /orders/{id}/chat', 'leitura', { responseCallback: okOr404 });
     sleep(POLL_SECONDS);
@@ -313,11 +332,13 @@ export function entregador() {
   const started = Date.now();
   let tick = 0;
   while (Date.now() - started < 60_000) {
-    // A área de entregas também está dentro do app-context: a consulta de 8 s do papel entregador.
-    get('/catalog', 'GET /catalog');
+    // A área de entregas também está dentro do app-context: pedidos a cada 8 s, o lento a cada SLOW_SECONDS.
+    if (slowDue()) {
+      get('/catalog', 'GET /catalog');
+      get('/zones', 'GET /zones');
+      get('/me/permissions', 'GET /me/permissions');
+    }
     get('/orders', 'GET /orders');
-    get('/zones', 'GET /zones');
-    get('/me/permissions', 'GET /me/permissions');
     if (tick++ % 2 === 0) get('/courier/deliveries/active', 'GET /courier/deliveries/active');
     get('/courier/shift', 'GET /courier/shift');
     if (Date.now() - courier.lastLocation >= interval * 1000) {

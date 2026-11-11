@@ -71,3 +71,43 @@ espera de até 10 s, e o `Dockerfile` da API). Publicação no staging e nova ro
   de novo com a correção acima, com os números do nível 1 na mão.
 
 Depois da correção: refazer nível 0 e nível 1, e seguir para 2 → 3 → 4.
+
+## Segunda rodada — depois da PR #128 (`da8b3db`, 20:03–20:25 UTC)
+
+Backup `foodie_platform-20261111-200231.sql` antes. Nível 0 passou (352 chamadas, 0% de erros).
+
+**Nível 1: estável, mas reprovou em uma meta (leituras).**
+
+| Medida | Meta | Resultado |
+| --- | --- | --- |
+| Erros | < 1% | **0,04%** (64 de 146.059) ✓ |
+| Fechar o pedido p95 | < 2 s | **1,02 s** ✓ (84 pedidos criados) |
+| Páginas p95 | < 1,5 s | **1,19 s** ✓ |
+| Leituras p95 | < 800 ms | **1,31 s** ✗ |
+| Containers | nenhum reinício | **0 reinícios**, API `healthy` o tempo todo ✓ |
+
+- Vazão: 124 chamadas/s. Memória da API estável em ~350 MiB (antes passava de 1,1 GB). Swap
+  parado em ~970 MB.
+- **CPU no limite:** a VPS tem **2 núcleos** e o load average chegou a **11,6**. Médias: API 42%,
+  site (Next) 53%, banco 45%. Toda chamada `/backend/*` passa pelo Next, que gasta tanto quanto a API.
+- **Logins:** 44 de 219 receberam o 503 do `ScryptGate` na subida (todos os usuários virtuais entram
+  juntos). Esperado: antes, esse pico derrubava a API.
+
+**Tempo no servidor por chamada** (log da API; o p95 do k6 soma rede, Next e fila de CPU):
+
+| Chamada | Chamadas | Mediana | p95 |
+| --- | --- | --- | --- |
+| `GET /catalog` (tela da loja, a cada 8 s) | 6.433 | 162 ms | **1.108 ms** |
+| `GET /catalog/meta` (cliente, a cada 8 s) | 8.185 | 83 ms | **890 ms** |
+| `GET /orders` | 14.610 | 29 ms | 276 ms |
+| demais leituras (`/zones`, `/me/permissions`, `/catalog/search`, `/addresses`, chat, sino…) | — | 3–13 ms | 55–122 ms |
+
+**Gargalo:** confirma os suspeitos 4 e 5 do plano. `/catalog/meta` devolve **todas** as lojas,
+categorias e cobertura a cada 8 s para cada cliente logado, e `/catalog` devolve o catálogo inteiro
+para cada tela de loja a cada 8 s. São as duas leituras pesadas e as que mais disputam CPU.
+Caminho: a etapa 1 do **S18** (`SUGESTOES_MELHORIA_2026-11-09.md`) — tirar `/catalog/meta` e
+`/zones` da consulta automática do cliente e espaçar ou condicionar o `/catalog` da tela da loja.
+Depois, repetir o nível 1 antes do nível 2.
+
+**Implementado** na branch `perf/consulta-leve` (S18 etapa 1), com o k6 ajustado ao ritmo novo.
+Terceira rodada do nível 1 **(a confirmar)**.
