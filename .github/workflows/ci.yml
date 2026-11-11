@@ -90,3 +90,48 @@ jobs:
           # Liga os smokes de integração: banco + API efêmeros, seed demonstrativo
           # e os fluxos de carrinho, exceções, contas e cobertura por CEP.
           VERIFY_INTEGRATION: '1'
+
+  # Auditoria das dependências do Java (pom.xml), mesmo critério do `pnpm audit`:
+  # falha só em vulnerabilidade CRÍTICA. Job separado de propósito: roda em
+  # paralelo (não alonga a `Verificação`) e uma indisponibilidade do OSV/deps.dev
+  # não trava o merge, a menos que o dono o marque como requisito da `main`.
+  # OSV-Scanner (Google): sem chave de API nem segredo; resolve as dependências
+  # transitivas pelo deps.dev e consulta a base OSV. Imagem fixada por versão.
+  audit-java:
+    name: Auditoria Java (crítica)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: OSV-Scanner no pom.xml (falha só em crítica)
+        run: |
+          set -u
+          rc=0
+          docker run --rm -v "$PWD/platform/apps/api-java/pom.xml:/src/pom.xml:ro" \
+            ghcr.io/google/osv-scanner:v2.7.1 \
+            scan source --format json --lockfile=/src/pom.xml > osv.json || rc=$?
+          # 0 = limpo, 1 = achou vulnerabilidades (avaliadas abaixo); >=2 = erro do scanner.
+          if [ "$rc" -ge 2 ]; then
+            echo "::error::osv-scanner falhou (código $rc)"
+            exit "$rc"
+          fi
+          total=$(jq '[.results[]?.packages[]?.vulnerabilities[]?.id] | unique | length' osv.json)
+          # Crítica = severidade GHSA "CRITICAL" ou pontuação CVSS do grupo >= 9.0.
+          criticas=$(jq -r '
+            [ .results[]?.packages[]? as $p
+              | ($p.vulnerabilities // [])[]
+              | select((.database_specific.severity // "") == "CRITICAL")
+              | "\($p.package.name)@\($p.package.version) \(.id)" ] as $a
+            | [ .results[]?.packages[]? as $p
+              | ($p.groups // [])[]
+              | select(((.max_severity // "0") | tonumber? // 0) >= 9)
+              | "\($p.package.name)@\($p.package.version) \(.ids[0])" ] as $b
+            | ($a + $b) | unique | .[]' osv.json)
+          echo "Vulnerabilidades distintas (todos os níveis): $total"
+          if [ -n "$criticas" ]; then
+            echo "::error::Vulnerabilidade crítica nas dependências Java:"
+            echo "$criticas"
+            exit 1
+          fi
+          echo "Nenhuma vulnerabilidade crítica."

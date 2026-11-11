@@ -106,7 +106,7 @@ o ambiente de produção, a cobrança da assinatura (única receita), o e-mail r
 | # | Item | Dono | Estado | Fonte |
 | --- | --- | --- | --- | --- |
 | G1 | Ligar no GitHub a **detecção de segredos** e o **bloqueio de push com segredo** (gratuitos em repositório público; em 09/11 estavam desligados) | Werner (admin do repositório) | pendente | `gh api repos/axyonsoftwarehouse/food-delivery-suite` |
-| G2 | Ligar o **Dependabot** (alertas e atualizações de segurança) e auditar as dependências do Java no CI; hoje o CI só roda `pnpm audit` em nível crítico | Werner + Código | pendente | `.github/workflows/ci.yml` |
+| G2 | Ligar o **Dependabot** (alertas e atualizações de segurança) e auditar as dependências do Java no CI; hoje o CI só roda `pnpm audit` em nível crítico | Werner + Código | em andamento (11/11): `.github/dependabot.yml` (npm, Maven, Actions e Docker, semanal, com agrupamento) e o job `Auditoria Java (crítica)` (OSV-Scanner no `pom.xml`, falha só em crítica) na branch `ci/dependabot-auditoria-java`. O job não é requisito da `main`. Falta o dono ligar Dependency graph, Dependabot alerts e security updates em Settings → Advanced Security, e conferir o resultado do primeiro run da auditoria `(a confirmar)` | `.github/workflows/ci.yml` |
 | G3 | Decidir se haverá teste de invasão por terceiros antes de abrir. As revisões de 16/10 e 21/10 foram internas | Werner | pendente | `ESTADO_ATUAL.md`, cabeçalho |
 
 Conferido por fora no staging em 09/11 (`1739a95`, schema `079`), sem pendência: rotas protegidas
