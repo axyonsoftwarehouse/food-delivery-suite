@@ -42,6 +42,11 @@ Primeiro mês, uma cidade, pico de sexta das 19h às 21h:
 | Telas de loja abertas (painel + cozinha) | **40** | 20 lojas × 2 |
 | Entregadores na rua | **30** (metade em entrega) | 1,5 por loja |
 
+> **Atualizado em 11/11:** a S18 etapa 1 (`app/poll-plan.ts`) mudou o ritmo descrito abaixo. A cada
+> 8 s vão só os pedidos (e os entregadores, para a loja); o resto vai a cada 3 min, e o cliente sem
+> pedido em andamento consulta a cada 30 s. O `load/cenarios.js` já segue o ritmo novo. O texto
+> abaixo é o de 07/11, base das contas da rodada de 11/11.
+
 **O que pesa de verdade é a consulta automática, não o clique.** Todo usuário logado com a aba
 visível chama o `refresh()` do `app-context.tsx` a cada **8 s**:
 

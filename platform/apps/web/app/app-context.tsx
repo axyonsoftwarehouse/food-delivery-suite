@@ -5,6 +5,7 @@ import { useReasonDialog, type ReasonOptions } from './ReasonDialog';
 import { useConfirmDialog, type ConfirmOptions } from './ConfirmDialog';
 import { useCashDialog } from './CashDialog';
 import { roleHome } from './return-path';
+import { FAST_POLL_MS, needsFullRefresh, pollIntervalMs } from './poll-plan';
 
 export { roleHome };
 
@@ -22,7 +23,8 @@ export type Address = { id: number; zone_id: number; postal_code: string | null;
 export type Order = { id: number; status: string; subtotal_cents: number; delivery_fee_cents: number; total_cents: number; delivery_address_text: string; restaurant_id: number; courier_id: number | null; restaurant_name: string; customer_name?: string | null; created_at: string; updated_at?: string; scheduled_at?: string | null; estimated_minutes?: number | null; payment_method: string | null; payment_modality?: string | null; payment_status: string | null; payment_due_cents: number | null; order_type?: string | null; table_id?: number | null; table_number?: string | null; party_size?: number | null; has_delivery_code?: number | boolean; pay_deadline?: string | null; accept_deadline?: string | null; payment_raw_status?: string | null; payment_rejection_message?: string | null; items_summary?: string | null; customer_note?: string | null };
 export type Courier = { id: number; name: string; email: string; suspended: boolean; approved: boolean; restaurant_id?: number | null; restaurant_name?: string | null; ratingAverage?: number | null; ratingCount?: number };
 
-export const POLL_INTERVAL_MS = 8000;
+/** Consulta rápida (pedidos). O ritmo completo, por papel, está em `poll-plan.ts`. */
+export const POLL_INTERVAL_MS = FAST_POLL_MS;
 export const LATE_ORDER_MINUTES = 10;
 
 export const labels: Record<string, string> = {
@@ -179,10 +181,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const userRef = useRef<User | null>(null);
   const knownOrderIds = useRef<Set<number>>(new Set());
   const primedOrders = useRef(false);
+  const ordersRef = useRef<Order[]>([]);
+  /** Quando o lento (catálogo, zonas, endereços, permissões, módulos) foi aplicado pela última vez. */
+  const lastFullAt = useRef<number | null>(null);
 
-  const refresh = useCallback(async (activeUser?: User | null) => {
+  /** Pedido novo para a equipe da loja: aviso e bipe. */
+  const noticeNewOrders = useCallback((me: User | null, orderData: Order[]) => {
+    if (!me || (me.role !== 'restaurant' && me.role !== 'admin' && me.role !== 'kitchen')) {
+      knownOrderIds.current = new Set();
+      primedOrders.current = false;
+      return;
+    }
+    const placed = orderData.filter((order) => order.status === 'placed');
+    const fresh = placed.filter((order) => !knownOrderIds.current.has(order.id));
+    const alreadyPrimed = primedOrders.current;
+    knownOrderIds.current = new Set(orderData.map((order) => order.id));
+    primedOrders.current = true;
+    if (alreadyPrimed && fresh.length) {
+      setNewOrderNotice(`Novo pedido ${fresh.map((order) => `#${order.id}`).join(', ')} aguardando aceite.`);
+      beep();
+    } else if (alreadyPrimed && placed.length === 0) {
+      setNewOrderNotice('');
+    }
+  }, []);
+
+  /**
+   * `full: false` é a consulta rápida da S18: só pedidos (e entregadores, para a equipe da loja).
+   * Toda chamada de fora (ação do usuário, botão "Atualizar") continua completa.
+   */
+  const refresh = useCallback(async (activeUser?: User | null, options: { full?: boolean } = {}) => {
     const version = ++refreshVersion.current;
     try {
+      if (options.full === false && activeUser) {
+        const me = activeUser;
+        const [orderData, courierData] = await Promise.all([
+          api<Order[]>('/orders'),
+          me.role === 'admin' ? api<Courier[]>('/admin/couriers')
+            : me.role === 'restaurant' || me.role === 'kitchen' ? api<Courier[]>('/restaurant/couriers').catch(() => [] as Courier[]) : Promise.resolve(null),
+        ]);
+        if (version !== refreshVersion.current) return;
+        setOrders(orderData);
+        ordersRef.current = orderData;
+        if (courierData) setCouriers(courierData);
+        setConnection('online');
+        setLastSync(new Date());
+        noticeNewOrders(me, orderData);
+        return;
+      }
       const me = activeUser === undefined ? (await api<{ user: User | null }>('/me')).user : activeUser;
       const [catalogData, orderData, courierData, zoneData, addressData, permissionData, moduleData] = await Promise.all([
         api<Catalog>(me?.role === 'customer' ? '/catalog/meta' : '/catalog'),
@@ -201,6 +246,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // busca apaga a lista e mostra o "buscando…" (o pisca). Manter a referência quando o conteúdo é igual.
       setCatalog((previous) => stableStringify(previous) === stableStringify(catalogData) ? previous : catalogData);
       setOrders(orderData);
+      ordersRef.current = orderData;
       setCouriers(courierData);
       setZones(zoneData);
       setAddresses(addressData);
@@ -209,27 +255,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setUser(me);
       setConnection('online');
       setLastSync(new Date());
-      if (!me || (me.role !== 'restaurant' && me.role !== 'admin' && me.role !== 'kitchen')) {
-        knownOrderIds.current = new Set();
-        primedOrders.current = false;
-        return;
-      }
-      const placed = orderData.filter((order) => order.status === 'placed');
-      const fresh = placed.filter((order) => !knownOrderIds.current.has(order.id));
-      const alreadyPrimed = primedOrders.current;
-      knownOrderIds.current = new Set(orderData.map((order) => order.id));
-      primedOrders.current = true;
-      if (alreadyPrimed && fresh.length) {
-        setNewOrderNotice(`Novo pedido ${fresh.map((order) => `#${order.id}`).join(', ')} aguardando aceite.`);
-        beep();
-      } else if (alreadyPrimed && placed.length === 0) {
-        setNewOrderNotice('');
-      }
+      lastFullAt.current = Date.now();
+      noticeNewOrders(me, orderData);
     } catch (error) {
       if (version === refreshVersion.current) setConnection('offline');
       throw error;
     }
-  }, []);
+  }, [noticeNewOrders]);
 
   useEffect(() => { busyRef.current = busy; }, [busy]);
   useEffect(() => { userRef.current = user; }, [user]);
@@ -247,19 +279,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    const tick = () => {
-      if (document.hidden || busyRef.current) return;
-      refresh(userRef.current).catch(() => {});
+    // S18 etapa 1: o rápido no ritmo do papel (8 s; cliente sem pedido em andamento, 30 s) e o lento
+    // a cada 3 min. Voltar para a aba ou para a rede recarrega tudo.
+    let timer: number | undefined;
+    let stopped = false;
+    const schedule = () => {
+      if (stopped) return;
+      timer = window.setTimeout(tick, pollIntervalMs(userRef.current?.role, ordersRef.current));
     };
-    const interval = window.setInterval(tick, POLL_INTERVAL_MS);
-    const onVisibility = () => { if (!document.hidden) tick(); };
+    const tick = () => {
+      if (!document.hidden && !busyRef.current) {
+        refresh(userRef.current, { full: needsFullRefresh(lastFullAt.current, Date.now()) }).catch(() => {});
+      }
+      schedule();
+    };
+    schedule();
+    const onVisibility = () => { if (!document.hidden && !busyRef.current) refresh(userRef.current).catch(() => {}); };
     const onOnline = () => refresh(userRef.current).catch(() => {});
     const onOffline = () => setConnection('offline');
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     return () => {
-      window.clearInterval(interval);
+      stopped = true;
+      window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);

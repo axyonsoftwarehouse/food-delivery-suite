@@ -529,6 +529,13 @@ continua fechado para buscadores).
 
 ### S18 — Consulta automática mais leve
 
+**Estado (11/11): etapa 1 implementada** na branch `perf/consulta-leve`, depois do nível 1 do teste
+de carga (`RESULTADO_TESTE_CARGA_2026-11-11.md`): `app/poll-plan.ts` separa o rápido (pedidos e
+entregadores, 8 s; cliente sem pedido em andamento, 30 s) do lento (catálogo, zonas, endereços,
+permissões e módulos: na entrada, ao voltar para a aba, depois de cada ação e a cada 3 min). O
+`ETag`/304 ficou de fora. O k6 (`load/cenarios.js`) imita o ritmo novo. Nova rodada do nível 1
+**(a confirmar)**.
+
 **Problema.** Todo usuário logado com a aba visível refaz um pacote de chamadas a cada 8 s
 (`POLL_INTERVAL_MS = 8000`, em `app/app-context.tsx:23`; o `refresh()` no mesmo arquivo). Segundo o
 `PLANO_TESTE_CARGA.md` §2, são 5 chamadas para o cliente (duas delas, `/catalog/meta` e `/zones`,
