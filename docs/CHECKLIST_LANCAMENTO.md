@@ -84,9 +84,9 @@ o ambiente de produção, a cobrança da assinatura (única receita), o e-mail r
 | E1 | Conferir no staging os itens 5 a 7 da revisão de UX | Código | em parte (07/11): PR #108 mesclada e publicada (`852f11e`); item 5 conferido como visitante no celular (o toque na descrição do prato sem opções abre a ficha, sem mexer no carrinho, e "Adicionar" coloca o prato no carrinho). Os itens 6 e 7 pedem um pedido com cliente logado | `REVISAO_UX_CLIENTE.md` |
 | E2 | Conferir a rolagem do `/entrar` num celular real (cardápio sem login) | Werner | pendente | `REVISAO_UX_CLIENTE.md`, item 2 |
 | E3 | UX item 8: página pública da loja com aberto/fechado, horário, taxa e mínimo | Código | em andamento: PR #111 mesclada e no ar (`1739a95`); falta a conferência no staging | `REVISAO_UX_CLIENTE.md` |
-| E4 | UX item 9: o login cita Google e Facebook, mas só existe SMS | Código | pendente | idem |
-| E5 | UX item 10: "Indique esta loja" acima do cardápio | Código | pendente | idem |
-| E6 | UX item 13: loja sem foto mostra foto de hambúrguer | Código | pendente | idem |
+| E4 | UX item 9: o login cita Google e Facebook, mas só existe SMS | Código | em andamento (11/11): o aviso legal do `/entrar` passa a citar só os provedores configurados (branch `fix/ux-login-e-indicacao`); falta publicar e conferir no staging | idem |
+| E5 | UX item 10: "Indique esta loja" acima do cardápio | Código | em andamento (11/11): o bloco foi para depois do cardápio (mesma branch do E4); falta publicar e conferir no staging | idem |
+| E6 | UX item 13: loja sem foto mostra foto de hambúrguer | Código | conferido no código (11/11): a loja sem capa já mostra a capa neutra com a inicial (`restaurant-media.tsx`). A foto de hambúrguer vem do seed de demonstração, que grava a mesma capa em todas as lojas (`tools/src/seed.ts`); não aparece num banco limpo (B6). Falta decidir se o seed muda | idem |
 | E7 | UX itens 16 e 17: alvos de toque abaixo de 44 px e contraste abaixo de 4,5:1 | Código | em andamento: mesma PR do E3 (#111), no ar; falta a conferência no staging | idem |
 | E8 | UX itens 11, 12, 14, 15 e 18 (detalhes) | Código | pendente; podem ir depois do lançamento | idem |
 | E9 | Homologar no staging recorrência e campanhas | Código + Werner | pendente (código testado, nunca visto publicado) | `ESTADO_ATUAL.md` §3 |

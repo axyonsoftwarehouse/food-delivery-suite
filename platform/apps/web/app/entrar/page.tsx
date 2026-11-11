@@ -14,6 +14,9 @@ import LegalLinks from '../legal-links';
 /** As contas de demonstração só aparecem como sugestão em desenvolvimento, nunca para visitantes. */
 const SHOW_DEMO_USERS = process.env.NODE_ENV === 'development';
 
+/** Os botões sociais só aparecem com o provedor configurado; o aviso legal cita só o que existe na tela. */
+const LOGIN_METHODS = [process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && 'Google', process.env.NEXT_PUBLIC_FACEBOOK_APP_ID && 'Facebook', 'SMS'].filter(Boolean).join(', ').replace(/, ([^,]+)$/, ' ou $1');
+
 const LOADING = <main className="app-loading" role="status"><span className="app-loading-brand"><span className="app-loading-mark"><Icon name="sparkle" /></span>foodie<span>.</span></span><p>{'Carregando...'}</p></main>;
 
 export default function Page() {
@@ -120,7 +123,7 @@ function Home() {
                 {otpSent ? <button className="ui-btn ui-btn--secondary ui-btn--block" type="button" onClick={(event) => verifyOtp(event)} disabled={busy || otpCode.length < 4}>{'Entrar com o código'}</button> : <button className="ui-btn ui-btn--secondary ui-btn--block" type="button" onClick={requestOtp} disabled={busy || otpPhone.trim().length < 8}>{'Receber código por SMS'}</button>}
               </div>
             </details>
-            <p className="auth-legal-note">{'Ao continuar com Google, Facebook ou SMS, você concorda com os '}<Link href="/paginas/termos" target="_blank">{'Termos de uso'}</Link>{' e a '}<Link href="/paginas/privacidade" target="_blank">{'Política de privacidade'}</Link>{'.'}</p>
+            <p className="auth-legal-note">{`Ao continuar com ${LOGIN_METHODS}, você concorda com os `}<Link href="/paginas/termos" target="_blank">{'Termos de uso'}</Link>{' e a '}<Link href="/paginas/privacidade" target="_blank">{'Política de privacidade'}</Link>{'.'}</p>
           </div>}
           {authMode === 'signup' && <p className="auth-terms m-rise" style={{ '--i': 5 } as React.CSSProperties}>{'Já tem conta? '}<button type="button" onClick={() => switchMode('login')} disabled={busy}>{'Entrar'}</button></p>}
         </form>
