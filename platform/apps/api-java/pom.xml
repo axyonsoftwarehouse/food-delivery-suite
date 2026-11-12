@@ -36,7 +36,7 @@
     <dependency>
       <groupId>io.sentry</groupId>
       <artifactId>sentry-spring-boot-starter-jakarta</artifactId>
-      <version>8.61.0</version>
+      <version>8.63.0</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -68,7 +68,7 @@
     <dependency>
       <groupId>nl.martijndwars</groupId>
       <artifactId>web-push</artifactId>
-      <version>5.1.1</version>
+      <version>5.1.2</version>
       <exclusions>
         <!-- Só o PushAsyncService usa o AsyncHttpClient (e o Netty, por ele); o WebPushSender usa o PushService (Apache HttpClient). -->
         <exclusion>
