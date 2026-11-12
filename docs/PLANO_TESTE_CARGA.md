@@ -162,6 +162,8 @@ Achados na leitura do código e da configuração em 07/11. São hipóteses, e o
 1. **Pool de conexões com o banco com 8 conexões** (`spring.datasource.hikari.maximum-pool-size: 8`).
    Com a consulta automática de centenas de telas, é o candidato mais forte a primeiro gargalo:
    as chamadas começam a esperar conexão e o p95 dispara sem a CPU estar alta.
+   **Confirmado em 12/11** no nível 2 (fila de até 116 chamadas); o pool passou para 24 na branch
+   `perf/pool-conexoes`.
 2. **JVM sem limite de memória definido** (`java -jar app.jar`, sem `-Xmx`): ela usa o padrão (1/4 da
    memória da máquina, ~1 GB de 4 GB `(a confirmar o plano da VPS)`).
 3. **Nenhum container tem limite de memória** (`docker-compose.yml`). Num pico, a falta de memória

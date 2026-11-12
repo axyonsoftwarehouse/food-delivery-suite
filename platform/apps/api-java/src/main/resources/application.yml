@@ -152,7 +152,8 @@ spring:
     username: ${DB_USER:foodie}
     password: ${DB_PASSWORD}
     hikari:
-      maximum-pool-size: 8
+      # 8 esgotava no teste de carga de 12/11 (até 116 chamadas na fila, ~80% do tempo da API em espera).
+      maximum-pool-size: 24
       minimum-idle: 1
       connection-timeout: 5000
 springdoc:

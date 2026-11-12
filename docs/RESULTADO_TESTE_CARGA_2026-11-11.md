@@ -222,5 +222,70 @@ login a cada recusa; espalhar as entradas deixa a rodada mais fiel.
 Ficou de fora: a compressão do Caddy (sem evidência de que pese; o `/orders` de 112 KB vira 3,8 KB).
 Depois do deploy: conferir o plano no staging com `ANALYZE` e refazer o nível 2.
 
+## Nível 2, terceira rodada — depois da PR #131 (`c70ab75`, 12/11, 15:36–15:58 UTC): ainda reprova
+
+Antes: deploy conferido (`.deployed` em `c70ab75`, schema `081`), backup
+`foodie_platform-20261112-153235.sql`, disco em 51%. `ANALYZE` no staging: a lista de pedidos
+encerrados da loja passou a usar o `ix_orders_restaurant_recent` e lê **142 linhas** para devolver
+100 (antes 10.269). Nível 0 passou (208 chamadas, 0% de erros).
+
+| Medida | Meta | 2ª rodada | **3ª rodada** |
+| --- | --- | --- | --- |
+| Erros | < 1% | 0,46% | **0,35%** ✓ (1.045 de 291.801) |
+| Leituras p95 | < 800 ms | 1,71 s | **1,70 s** ✗ |
+| Páginas p95 | < 1,5 s | 2,49 s | **1,30 s** ✓ |
+| Fechar o pedido p95 | < 2 s | 2,21 s | **2,02 s** ✗ (255 pedidos) |
+| Vazão | — | 220 chamadas/s | **225 chamadas/s** |
+| Reinícios da API | nenhum | 0 | **0** (`healthy` nas 46 amostras) ✓ |
+
+- **As páginas passaram** (cache de 60 s da vitrine); as leituras não saíram do lugar. A mediana
+  das leituras é 306 ms: a cauda é que fura a meta.
+- **A CPU da máquina segue no limite.** Load average de 18 a 27 no platô (2 núcleos). Médias no
+  platô: API 53%, banco 43% (antes 50–60%), site 38%, Caddy 35% — cerca de 170% dos 200%. O índice
+  aliviou o banco, mas a folga foi ocupada pelo resto.
+- **Logins:** com a entrada espalhada e a nova tentativa, 648 logins foram adiados por um 503 e
+  entraram depois; 81 de 606 desistiram após 3 tentativas (antes, 1.038 recusas). Os 503 continuaram
+  até 15:44, já dentro do platô.
+- **Achado novo: faltou conexão com o banco.** Três chamadas falharam com
+  `CannotGetJdbcConnectionException` (15:44:31 e 15:50:04): o pool de 8 conexões (suspeito 1 do
+  plano) esgotou e a espera estourou. Explica a chamada mais lenta da rodada (34 s). Quantas chamadas
+  esperaram conexão sem estourar **(a confirmar** com as métricas do Hikari no Prometheus).
+- Memória da API ~450 MiB; swap de 828 para 938 MB. O StoryVerse (produção) ficou em 0–1% de CPU; o
+  QA dele teve picos de até 47%.
+
+**Leitura:** as otimizações baratas acabaram sem fechar os 3×. A VPS de 2 núcleos passa o nível 1 com
+folga e sustenta ~225 chamadas/s sem cair, mas com cauda lenta. Caminhos `(a decidir)`: **VPS com
+4 núcleos** (o mais direto) ou mais uma rodada de otimização — medir a espera no pool e decidir o
+tamanho dele, e reduzir o custo do `/orders` da tela da loja (a lista em andamento lê os ~540 pedidos
+da loja a cada 8 s).
+
+### Espera no pool de conexões (Prometheus, platô de 15:43 a 15:57 UTC)
+
+| Medida | Valor |
+| --- | --- |
+| Chamadas na API | 215 por segundo |
+| Conexões pedidas ao pool | 857 por segundo — **~4 por chamada** |
+| Espera média por conexão | **45 ms** (picos de 120 ms por minuto; máxima de 5 s, o `connection-timeout`) |
+| Uso médio de cada conexão | 6 ms |
+| Conexões ocupadas, em média | 5,5 de 8 |
+| Chamadas na fila do pool (amostras a cada 60 s) | 0 em metade das amostras; **34 a 116** nas outras |
+
+- **A fila do pool é a maior parte do tempo da API.** 857 pedidos de conexão × 45 ms dão ~38 s de
+  espera por segundo de relógio; a soma do tempo de todas as chamadas da API no mesmo intervalo é
+  ~42–48 s por segundo. Ou seja, cerca de 80% do tempo que a API leva para responder é fila por
+  conexão, não consulta.
+- Aparece nas chamadas triviais: `/orders/chat/unread` levou 200 ms em média e `/catalog/tags`,
+  133 ms (na 1ª rodada do nível 2, o p95 dessas ficava entre 30 e 70 ms).
+- O banco não está no limite (43% de CPU, 6 ms por uso de conexão). As conexões ficam presas com
+  threads da API que esperam CPU (load de 18 a 27), e 8 não bastam para as rajadas.
+- Cada chamada pede ~4 conexões porque cada consulta fora de transação pega e devolve a sua
+  (sessão, permissões e as consultas da rota).
+
+**Correção (branch `perf/pool-conexoes`, decisão de 12/11):** `maximum-pool-size` de 8 para 24 no
+`application.yml`. Conferido no staging: `max_connections = 151` e pico histórico de 11 conexões.
+Falta publicar e repetir o nível 2 **(a confirmar)**. Não garante a meta: a CPU da
+VPS continua no limite, e mais consultas ao mesmo tempo disputam os mesmos 2 núcleos. Segundo passo,
+se precisar: reduzir as conexões por chamada (a consulta da sessão em toda chamada).
+
 **Próximo (depois do nível 2 passar):** nível 4 (resistência, 60 min). O nível 3 (ruptura) só
 depois de combinar, porque a VPS é compartilhada com o StoryVerse.
