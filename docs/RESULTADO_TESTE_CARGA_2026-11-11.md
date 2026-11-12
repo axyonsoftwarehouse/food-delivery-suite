@@ -205,5 +205,22 @@ devolve 404 para esses caminhos.
 das páginas no Next, compressão no Caddy) e medir de novo. O k6 também exagera a subida: refaz o
 login a cada recusa; espalhar as entradas deixa a rodada mais fiel.
 
+## Otimizações para o nível 2 (branch `perf/otimizacoes-nivel2`, decisão de 11/11: otimizar antes de trocar de VPS)
+
+1. **Índice dos pedidos da loja (`V081`).** `ANALYZE` no staging: a lista de pedidos encerrados da
+   loja (`WHERE restaurant_id = ? AND status IN (...) ORDER BY id DESC LIMIT 100`, em toda consulta
+   automática da tela da loja) varria a tabela inteira pela chave primária — **10.269 linhas lidas
+   para achar 100** —, e o custo crescia com os pedidos de todas as lojas. As listas de cliente e de
+   entregador já usavam os índices delas. Novo índice `ix_orders_restaurant_recent (restaurant_id, id)`;
+   `OrderListIndexIntegrationTest` (MariaDB real) falhava antes (`key=PRIMARY`) e passa depois.
+2. **Página pública da loja guardada por 60 s** (`/restaurantes/[id]`, ISR). Antes era montada a cada
+   visita, com uma chamada à API. Conferido no site local contra a API de teste: primeira visita
+   `MISS`, depois `HIT` com `s-maxage=60`; loja inexistente e id inválido seguem em 404.
+3. **k6 mais fiel na entrada:** a primeira entrada de cada usuário virtual espera até 60 s, e um 503
+   do `ScryptGate` é tentado de novo depois de 5 a 15 s (até 3 vezes), contado em `logins_adiados_503`.
+
+Ficou de fora: a compressão do Caddy (sem evidência de que pese; o `/orders` de 112 KB vira 3,8 KB).
+Depois do deploy: conferir o plano no staging com `ANALYZE` e refazer o nível 2.
+
 **Próximo (depois do nível 2 passar):** nível 4 (resistência, 60 min). O nível 3 (ruptura) só
 depois de combinar, porque a VPS é compartilhada com o StoryVerse.

@@ -423,10 +423,23 @@ public class OrderService {
         return prep.intValue() + travel;
     }
 
+    /** Pedidos em andamento do escopo, do mais novo para o mais antigo (lista da consulta automática). */
+    static String activeListSql(String scopeWhere) {
+        return ORDER_BASE_SQL + "WHERE " + scopeWhere + " AND o.status NOT IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + ACTIVE_LIMIT;
+    }
+
+    /**
+     * Últimos pedidos encerrados do escopo. Para a loja, o banco precisa andar pelo índice
+     * (restaurant_id, id) — V081 —, senão varre a tabela inteira de trás para frente (teste de carga de 11/11).
+     */
+    static String terminalListSql(String scopeWhere) {
+        return ORDER_BASE_SQL + "WHERE " + scopeWhere + " AND o.status IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + HISTORY_LIMIT;
+    }
+
     public List<Map<String, Object>> list(User user) {
         Scope scope = scope(user);
-        List<Map<String, Object>> active = jdbc.queryForList(ORDER_BASE_SQL + "WHERE " + scope.where() + " AND o.status NOT IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + ACTIVE_LIMIT, scope.args().toArray());
-        List<Map<String, Object>> terminal = jdbc.queryForList(ORDER_BASE_SQL + "WHERE " + scope.where() + " AND o.status IN (" + TERMINAL + ") ORDER BY o.id DESC LIMIT " + HISTORY_LIMIT, scope.args().toArray());
+        List<Map<String, Object>> active = jdbc.queryForList(activeListSql(scope.where()), scope.args().toArray());
+        List<Map<String, Object>> terminal = jdbc.queryForList(terminalListSql(scope.where()), scope.args().toArray());
         List<Map<String, Object>> merged = new ArrayList<>(active);
         merged.addAll(terminal);
         merged.sort((a, b) -> Long.compare(((Number) b.get("id")).longValue(), ((Number) a.get("id")).longValue()));

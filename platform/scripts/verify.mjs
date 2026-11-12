@@ -101,8 +101,8 @@ if (integration) {
       run('Seed demonstrativo no banco de teste', 'pnpm', ['--filter', '@foodie/tools', 'seed'], {
         env: { DB_HOST: '127.0.0.1', DB_PORT: '3308', DB_USER: 'foodie', DB_PASSWORD: dbPassword, DB_NAME: 'foodie_platform', DEMO_PASSWORD: demoPassword },
       });
-      run('Regressões de segurança no MariaDB (concorrência, equipe, chat e exclusão de conta)', 'mvn',
-        [...mvnOffline, '-q', '-Dmaven.repo.local=.m2-cache', '-Dtest=SecurityDatabaseIntegrationTest,PrivacyDatabaseIntegrationTest', 'test'], {
+      run('Regressões no MariaDB (concorrência, equipe, chat, exclusão de conta e índice dos pedidos)', 'mvn',
+        [...mvnOffline, '-q', '-Dmaven.repo.local=.m2-cache', '-Dtest=SecurityDatabaseIntegrationTest,PrivacyDatabaseIntegrationTest,OrderListIndexIntegrationTest', 'test'], {
           cwd: join(root, 'apps/api-java'),
           env: { JAVA_HOME: defaultJavaHome, FOODIE_INTEGRATION_DB: '1', DB_PASSWORD: dbPassword },
         });
