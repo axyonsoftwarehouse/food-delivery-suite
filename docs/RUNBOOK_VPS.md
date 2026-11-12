@@ -654,6 +654,13 @@ costuma dizer de quem é.
 > `Caddyfile.bak-20261107-subdominios`. Depois do `caddy reload`, os quatro responderam 200, e o
 > Story Verse, o QA e o Umami continuaram no ar.
 >
+> **Mudado em 11/11/2026:** no bloco do staging, `/backend/*` vai **direto para a API**
+> (`handle_path` → `foodie-staging-api-1:4001`), sem passar pelo Next, e `/backend/actuator*`,
+> `/backend/v3/api-docs*` e `/backend/swagger-ui*` devolvem 404 (antes respondiam 200 por fora,
+> repassados pelo Next). Motivo: nível 2 do teste de carga (`RESULTADO_TESTE_CARGA_2026-11-11.md`).
+> Backup em `Caddyfile.bak-2026-11-11-backend-direto`. O `deploy/Caddyfile` da produção tem a mesma
+> regra (snippet `foodie_site`).
+>
 > **Como mudar o Caddyfile do edge sem derrubar os outros projetos:**
 > 1. `cp -p Caddyfile Caddyfile.bak-<data>-<motivo>`;
 > 2. gerar o arquivo novo num temporário e validar dentro do contêiner:

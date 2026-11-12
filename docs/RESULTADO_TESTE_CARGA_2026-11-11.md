@@ -109,5 +109,101 @@ Caminho: a etapa 1 do **S18** (`SUGESTOES_MELHORIA_2026-11-09.md`) — tirar `/c
 `/zones` da consulta automática do cliente e espaçar ou condicionar o `/catalog` da tela da loja.
 Depois, repetir o nível 1 antes do nível 2.
 
-**Implementado** na branch `perf/consulta-leve` (S18 etapa 1), com o k6 ajustado ao ritmo novo.
-Terceira rodada do nível 1 **(a confirmar)**.
+**Implementado** na PR #129 (S18 etapa 1), com o k6 ajustado ao ritmo novo.
+
+## Terceira rodada — depois da PR #129 (`8846cb6`, 21:50–22:08 UTC)
+
+Backup `foodie_platform-20261111-214514.sql` antes. Nível 0 passou (205 chamadas, antes 352;
+0% de erros).
+
+**Nível 1: passou em todas as metas.**
+
+| Medida | Meta | 2ª rodada | **3ª rodada** |
+| --- | --- | --- | --- |
+| Erros | < 1% | 0,04% | **0,05%** ✓ |
+| Leituras p95 | < 800 ms | 1,31 s | **592 ms** ✓ |
+| Páginas p95 | < 1,5 s | 1,19 s | **546 ms** ✓ |
+| Fechar o pedido p95 | < 2 s | 1,02 s | **338 ms** ✓ (84 pedidos) |
+| Chamadas no total | — | 146.059 | **102.807** (−30%) |
+| Reinícios da API | nenhum | 0 | **0** (`healthy` nas 44 amostras) ✓ |
+
+- **VPS:** load average máximo **5,7** (antes 11,6). CPU média: API 30%, site 43%, banco 24%
+  (antes 42%, 53% e 45%). Memória da API ~360 MiB. Swap caiu para 866 MB.
+- **Logins:** 60 de 235 receberam o 503 do `ScryptGate`, todos na subida, quando o k6 faz
+  entregadores e telas de loja entrarem juntos. Pessoas reais entram espalhadas; mesmo assim, vale
+  o site tentar de novo sozinho depois de alguns segundos ao receber esse 503 `(a decidir)`.
+
+**Conferido no navegador** (painel da loja no staging, 22:1x UTC, pelas chamadas registradas na
+aba): logo depois do login vai o pacote completo (`/catalog`, `/zones`, `/me/permissions`,
+`/restaurant/modules`, `/orders`, `/restaurant/couriers`); depois, a cada **8 s**, só `/orders` e
+`/restaurant/couriers` (aos 9, 17, 25 e 33 s). O sino segue a cada 15 s. Pedido novo continua
+chegando em até 8 s. A volta do lento aos 3 min não foi esperada no navegador (coberta pelo
+`poll-plan.test.ts`).
+
+## Nível 2 — folga 3× (`8846cb6`, 22:18–22:39 UTC): reprovou, sem cair
+
+Antes: removidas as imagens `pre-*` de três deploys (fica só a `pre-8846cb6`, para voltar); disco
+de 67% para 61%.
+
+| Medida | Meta | Resultado |
+| --- | --- | --- |
+| Erros | < 1% | **0,62%** ✓ (1.310 de 210.621; 970 são o 503 do `ScryptGate`) |
+| Leituras p95 | < 800 ms | **11,7 s** ✗ |
+| Páginas p95 | < 1,5 s | **12,2 s** ✗ |
+| Fechar o pedido p95 | < 2 s | **11,4 s** ✗ (249 pedidos criados) |
+| Reinícios da API | nenhum | **0** (`healthy` nas 48 amostras) ✓ |
+
+- **A API não é o gargalo.** No log da API, todas as chamadas ficaram rápidas: `/orders` p95
+  221 ms, as demais entre 30 e 70 ms. Os 11–12 s que o k6 vê acontecem **antes** de a chamada
+  chegar à API.
+- **O site (Next) é.** Toda chamada `/backend/*` passa pelo Next, que só a repassa para a API
+  (`rewrites` em `apps/web/next.config`). O Next roda num processo Node só e ficou em 65–80% de CPU
+  o platô inteiro, com a VPS de 2 núcleos em load average de até **16,3**. As páginas também saem
+  dele, por isso páginas, leituras e fechamento têm o mesmo p95.
+- **Logins:** 970 recusas com 503, quase todas na subida (até 263 por minuto às 22:19), quando o
+  k6 faz 660 usuários entrarem em 5 minutos. No platô, 7 a 13 logins por minuto, todos aceitos.
+- O StoryVerse, na mesma VPS, não passou de 2% de CPU.
+
+**Correção proposta (a decidir):** o Caddy mandar `/backend/*` **direto para a API**, sem passar
+pelo Next (no `edge` do staging e no `deploy/Caddyfile` da produção). O Next deixa de gastar CPU
+repassando ~160 chamadas/s e fica só com as páginas. Depois, repetir o nível 2. Se não bastar, o
+próximo passo é uma VPS com mais núcleos.
+
+**Aplicado no staging às 22:5x UTC** (edge, backup `Caddyfile.bak-2026-11-11-backend-direto`) e no
+`deploy/Caddyfile` da produção. Conferido: os 11 sites do edge (Foodie, StoryVerse, QA, Umami)
+responderam como antes; `/backend/*` responde com o `X-Request-Id` da API, sem os cabeçalhos do Next;
+a sessão da loja no navegador seguiu válida; a checagem de `Origin` segue (403 para origem estranha).
+
+**Achado de segurança no caminho:** antes da mudança, `/backend/actuator`,
+`/backend/actuator/prometheus` e `/backend/v3/api-docs` respondiam **200 por fora**: o Next
+repassava qualquer caminho para a API, e o bloqueio só existia no subdomínio `api.`. A regra nova
+devolve 404 para esses caminhos.
+
+## Nível 2, segunda rodada — `/backend` direto (22:46–23:07 UTC): melhorou muito, ainda reprova
+
+| Medida | Meta | 1ª rodada | **2ª rodada** |
+| --- | --- | --- | --- |
+| Erros | < 1% | 0,62% | **0,46%** ✓ |
+| Leituras p95 | < 800 ms | 11,7 s | **1,71 s** ✗ |
+| Páginas p95 | < 1,5 s | 12,2 s | **2,49 s** ✗ |
+| Fechar o pedido p95 | < 2 s | 11,4 s | **2,21 s** ✗ (246 pedidos) |
+| Vazão | — | 163 chamadas/s | **220 chamadas/s** |
+| Reinícios da API | nenhum | 0 | **0** ✓ |
+
+- **Agora o limite é a CPU da máquina, não um componente.** Load average de 14 a 24 no platô inteiro
+  (2 núcleos). Somando os containers: API ~50%, banco ~50–60%, site ~40%, Caddy ~30% — perto dos
+  200% que a VPS tem. O Next caiu de 65–80% para ~40%.
+- Os logins (1.038 recusas com 503) pesam só até 22:56; depois disso não há login, e o load segue
+  entre 14 e 18. Ou seja, mesmo sem o SCrypt a VPS fica no limite com 3× a carga esperada.
+- O banco subiu ao longo da rodada (de ~40% para ~60%), conforme os pedidos se acumulam: o
+  `/orders` é o próximo candidato a otimizar `(a confirmar com o log de consultas lentas)`.
+- O StoryVerse não passou de 3% de CPU.
+
+**Leitura:** com 2 núcleos, a VPS aguenta a carga esperada (nível 1 passou com folga) e uns
+2× sem sustos, mas não os 3× que o plano pede para o lançamento. Caminhos: **VPS com 4 núcleos**
+(o mais direto; custo e plano da Hostinger `(a confirmar)`) ou seguir otimizando (`/orders`, cache
+das páginas no Next, compressão no Caddy) e medir de novo. O k6 também exagera a subida: refaz o
+login a cada recusa; espalhar as entradas deixa a rodada mais fiel.
+
+**Próximo (depois do nível 2 passar):** nível 4 (resistência, 60 min). O nível 3 (ruptura) só
+depois de combinar, porque a VPS é compartilhada com o StoryVerse.

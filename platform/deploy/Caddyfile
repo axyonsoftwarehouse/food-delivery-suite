@@ -10,13 +10,30 @@
     }
 }
 
+# Site: /backend/* vai direto para a API, sem passar pelo Next (teste de carga de 11/11/2026: o Next
+# repassando as chamadas era o gargalo do nível 2). O `rewrites` do next.config continua valendo
+# para quem roda o site sem este Caddy (desenvolvimento local).
+(foodie_site) {
+    route {
+        # Actuator e documentação da API não são públicos, como no api.; o monitoramento usa a rede interna.
+        @interno_backend path /backend/actuator* /backend/v3/api-docs* /backend/swagger-ui*
+        respond @interno_backend 404
+        handle_path /backend/* {
+            reverse_proxy api:4001 {
+                # Descarta um X-Forwarded-For enviado pelo cliente; os limites por IP leem este cabeçalho.
+                header_up X-Forwarded-For {http.request.remote.host}
+            }
+        }
+        reverse_proxy web:3001 {
+            header_up X-Forwarded-For {http.request.remote.host}
+        }
+    }
+}
+
 {$FOODIE_DOMAIN} {
     import security_headers
     encode zstd gzip
-    reverse_proxy web:3001 {
-        # Descarta um X-Forwarded-For enviado pelo cliente; os limites por IP leem este cabeçalho.
-        header_up X-Forwarded-For {http.request.remote.host}
-    }
+    import foodie_site
 }
 
 api.{$FOODIE_DOMAIN} {
@@ -33,7 +50,5 @@ api.{$FOODIE_DOMAIN} {
 cliente.{$FOODIE_DOMAIN}, restaurante.{$FOODIE_DOMAIN}, entregador.{$FOODIE_DOMAIN}, admin.{$FOODIE_DOMAIN} {
     import security_headers
     encode zstd gzip
-    reverse_proxy web:3001 {
-        header_up X-Forwarded-For {http.request.remote.host}
-    }
+    import foodie_site
 }
