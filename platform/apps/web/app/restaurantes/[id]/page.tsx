@@ -60,10 +60,20 @@ function weekHours(hours: OpeningHour[]) {
 
 type Props = { params: Promise<{ id: string }> };
 
+// Página pública guardada por 60 s (ISR): no teste de carga de 11/11 ela era montada do zero a cada
+// visita, com uma chamada à API cada vez. Mudanças na vitrine e o "Aberto agora" aparecem em até 1 min.
+// Nenhuma loja é gerada no build (a API não está de pé nele): cada uma nasce na primeira visita.
+const STOREFRONT_REVALIDATE_SECONDS = 60;
+export const revalidate = 60;
+
+export function generateStaticParams() {
+  return [];
+}
+
 async function storefront(id: string): Promise<Storefront> {
   if (!/^[1-9]\d*$/.test(id)) notFound();
   const api = process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:4001';
-  const response = await fetch(`${api}/public/restaurants/${id}/storefront`, { cache: 'no-store' });
+  const response = await fetch(`${api}/public/restaurants/${id}/storefront`, { next: { revalidate: STOREFRONT_REVALIDATE_SECONDS } });
   if (response.status === 404) notFound();
   if (!response.ok) throw new Error('Não foi possível carregar a página da loja.');
   return response.json() as Promise<Storefront>;

@@ -26,6 +26,8 @@ const SLOW_SECONDS = 180; // SLOW_REFRESH_MS
 
 const pedidosCriados = new Counter('pedidos_criados');
 const pedidosRecusados = new Counter('pedidos_recusados');
+// 503 do limite de SCrypt simultâneo (ScryptGate): a pessoa espera alguns segundos e tenta de novo.
+const loginsAdiados = new Counter('logins_adiados_503');
 
 // ---------- Níveis (§3 do plano) ----------
 
@@ -122,11 +124,25 @@ const pause = (min, max) => sleep(min + Math.random() * (max - min));
 const pad = (value, size) => String(value).padStart(size, '0');
 
 // Login uma vez por usuário virtual (o scrypt custa CPU de propósito); o cookie fica no jar do VU.
-const session = { email: null };
+// Pessoas não entram todas no mesmo segundo: a primeira entrada de cada VU espera até
+// LOGIN_SPREAD_SECONDS, e um 503 do limite de SCrypt é tentado de novo depois de 5 a 15 s, como quem
+// lê "tente de novo em alguns segundos". Antes, todos entravam juntos e cada recusa voltava a bater.
+const LOGIN_SPREAD_SECONDS = Number(__ENV.LOGIN_SPREAD_SECONDS || 60);
+const LOGIN_RETRIES = 3;
+const session = { email: null, spread: false };
 function login(email) {
   if (session.email === email) return true;
   if (!PASSWORD) exec.test.abort('Defina LOAD_PASSWORD (a senha das contas de carga).');
-  const response = send('POST', '/auth/login', { email, password: PASSWORD }, 'POST /auth/login', 'login');
+  if (!session.spread) {
+    session.spread = true;
+    sleep(Math.random() * LOGIN_SPREAD_SECONDS);
+  }
+  let response = send('POST', '/auth/login', { email, password: PASSWORD }, 'POST /auth/login', 'login');
+  for (let attempt = 0; attempt < LOGIN_RETRIES && response.status === 503; attempt += 1) {
+    loginsAdiados.add(1);
+    pause(5, 15);
+    response = send('POST', '/auth/login', { email, password: PASSWORD }, 'POST /auth/login', 'login');
+  }
   const ok = check(response, { 'login 200': (r) => r.status === 200 });
   if (ok) session.email = email;
   else console.error(`login falhou para ${email}: ${response.status} ${String(response.body).slice(0, 160)}`);
