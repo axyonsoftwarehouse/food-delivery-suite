@@ -86,3 +86,20 @@ groups:
         annotations:
           summary: "Webhook de pagamento recusado (401)"
           description: "Cerca de {{ $value | printf \"%.0f\" }} notificações recusadas em 15 min: pagamentos online e estornos não estão sendo confirmados. Veja `docker compose logs api | grep 'Webhook do Mercado Pago recusado'`."
+
+      # Gatilho para trocar a VPS por uma de 4 núcleos (decisão de 13/11: lançar com 2 núcleos).
+      # Teste de carga: na carga esperada (níveis 1 e 4) a CPU da máquina fica em ~55% e a carga em
+      # 1,5–2,1 por núcleo; a 3× (nível 2) vai a 97% e 10 por núcleo, e as leituras passam de 800 ms.
+      # As métricas vêm da JVM da API, mas medem a máquina inteira (inclui StoryVerse e o staging).
+      # Um teste de carga ou um build de deploy longo também disparam: confira o horário antes de agir.
+      - alert: FoodieCapacityLimit
+        expr: |
+          avg_over_time(system_cpu_usage{job="foodie-api"}[10m]) > 0.85
+          and
+          avg_over_time(system_load_average_1m{job="foodie-api"}[10m]) / system_cpu_count{job="foodie-api"} > 4
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VPS no limite de CPU: hora de passar para 4 núcleos"
+          description: "CPU da máquina acima de 85% e carga acima de 4 por núcleo há 20 minutos. No teste de carga, foi o ponto em que as leituras passaram de 800 ms. Veja docs/RESULTADO_TESTE_CARGA_2026-11-11.md (decisão de 13/11)."
