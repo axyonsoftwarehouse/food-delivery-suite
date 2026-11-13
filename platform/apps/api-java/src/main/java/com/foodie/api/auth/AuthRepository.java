@@ -1,7 +1,9 @@
 package com.foodie.api.auth;
 
+import com.foodie.api.ShortCache;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,18 +20,22 @@ public class AuthRepository {
     private final JdbcTemplate jdbc;
     private final int sessionDays;
     private final int sessionIdleMinutes;
+    /** Sessão → usuário por alguns segundos (teste de carga de 12/11); logout e suspensão invalidam na hora. */
+    private final ShortCache<String, User> sessions;
 
     public AuthRepository(JdbcTemplate jdbc) {
-        this(jdbc, 3, 1440);
+        this(jdbc, 3, 1440, 0);
     }
 
     @Autowired
     public AuthRepository(JdbcTemplate jdbc,
                           @Value("${app.auth.session-days:3}") int sessionDays,
-                          @Value("${app.auth.session-idle-minutes:1440}") int sessionIdleMinutes) {
+                          @Value("${app.auth.session-idle-minutes:1440}") int sessionIdleMinutes,
+                          @Value("${app.auth.cache-seconds:10}") int cacheSeconds) {
         this.jdbc = jdbc;
         this.sessionDays = Math.max(1, sessionDays);
         this.sessionIdleMinutes = Math.max(1, sessionIdleMinutes);
+        this.sessions = new ShortCache<>(Duration.ofSeconds(Math.max(0, cacheSeconds)), 50_000);
     }
 
     public Optional<Credentials> findCredentials(String email) {
@@ -40,14 +46,32 @@ public class AuthRepository {
         return rows.stream().findFirst();
     }
 
+    /**
+     * Usuário da sessão válida. A mesma consulta diz se a renovação do prazo ocioso está vencida: o UPDATE
+     * só sai quando precisa (antes saía em toda chamada e, no staging, 95% deles não mudavam nada).
+     */
     public Optional<User> findSessionUser(String tokenHash) {
-        List<User> rows = jdbc.query(
-            "SELECT u.id, u.name, u.email, u.role, u.restaurant_id FROM sessions s JOIN users u ON u.id = s.user_id "
+        return Optional.ofNullable(sessions.get(tokenHash, this::loadSessionUser));
+    }
+
+    private User loadSessionUser(String tokenHash) {
+        List<SessionRow> rows = jdbc.query(
+            "SELECT u.id, u.name, u.email, u.role, u.restaurant_id, "
+                + "s.last_seen_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE) AS touch_due FROM sessions s JOIN users u ON u.id = s.user_id "
                 + "WHERE s.token_hash = ? AND s.expires_at > NOW() AND s.last_seen_at > DATE_SUB(NOW(), INTERVAL ? MINUTE) "
                 + "AND u.suspended_at IS NULL LIMIT 1",
-            (rs, row) -> user(rs), tokenHash, sessionIdleMinutes
+            (rs, row) -> new SessionRow(user(rs), rs.getBoolean("touch_due")), tokenHash, sessionIdleMinutes
         );
-        return rows.stream().findFirst();
+        if (rows.isEmpty()) return null;
+        if (rows.get(0).touchDue()) touchSession(tokenHash);
+        return rows.get(0).user();
+    }
+
+    private record SessionRow(User user, boolean touchDue) {}
+
+    /** Esquece o usuário guardado no cache das sessões (mudou algo que o {@link User} carrega). */
+    public void forgetUser(long userId) {
+        sessions.invalidateIf(user -> user.id() == userId);
     }
 
     /** Renova o timeout ocioso no máximo uma vez a cada 5 minutos (evita UPDATE em toda requisição). */
@@ -100,10 +124,12 @@ public class AuthRepository {
 
     public void deleteSession(String tokenHash) {
         jdbc.update("DELETE FROM sessions WHERE token_hash = ?", tokenHash);
+        sessions.invalidate(tokenHash);
     }
 
     public void deleteSessionsForUser(long userId) {
         jdbc.update("DELETE FROM sessions WHERE user_id = ?", userId);
+        forgetUser(userId);
     }
 
     public boolean isLoginLimited(String subjectHash) {

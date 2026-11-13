@@ -2,10 +2,14 @@ package com.foodie.api.permissions;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foodie.api.ShortCache;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
@@ -16,9 +20,20 @@ public class RoleRepository {
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
     private final JdbcTemplate jdbc;
+    /**
+     * Papel de funcionário por usuário, consultado em toda chamada da loja que confere permissão. Guardado
+     * por alguns segundos (teste de carga de 12/11); qualquer escrita de papel ou de atribuição limpa tudo.
+     */
+    private final ShortCache<Long, Optional<Role>> rolesByUser;
 
     public RoleRepository(JdbcTemplate jdbc) {
+        this(jdbc, 0);
+    }
+
+    @Autowired
+    public RoleRepository(JdbcTemplate jdbc, @Value("${app.auth.cache-seconds:10}") int cacheSeconds) {
         this.jdbc = jdbc;
+        this.rolesByUser = new ShortCache<>(Duration.ofSeconds(Math.max(0, cacheSeconds)), 50_000);
     }
 
     public record Role(long id, long restaurantId, String name, List<String> permissions) {}
@@ -43,6 +58,10 @@ public class RoleRepository {
     }
 
     public Optional<Role> findForUser(long userId) {
+        return rolesByUser.get(userId, this::loadForUser);
+    }
+
+    private Optional<Role> loadForUser(long userId) {
         List<Role> rows = jdbc.query(
             "SELECT r.id, r.restaurant_id, r.name, r.permissions FROM users u JOIN restaurant_roles r ON r.id = u.staff_role_id WHERE u.id = ?",
             (rs, row) -> new Role(rs.getLong("id"), rs.getLong("restaurant_id"), rs.getString("name"), parse(rs.getString("permissions"))),
@@ -64,14 +83,17 @@ public class RoleRepository {
             statement.setString(3, json);
             return statement;
         }, key);
+        rolesByUser.invalidateAll();
         return key.getKey().longValue();
     }
 
     public int update(long restaurantId, long id, String name, List<String> permissions) {
-        return jdbc.update(
+        int changed = jdbc.update(
             "UPDATE restaurant_roles SET name = ?, permissions = ? WHERE id = ? AND restaurant_id = ?",
             name, write(permissions), id, restaurantId
         );
+        rolesByUser.invalidateAll();
+        return changed;
     }
 
     public boolean assigned(long id) {
@@ -80,7 +102,9 @@ public class RoleRepository {
     }
 
     public int delete(long restaurantId, long id) {
-        return jdbc.update("DELETE FROM restaurant_roles WHERE id = ? AND restaurant_id = ?", id, restaurantId);
+        int changed = jdbc.update("DELETE FROM restaurant_roles WHERE id = ? AND restaurant_id = ?", id, restaurantId);
+        rolesByUser.invalidateAll();
+        return changed;
     }
 
     public List<Staff> staff(long restaurantId) {
@@ -115,16 +139,19 @@ public class RoleRepository {
             if (staffRoleId == null) statement.setNull(6, java.sql.Types.BIGINT); else statement.setLong(6, staffRoleId);
             return statement;
         }, key);
+        rolesByUser.invalidateAll();
         return key.getKey().longValue();
     }
 
     public int assignStaffRole(long restaurantId, long userId, Long staffRoleId) {
-        if (staffRoleId == null) {
+        int changed = staffRoleId == null
             // NULL identifica o dono no acesso restaurant. Só a cozinha pode usar o papel padrão.
-            return jdbc.update("UPDATE users SET staff_role_id = NULL WHERE id = ? AND restaurant_id = ? AND role = 'kitchen'", userId, restaurantId);
-        }
-        return jdbc.update("UPDATE users SET staff_role_id = ? WHERE id = ? AND restaurant_id = ? AND (role = 'kitchen' OR (role = 'restaurant' AND staff_role_id IS NOT NULL))", staffRoleId, userId, restaurantId);
+            ? jdbc.update("UPDATE users SET staff_role_id = NULL WHERE id = ? AND restaurant_id = ? AND role = 'kitchen'", userId, restaurantId)
+            : jdbc.update("UPDATE users SET staff_role_id = ? WHERE id = ? AND restaurant_id = ? AND (role = 'kitchen' OR (role = 'restaurant' AND staff_role_id IS NOT NULL))", staffRoleId, userId, restaurantId);
+        rolesByUser.invalidateAll();
+        return changed;
     }
+
 
     private static List<String> parse(String json) {
         try {
