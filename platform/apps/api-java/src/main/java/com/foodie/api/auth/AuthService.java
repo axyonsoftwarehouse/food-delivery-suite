@@ -84,10 +84,12 @@ public class AuthService {
 
     public Optional<User> currentUser(String token) {
         if (!validToken(token)) return Optional.empty();
-        String hash = Tokens.hash(token);
-        Optional<User> user = repository.findSessionUser(hash);
-        user.ifPresent(ignored -> repository.touchSession(hash));
-        return user;
+        return repository.findSessionUser(Tokens.hash(token));
+    }
+
+    /** O {@link User} de um usuário mudou (ex.: vínculo do entregador a uma loja): as sessões dele relêem do banco. */
+    public void forgetUser(long userId) {
+        repository.forgetUser(userId);
     }
 
     public User requireUser(String token, String... roles) {

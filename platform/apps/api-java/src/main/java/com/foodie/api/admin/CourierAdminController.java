@@ -54,6 +54,7 @@ public class CourierAdminController {
         return support.act(actor, body.restaurantId(), "courier.link", "courier", id, "Entregador #" + id + " ligado à loja", body.reason(), () -> {
             int changed = jdbc.update("UPDATE users SET restaurant_id = ? WHERE id = ? AND role = 'courier' AND restaurant_id IS NULL", body.restaurantId(), id);
             if (changed == 0) throw new ApiException(409, "Este entregador já pertence a uma loja");
+            auth.forgetUser(id);
             return Map.of("ok", true);
         });
     }

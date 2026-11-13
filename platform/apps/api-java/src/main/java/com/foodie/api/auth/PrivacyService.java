@@ -136,7 +136,7 @@ public class PrivacyService {
     }
 
     private void anonymize(long id) {
-        jdbc.update("DELETE FROM sessions WHERE user_id = ?", id);
+        repository.deleteSessionsForUser(id);
         jdbc.update("DELETE FROM auth_action_tokens WHERE user_id = ?", id);
         jdbc.update("DELETE o FROM auth_otp o JOIN users u ON u.phone = o.phone WHERE u.id = ?", id);
         jdbc.update("DELETE FROM cart_items WHERE user_id = ?", id);
