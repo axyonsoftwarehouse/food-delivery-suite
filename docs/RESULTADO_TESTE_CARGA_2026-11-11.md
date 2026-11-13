@@ -401,3 +401,66 @@ outras, até 10 s). O papel de administrador não foi guardado (pouco tráfego).
 
 Testes: `ShortCacheTest` (7), `AuthRepositorySessionCacheTest` (7) e `RoleRepositoryCacheTest` (2).
 Depois do deploy: repetir o nível 2 e comparar as conexões pedidas por chamada (eram ~4).
+
+## Nível 2, quinta rodada — cache de sessão (PR #133, `0d3cecf`, 13/11, 05:07–05:29 UTC): quase passa
+
+Antes: `.deployed` em `0d3cecf`, backup `foodie_platform-20261113-050351.sql`, disco em 65%. Nível 0
+passou (224 chamadas, 0% de erros).
+
+| Medida | Meta | 4ª rodada (pool 24) | **5ª rodada (cache de sessão)** |
+| --- | --- | --- | --- |
+| Erros | < 1% | 0,24% | **0,15%** ✓ (481 de 314.579) |
+| Leituras p95 | < 800 ms | 1,17 s | **980 ms** ✗ (mediana 219 ms; p90 753 ms) |
+| Páginas p95 | < 1,5 s | 1,37 s | **1,13 s** ✓ |
+| Fechar o pedido p95 | < 2 s | 1,60 s | **1,28 s** ✓ (269 pedidos) |
+| Vazão | — | 237 chamadas/s | **243 chamadas/s** |
+| Reinícios da API | nenhum | 0 | **0** (`healthy` nas 47 amostras) ✓ |
+
+**O corte funcionou no servidor:**
+
+| Medida no platô (Prometheus) | Pool 24 | **Cache de sessão** |
+| --- | --- | --- |
+| Conexões pedidas por chamada | 3,96 | **2,88** (−27%) |
+| Tempo somado das chamadas da API, por segundo | ~23 s | **~13 s** (−42%) |
+| Espera média por conexão | 8 ms | **6 ms** |
+| Fila do pool | picos de 17 a 25 | **0 em 23 de 24 amostras** (um pico de 38) |
+| Tempo esgotado ao pedir conexão | 0 | **0** |
+
+- Rotas na API: `/orders` de 174 para **122 ms** em média, `/orders/chat/unread` de 70 para **36 ms**,
+  `/catalog/tags` de 34 para **24 ms**.
+- Logins: 176 adiados por 503 (antes 454) e só 7 desistências (antes 61).
+- **A máquina continua no limite:** load average médio de 18,6 no platô (antes 19 a 29), com 2
+  núcleos. Médias: API 46%, site 42%, banco 40%, Caddy 39% — ~167% dos 200%. A API ficou mais leve,
+  mas o site e o Caddy, que não mudaram, passaram a ocupar a folga.
+- O StoryVerse ficou em 0–2% de CPU.
+
+**Leitura:** em cinco rodadas, as leituras p95 do nível 2 caíram de 11,7 s para **980 ms**, e só essa
+meta segue fora (por 180 ms). Na API, cada chamada leva em média ~58 ms; o resto da cauda é fila de CPU
+dividida entre Caddy, site, API e banco. As otimizações baratas na API se esgotaram: o que sobra
+pesa no Caddy (TLS e proxy de ~240 chamadas/s) e no site, e não há um próximo gargalo isolado.
+Caminho recomendado: **VPS de 4 núcleos** e repetir o nível 2 `(a decidir)`.
+
+## Decisão de 13/11: lançar com 2 núcleos, com gatilho para trocar
+
+O dono do produto decidiu **lançar na VPS atual (2 núcleos)**. A carga esperada passa com folga
+(níveis 1 e 4), e a 3× a VPS não cai: só a cauda das leituras fica lenta (p95 980 ms contra 800 ms).
+O nível 2 fica **reprovado e aceito**, com a troca para 4 núcleos condicionada a um gatilho medido.
+
+**Gatilho:** o alerta `FoodieCapacityLimit` (`platform/monitoring/alerts.yml`, branch
+`ops/alerta-capacidade`) avisa no Telegram quando a CPU da máquina passa de 85% **e** a carga passa de
+4 por núcleo, nas médias de 10 min, por mais 10 min seguidos. Conferido contra o histórico do
+Prometheus de 11 a 13/11:
+
+| Rodada | Dispara? |
+| --- | --- |
+| Nível 1 (11/11, 3ª rodada) e nível 4 (12/11, 60 min) | não (CPU ~55%, carga 1,5–2,1 por núcleo) |
+| Nível 1 de 11/11, 2ª rodada (antes da PR #129) | não (6 min acima) |
+| Nível 2, 1ª rodada (11/11, 22:27) | não (10 min acima, no limite) |
+| Nível 2, rodadas 2 a 5 | **sim** (13 a 14 min acima) |
+| Deploys de 12 e 13/11 | não |
+
+Limites: as métricas vêm da JVM da API, mas medem a máquina inteira (StoryVerse e staging incluídos);
+um teste de carga também dispara. O alerta chega cerca de 20 min depois de a saturação começar.
+
+**Pendências da decisão:** confirmar o provedor e o plano da VPS e quanto tempo a troca para 4 núcleos
+leva `(a confirmar)`; o nível 3 (ruptura) continua pendente e só roda combinado com o StoryVerse.
