@@ -1,6 +1,6 @@
 FROM node:25-alpine AS build
 WORKDIR /app
-RUN corepack enable
+RUN npm install -g corepack@0.34.7 && corepack enable
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/web apps/web
 COPY tools/package.json tools/package.json
@@ -22,7 +22,7 @@ ENV API_INTERNAL_URL=http://api:4001
 ENV SENTRY_DSN_WEB=
 ENV SENTRY_ENVIRONMENT=
 ENV SENTRY_RELEASE=
-RUN corepack enable
+RUN npm install -g corepack@0.34.7 && corepack enable
 COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/web ./apps/web
