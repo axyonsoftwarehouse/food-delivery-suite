@@ -509,8 +509,8 @@ com a amostragem por SSH e com os erros por minuto do k6:
   API em 50 min. O StoryVerse ficou de pé, com `storyverse-api` usando 0,05% de CPU, sem tráfego
   próprio na janela.
 - **Alerta:** `FoodieCapacityLimit` ficou `pending` às 13:51 e `firing` às 14:00, ~9 min depois da
-  ruptura e ~20 min depois do início da subida, como previsto. A chegada da mensagem no Telegram está
-  `(a confirmar)`.
+  ruptura e ~20 min depois do início da subida, como previsto. A mensagem **chegou no Telegram**
+  (confirmado pelo Werner em 14/11).
 - **Ressalva sobre o gerador:** 5,6 MB/s (~45 Mbit/s) saindo de um PC só, numa conexão doméstica. Uma
   parte dos tempos esgotados na conexão pode ser do lado do PC ou do roteador (tabela NAT ou banda de
   subida) `(a confirmar)`, por exemplo repetindo um degrau a partir de outra rede. Isso não muda o teto:
