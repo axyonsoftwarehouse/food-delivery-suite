@@ -464,3 +464,59 @@ um teste de carga também dispara. O alerta chega cerca de 20 min depois de a sa
 
 **Pendências da decisão:** confirmar o provedor e o plano da VPS e quanto tempo a troca para 4 núcleos
 leva `(a confirmar)`; o nível 3 (ruptura) continua pendente e só roda combinado com o StoryVerse.
+
+## Nível 3 — ruptura (`bee3db1`, schema `081`, 14/11, 13:38–14:09 UTC): a VPS satura com cerca de 650 clientes e não cai
+
+Janela combinada com o StoryVerse. Antes: `.deployed` em `bee3db1`, backup
+`foodie_platform-20261114-132743.sql`, disco em 68%, carga 0,09, alerta `FoodieCapacityLimit` carregado.
+O nível 0 passou: 14 de 14 checagens, 0 erros. O k6 subiu 150 clientes, e o proporcional dos outros
+perfis, a cada 3 min, até 1.500 clientes e 2.279 usuários virtuais. Ele **não abortou**: os erros
+fecharam em 3,88%, abaixo do corte de 5%. O código de saída foi 99, porque as metas de latência e de
+checagens furaram.
+
+| Medida (rodada inteira) | Valor |
+| --- | --- |
+| Chamadas | 502.753 (274/s em média); 10 GB recebidos (5,6 MB/s) |
+| p95 leituras / páginas / fechamento | 2,81 s / 2,40 s / 2,99 s (metas: 0,8 / 1,5 / 2 s) |
+| Erros HTTP | 3,88% (19.531), **quase todos tempo esgotado ao abrir a conexão TCP** com a VPS (`dial tcp …:443`) |
+| Checagens | 74,45%; o login falhou 8.752 vezes: 8.529 por conexão não aberta e 225 por 503 do `ScryptGate`, que é a proteção esperada |
+| Pedidos criados | 413 |
+
+**Linha do tempo.** O k6 não separa as métricas por degrau. Ela foi montada com o Prometheus da API,
+com a amostragem por SSH e com os erros por minuto do k6:
+
+| UTC | Clientes (alvo) | Carga da VPS (1 min) | Chamadas/s na API | p95 dentro da API | Observação |
+| --- | --- | --- | --- | --- | --- |
+| 13:42 | ~200 | 2,2 | 58 | 40 ms | normal |
+| 13:45 | ~350 | ~7 | 134 | 90 ms | |
+| 13:48 | ~500 | 22 | 201 | 220 ms | primeiros 503 de login (`ScryptGate`) |
+| 13:51–13:52 | ~650 | 25–30 | 231 | 330 ms | **ruptura:** começam as conexões recusadas por tempo; alerta em `pending` |
+| 13:54–13:57 | 750–900 | 30–33 | 246–248 | 310 ms | a API para de crescer; os erros de conexão sobem de 150 para 650 por minuto |
+| 14:00–14:03 | 1.000–1.150 | 33–35 | 271–286 | 0,68–1,11 s | **alerta `firing`**; o pool do banco volta a ter fila (40 a 71 esperando) |
+| 14:06–14:08 | 1.300–1.500 | 29–35 | 291 | 840 ms | até 2.870 erros de conexão por minuto |
+| 14:09 | descendo | 11 | — | — | recuperação sozinha, sem reiniciar nada |
+
+**Leitura:**
+
+- **Teto da VPS atual: cerca de 250 a 290 chamadas por segundo na API.** Isso foi atingido por volta de
+  650 clientes, ou 4,3 vezes o esperado. Daí em diante, dobrar a carga não aumentou o que a API atendeu:
+  o excedente virou fila e conexão recusada.
+- **A fila fica antes da API.** Até 13:57, a latência dentro da API ficou em ~0,3 s, enquanto o cliente
+  via ~2,8 s. Com carga entre 30 e 35 em 2 núcleos, a CPU é dividida entre Caddy de borda, site e API, e
+  as conexões novas esperam. É o mesmo gargalo do nível 2, agora sem a meta.
+- **Nada caiu.** Nenhum container reiniciou, e a API ficou `healthy` o tempo todo, sem
+  `OutOfMemoryError`: a memória subiu até 1,17 GiB e voltou a ~0,5 GiB. Houve só um `ERROR` no log da
+  API em 50 min. O StoryVerse ficou de pé, com `storyverse-api` usando 0,05% de CPU, sem tráfego
+  próprio na janela.
+- **Alerta:** `FoodieCapacityLimit` ficou `pending` às 13:51 e `firing` às 14:00, ~9 min depois da
+  ruptura e ~20 min depois do início da subida, como previsto. A chegada da mensagem no Telegram está
+  `(a confirmar)`.
+- **Ressalva sobre o gerador:** 5,6 MB/s (~45 Mbit/s) saindo de um PC só, numa conexão doméstica. Uma
+  parte dos tempos esgotados na conexão pode ser do lado do PC ou do roteador (tabela NAT ou banda de
+  subida) `(a confirmar)`, por exemplo repetindo um degrau a partir de outra rede. Isso não muda o teto:
+  a API parou de crescer enquanto a carga da VPS já estava em 30.
+
+**Conclusão:** o lançamento com 2 núcleos (decisão de 13/11) tem ~4× de folga até a ruptura, e o alerta
+funcionou no teste. Com 4 núcleos, o teto deve subir na proporção da CPU `(a confirmar)`, porque a fila
+está na CPU, não no banco nem na memória. Falta a limpeza dos dados de carga (`load:clean`), que fica
+para quando não houver mais rodadas.
