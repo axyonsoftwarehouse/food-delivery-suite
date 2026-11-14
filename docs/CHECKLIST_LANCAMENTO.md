@@ -23,7 +23,7 @@ online com a conta da loja e estornos). O que separa isso do lançamento é, sob
 o ambiente de produção, a cobrança da assinatura (única receita), o e-mail real e o jurídico.
 
 **Caminho crítico:** ~~decidir a conta que recebe a assinatura (A1)~~ (feito em 07/11) → ~~provar a cobrança no staging
-(A2, A3)~~ (feito em 07/11) → **teste de carga** (B9) → montar a produção (B1, B3–B6) → primeira transação real (F1).
+(A2, A3)~~ (feito em 07/11) → ~~teste de carga (B9)~~ (feito em 14/11) → montar a produção (B1, B3–B6) → primeira transação real (F1).
 
 ## A. Receita — assinatura das lojas
 
@@ -47,7 +47,7 @@ o ambiente de produção, a cobrança da assinatura (única receita), o e-mail r
 | B6 | Banco de produção nasce limpo: sem dados e contas de demonstração do staging | Código + Operação | pendente | `REVISAO_UX_CLIENTE.md`, "Dados do staging" |
 | B7 | Backup diário cifrado no Cloudflare R2 (bucket `foodie-backups`) e ensaio de restauração | Operação | feito (R2 em 20/10, ensaio em 04/11); na virada, conferir que o backup pega o banco de produção | `RUNBOOK_VPS.md` §5 |
 | B8 | Sentry na API e no site (projetos `foodie-api` e `foodie-web`) | Operação | feito (PRs #65–#67); na virada, conferir o ambiente marcado nos eventos `(a confirmar)` | `ESTADO_ATUAL.md` §4 |
-| B9 | **Teste de carga na VPS** — prioridade máxima | Código + Operação | em andamento (11/11): **nível 1 passou** depois das PRs #128 (OOM do SCrypt) e #129 (S18 etapa 1) — leituras p95 592 ms, erros 0,05%, 0 reinícios. **Nível 2 ainda reprova:** com `/backend/*` direto para a API, o p95 caiu de ~12 s para 1,7–2,5 s, mas a CPU de 2 núcleos fica no limite com 3× a carga. Decidir: VPS de 4 núcleos ou mais otimização; depois 4 e (combinado) 3 | `PLANO_TESTE_CARGA.md`, `RESULTADO_TESTE_CARGA_2026-11-11.md` |
+| B9 | **Teste de carga na VPS** — prioridade máxima | Código + Operação | feito (14/11): níveis 1 e 4 passaram; o nível 2 ficou reprovado e foi aceito pelo dono em 13/11 (leituras p95 980 ms contra 800 ms), com o lançamento em 2 núcleos e o alerta `FoodieCapacityLimit` (PR #134) como gatilho para passar a 4. Nível 3 em 14/11: ruptura com ~650 clientes (4,3× o esperado), API estabilizada em 250–290 req/s, nada caiu; o alerta disparou e chegou no Telegram. Repetição com a rede de casa livre agendada para 15/11 às 01:45 (horário local) | `PLANO_TESTE_CARGA.md`, `RESULTADO_TESTE_CARGA_2026-11-11.md` |
 | B10 | **Tamanho da VPS para a produção.** Em 09/11: 2 vCPUs e 3,8 GB, divididos com Story Verse (produção e QA), Umami, Mailpit e o monitoramento; parada, usa 666 MB de swap e tem 1,6 GB disponível. Os contêineres do Foodie não têm limite de memória. Decidir com o resultado do B9: aumentar o plano, tirar o staging (B2.1) ou os dois, e definir limites de memória | Werner + Operação | pendente (depende do B9) | `ssh`: `free -m`, `docker stats` (09/11) |
 | B11 | **Configuração de produção no repositório.** O único Compose tem o nome fixo `foodie-staging` e padrões de staging (`PAYMENTS_REQUIRE_TEST_ACCOUNTS=true`, `SITE_INDEXABLE=false`, `SENTRY_ENVIRONMENT=staging`). Definir como produção e staging convivem (nome do projeto, volumes, domínio no Caddy compartilhado) e a lista de variáveis que a produção tem de definir | Código + Operação | pendente | `platform/deploy/docker-compose.yml` |
 | B12 | Reiniciar a VPS numa janela combinada: há reinício pendente (55 dias ligada em 09/11). Disco em 71% | Operação | pendente | `ssh`: `/var/run/reboot-required` (09/11) |
