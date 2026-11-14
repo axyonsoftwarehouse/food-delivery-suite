@@ -511,12 +511,15 @@ com a amostragem por SSH e com os erros por minuto do k6:
 - **Alerta:** `FoodieCapacityLimit` ficou `pending` às 13:51 e `firing` às 14:00, ~9 min depois da
   ruptura e ~20 min depois do início da subida, como previsto. A mensagem **chegou no Telegram**
   (confirmado pelo Werner em 14/11).
-- **Ressalva sobre o gerador:** 5,6 MB/s (~45 Mbit/s) saindo de um PC só, numa conexão doméstica. Uma
-  parte dos tempos esgotados na conexão pode ser do lado do PC ou do roteador (tabela NAT ou banda de
-  subida) `(a confirmar)`, por exemplo repetindo um degrau a partir de outra rede. Isso não muda o teto:
+- **Ressalva sobre o gerador:** o k6 recebeu 5,6 MB/s (~45 Mbit/s) num PC só, pela internet de casa do
+  Werner, dividida na hora com um jogo online e uma TV no YouTube. É provável que uma parte dos tempos
+  esgotados na conexão tenha vindo dessa rede (banda ou tabela NAT do roteador), e não da VPS. Repetir
+  um degrau a partir de outra rede tiraria a dúvida. Isso não muda o teto:
   a API parou de crescer enquanto a carga da VPS já estava em 30.
 
 **Conclusão:** o lançamento com 2 núcleos (decisão de 13/11) tem ~4× de folga até a ruptura, e o alerta
 funcionou no teste. Com 4 núcleos, o teto deve subir na proporção da CPU `(a confirmar)`, porque a fila
-está na CPU, não no banco nem na memória. Falta a limpeza dos dados de carga (`load:clean`), que fica
-para quando não houver mais rodadas.
+está na CPU, não no banco nem na memória. Os dados de carga foram apagados
+em 14/11, às 14:54 UTC, depois do backup `foodie_platform-20261114-145359.sql`: 20 lojas, 630 contas,
+12.171 pedidos e a zona de carga. Uma nova simulação do `load:clean` encontrou 0 de tudo. Uma rodada nova
+precisa refazer o `load:setup`.
