@@ -15,6 +15,18 @@ updates:
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
+    # O app da cozinha (Expo) só funciona com as versões do SDK do Expo em uso: esses pacotes
+    # sobem todos juntos, na troca de SDK (`npx expo install --fix`), e não pelo Dependabot.
+    # O TypeScript só sobe de versão maior à mão: o Expo fixa a do app da cozinha.
+    ignore:
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "jest-expo"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native/*"
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   # Java (Maven)
   - package-ecosystem: maven
@@ -28,6 +40,10 @@ updates:
     groups:
       maven-minor-patch:
         update-types: [minor, patch]
+    # Spring Boot 4 é uma migração própria, combinada para depois do lançamento (checklist, G2).
+    ignore:
+      - dependency-name: "org.springframework.boot:spring-boot-starter-parent"
+        update-types: ["version-update:semver-major"]
 
   # Actions dos workflows
   - package-ecosystem: github-actions

@@ -36,7 +36,7 @@
     <dependency>
       <groupId>io.sentry</groupId>
       <artifactId>sentry-spring-boot-starter-jakarta</artifactId>
-      <version>8.61.0</version>
+      <version>8.63.0</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -68,7 +68,7 @@
     <dependency>
       <groupId>nl.martijndwars</groupId>
       <artifactId>web-push</artifactId>
-      <version>5.1.1</version>
+      <version>5.1.2</version>
       <exclusions>
         <!-- Só o PushAsyncService usa o AsyncHttpClient (e o Netty, por ele); o WebPushSender usa o PushService (Apache HttpClient). -->
         <exclusion>
@@ -78,9 +78,22 @@
       </exclusions>
     </dependency>
     <dependency>
+      <!-- O web-push 5.1.2 passou o Apache HttpClient e o jose4j para escopo runtime, mas o WebPushSender
+           lê o HttpResponse e o PushService.send declara JoseException: os dois precisam estar na compilação.
+           Versões iguais às que o web-push 5.1.2 traz. -->
+      <groupId>org.apache.httpcomponents</groupId>
+      <artifactId>httpcore</artifactId>
+      <version>4.4.16</version>
+    </dependency>
+    <dependency>
+      <groupId>org.bitbucket.b_c</groupId>
+      <artifactId>jose4j</artifactId>
+      <version>0.7.9</version>
+    </dependency>
+    <dependency>
       <groupId>com.github.librepdf</groupId>
       <artifactId>openpdf</artifactId>
-      <version>2.0.3</version>
+      <version>3.0.5</version>
     </dependency>
     <dependency>
       <groupId>org.mariadb.jdbc</groupId>
