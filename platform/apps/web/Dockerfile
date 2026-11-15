@@ -1,6 +1,9 @@
 FROM node:25-alpine AS build
 WORKDIR /app
-RUN npm install -g corepack@0.34.7 && corepack enable
+# A imagem node já traz /usr/local/bin/yarn e yarnpkg (yarn clássico); o
+# corepack cria os próprios e o npm aborta com EEXIST se eles já existirem.
+RUN rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+ && npm install -g corepack@0.34.7 && corepack enable
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/web apps/web
 COPY tools/package.json tools/package.json
@@ -22,7 +25,8 @@ ENV API_INTERNAL_URL=http://api:4001
 ENV SENTRY_DSN_WEB=
 ENV SENTRY_ENVIRONMENT=
 ENV SENTRY_RELEASE=
-RUN npm install -g corepack@0.34.7 && corepack enable
+RUN rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+ && npm install -g corepack@0.34.7 && corepack enable
 COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/web ./apps/web
