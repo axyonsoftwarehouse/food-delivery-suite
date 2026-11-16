@@ -1,4 +1,4 @@
-FROM node:25-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 # A imagem node já traz /usr/local/bin/yarn e yarnpkg (yarn clássico); o
 # corepack cria os próprios e o npm aborta com EEXIST se eles já existirem.
@@ -18,7 +18,7 @@ ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=$NEXT_PUBLIC_SENTRY_ENVIRONMENT
 ENV NEXT_PUBLIC_SENTRY_RELEASE=$NEXT_PUBLIC_SENTRY_RELEASE
 RUN pnpm --filter @foodie/web build
 
-FROM node:25-alpine
+FROM node:26-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 ENV API_INTERNAL_URL=http://api:4001
