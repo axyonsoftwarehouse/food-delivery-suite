@@ -6,6 +6,8 @@ REM  Clique duas vezes para publicar o commit HEAD.
 REM  Com parametros:
 REM      publicar.bat -PackageOnly    so gera o .tar e mostra os hashes
 REM      publicar.bat -Sha bf8a6a3    republica um commit anterior
+REM      publicar.bat -Ambiente production -Sha bf8a6a3
+REM                                   promove para a producao o commit do staging
 REM
 REM  O arquivo .ps1 nao abre com duplo clique: o Windows nunca executa
 REM  script por clique (nao ha associacao para .ps1). Por isso este atalho.
@@ -14,7 +16,7 @@ setlocal
 cd /d "%~dp0"
 
 echo.
-echo === Foodie: publicar no staging ===
+echo === Foodie: publicar (staging, ou o ambiente de -Ambiente) ===
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0release.ps1" %*
 set "CODIGO=%ERRORLEVEL%"

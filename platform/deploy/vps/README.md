@@ -1,5 +1,32 @@
 # Provisionamento da VPS
 
+Arquivos que moram **fora** da árvore do Foodie na VPS e têm aqui uma cópia versionada:
+
+| Arquivo | Na VPS | O que é |
+| --- | --- | --- |
+| `deploy-ci.sh` | `/home/deploy/deploy-ci.sh` | Único comando que a chave do CI executa: `apply` (staging) e `apply-production` |
+| `bootstrap-production.sh` | `/root/bootstrap-production.sh` | Provisionamento inicial da máquina (ver abaixo) |
+
+## deploy-ci.sh
+
+Versionado em 16/11/2026, quando ganhou o `apply-production`. O deploy **não** sobrescreve a cópia da
+VPS: depois de mudar este arquivo, a operação instala à mão, com backup da versão anterior:
+
+```bash
+scp -i ~/.ssh/foodie_vps platform/deploy/vps/deploy-ci.sh deploy@2.29.42.104:/home/deploy/deploy-ci.sh.novo
+ssh -i ~/.ssh/foodie_vps deploy@2.29.42.104 'cd /home/deploy && cp deploy-ci.sh deploy-ci.sh.bak-$(date +%Y%m%d) && mv deploy-ci.sh.novo deploy-ci.sh && chmod 755 deploy-ci.sh'
+```
+
+Conferir se a VPS está com a mesma versão do repositório (os dois md5 têm de ser iguais):
+
+```bash
+md5sum platform/deploy/vps/deploy-ci.sh; ssh -i ~/.ssh/foodie_vps deploy@2.29.42.104 'md5sum /home/deploy/deploy-ci.sh'
+```
+
+Testes: `platform/tests/deploy/deploy-ci.test.mjs`.
+
+## bootstrap-production.sh
+
 `bootstrap-production.sh` é a cópia **idêntica** de `/root/bootstrap-production.sh` da VPS
 (`production-01`, `2.29.42.104`), versionada em 01/10/2026 para não depender só do servidor.
 

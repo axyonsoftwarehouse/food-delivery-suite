@@ -1,0 +1,105 @@
+name: Deploy - Foodie (produção)
+
+# BOTÃO da PRODUÇÃO. Não roda sozinho, de propósito. Regras, em camadas:
+#   1. o job usa o ambiente `production` do GitHub (aprovação obrigatória, se configurada);
+#   2. a confirmação tem de ser exatamente `PUBLICAR PRODUCAO`;
+#   3. o commit precisa da `Verificação` verde;
+#   4. na VPS, o deploy.sh só aceita o commit que já está publicado no staging
+#      (o `apply-production` do deploy-ci.sh chama o deploy.sh com FOODIE_ENV=production).
+# Publicar no staging continua sendo o workflow `deploy.yml`.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit a promover (o mesmo que está no staging)'
+        required: true
+      confirmar:
+        description: 'Digite PUBLICAR PRODUCAO para confirmar'
+        required: true
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    name: Publicar na produção
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Conferir a confirmação
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          if [ "$CONFIRMAR" != "PUBLICAR PRODUCAO" ]; then
+            echo "::error::Confirmação inválida — escreva PUBLICAR PRODUCAO no campo para publicar."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      # Mesma regra do deploy do staging: sem `Verificação` verde do commit, não publica.
+      - name: Conferir a validação (Verificação verde do commit)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          echo "Commit a publicar: $SHA"
+          RUNS="$(gh run list --workflow ci.yml --commit "$SHA" --limit 30 --json status,conclusion --jq '.[] | "\(.status):\(.conclusion)"')"
+          echo "$RUNS"
+          if echo "$RUNS" | grep -q '^completed:success$'; then
+            echo "Verificação verde para $SHA."
+            exit 0
+          fi
+          echo "::error::Sem Verificação verde para $SHA. Rode a Verificação e publique depois."
+          exit 1
+
+      - name: Empacotar o commit (mesmo `git archive` do release.ps1)
+        id: pacote
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          PKG="/tmp/platform-release-$SHA.tar"
+          git -c core.autocrlf=false -c core.eol=lf archive --format=tar -o "$PKG" "${SHA}:platform"
+          LINHA="$(sha256sum "$PKG")"
+          SHA256="${LINHA%% *}"
+          SHA256="${SHA256#\\}"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          ls -lh "$PKG"
+          echo "### Pacote (produção)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- commit: \`$SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- sha256 do pacote: \`$SHA256\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Instalar a chave do deploy
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Publicar na VPS
+        run: |
+          SHA="${{ steps.pacote.outputs.sha }}"
+          SHA256="${{ steps.pacote.outputs.sha256 }}"
+          PKG="/tmp/platform-release-$SHA.tar"
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
+              "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
+              "apply-production $SHA $SHA256" < "$PKG"
+
+      - name: Conferir o que está no ar
+        run: |
+          sleep 5
+          echo "### No ar (produção)" >> "$GITHUB_STEP_SUMMARY"
+          curl -fsS "${{ vars.FOODIE_PRODUCTION_API_URL }}/health" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          curl -fsS -o /dev/null -w 'ready=%{http_code}\n' "${{ vars.FOODIE_PRODUCTION_API_URL }}/ready" | tee -a "$GITHUB_STEP_SUMMARY"
+          curl -fsS -o /dev/null -w 'site=%{http_code}\n' "${{ vars.FOODIE_PRODUCTION_SITE_URL }}" | tee -a "$GITHUB_STEP_SUMMARY"

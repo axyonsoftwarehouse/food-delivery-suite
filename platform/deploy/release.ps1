@@ -17,6 +17,10 @@
     mas os bytes do .tar (e portanto o sha256) podem variar entre gerações. O
     sha256 conferido na VPS é sempre o do arquivo efetivamente enviado.
 
+.PARAMETER Ambiente
+    staging (padrão) ou production. Na produção, pede para digitar PUBLICAR PRODUCAO, e o
+    deploy.sh na VPS só aceita o commit que já está publicado no staging.
+
 .PARAMETER Sha
     Commit a publicar. Qualquer referência do git: HEAD (padrão), main, um sha
     curto, uma tag.
@@ -45,9 +49,15 @@
 .EXAMPLE
     .\release.ps1 -Sha bf8a6a3
     Republica um commit anterior.
+
+.EXAMPLE
+    .\release.ps1 -Ambiente production -Sha bf8a6a3
+    Promove para a produção o commit que está no staging.
 #>
 [CmdletBinding()]
 param(
+    [ValidateSet('staging', 'production')]
+    [string] $Ambiente = 'staging',
     [string] $Sha = 'HEAD',
     [string] $SshHost = 'deploy@2.29.42.104',
     [string] $KeyPath = (Join-Path $env:USERPROFILE '.ssh\foodie_vps'),
@@ -73,13 +83,17 @@ if (-not $PackageOnly -and -not (Test-Path $KeyPath)) { Fail "chave SSH não enc
 Push-Location $repoRoot
 try {
     # ---------------------------------------------------------- commit
-    $resolved = & git rev-parse --short $Sha 2>$null
+    # O sha vai COMPLETO para a VPS: a produção compara com o .deployed do staging, que o
+    # botão do GitHub grava com 40 caracteres. O curto é só para mostrar e nomear o pacote.
+    $resolved = & git rev-parse --verify --quiet "$Sha^{commit}" 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $resolved) { Fail "commit '$Sha' não encontrado neste repositório." }
     $sha = "$resolved".Trim()
+    $shaCurto = $sha.Substring(0, 7)
 
     $subject = (& git log -1 --format='%s' $sha).Trim()
 
-    Step "Release $sha"
+    Step "Release $shaCurto no ambiente $Ambiente"
+    Info "commit  : $sha"
     Info "assunto : $subject"
     Info "repo    : $repoRoot"
 
@@ -106,7 +120,7 @@ e não commitado NÃO iria para a VPS. Commite antes de publicar, ou rode com
     }
 
     # ------------------------------------------------------- empacotar
-    $tarPath = Join-Path $repoRoot "platform-release-$sha.tar"
+    $tarPath = Join-Path $repoRoot "platform-release-$shaCurto.tar"
     if (Test-Path $tarPath) { Remove-Item $tarPath -Force }
 
     Step 'Empacotando (git archive <sha>:platform)'
@@ -129,8 +143,15 @@ e não commitado NÃO iria para a VPS. Commite antes de publicar, ou rode com
         Step 'Somente pacote (-PackageOnly): nada foi enviado'
         Info "para aplicar manualmente na VPS:"
         Info "  scp -i `"$KeyPath`" `"$tarPath`" ${SshHost}:$RemoteDir/"
-        Info "  ssh -i `"$KeyPath`" $SshHost `"bash $RemoteDir/deploy.sh $RemoteDir/$($item.Name) $sha $sha256`""
+        Info "  ssh -i `"$KeyPath`" $SshHost `"FOODIE_ENV=$Ambiente bash $RemoteDir/deploy.sh $RemoteDir/$($item.Name) $sha $sha256`""
         return
+    }
+
+    if ($Ambiente -eq 'production') {
+        Step 'Publicar na PRODUÇÃO'
+        Info "commit: $sha ($subject)"
+        $confirmacao = Read-Host 'Digite PUBLICAR PRODUCAO para confirmar'
+        if ($confirmacao -cne 'PUBLICAR PRODUCAO') { Fail 'confirmação não confere; nada foi enviado.' }
     }
 
     # --------------------------------------------------------- enviar
@@ -146,22 +167,29 @@ e não commitado NÃO iria para a VPS. Commite antes de publicar, ou rode com
     # -------------------------------------------------------- aplicar
     Step 'Aplicando na VPS (backup, build e verificação)'
     $remotePackage = "$RemoteDir/$($item.Name)"
-    & ssh -i $KeyPath $SshHost "bash $RemoteDir/deploy.sh '$remotePackage' '$sha' '$sha256'"
+    $arvore = if ($Ambiente -eq 'production') { '/home/deploy/foodie-production' } else { '/home/deploy/foodie-platform' }
+    & ssh -i $KeyPath $SshHost "FOODIE_ENV=$Ambiente bash $RemoteDir/deploy.sh '$remotePackage' '$sha' '$sha256'"
     $code = $LASTEXITCODE
 
     if ($code -ne 0) {
         Write-Host "`n[FALHA] o deploy retornou código $code." -ForegroundColor Red
         Write-Host 'O deploy.sh reverte o código sozinho quando a verificação falha.' -ForegroundColor Red
         Write-Host 'Confira o estado atual com:' -ForegroundColor Red
-        Write-Host "  ssh -i `"$KeyPath`" $SshHost `"cat /home/deploy/foodie-platform/.deployed`"" -ForegroundColor Red
+        Write-Host "  ssh -i `"$KeyPath`" $SshHost `"cat $arvore/.deployed`"" -ForegroundColor Red
         exit $code
     }
 
-    Step 'Concluído'
+    Step "Concluído ($Ambiente)"
     Info "release : $sha"
-    Info "web     : https://staging.2.29.42.104.sslip.io"
-    Info "api     : https://api.staging.2.29.42.104.sslip.io/ready"
-    Info "registro: /home/deploy/foodie-platform/.deployed"
+    if ($Ambiente -eq 'staging') {
+        Info "web     : https://staging.2.29.42.104.sslip.io"
+        Info "api     : https://api.staging.2.29.42.104.sslip.io/ready"
+    }
+    elseif ($env:FOODIE_PRODUCTION_URL) {
+        # O domínio de produção não fica no repositório (público).
+        Info "web     : $env:FOODIE_PRODUCTION_URL"
+    }
+    Info "registro: $arvore/.deployed"
 }
 finally {
     Pop-Location
