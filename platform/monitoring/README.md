@@ -10,11 +10,13 @@ Sobe Prometheus + Alertmanager + blackbox-exporter **na rede interna** `foodie-s
 2. Renderize o config do Alertmanager com os valores e suba a pilha a partir de `platform/monitoring`:
 
    ```
-   ./render.sh      # gera alertmanager.rendered.yml (fora do Git; 600, montado via Docker secret)
+   ./render.sh      # gera alertmanager.rendered.yml (fora do Git; 600, dono 65534, montado via Docker secret)
    docker compose up -d
    ```
 
-O `render.sh` lê `monitoring/.env` e substitui os placeholders de `alertmanager.yml` no arquivo renderizado; nenhum segredo fica versionado. Reexecute o `render.sh` sempre que alterar o `alertmanager.yml` ou o `.env`.
+O `render.sh` lê `monitoring/.env` e substitui os placeholders de `alertmanager.yml` no arquivo renderizado; nenhum segredo fica versionado. Reexecute o `render.sh` sempre que alterar o `alertmanager.yml` ou o `.env`, e depois `docker compose restart alertmanager`.
+
+O Alertmanager roda como `nobody` (uid 65534) e lê o arquivo montado como secret, então o `render.sh` entrega o arquivo a esse uid com `sudo -n chown` (o usuário `deploy` da VPS tem sudo sem senha). Sem isso o contêiner reinicia em laço com `permission denied`. O `monitoring/.env` e o `alertmanager.rendered.yml` ficam fora do `rsync --delete` do deploy.
 
 ## O que é monitorado e alertado
 
