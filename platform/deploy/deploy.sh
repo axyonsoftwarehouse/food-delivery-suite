@@ -83,6 +83,19 @@ trap 'rm -rf "$LIB_DIR"' EXIT
 tar -xf "$PACKAGE" -C "$LIB_DIR" deploy/lib-ambiente.sh deploy/conferir-env.sh deploy/docker-compose.yml 2>/dev/null || \
   die "o pacote não traz deploy/lib-ambiente.sh e deploy/conferir-env.sh; ele é anterior aos dois ambientes.
        Para publicar um commit antigo, use o deploy.sh do próprio pacote (é o que o deploy-ci.sh faz)."
+
+# Fim de linha, ANTES de carregar qualquer script do pacote: com CRLF, o bash do Linux morre no
+# `source` com "$'\r': command not found", sem dizer o porquê. No Windows, 'core.autocrlf=true' faz o
+# 'git archive' gravar CRLF (verificado em 30/09/2026). Conta os bytes CR com `tr`: o
+# `grep -c $'\r'` do Git para Windows não enxerga CR.
+for script in deploy/backup.sh deploy/lib-ambiente.sh deploy/conferir-env.sh; do
+  CR_COUNT="$(tar -xOf "$PACKAGE" "$script" 2>/dev/null | tr -cd '\r' | wc -c | tr -d ' ')"
+  if [ "$CR_COUNT" != "0" ]; then
+    die "o pacote tem CRLF nos scripts ($script: $CR_COUNT caractere(s) CR).
+     Gere o pacote com fim de linha LF:
+       git -c core.autocrlf=false -c core.eol=lf archive --format=tar -o <arquivo>.tar <sha>:platform"
+  fi
+done
 # shellcheck source=lib-ambiente.sh
 . "$LIB_DIR/deploy/lib-ambiente.sh"
 
@@ -118,17 +131,7 @@ for required in deploy/docker-compose.yml apps/api-java/pom.xml apps/web/package
   esac
 done
 
-# Fim de linha dos scripts. No Windows, 'core.autocrlf=true' faz o 'git archive'
-# gravar CRLF; em Linux 'bash backup.sh' morre com
-# "set: pipefail: invalid option name". Melhor barrar aqui do que subir scripts
-# quebrados. Verificado em 30/09/2026.
-# Conta os bytes CR com `tr`: o `grep -c $'\r'` do Git para Windows não enxerga CR.
-CR_COUNT="$(tar -xOf "$PACKAGE" deploy/backup.sh | tr -cd '\r' | wc -c | tr -d ' ')"
-if [ "$CR_COUNT" != "0" ]; then
-  die "o pacote tem CRLF nos scripts (deploy/backup.sh: $CR_COUNT caractere(s) CR).
-     Gere o pacote com fim de linha LF:
-       git -c core.autocrlf=false -c core.eol=lf archive --format=tar -o <arquivo>.tar <sha>:platform"
-fi
+# (o fim de linha dos scripts já foi conferido antes de carregar a lib do pacote)
 info "ok: scripts com fim de linha LF"
 
 # O nome do projeto decide os volumes: com o nome errado, o ambiente subiria com
