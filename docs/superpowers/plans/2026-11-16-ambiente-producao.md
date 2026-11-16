@@ -357,10 +357,10 @@ Expected: verde.
 
 ### Task 9: Preparar e publicar no staging
 
-- [ ] **Step 1:** backup — `cd /home/deploy/foodie-platform/deploy && bash backup.sh`.
-- [ ] **Step 2:** registrar o estado de antes: `docker volume ls --format '{{.Name}}' | grep foodie-staging` e `cat /home/deploy/foodie-platform/.deployed`.
-- [ ] **Step 3:** gravar o nome do projeto sem abrir o arquivo: `cd /home/deploy/foodie-platform/deploy && grep -q '^COMPOSE_PROJECT_NAME=' .env || printf '\nCOMPOSE_PROJECT_NAME=foodie-staging\n' >> .env`. Conferir com `grep -c '^COMPOSE_PROJECT_NAME=foodie-staging$' .env` → `1`.
-- [ ] **Step 4:** atualizar `/home/deploy/deploy-ci.sh` com a cópia do repositório (backup do atual antes; `md5sum` igual ao do `README.md` de `vps/`).
+- [x] **Step 1:** backup — `cd /home/deploy/foodie-platform/deploy && bash backup.sh`.
+- [x] **Step 2:** registrar o estado de antes: `docker volume ls --format '{{.Name}}' | grep foodie-staging` e `cat /home/deploy/foodie-platform/.deployed`.
+- [x] **Step 3:** gravar o nome do projeto sem abrir o arquivo: `cd /home/deploy/foodie-platform/deploy && grep -q '^COMPOSE_PROJECT_NAME=' .env || printf '\nCOMPOSE_PROJECT_NAME=foodie-staging\n' >> .env`. Conferir com `grep -c '^COMPOSE_PROJECT_NAME=foodie-staging$' .env` → `1`.
+- [x] **Step 4:** atualizar `/home/deploy/deploy-ci.sh` com a cópia do repositório (backup do atual antes; `md5sum` igual ao do `README.md` de `vps/`).
 - [ ] **Step 5:** publicar a `main` no staging pelo botão **Deploy - Foodie**.
 - [ ] **Step 6: Conferir**
   - `docker volume ls` lista os mesmos volumes do Step 2, sem `deploy_*`.
