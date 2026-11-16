@@ -262,6 +262,8 @@ tar -cf "$SNAP" -C "$TREE" \
   --exclude=./deploy/backups \
   --exclude=./deploy/.env \
   --exclude=./deploy/*.env \
+  --exclude=./monitoring/.env \
+  --exclude=./monitoring/alertmanager.rendered.yml \
   --exclude=./node_modules \
   --exclude=./.deployed \
   . 2>/dev/null
@@ -286,9 +288,13 @@ mkdir -p "$INCOMING"
 tar -xf "$PACKAGE" -C "$INCOMING"
 
 if command -v rsync >/dev/null 2>&1; then
+  # Arquivos fora do git que vivem na árvore: sem a exclusão, o --delete os apaga. O monitoring/.env
+  # (token do Telegram) e o alertmanager.rendered.yml (gerado pelo render.sh) foram perdidos assim.
   rsync -a --delete \
     --exclude='deploy/.env' \
     --exclude='deploy/*.env' \
+    --exclude='monitoring/.env' \
+    --exclude='monitoring/alertmanager.rendered.yml' \
     --exclude='deploy/backups/' \
     --exclude='.deployed' \
     "$INCOMING"/ "$TREE"/

@@ -166,6 +166,28 @@ test('produção sem nada publicado no staging é recusada', () => {
   match(r.tudo, /sem publicação registrada/);
 });
 
+// Arquivos fora do git que vivem na árvore: o `rsync --delete` não pode apagá-los e o snapshot não
+// guarda segredo. Em 16/11 o rsync apagou o monitoring/.env e o Alertmanager não voltou no reinício.
+// O caminho feliz sobe contêineres, então a conferência é sobre o texto do script.
+const FORA_DO_GIT = ['deploy/.env', 'deploy/*.env', 'monitoring/.env', 'monitoring/alertmanager.rendered.yml'];
+const script = readFileSync(join(platform, 'deploy/deploy.sh'), 'utf8').replace(/\r\n/g, '\n');
+/** O comando que começa em `inicio`, com as linhas de continuação (terminadas em `\`). */
+const bloco = (inicio) => {
+  const linhas = script.slice(script.indexOf(inicio)).split('\n');
+  notEqual(script.indexOf(inicio), -1, `comando não encontrado: ${inicio}`);
+  const fim = linhas.findIndex((l) => !l.endsWith('\\'));
+  return linhas.slice(0, fim + 1).join('\n');
+};
+
+for (const caminho of FORA_DO_GIT) {
+  test(`o rsync do deploy preserva ${caminho}`, () => {
+    match(bloco('rsync -a --delete'), new RegExp(`--exclude='${caminho.replace(/[.*]/g, '\\$&')}'`));
+  });
+  test(`o snapshot do código não guarda ${caminho}`, () => {
+    match(bloco('tar -cf "$SNAP"'), new RegExp(`--exclude=\\./${caminho.replace(/[.*]/g, '\\$&')}`));
+  });
+}
+
 test('ambiente já publicado sem o volume do banco é recusado', { skip: !temDocker && 'docker indisponível' }, () => {
   const c = cenario({ ambiente: 'production', env: producaoValida(), deployedNaArvore: true });
   const r = deploy(c);
