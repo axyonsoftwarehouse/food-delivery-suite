@@ -73,8 +73,8 @@ existir, os dois só servem para isso no futuro.
 mesmo de 14/11: ruptura com cerca de 700 clientes, teto de ~306 chamadas/s na API, 3,57% de erros (quase
 todos tempo esgotado ao abrir a conexão TCP), carga de 30–33 em 2 núcleos e nada caiu; o alerta
 `FoodieCapacityLimit` foi para `pending` às 04:32 e para `firing` às 04:42. Conclusão: os tempos esgotados
-vêm da VPS saturada, não da internet de casa. Os dados de carga foram apagados depois. **Esta rodada ainda
-não está escrita em `RESULTADO_TESTE_CARGA_2026-11-11.md`** `(a fazer)`.
+vêm da VPS saturada, não da internet de casa. Os dados de carga foram apagados depois. Detalhes e linha
+do tempo em `RESULTADO_TESTE_CARGA_2026-11-11.md`, "Nível 3, segunda rodada".
 
 **Decisões do Werner (16/11):**
 - a produção fica **na VPS atual** (B2, 07/11) e o **staging continua ligado**, com limites de memória e
