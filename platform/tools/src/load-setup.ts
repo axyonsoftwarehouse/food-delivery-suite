@@ -9,6 +9,9 @@ import 'dotenv/config';
 import { db } from './db.js';
 import { hashPassword } from './password.js';
 import { CARGA_DOMAIN, CARGA_ZONE_SLUG, CARGA_POSTAL_START, CARGA_POSTAL_END, storeSlug } from './load-common.js';
+import { recusarEmProducao } from './ambiente.js';
+
+recusarEmProducao('load:setup');
 
 const password = process.env.LOAD_PASSWORD || process.env.DEMO_PASSWORD;
 if (!password || password.length < 12) throw new Error('Defina DEMO_PASSWORD (ou LOAD_PASSWORD) com pelo menos 12 caracteres.');

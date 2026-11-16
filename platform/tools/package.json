@@ -10,7 +10,9 @@
     "seed": "tsx src/seed.ts",
     "smoke": "tsx src/smoke.ts",
     "load:setup": "tsx src/load-setup.ts",
-    "load:clean": "tsx src/load-clean.ts"
+    "load:clean": "tsx src/load-clean.ts",
+    "implantacao:inicial": "tsx src/implantacao-inicial.ts",
+    "test": "tsx --test src/ambiente.test.ts"
   },
   "dependencies": {
     "dotenv": "18.0.10",

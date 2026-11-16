@@ -17,6 +17,7 @@
     "smoke:exceptions": "node tests/order-exceptions-smoke.mjs",
     "smoke:auth": "node tests/auth-smoke.mjs",
     "smoke:coverage": "node tests/coverage-smoke.mjs",
+    "smoke:implantacao": "node tests/implantacao-smoke.mjs",
     "smoke:subscription": "node tests/subscription-smoke.mjs"
   }
 }
