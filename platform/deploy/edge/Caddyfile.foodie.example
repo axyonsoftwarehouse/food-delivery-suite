@@ -1,0 +1,86 @@
+# Blocos do Foodie no Caddy de BORDA (/home/deploy/edge/Caddyfile na VPS).
+#
+# Isto é REFERÊNCIA, não é aplicado pelo deploy. O Caddy de borda atende a porta 443 para todos os
+# projetos da VPS (Foodie, StoryVerse, Umami), fica fora deste repositório e quem altera é a
+# operação, à mão, com backup do arquivo e janela combinada com o StoryVerse
+# (docs/RUNBOOK_VPS.md, "Dois ambientes").
+#
+# Para a produção, além destes blocos, o docker-compose.yml de borda precisa da rede externa
+# `foodie-production_default` — que só existe depois do primeiro deploy da produção.
+#
+# Troque DOMINIO_DE_PRODUCAO pelo domínio real (o repositório é público: o domínio não fica aqui).
+# Antes de aplicar: caddy validate (comando no runbook).
+
+# ── Cabeçalhos e bloqueios comuns (mesma receita do platform/deploy/Caddyfile) ──
+(foodie_seguranca) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), microphone=(self), geolocation=(self)"
+        Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+        -Server
+    }
+}
+
+# Site e painéis: /backend/* vai direto para a API (teste de carga de 11/11/2026: o Next
+# repassando as chamadas era o gargalo). Actuator e documentação da API não são públicos.
+(foodie_site) {
+    route {
+        @interno_backend path /backend/actuator* /backend/v3/api-docs* /backend/swagger-ui*
+        respond @interno_backend 404
+        handle_path /backend/* {
+            reverse_proxy {args[0]}-api-1:4001 {
+                # Descarta X-Forwarded-For vindo do cliente; os limites por IP leem este cabeçalho.
+                header_up X-Forwarded-For {http.request.remote.host}
+            }
+        }
+        reverse_proxy {args[0]}-web-1:3001 {
+            header_up X-Forwarded-For {http.request.remote.host}
+        }
+    }
+}
+
+(foodie_api) {
+    @interno path /actuator* /v3/api-docs* /swagger-ui*
+    respond @interno 404
+    reverse_proxy {args[0]}-api-1:4001 {
+        header_up X-Forwarded-For {http.request.remote.host}
+    }
+}
+
+# ── Foodie (staging) — mesmas rotas que estão na VPS em 16/11/2026 (lá, sem os snippets) ──
+staging.2.29.42.104.sslip.io,
+cliente.staging.2.29.42.104.sslip.io,
+restaurante.staging.2.29.42.104.sslip.io,
+entregador.staging.2.29.42.104.sslip.io,
+admin.staging.2.29.42.104.sslip.io {
+    import foodie_seguranca
+    encode zstd gzip
+    import foodie_site foodie-staging
+}
+
+api.staging.2.29.42.104.sslip.io {
+    import foodie_seguranca
+    encode zstd gzip
+    import foodie_api foodie-staging
+}
+
+# ── Foodie (produção) ──────────────────────────────────────────────────
+# `www.` (a confirmar — B1 do checklist): se houver, acrescente à primeira lista.
+DOMINIO_DE_PRODUCAO,
+cliente.DOMINIO_DE_PRODUCAO,
+restaurante.DOMINIO_DE_PRODUCAO,
+entregador.DOMINIO_DE_PRODUCAO,
+admin.DOMINIO_DE_PRODUCAO {
+    import foodie_seguranca
+    encode zstd gzip
+    import foodie_site foodie-production
+}
+
+api.DOMINIO_DE_PRODUCAO {
+    import foodie_seguranca
+    encode zstd gzip
+    import foodie_api foodie-production
+}

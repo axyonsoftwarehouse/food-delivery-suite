@@ -1,5 +1,9 @@
 # Teste de carga (k6)
 
+> **Depois da virada para a produção (16/11/2026), o teste de carga não roda mais no staging:** os dois
+> ambientes dividem os mesmos 2 núcleos da VPS, e a carga derrubaria a produção junto. O `load:setup`
+> recusa rodar quando o ambiente é `production`.
+
 Como rodar o teste descrito em `docs/PLANO_TESTE_CARGA.md`. Os resultados de cada rodada vão em
 `docs/RESULTADO_TESTE_CARGA_<data>.md`.
 
