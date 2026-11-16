@@ -516,6 +516,8 @@ com a amostragem por SSH e com os erros por minuto do k6:
   esgotados na conexão tenha vindo dessa rede (banda ou tabela NAT do roteador), e não da VPS. Repetir
   um degrau a partir de outra rede tiraria a dúvida. Isso não muda o teto:
   a API parou de crescer enquanto a carga da VPS já estava em 30.
+  **Resolvido em 16/11:** a rodada com a rede de casa livre (seção seguinte) deu o mesmo quadro; os
+  tempos esgotados vêm da VPS saturada, não da rede.
 
 **Conclusão:** o lançamento com 2 núcleos (decisão de 13/11) tem ~4× de folga até a ruptura, e o alerta
 funcionou no teste. Com 4 núcleos, o teto deve subir na proporção da CPU `(a confirmar)`, porque a fila
@@ -523,3 +525,74 @@ está na CPU, não no banco nem na memória. Os dados de carga foram apagados
 em 14/11, às 14:54 UTC, depois do backup `foodie_platform-20261114-145359.sql`: 20 lojas, 630 contas,
 12.171 pedidos e a zona de carga. Uma nova simulação do `load:clean` encontrou 0 de tudo. Uma rodada nova
 precisa refazer o `load:setup`.
+
+## Nível 3, segunda rodada — rede de casa livre (`62f3d59`, schema `081`, 16/11, 04:20–04:51 UTC): mesmo teto, a rede não era a causa
+
+Repetição pedida pelo Werner para tirar a ressalva da rodada de 14/11: a mesma rampa (150 clientes a mais a
+cada 3 min, até 1.500 clientes e 2.277 usuários virtuais), agora com a internet de casa **praticamente sem
+outro uso**. Rodou de madrugada; não há registro de que a janela tenha sido combinada com o StoryVerse,
+que não teve tráfego próprio (`storyverse-api` ficou com no máximo 1,68% de CPU).
+
+Antes: `.deployed` em `62f3d59` (deploy de 15/11), backup `foodie_platform-20261116-041443.sql`, disco em
+65%, carga 0,33, `foodie-cleanup` inativo. `load:setup` refeito (20 lojas, ids 54–73, zona de carga #8,
+500 clientes, 90 entregadores, 500 pedidos de histórico por loja). O nível 0 passou: 16 de 16 checagens,
+218 chamadas, 0 erros. O k6 **não abortou** (erros de 3,57%, abaixo do corte de 5%); o código de saída foi
+99 porque as metas de latência e de checagens furaram.
+
+| Medida (rodada inteira) | 14/11 (rede dividida) | 16/11 (rede livre) |
+| --- | --- | --- |
+| Chamadas | 502.753 (274/s) | 539.646 (294/s) |
+| Recebido pelo gerador | 10 GB (5,6 MB/s) | 9,4 GB (5,1 MB/s) |
+| p95 leituras / páginas / fechamento | 2,81 s / 2,40 s / 2,99 s | 1,92 s / 2,73 s / 2,04 s |
+| Erros HTTP | 3,88% (19.531) | 3,57% (19.317) |
+| Tempo esgotado ao abrir a conexão TCP (`dial tcp …:443`) | quase todos os erros | 17.642 |
+| Checagens | 74,45% | 75,57% |
+| Login | 8.752 falhas | 686 passaram e 8.645 falharam |
+| Página inicial e da loja | — | 93% das vezes (11.373 de 12.219 e 11.373 de 12.189) |
+| Pedidos criados | 413 | 456 |
+| Teto da API | 250–290 chamadas/s | ~306 chamadas/s |
+| Carga da VPS no platô | 30–35 | 30–33 |
+
+**Linha do tempo.** Mesma montagem de 14/11: Prometheus da API (chamadas/s e p95 a cada 3 min), amostragem
+por SSH e erros de conexão por minuto no log do k6. Os clientes são o alvo da rampa naquele minuto.
+
+| UTC | Clientes (alvo) | Carga da VPS (1 min) | Chamadas/s na API | p95 dentro da API | Erros de conexão por minuto |
+| --- | --- | --- | --- | --- | --- |
+| 04:24 | ~200 | 3,6–5,9 | 73 | 33 ms | 0 |
+| 04:27 | ~350 | 7,5 | 154 | 46 ms | 0 |
+| 04:30 | ~500 | 21 | 226 | 104 ms | 0 |
+| 04:33 | ~650 | 31 | 259 | 238 ms | 0; alerta em `pending` (04:32) |
+| 04:34–04:36 | ~700–800 | 31–32 | 255 | 263 ms | **ruptura:** 86 → 207 → 324 |
+| 04:39 | ~950 | 29–32 | 279 | 192 ms | 698 |
+| 04:42 | ~1.100 | 32,5 | 306 | 527 ms | 1.056; **alerta `firing`** |
+| 04:45 | ~1.250 | 30–31 | 308 | 423 ms | 1.418 |
+| 04:48 | ~1.400 | 32 | 306 | 785 ms | 1.811 (1.917 às 04:49) |
+| 04:51 | descendo | 9 poucos minutos depois | 271 | 347 ms | recuperação sozinha |
+
+**Leitura:**
+
+- **A rede de casa não era a causa.** Com a rede livre, os tempos esgotados começaram no mesmo ponto
+  (~700 clientes, contra ~650 em 14/11) e cresceram em linha reta com a carga, de 86 para 1.917 por minuto,
+  enquanto o gerador recebia menos dados que em 14/11. É a VPS saturada que deixa de aceitar conexões novas.
+- **O teto é o mesmo.** A API estabilizou em ~255 chamadas/s com a carga já em 31 e fechou em ~306/s, perto
+  dos 291/s de 14/11. O código mudou entre as rodadas (`bee3db1` → `62f3d59`), então a pequena diferença no
+  teto e nas leituras não pode ser atribuída a uma causa só.
+- **Quem já estava dentro continuou; quem tentava entrar ficou de fora.** Depois da ruptura, o login quase
+  sempre falhou (só 686 de 9.331 passaram), enquanto a página inicial e a da loja abriram em 93% das vezes.
+  Houve cerca de 200 respostas 503 no log do k6, coerentes com a proteção do `ScryptGate` no login `(a
+  confirmar se todas são dela)`.
+- **Nada caiu.** Nenhum contêiner reiniciou, a API ficou `healthy`, com pico de 1,15 GiB de memória e uso de
+  CPU de até 149%; zero `ERROR`, `OutOfMemoryError` ou `CannotGetJdbcConnectionException` no log da API.
+- **Alerta:** `FoodieCapacityLimit` em `pending` às 04:32 e `firing` às 04:42, de novo ~20 min depois do
+  início da subida. A chegada no Telegram não foi conferida nesta rodada.
+
+**Conclusão:** a rodada confirma a de 14/11 sem a ressalva da rede. O teto da VPS de 2 núcleos fica em
+~250–300 chamadas/s na API, alcançado com cerca de 4,5× o movimento esperado, e acima dele o excedente vira
+conexão recusada, não queda. A decisão de 13/11 (lançar com 2 núcleos, com o alerta como gatilho para 4)
+continua de pé. Os dados de carga foram apagados em 16/11, depois do backup
+`foodie_platform-20261116-045350.sql`: 20 lojas, 630 contas, 10.457 pedidos e a zona de carga; a nova
+simulação do `load:clean` encontrou 0 de tudo.
+
+> **Depois de 16/11** o staging divide a VPS com a produção (`RUNBOOK_VPS.md` §13), e teste de carga não
+> roda mais nele. Uma rodada nova, se for preciso (por exemplo, depois de passar a 4 núcleos), exige
+> outra janela e outro alvo `(a decidir)`.
