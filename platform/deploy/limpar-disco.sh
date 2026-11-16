@@ -9,10 +9,10 @@
 #   bash limpar-disco.sh --ensaio     só mostra o que faria
 #
 # Variáveis:
-#   FOODIE_MANTER_ROLLBACK   quantos releases guardar (padrão 2: atual e anterior)
+#   FOODIE_MANTER_ROLLBACK   quantos releases guardar por ambiente (padrão 2: atual e anterior)
 #
 # O que faz, em ordem:
-#   1. remove as tags pre-<sha> dos releases mais antigos (guarda as N últimas)
+#   1. remove as tags pre-<sha> dos releases mais antigos (guarda as N últimas de cada ambiente)
 #   2. remove as camadas sem tag
 #   3. remove o cache de build (é o que mais ocupa e não é usado em runtime)
 #
@@ -43,25 +43,35 @@ say "Disco antes: $(uso_disco)"
 
 # ------------------------------------------------- 1. tags pre-<sha> antigas
 # A tag pre-<sha> guarda as imagens do release ANTERIOR ao sha — é o que o
-# deploy.sh cria antes de aplicar. Ordenamos pela data de criação da imagem,
-# da mais nova para a mais antiga, e guardamos as MANTER primeiras.
-say "Tags pre-* (guardando os $MANTER releases mais recentes)"
-TAGS="$(docker images --format '{{.CreatedAt}}|{{.Repository}}:{{.Tag}}' | grep ':pre-' | sort -r || true)"
-if [ -z "$TAGS" ]; then
-  info "nenhuma tag pre-* no disco"
-else
+# deploy.sh cria antes de aplicar. A conta é feita POR PROJETO (staging e
+# produção): a produção é publicada com menos frequência, e numa conta única
+# o rollback dela seria sempre o mais velho e o primeiro a sair.
+listar_imagens() {
+  if [ -n "${FOODIE_LISTA_IMAGENS:-}" ]; then
+    cat "$FOODIE_LISTA_IMAGENS"   # só nos testes: evita depender do Docker
+  else
+    docker images --format '{{.CreatedAt}}|{{.Repository}}:{{.Tag}}'
+  fi
+}
+
+say "Tags pre-* (guardando os $MANTER releases mais recentes de cada ambiente)"
+IMAGENS="$(listar_imagens)"
+for projeto in foodie-staging foodie-production; do
+  # Da mais nova para a mais antiga.
+  TAGS="$(printf '%s\n' "$IMAGENS" | grep -E "\|${projeto}-(api|web|migrate|seed):pre-" | sort -r || true)"
+  if [ -z "$TAGS" ]; then
+    info "$projeto: nenhuma tag pre-* no disco"
+    continue
+  fi
   SHAS="$(printf '%s\n' "$TAGS" | awk -F'|' '{print $2}' | awk -F: '{print $2}' | awk '!v[$0]++')"
-  info "$(printf '%s\n' "$SHAS" | grep -c .) releases com tag"
-  info "guardando: $(printf '%s' "$(printf '%s\n' "$SHAS" | head -n "$MANTER")" | tr '\n' ' ')"
+  info "$projeto: $(printf '%s\n' "$SHAS" | grep -c .) releases com tag"
+  info "$projeto: guardando $(printf '%s\n' "$SHAS" | head -n "$MANTER" | tr '\n' ' ')"
   for sha in $(printf '%s\n' "$SHAS" | tail -n +$((MANTER + 1))); do
-    for svc in api web migrate seed; do
-      img="foodie-staging-$svc:$sha"
-      if docker image inspect "$img" >/dev/null 2>&1; then
-        roda docker image rm "$img"
-      fi
+    for img in $(printf '%s\n' "$TAGS" | awk -F'|' '{print $2}' | grep -E ":${sha}\$" | sort -u); do
+      roda docker image rm "$img"
     done
   done
-fi
+done
 
 # ------------------------------------------------- 2. camadas sem tag
 say "Camadas sem tag"

@@ -32,7 +32,13 @@ cd C:\Users\werne\WebstormProjects\food-delivery-suite\platform
 .\deploy\release.ps1                 # publica o commit HEAD
 .\deploy\release.ps1 -PackageOnly    # só gera o .tar e mostra os hashes
 .\deploy\release.ps1 -Sha bf8a6a3    # republica um commit anterior
+.\deploy\release.ps1 -Ambiente production -Sha bf8a6a3   # promove para a produção o commit do staging
 ```
+
+> **Staging e produção** usam o mesmo `docker-compose.yml`, cada um com árvore, `.env`, banco e
+> volumes próprios; o nome do projeto vem de `COMPOSE_PROJECT_NAME` no `.env`. A produção só recebe o
+> commit que já está no staging, e o `deploy.sh` confere o `.env` antes de publicar
+> (`conferir-env.sh`). Operação completa: `docs/RUNBOOK_VPS.md`, seção 13.
 
 **Ou sem abrir terminal:** dois cliques em `platform/deploy/publicar.bat` (atalho que chama o `release.ps1` e mantém a janela aberta no fim, mostrando o código de saída). Para o ensaio, `platform/deploy/publicar-ensaio.bat` — gera o pacote e confere os hashes sem tocar na VPS.
 

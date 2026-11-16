@@ -20,7 +20,10 @@ on_error() {
 }
 trap on_error ERR
 
-[ -n "$PROJECT" ] || die "uso: $0 <foodie|storyverse>"
+case "$PROJECT" in
+  foodie|foodie-production|storyverse) ;;
+  *) die "uso: $0 <foodie|foodie-production|storyverse>" ;;
+esac
 [ -f "$CONFIG" ] || die "falta $CONFIG"
 set -a
 . "$CONFIG"
@@ -53,7 +56,9 @@ flock -n 9 || { echo "backup $PROJECT ja em andamento"; exit 0; }
 ping_hc /start
 
 case "$PROJECT" in
-  foodie)
+  # O staging e a produção do Foodie têm o mesmo formato; o que muda (árvore, volume dos uploads,
+  # prefixo no R2) vem do <projeto>.env.
+  foodie|foodie-production)
     PROJECT_DIR="${PROJECT_DIR:-/home/deploy/foodie-platform}"
     COMPOSE_DIR="$PROJECT_DIR/deploy"
     ( cd "$COMPOSE_DIR" && bash backup.sh )

@@ -25,42 +25,58 @@ fi
 install -d -m 700 -o deploy -g deploy "$BASE"
 install -m 750 -o deploy -g deploy "$SRC/run-backup.sh" "$BASE/run-backup.sh"
 
-for p in foodie storyverse; do
+# foodie-production usa o rclone e a chave age do foodie (mesmo bucket, prefixo próprio).
+PROJETOS="foodie foodie-production storyverse"
+
+for p in $PROJETOS; do
   if [ ! -f "$BASE/$p.env" ]; then
     install -m 600 -o deploy -g deploy "$SRC/$p.env.example" "$BASE/$p.env"
     echo "criado $BASE/$p.env"
   fi
+  [ -f "$SRC/$p-rclone.conf.example" ] || continue
   if [ ! -f "$BASE/$p-rclone.conf" ]; then
     install -m 600 -o deploy -g deploy "$SRC/$p-rclone.conf.example" "$BASE/$p-rclone.conf"
     echo "criado $BASE/$p-rclone.conf"
   fi
 done
 
-for p in foodie storyverse; do
+for p in $PROJETOS; do
   install -m 644 "$SRC/$p-backup-r2.service" "/etc/systemd/system/$p-backup-r2.service"
   install -m 644 "$SRC/$p-backup-r2.timer" "/etc/systemd/system/$p-backup-r2.timer"
 done
 
 systemctl daemon-reload
 
-ready=1
-for p in foodie storyverse; do
-  grep -q 'PREENCHER' "$BASE/$p-rclone.conf" 2>/dev/null && ready=0
-  [ -f "$BASE/$p-age.pub" ] || ready=0
-done
+# Cada timer só é ligado quando o SEU projeto está pronto: arquivos do rclone e da chave age
+# preenchidos e a árvore do projeto existente. Um projeto que ainda não existe (a produção, antes
+# da virada) não desliga o backup dos outros.
+pronto() {
+  (
+    set -a
+    # shellcheck disable=SC1090
+    . "$BASE/$1.env"
+    set +a
+    [ -f "${RCLONE_CONFIG:-}" ] && ! grep -q 'PREENCHER' "$RCLONE_CONFIG" || exit 1
+    [ -f "${AGE_PUBLIC_KEY_FILE:-}" ] || exit 1
+    [ -z "${PROJECT_DIR:-}" ] || [ -d "$PROJECT_DIR" ] || exit 1
+  )
+}
 
-if [ "$ready" = "1" ]; then
-  systemctl enable --now foodie-backup-r2.timer storyverse-backup-r2.timer
-  echo "timers habilitados e iniciados"
-else
-  systemctl disable foodie-backup-r2.timer storyverse-backup-r2.timer >/dev/null 2>&1 || true
-  echo "timers instalados, mas nao iniciados: preencha os arquivos em $BASE e rode novamente"
-fi
+for p in $PROJETOS; do
+  if pronto "$p"; then
+    systemctl enable --now "$p-backup-r2.timer"
+    echo "$p: timer habilitado e iniciado"
+  else
+    systemctl disable --now "$p-backup-r2.timer" >/dev/null 2>&1 || true
+    echo "$p: timer instalado, mas não iniciado: preencha $BASE/$p.env (rclone, chave age, PROJECT_DIR) e rode de novo"
+  fi
+done
 
 echo
 echo "Arquivos:"
 echo "  $BASE/run-backup.sh"
 echo "  $BASE/foodie.env"
+echo "  $BASE/foodie-production.env"
 echo "  $BASE/storyverse.env"
 echo "  $BASE/foodie-rclone.conf"
 echo "  $BASE/storyverse-rclone.conf"

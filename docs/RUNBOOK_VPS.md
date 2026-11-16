@@ -131,6 +131,9 @@ Referência:
 
 ## 4. Atualizar a plataforma
 
+> **Dois ambientes (staging e produção):** ver a seção 13. Sem indicar o ambiente, tudo abaixo
+> publica no staging.
+
 > **O código na VPS não é um clone do Git.** Não há `.git` em lugar nenhum de
 > `/home/deploy/foodie-platform`. Atualizar = enviar um pacote novo. Por isso o
 > `update.sh` **não** faz `git pull` (ver seção 10).
@@ -732,9 +735,12 @@ docker compose up -d --build
 
 Dois pontos que tornam isso seguro e que você deve conferir:
 
-1. `platform/deploy/docker-compose.yml` começa com `name: foodie-staging` — o
-   nome do projeto é **fixo**, então volumes e contêineres são reaproveitados
-   mesmo mudando a pasta. Sem isso, você ganharia um banco novo e vazio.
+1. O nome do projeto Compose vem de `COMPOSE_PROJECT_NAME` no `deploy/.env` (desde
+   16/11/2026 o `docker-compose.yml` não fixa mais `name:`; ver a seção 13). É ele
+   que faz volumes e contêineres serem reaproveitados mesmo mudando a pasta. Antes
+   do `docker compose up`, confira no `.env` copiado — tem de dar `1`:
+   `grep -c '^COMPOSE_PROJECT_NAME=foodie-staging$' .env`. Sem isso, você ganharia
+   um banco novo e vazio.
 2. O stack de monitoramento tem o mesmo cuidado? Confira antes de mover:
    `head -3 /home/deploy/foodie-platform/monitoring/docker-compose.yml`
 
@@ -801,6 +807,102 @@ padrão com o domínio base, os quatro subdomínios de papel e a API a partir de
   `/webhooks/*`: esses não enviam cookie de sessão.
 - **Sintoma de origem faltando:** escrita com cookie responde **403** e o log mostra
   `Origem recusada em <método> <rota>: <origem>`.
+
+## 13. Dois ambientes: staging e produção (16/11/2026)
+
+> **Estado:** preparado no repositório (PR `ops/ambiente-producao`). A produção **ainda não existe** na
+> VPS. Desenho: `docs/superpowers/specs/2026-11-16-ambiente-producao-design.md`; roteiro completo,
+> passo a passo: `docs/superpowers/plans/2026-11-16-ambiente-producao.md` (Partes B a D).
+
+Os dois ambientes usam o **mesmo** `docker-compose.yml`, como projetos Compose separados. Só dividem a
+máquina:
+
+| | Staging | Produção |
+| --- | --- | --- |
+| Projeto Compose | `foodie-staging` | `foodie-production` |
+| Árvore | `/home/deploy/foodie-platform` | `/home/deploy/foodie-production` |
+| Releases | `/home/deploy/releases` | `/home/deploy/releases-production` |
+| `.env` | `deploy/.env` da árvore | `deploy/.env` da árvore (modelo: `deploy/.env.production.example`) |
+| Memória (api / db / web) | 640 MB / 256 MB / 256 MB | 1.280 MB / 512 MB / 384 MB |
+| CPU | 1 núcleo por serviço | sem limite |
+| Backup no R2 | `foodie-backup-r2.timer`, 06:00 UTC, prefixo `foodie/` | `foodie-production-backup-r2.timer`, 05:30 UTC, prefixo `foodie-production/` |
+
+**O nome do projeto vem do `.env`** (`COMPOSE_PROJECT_NAME`), não do `docker-compose.yml`. Sem ele, o
+Compose usaria o nome da pasta (`deploy`) e subiria um banco **vazio**. O `deploy.sh` para antes de
+alterar qualquer coisa se a variável faltar ou estiver errada. Antes do primeiro deploy com o Compose
+novo, o staging precisa dela:
+
+```bash
+cd /home/deploy/foodie-platform/deploy && grep -q '^COMPOSE_PROJECT_NAME=' .env || printf '\nCOMPOSE_PROJECT_NAME=foodie-staging\n' >> .env
+grep -c '^COMPOSE_PROJECT_NAME=foodie-staging$' .env   # tem de dar 1
+```
+
+### Publicar
+
+- **Staging:** como sempre (botão **Deploy - Foodie** ou `.\deploy\release.ps1`).
+- **Produção:** botão **Deploy - Foodie (produção)** (confirmação `PUBLICAR PRODUCAO`) ou, do PC,
+  `.\deploy\release.ps1 -Ambiente production -Sha <commit>`.
+- **Regra de promoção:** a produção só aceita o commit que está no `.deployed` do staging. Para uma
+  emergência, `FOODIE_PROMOCAO_FORCADA=1` (fica registrado no log do deploy).
+- **Uma publicação por vez na VPS**, de qualquer ambiente (trava em `/home/deploy/.deploy.lock`): os
+  builds disputam os mesmos 2 núcleos. Publique na produção fora do horário de pico.
+- **Teste de carga** não roda mais no staging depois da virada: dividiria a CPU com a produção.
+
+### Antes de publicar: o `.env` é conferido
+
+O `deploy.sh` roda `deploy/conferir-env.sh <ambiente>` antes de alterar qualquer coisa. Na produção ele
+para se, por exemplo, o domínio for de staging, `PAYMENTS_REQUIRE_TEST_ACCOUNTS` não for `false`, o
+e-mail estiver em modo `log`, faltar um segredo do Mercado Pago ou **algum segredo for igual ao do
+staging**. Só os nomes das variáveis aparecem na saída, nunca os valores. Para conferir sem publicar:
+
+```bash
+cd /home/deploy/foodie-platform/deploy && bash conferir-env.sh production /home/deploy/foodie-production/deploy/.env /home/deploy/foodie-platform/deploy/.env
+```
+
+### Implantação inicial da produção (uma vez)
+
+O `seed` e o `load:setup` **recusam** rodar na produção. O que a produção precisa antes da primeira
+loja (administrador e planos de assinatura) vem da `implantacao:inicial`. Dentro da sessão SSH na VPS:
+
+```bash
+cd /home/deploy/foodie-production/deploy
+read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD   # digite a senha: não aparece na tela nem fica no histórico
+export ADMIN_NAME='<nome>' ADMIN_EMAIL='<e-mail>'
+export PLANOS_JSON='[{"nome":"<plano>","precoCentavos":<centavos>,"dias":30}]'
+docker compose --profile tools run --rm --build -e ADMIN_NAME -e ADMIN_EMAIL -e ADMIN_PASSWORD -e PLANOS_JSON seed pnpm --filter @foodie/tools implantacao:inicial
+unset ADMIN_PASSWORD
+```
+
+Pode rodar de novo: um administrador que já existe não tem a senha trocada, e os planos são
+atualizados pelo nome. Nomes e preços dos planos de produção `(a confirmar com o Werner)`.
+
+### Ligar o acesso público (janela com o StoryVerse)
+
+A porta 443 é do Caddy de borda (`/home/deploy/edge`), dividido com o StoryVerse. Referência dos blocos
+do Foodie: `platform/deploy/edge/Caddyfile.foodie.example`. A rede `foodie-production_default` só
+existe depois do primeiro deploy da produção, então isto vem **depois** dele:
+
+```bash
+cd /home/deploy/edge
+cp Caddyfile Caddyfile.bak-$(date +%Y%m%d-%H%M) && cp docker-compose.yml docker-compose.yml.bak-$(date +%Y%m%d-%H%M)
+# editar: blocos da produção no Caddyfile; rede externa foodie-production_default no docker-compose.yml
+docker run --rm -v /home/deploy/edge/Caddyfile:/etc/caddy/Caddyfile:ro caddy:2 caddy validate --config /etc/caddy/Caddyfile
+docker compose up -d     # recria o Caddy: alguns segundos sem 443 para todos os projetos
+```
+
+Depois, conferir nesta ordem: staging do Foodie, StoryVerse (site, API e QA), Umami e, por fim, a
+produção. Se algo que funcionava não voltar em 2 minutos, restaurar os dois `.bak` e subir de novo.
+
+### Diagnóstico com dois ambientes
+
+Todo comando `docker compose` roda **dentro da pasta `deploy/` do ambiente**: é o `.env` dela que
+escolhe o projeto. `backup.sh` e `restore.sh` seguem a mesma regra.
+
+```bash
+docker ps --format 'table {{.Names}}\t{{.Status}}' | grep foodie-
+docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' | grep foodie-
+cat /home/deploy/foodie-platform/.deployed /home/deploy/foodie-production/.deployed
+```
 
 ## 12. Onde pedir ajuda
 

@@ -60,6 +60,8 @@ run('Testes do app da cozinha (jest)', 'pnpm', ['--filter', '@foodie/kitchen', '
 run('Tipos do cliente de API (tsc)', 'pnpm', ['--filter', '@foodie/api-client', 'typecheck'], { cwd: root });
 run('Dockerfiles (COPY aponta para arquivo existente)', 'node', ['scripts/check-dockerfiles.mjs'], { cwd: root });
 run('Compose (variáveis da API declaradas)', 'node', ['scripts/check-compose-env.mjs'], { cwd: root });
+run('Scripts de deploy (node --test)', 'node', ['--test', 'tests/deploy/*.test.mjs'], { cwd: root });
+run('Testes das ferramentas (tsx --test)', 'pnpm', ['--filter', '@foodie/tools', 'test'], { cwd: root });
 
 // --- Verificação integrada com banco efêmero (opt-in) ---
 if (integration) {
@@ -98,6 +100,12 @@ if (integration) {
       spawnSync('docker', ['logs', '--tail', '30', 'foodie-test-test-api-1'],
         { cwd: root, stdio: 'inherit', shell: true, env: composeEnv });
     } else {
+      // Implantação inicial da produção: roda antes do seed (banco limpo) e duas vezes (não pode duplicar).
+      const implantacaoEnv = { DB_HOST: '127.0.0.1', DB_PORT: '3308', DB_USER: 'foodie', DB_PASSWORD: dbPassword, DB_NAME: 'foodie_platform',
+        ADMIN_NAME: 'Administrador Verificação', ADMIN_EMAIL: 'admin@verificacao.test', ADMIN_PASSWORD: demoPassword,
+        PLANOS_JSON: '[{"nome":"Verificação","precoCentavos":1000,"dias":30}]' };
+      run('Implantação inicial (1ª vez)', 'pnpm', ['--filter', '@foodie/tools', 'implantacao:inicial'], { env: implantacaoEnv });
+      run('Implantação inicial (2ª vez, sem duplicar)', 'pnpm', ['--filter', '@foodie/tools', 'implantacao:inicial'], { env: implantacaoEnv });
       run('Seed demonstrativo no banco de teste', 'pnpm', ['--filter', '@foodie/tools', 'seed'], {
         env: { DB_HOST: '127.0.0.1', DB_PORT: '3308', DB_USER: 'foodie', DB_PASSWORD: dbPassword, DB_NAME: 'foodie_platform', DEMO_PASSWORD: demoPassword },
       });
@@ -115,6 +123,9 @@ if (integration) {
       run('Smoke: contas', 'pnpm', ['smoke:auth'], { env: smokeEnv });
       run('Smoke: cobertura por CEP', 'pnpm', ['smoke:coverage'], { env: smokeEnv });
       run('Smoke: assinatura (contrato da tela)', 'pnpm', ['smoke:subscription'], { env: smokeEnv });
+      run('Smoke: implantação inicial (login do administrador)', 'pnpm', ['smoke:implantacao'], {
+        env: { ...smokeEnv, ADMIN_EMAIL: 'admin@verificacao.test', ADMIN_PASSWORD: demoPassword },
+      });
     }
   } finally {
     run('Derrubando banco de teste efêmero', 'docker', ['compose', '-f', 'docker-compose.test.yml', 'down', '-v'], { env: composeEnv });

@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import { db } from './db.js';
 import { hashPassword } from './password.js';
+import { recusarEmProducao } from './ambiente.js';
+
+recusarEmProducao('seed');
 
 const password = process.env.DEMO_PASSWORD;
 if (!password || password.length < 12 || password === 'change-this-before-seeding') {

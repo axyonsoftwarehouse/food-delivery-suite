@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Foodie production R2 backup
+
+[Timer]
+# Antes do staging (06:00) e do Storyverse (06:33), para não disputarem disco e banda.
+OnCalendar=*-*-* 05:30:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target
