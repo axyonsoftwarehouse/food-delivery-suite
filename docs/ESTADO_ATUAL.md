@@ -1,8 +1,11 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: **03/11/2026** (retrato do §0, §4, §5 e §6: PRs #81 a #97
-mescladas; `f4dd4c8` publicado no staging, schema `077`; P0 da assinatura, importação CSV e
-Origin/CSRF na `main`).
+Documento vivo. Última atualização: **16/11/2026** (§0, §0.3, a prontidão no §4 e o §5: ambiente de
+produção preparado na PR #150, `f06c15e` publicado no staging com o Compose novo, schema `081`, e a
+repetição do nível 3 do teste de carga). O que entrou entre 03/11 e 16/11 (PRs #98 a #146) **não foi
+revisado item a item** aqui: a fonte é o `git log` e o `CHECKLIST_LANCAMENTO.md`.
+Atualização anterior: **03/11/2026** (PRs #81 a #97; `f4dd4c8` no staging, schema `077`; P0 da
+assinatura, importação CSV e Origin/CSRF na `main`).
 Rodada de segurança em 21/10/2026 (PRs #70 a #80): cadastro sem senha até verificar o
 e-mail, login social vinculado com segurança, OAuth sem token na URL, IDOR, XSS,
 cabeçalhos HTTP, janela de tempo e ids assinados no webhook, OTP com telefone E.164,
@@ -34,17 +37,18 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`f4dd4c8`** — merge da PR #97 (domínio base nas origens), 03/11 20:53 UTC. A numeração **reiniciou** na migração do repositório (06/10): os **PRs #1 a #97** são os do `axyonsoftwarehouse` |
-| Em revisão | **nada aberto** (conferido em 03/11 com `gh pr list --state open`). As **PRs #93 a #97** entraram e foram publicadas (§6) |
-| `main` local | `a5d4d7e` (merge da PR #86), atrás do `origin/main`; o trabalho é feito nas branches (`git checkout main && git pull` atualiza) |
-| **Código na VPS** | **`f4dd4c8`** — o `main` inteiro (até a PR #97), publicado pelo **botão do GitHub** em **03/11 21:10:36 UTC** (run `41718674312`, sucesso, `headSha` = `f4dd4c8`). `.deployed` conferido: `sha=f4dd4c8`, `schema=077`, `previous=a5e3885` |
-| Schema (`/ready`) | **`077`** na VPS e no `HEAD` do `main` (conferido em 03/11: `{"status":"ready","schemaVersion":"077"}`). As PRs #93–#97 não criaram migration; a última continua sendo a `V077` |
-| Distância | o staging roda o mesmo commit do `origin/main`; a home do staging e o `/ready` respondem 200 (03/11) |
-| Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, sha256, schema, data) |
-| Testes Java | `VERIFY_INTEGRATION=1 pnpm verify` verde em **03/11** na branch da PR #95, com Docker: **897 testes Java**, **42** do site, **21** da cozinha e todos os smokes, incluindo `smoke:import`. O CI do `main` está verde em `49864ea` (#95), `2bc770d` (#96) e `f4dd4c8` (#97) |
+| `origin/main` | **`f06c15e`** — merge da PR #150 (ambiente de produção), 16/11 16:42 UTC. A numeração **reiniciou** na migração do repositório (06/10): as PRs a partir de #1 são as do `axyonsoftwarehouse` |
+| Em revisão | **só atualizações do Dependabot**: #141, #147, #148 e #149 (conferido em 16/11 com `gh pr list --state open`) |
+| **Código na VPS** | **`f06c15e`** — o `main` inteiro, publicado pelo **botão do GitHub** em **16/11 16:50 UTC** (run `43911288132`, sucesso). `.deployed` conferido: `sha=f06c15e`, `ambiente=staging`, `schema=081`, `previous=62f3d59` |
+| Schema (`/ready`) | **`081`** na VPS e no `HEAD` do `main` (`{"status":"ready","schemaVersion":"081"}` em 16/11). Última migration: `V081__orders_restaurant_recent_index` |
+| Distância | o staging roda o mesmo commit do `origin/main`; a home do staging e o `/ready` respondem 200 (16/11) |
+| Ambientes na VPS | **só o staging** (`foodie-staging`). A produção (`foodie-production`) está **preparada no repositório, mas não existe na VPS**: depende do domínio, da aplicação de produção do Mercado Pago, das credenciais novas e do e-mail real (§0.3) |
+| Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, ambiente, sha256, schema, data); a produção terá o seu em `/home/deploy/foodie-production/.deployed` |
+| Testes | CI do `main` verde em **`f06c15e`** (a `Verificação` inclui a parte integrada: implantação inicial, seed, smokes e o login do administrador criado). No PC, em 16/11: scripts de deploy **87 passam e 1 é pulado** (precisa do Docker), ferramentas **23 de 23**, `pnpm verify` sem a parte integrada verde |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
-| Disco da VPS | **69%** (25 GB de 38 GB; 12 GB livres) depois do deploy de 03/11. O timer limpa a cada 2 dias (04:30 UTC) quando o disco passa de 60%, e o deploy segue com a trava de espaço |
-| Árvore de trabalho | branch **`docs/estado-2026-11-03-deploy`** (esta atualização). Não versionados: `.claude/`, `docs/PLANO_APPS_MOBILE_MARCOS.md` e `docs/PLANO_APPS_MOBILE_NEGOCIO.md` |
+| Disco da VPS | **55%** (17 GB livres) em 16/11, depois do deploy (a limpeza pós-deploy rodou). O timer limpa a cada 2 dias (04:30 UTC) quando o disco passa de 60% |
+| Memória da VPS | 2 GB disponíveis com o staging limitado (16/11). Contêineres do staging: api 640 MB, db 256 MB, web 256 MB, 1 núcleo cada |
+| Árvore de trabalho | branch **`docs/estado-atual-2026-11-16`** (esta atualização). Não versionados: `.claude/`, `platform/.m2-cache/`, `docs/HOMOLOGACAO_ASSINATURA_P0.md` e os dois `docs/PLANO_APPS_MOBILE_*.md` |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -59,6 +63,53 @@ Como publicar: pelo **botão do GitHub** (`Actions → Deploy - Foodie → Run w
 `PUBLICAR`) — desde 07/10 é o caminho normal, e o `.deployed` identifica a origem pelo `package`
 (`ci-incoming/…`). Alternativa no PC: `.\platform\deploy\release.ps1`, que empacota o commit, envia e
 aplica com backup, verificação e rollback — ver `RUNBOOK_VPS.md` §4.
+Desde 16/11 há também o botão **Deploy - Foodie (produção)** e `release.ps1 -Ambiente production`; a
+produção só aceita o commit que já está no staging (`RUNBOOK_VPS.md` §13). Enquanto a produção não
+existir, os dois só servem para isso no futuro.
+
+### 0.3 Produção na VPS e staging com limites (16/11/2026)
+
+**Teste de carga, nível 3 repetido com a rede de casa livre** (16/11, 04:20–04:51 UTC). O resultado foi o
+mesmo de 14/11: ruptura com cerca de 700 clientes, teto de ~306 chamadas/s na API, 3,57% de erros (quase
+todos tempo esgotado ao abrir a conexão TCP), carga de 30–33 em 2 núcleos e nada caiu; o alerta
+`FoodieCapacityLimit` foi para `pending` às 04:32 e para `firing` às 04:42. Conclusão: os tempos esgotados
+vêm da VPS saturada, não da internet de casa. Os dados de carga foram apagados depois. **Esta rodada ainda
+não está escrita em `RESULTADO_TESTE_CARGA_2026-11-11.md`** `(a fazer)`.
+
+**Decisões do Werner (16/11):**
+- a produção fica **na VPS atual** (B2, 07/11) e o **staging continua ligado**, com limites de memória e
+  CPU (B2.1);
+- staging e produção são **dois projetos Compose separados, com o mesmo `docker-compose.yml`**, cada um com
+  árvore, `.env`, banco, volumes e rede próprios. Banco compartilhado e Compose separado foram descartados.
+
+**PR #150 (mesclada e publicada no staging, `f06c15e`):**
+- o nome do projeto vem de `COMPOSE_PROJECT_NAME` no `.env` (sem ele, o Compose subiria um banco vazio, e o
+  deploy para antes); limites de memória e CPU por variável;
+- o `deploy.sh` recebe `FOODIE_ENV`, confere tudo antes de alterar qualquer coisa e, na produção, só aceita
+  o commit que está no staging;
+- `conferir-env.sh` recusa a produção com padrão de staging (conta de teste do Mercado Pago, e-mail em
+  `log`, Sentry ou domínio de staging, endereço `sslip.io`) ou com segredo igual ao do staging, sem nunca
+  mostrar valores;
+- o `seed` e o `load:setup` recusam a produção; a `implantacao:inicial` cria o administrador e os planos;
+- botão de publicação na produção, `deploy-ci.sh` versionado, backup da produção no R2 e
+  `RUNBOOK_VPS.md` §13. Desenho e plano: `docs/superpowers/specs/2026-11-16-ambiente-producao-design.md` e
+  `docs/superpowers/plans/2026-11-16-ambiente-producao.md`;
+- revisão independente sem achados críticos; os importantes foram corrigidos. O CI pegou um defeito real
+  (o `deploy.sh` carregava a lib do pacote antes de conferir CRLF), corrigido no `1c4aa3e`. Ficaram
+  pequenos itens anotados na descrição da PR.
+
+**Staging na VPS (16/11):**
+- antes do merge: backup `foodie_platform-20261116-161151.sql`, `COMPOSE_PROJECT_NAME=foodie-staging` no
+  `.env` (cópia em `.env.bak-20261116-1612`) e `deploy-ci.sh` novo instalado (o antigo em
+  `deploy-ci.sh.bak-20261116`);
+- depois da publicação: os mesmos volumes `foodie-staging_*`, nenhum `deploy_*`, dados preservados (16
+  usuários, 6 lojas, 103 pedidos) e os limites aplicados;
+- k6 nível 0: 14 de 14 checagens, 0 erros em 217 chamadas. Depois do teste, a API ficou em 500 MB de
+  640 MB, sem reinício. **Conferência de 24 h agendada para 17/11 às 14:00** (tarefa
+  `foodie-staging-conferencia-24h`); se a API reiniciar por memória, o ajuste previsto é `API_MEMORY=768m`.
+
+**Observação:** o `deploy/.env` do staging tem permissão `664` (o grupo `deploy` lê os segredos). Já era
+assim; não foi alterado `(a decidir)`.
 
 ### 0.1 Assinatura — achado e correção P0 (03/11/2026)
 
@@ -461,6 +512,10 @@ recusa e assim por diante.
   (`OriginCheckFilter` + domínio base na lista) e validada no staging. O ensaio de restauração do
   R2 foi feito em 04/11. O teste de carga na VPS, a troca de credenciais e o ambiente de produção (domínio, conta
   Mercado Pago e chave Pix) continuam pendentes.
+  **Estado em 16/11:** o **teste de carga está feito** (B9: níveis 1 e 4 passaram, o nível 2 foi aceito pelo
+  dono com 2 núcleos, e o nível 3 rompeu em ~650–700 clientes sem cair). O **ambiente de produção está
+  preparado no repositório** (PR #150, §0.3). Continuam pendentes: domínio, aplicação de produção do
+  Mercado Pago, chave Pix, troca de todas as credenciais e e-mail real.
 
 ### Prioridade média — produto e governança
 - Contrato dos módulos (hoje habilitados manualmente)
@@ -525,7 +580,17 @@ a conclusão de retirada/balcão no painel (PR #91), o backfill da assinatura (P
 e a fronteira do super-admin (PR #93), a **importação CSV** (PR #95) e o **Origin/CSRF** (PRs #96 e #97).
 Desde a PR #49 o **deploy exige a `Verificação` verde**.
 
-**Próximo passo único (03/11): fechar a P0 da assinatura no staging.** O código já está no ar, mas o
+**Próximo passo único (16/11): fechar a tarefa 9 do plano da produção e preparar a criação dela.**
+1. Ler a conferência de 24 h do staging (17/11 às 14:00). Se a API reiniciar por memória, subir
+   `API_MEMORY` do staging para `768m`.
+2. Reiniciar a VPS numa janela combinada com o StoryVerse (tarefa 10; há reinício pendente, B12).
+3. Do lado do Werner, os pré-requisitos da produção: domínio e DNS (B1), aplicação de produção do Mercado
+   Pago (B3), chave Pix (B4), credenciais novas (B5), e-mail real (C1) e os nomes e preços dos planos.
+4. Com eles em mãos, as Partes C e D do plano (`docs/superpowers/plans/2026-11-16-ambiente-producao.md`):
+   criar a produção, ligar o acesso no Caddy de borda, monitoramento, backup e a primeira transação real
+   (F1).
+
+**(Histórico) Próximo passo de 03/11, fechado em 07/11 (§0.1): fechar a P0 da assinatura no staging.** O código já está no ar, mas o
 `deploy/.env` está com `SUBSCRIPTIONS_ALLOW_REAL_CHARGES=false` e os tokens vazios. Falta preencher
 `SUBSCRIPTIONS_*` (valores com o Werner), reativar as três assinaturas no painel e conferir a geração das
 três cobranças Pix. Só depois disso o roteiro funcional da assinatura e as demais homologações de dinheiro
