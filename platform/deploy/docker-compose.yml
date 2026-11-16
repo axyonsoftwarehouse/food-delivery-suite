@@ -1,9 +1,19 @@
-name: foodie-staging
+# O nome do projeto NÃO é fixado aqui: vem de COMPOSE_PROJECT_NAME no deploy/.env de cada árvore
+# (foodie-staging ou foodie-production). É ele que decide os volumes: com o nome errado, ou sem a
+# variável, o Compose criaria volumes novos e o ambiente subiria com um banco vazio. O deploy.sh
+# confere a variável antes de alterar qualquer coisa (deploy/lib-ambiente.sh).
+#
+# Limites de memória e de CPU: os padrões são os do staging; a produção define os dela no .env
+# (ver deploy/.env.production.example).
 
 services:
   db:
     image: mariadb:11.4
     restart: unless-stopped
+    mem_limit: ${DB_MEMORY:-256m}
+    cpus: ${FOODIE_CPUS:-1.0}
+    # O buffer do InnoDB tem de caber no limite acima, com folga para conexões e tabelas temporárias.
+    command: ["--innodb-buffer-pool-size=${DB_BUFFER_POOL:-96M}"]
     environment:
       MARIADB_DATABASE: foodie_platform
       MARIADB_USER: foodie
@@ -37,7 +47,11 @@ services:
   api:
     build: ../apps/api-java
     restart: unless-stopped
+    mem_limit: ${API_MEMORY:-640m}
+    cpus: ${FOODIE_CPUS:-1.0}
     environment:
+      # O heap acompanha o limite do contêiner; sem isso a JVM cresce até o sistema matá-la.
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=${API_HEAP_PERCENT:-60}
       API_HOST: 0.0.0.0
       API_PORT: 4001
       COOKIE_SECURE: "true"
@@ -137,6 +151,8 @@ services:
         NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
         NEXT_PUBLIC_SENTRY_RELEASE: ${SENTRY_RELEASE:-}
     restart: unless-stopped
+    mem_limit: ${WEB_MEMORY:-256m}
+    cpus: ${FOODIE_CPUS:-1.0}
     environment:
       API_INTERNAL_URL: http://api:4001
       SENTRY_DSN_WEB: ${NEXT_PUBLIC_SENTRY_DSN:-}
@@ -163,6 +179,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in platform/deploy/.env}
       DB_NAME: foodie_platform
       DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+      # O seed demonstrativo e o load:setup recusam rodar quando isto é `production`.
+      FOODIE_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-staging}
     depends_on:
       db:
         condition: service_healthy
