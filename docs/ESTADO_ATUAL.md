@@ -1,8 +1,9 @@
 # Estado atual do Foodie
 
-Documento vivo. Última atualização: **16/11/2026** (§0, §0.3, a prontidão no §4 e o §5: ambiente de
-produção preparado na PR #150, `f06c15e` publicado no staging com o Compose novo, schema `081`, e a
-repetição do nível 3 do teste de carga). O que entrou entre 03/11 e 16/11 (PRs #98 a #146) **não foi
+Documento vivo. Última atualização: **16/11/2026, noite** (§0, §0.3 e §5: árvore e segredos da produção
+criados na VPS, reinício da VPS, Alertmanager recuperado e as PRs #153 e #154). Antes, no mesmo dia: ambiente
+de produção preparado na PR #150, `f06c15e` publicado no staging com o Compose novo, schema `081`, e a
+repetição do nível 3 do teste de carga. O que entrou entre 03/11 e 16/11 (PRs #98 a #146) **não foi
 revisado item a item** aqui: a fonte é o `git log` e o `CHECKLIST_LANCAMENTO.md`.
 Atualização anterior: **03/11/2026** (PRs #81 a #97; `f4dd4c8` no staging, schema `077`; P0 da
 assinatura, importação CSV e Origin/CSRF na `main`).
@@ -37,18 +38,18 @@ Mantenha curto. Se crescer, corte.
 
 | Item | Valor |
 | --- | --- |
-| `origin/main` | **`f06c15e`** — merge da PR #150 (ambiente de produção), 16/11 16:42 UTC. A numeração **reiniciou** na migração do repositório (06/10): as PRs a partir de #1 são as do `axyonsoftwarehouse` |
+| `origin/main` | **`67a704b`** — merge da PR #154 (dono do arquivo do Alertmanager), 16/11 23:53 UTC. Depois do `f06c15e` entraram só documentação (#151, #152) e scripts de deploy e monitoramento (#153, #154). A numeração **reiniciou** na migração do repositório (06/10): as PRs a partir de #1 são as do `axyonsoftwarehouse` |
 | Em revisão | **só atualizações do Dependabot**: #141, #147, #148 e #149 (conferido em 16/11 com `gh pr list --state open`) |
 | **Código na VPS** | **`f06c15e`** — o `main` inteiro, publicado pelo **botão do GitHub** em **16/11 16:50 UTC** (run `43911288132`, sucesso). `.deployed` conferido: `sha=f06c15e`, `ambiente=staging`, `schema=081`, `previous=62f3d59` |
 | Schema (`/ready`) | **`081`** na VPS e no `HEAD` do `main` (`{"status":"ready","schemaVersion":"081"}` em 16/11). Última migration: `V081__orders_restaurant_recent_index` |
-| Distância | o staging roda o mesmo commit do `origin/main`; a home do staging e o `/ready` respondem 200 (16/11) |
-| Ambientes na VPS | **só o staging** (`foodie-staging`). A produção (`foodie-production`) está **preparada no repositório, mas não existe na VPS**: depende do domínio, da aplicação de produção do Mercado Pago, das credenciais novas e do e-mail real (§0.3) |
+| Distância | a VPS está em `f06c15e`; o `origin/main` tem a mais só documentação e as correções do `deploy.sh` e do `render.sh` (#153, #154), que chegam à VPS no próximo deploy. A aplicação é a mesma. Home do staging e `/ready` respondem 200 depois do reinício (16/11) |
+| Ambientes na VPS | **só o staging** (`foodie-staging`) roda. A **árvore da produção existe** (`/home/deploy/foodie-production`, com `.env` e segredos gerados lá), mas **nada subiu**: faltam o domínio, a aplicação de produção do Mercado Pago, as credenciais da assinatura, o e-mail real e o `WEBPUSH_SUBJECT` (§0.3) |
 | Registro de deploy | `/home/deploy/foodie-platform/.deployed` (sha, ambiente, sha256, schema, data); a produção terá o seu em `/home/deploy/foodie-production/.deployed` |
-| Testes | CI do `main` verde em **`f06c15e`** (a `Verificação` inclui a parte integrada: implantação inicial, seed, smokes e o login do administrador criado). No PC, em 16/11: scripts de deploy **87 passam e 1 é pulado** (precisa do Docker), ferramentas **23 de 23**, `pnpm verify` sem a parte integrada verde |
+| Testes | CI do `main` verde em **`f06c15e`** (a `Verificação` inclui a parte integrada: implantação inicial, seed, smokes e o login do administrador criado). No PC, em 16/11 (noite): scripts de deploy **98 passam e 1 é pulado** (precisa do Docker), ferramentas **23 de 23**, `pnpm verify` sem a parte integrada verde |
 | Verificação canônica | `VERIFY_INTEGRATION=1 pnpm verify` |
-| Disco da VPS | **55%** (17 GB livres) em 16/11, depois do deploy (a limpeza pós-deploy rodou). O timer limpa a cada 2 dias (04:30 UTC) quando o disco passa de 60% |
-| Memória da VPS | 2 GB disponíveis com o staging limitado (16/11). Contêineres do staging: api 640 MB, db 256 MB, web 256 MB, 1 núcleo cada |
-| Árvore de trabalho | branch **`docs/estado-atual-2026-11-16`** (esta atualização). Não versionados: `.claude/`, `platform/.m2-cache/`, `docs/HOMOLOGACAO_ASSINATURA_P0.md` e os dois `docs/PLANO_APPS_MOBILE_*.md` |
+| Disco da VPS | **59%** (15 GB livres) em 16/11 à noite, com os backups antes do reinício. O timer limpa a cada 2 dias (04:30 UTC) quando o disco passa de 60% |
+| Memória da VPS | 1,9 GB disponíveis e swap zerado depois do reinício (16/11). Contêineres do staging: api 640 MB, db 256 MB, web 256 MB, 1 núcleo cada. Kernel `6.8.0-149`, sem reinício pendente |
+| Árvore de trabalho | branch **`docs/estado-atual-2026-11-16-noite`** (esta atualização). Não versionados: `.claude/`, `platform/.m2-cache/`, `docs/HOMOLOGACAO_ASSINATURA_P0.md` e os dois `docs/PLANO_APPS_MOBILE_*.md` |
 
 Como o deploy é confirmado: não há `.git` na VPS (é cópia, não clone), então o
 `.deployed` é a fonte (sha, sha256, schema, data). Quando ele é dúvida, o commit
@@ -107,6 +108,32 @@ do tempo em `RESULTADO_TESTE_CARGA_2026-11-11.md`, "Nível 3, segunda rodada".
 - k6 nível 0: 14 de 14 checagens, 0 erros em 217 chamadas. Depois do teste, a API ficou em 500 MB de
   640 MB, sem reinício. **Conferência de 24 h agendada para 17/11 às 14:00** (tarefa
   `foodie-staging-conferencia-24h`); se a API reiniciar por memória, o ajuste previsto é `API_MEMORY=768m`.
+
+**Árvore da produção na VPS (16/11, 19:07 UTC; tarefa 11, passo 1 e parte do 2):**
+- criadas `/home/deploy/foodie-production/deploy` e `/home/deploy/releases-production` (750);
+- `.env` (600) montado do `.env.production.example`, com os segredos gerados na própria VPS e nunca exibidos:
+  senhas do banco, `PAYMENTS_TOKEN_KEY` e o par VAPID. Nenhum é igual ao do staging;
+- nada subiu. O `conferir-env.sh production` aponta **9 erros, todos dependentes do Werner**: `FOODIE_DOMAIN`,
+  `MAIL_FROM`, `SPRING_MAIL_HOST`, `MERCADOPAGO_CLIENT_ID`/`SECRET`/`WEBHOOK_SECRET`,
+  `SUBSCRIPTIONS_ACCOUNT_ACCESS_TOKEN`/`PUBLIC_KEY` e `WEBPUSH_SUBJECT`. O Sentry da produção ainda está vazio.
+
+**Reinício da VPS (16/11, ~19:45 UTC; tarefa 10 / B12):**
+- antes: backup do Foodie `foodie_platform-20261116-194425.sql` e do StoryVerse `backups/20261116T194426Z`
+  (só na VPS: o envio remoto do StoryVerse não está configurado);
+- kernel `6.8.0-138` → `6.8.0-149`, sem reinício pendente, swap zerado. Voltaram sozinhos o staging do Foodie
+  (schema `081`, limites mantidos), o StoryVerse, o Umami e o Caddy de borda;
+- a janela de observação de 24 h do staging recomeçou com o reinício; a conferência de 17/11 mede daqui.
+
+**Alertmanager recuperado (16/11, noite):**
+- no reinício o Alertmanager não subiu. O `rsync --delete` do `deploy.sh` tinha apagado `monitoring/.env`
+  (token do Telegram) e `monitoring/alertmanager.rendered.yml`, que ficam fora do git; o contêiner seguia com o
+  arquivo aberto até o reinício. Não havia cópia em nenhum snapshot nem no R2;
+- **PR #153** (`8b10078`): o rsync preserva os dois arquivos e o snapshot do código não os guarda;
+- o Werner recriou o `monitoring/.env`. Ao subir, o contêiner dava `permission denied`: o arquivo é montado
+  como secret e o Alertmanager roda como `nobody` (65534). Resolvido com `chown 65534:65534` na VPS e, no
+  repositório, na **PR #154** (`67a704b`): o `render.sh` entrega o arquivo a esse uid e troca por renomeação;
+- alerta de teste entregue no Telegram (1 envio, 0 falhas). As duas correções chegam à árvore da VPS no
+  próximo deploy.
 
 **Observação:** o `deploy/.env` do staging tem permissão `664` (o grupo `deploy` lê os segredos). Já era
 assim; não foi alterado `(a decidir)`.
@@ -580,13 +607,15 @@ a conclusão de retirada/balcão no painel (PR #91), o backfill da assinatura (P
 e a fronteira do super-admin (PR #93), a **importação CSV** (PR #95) e o **Origin/CSRF** (PRs #96 e #97).
 Desde a PR #49 o **deploy exige a `Verificação` verde**.
 
-**Próximo passo único (16/11): fechar a tarefa 9 do plano da produção e preparar a criação dela.**
-1. Ler a conferência de 24 h do staging (17/11 às 14:00). Se a API reiniciar por memória, subir
-   `API_MEMORY` do staging para `768m`.
-2. Reiniciar a VPS numa janela combinada com o StoryVerse (tarefa 10; há reinício pendente, B12).
-3. Do lado do Werner, os pré-requisitos da produção: domínio e DNS (B1), aplicação de produção do Mercado
-   Pago (B3), chave Pix (B4), credenciais novas (B5), e-mail real (C1) e os nomes e preços dos planos.
-4. Com eles em mãos, as Partes C e D do plano (`docs/superpowers/plans/2026-11-16-ambiente-producao.md`):
+**Próximo passo único (16/11, noite): fechar a tarefa 9 do plano da produção e preparar a criação dela.**
+O reinício da VPS (tarefa 10) e a árvore da produção (tarefa 11, passo 1) estão feitos (§0.3).
+1. Ler a conferência de 24 h do staging (17/11 às 14:00). Como a VPS reiniciou às 19:45 UTC, a janela
+   começou aí. Se a API reiniciar por memória, subir `API_MEMORY` do staging para `768m`.
+2. Do lado do Werner, os pré-requisitos da produção, que são os 9 campos que o `conferir-env.sh` aponta:
+   domínio e DNS (B1), aplicação de produção do Mercado Pago (B3), chave Pix (B4), credenciais da assinatura
+   (B5), e-mail real (C1), `WEBPUSH_SUBJECT` e os nomes e preços dos planos. Ele cola os valores direto no
+   `.env` da VPS, nunca no chat.
+3. Com eles em mãos, as Partes C e D do plano (`docs/superpowers/plans/2026-11-16-ambiente-producao.md`):
    criar a produção, ligar o acesso no Caddy de borda, monitoramento, backup e a primeira transação real
    (F1).
 
